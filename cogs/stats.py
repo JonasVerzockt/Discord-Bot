@@ -155,15 +155,20 @@ class StatsCog(commands.Cog, name="Stats"):
     @allowed_channel()
     async def help_cmd(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        keys = [
+        user_keys = [
             "help_notification", "help_history", "help_test", "help_delete",
-            "help_usersetting", "help_startup",
-            "help_stats", "help_system",
-            "help_reloadshops", "help_shopmapping",
+            "help_usersetting", "help_ch_delivery",
         ]
-        commands_text = "\n".join(l10n.get(k, lang) for k in keys)
+        admin_keys = [
+            "help_startup", "help_status", "help_pending", "help_test_admin",
+            "help_rescan", "help_export",
+            "help_stats", "help_system",
+            "help_reloadshops", "help_shopmapping", "help_shopurl",
+        ]
+        user_commands  = "\n".join(l10n.get(k, lang) for k in user_keys)
+        admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)
         await ctx.respond(
-            l10n.get("help_full", lang, commands=commands_text),
+            l10n.get("help_full", lang, user_commands=user_commands, admin_commands=admin_commands),
             ephemeral=True,
         )
 
