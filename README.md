@@ -156,7 +156,12 @@ Manuell auslösbar per `/rescan`.
 
 ### Shopbewertungen (AAM-Rating)
 
-Shopbewertungen kommen **nicht** von der AntCheck API, sondern aus dem Google Sheet „Händler A-Z" (Spalte A = Shopname, Spalte C = Durchschnittsbewertung). Der Bot gleicht alle 48 Stunden via Fuzzy-Match (≥80 %) die Sheet-Namen mit den AntCheck-Shopnamen ab und speichert die Bewertungen in der DB.
+Shopbewertungen kommen **nicht** von der AntCheck API, sondern aus dem Google Sheet „Händler A-Z" (Spalte A = Domain oder Name, Spalte C = Durchschnittsbewertung). Der Bot gleicht alle 48 Stunden die Sheet-Einträge mit den AntCheck-Shops ab und speichert die Bewertungen in der DB.
+
+**Matching in zwei Stufen:**
+
+1. **Domain-Exact-Match** – Aus der Shop-URL (oder manuellem Override) wird die Domain extrahiert (`www.` und Trailing-Slashes werden normalisiert) und direkt gegen den Sheet-Eintrag verglichen. So werden Shops mit identischer Basis-Domain aber unterschiedlicher TLD korrekt getrennt (`antstore.at` ≠ `antstore.net`).
+2. **Fuzzy-Fallback** (≥81 %) – Für Shops ohne passenden Domain-Eintrag im Sheet wird der normalisierte Shop-Name gegen alle Sheet-Einträge verglichen. Generische TLDs (`.com`, `.net`, `.org`, `.shop`, `.store`, `.info`) werden dabei entfernt; Länder-TLDs (`.de`, `.at`, `.ch` usw.) bleiben erhalten, um Falsch-Matches zwischen ähnlich benannten Shops aus verschiedenen Ländern zu vermeiden.
 
 Manuelle URL-Korrekturen (z.B. wenn die API eine falsche Domain liefert) können per `/shopurl set` dauerhaft gesetzt werden und überleben stündliche Shop-Reloads.
 
@@ -259,7 +264,7 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 |------|-----------|-------------|
 | Verfügbarkeitsprüfung | alle 5 Minuten | Prüft alle `active`-Benachrichtigungen |
 | Shop-Daten-Reload | stündlich | Liest `shops_data.json` neu, schreibt Shops in DB (ohne `average_rating` und `url_override` zu überschreiben) |
-| Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z", Fuzzy-Match ≥80 % |
+| Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` |
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
 | Bot-Status | jede Minute | Aktualisiert den Discord-Status (Uptime, Server, User) |
