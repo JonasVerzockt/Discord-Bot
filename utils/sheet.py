@@ -117,13 +117,16 @@ async def sync_ratings_from_sheet(bot) -> int:
     def _read():
         ws = _gc.open_by_key(SPREADSHEET_ID).worksheet("Händler A-Z")
         rows = ws.get_all_values()
+        logger.debug(f"sync_ratings: {len(rows)} Zeilen gelesen, erste 3: {rows[:3]}")
         result = {}
         for row in rows[1:]:  # Headerzeile ueberspringen
             if len(row) >= 3 and row[0].strip() and row[2].strip():
                 try:
-                    result[row[0].strip().lower()] = float(row[2])
+                    # Deutsches Zahlenformat (Komma) absichern
+                    rating_str = row[2].replace(",", ".").strip()
+                    result[row[0].strip().lower()] = float(rating_str)
                 except ValueError:
-                    pass
+                    logger.debug(f"sync_ratings: Konnte Rating nicht parsen: '{row[2]}' fuer '{row[0]}'")
         return result
 
     try:
