@@ -117,5 +117,6 @@
   "help_export": "`/export` – Sheet-Rohdaten als JSON anzeigen",
   "help_shopurl": "`/shopurl` – Manuelle URL-Overrides für Shops setzen",
   "help_ai_chat": "`/ai_status` – Deinen KI-Chat Budget-Status anzeigen",
-  "help_ai_reset": "`/ai_reset` – (Admin) KI-Chat Budget eines Users oder global zurücksetzen"
+  "help_ai_reset": "`/ai_reset` – (Admin) KI-Chat Budget eines Users oder global zurücksetzen",
+  "help_ai_prompt": "`/ai_prompt` – (Admin) Aktuellen System-Prompt des KI-Chats anzeigen"
 }

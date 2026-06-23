@@ -117,5 +117,6 @@
   "help_export": "`/export` – Eksporti krudajn datumojn de folio kiel JSON",
   "help_shopurl": "`/shopurl` – Agordi manajn URL-anstataŭigojn por butiko",
   "help_ai_chat": "`/ai_status` – Montri vian KI-babilad-budĝetan staton",
-  "help_ai_reset": "`/ai_reset` – (Administranto) Restarigi KI-budĝeton por uzanto aŭ tutmonde"
+  "help_ai_reset": "`/ai_reset` – (Administranto) Restarigi KI-budĝeton por uzanto aŭ tutmonde",
+  "help_ai_prompt": "`/ai_prompt` – (Administranto) Montri la aktualan KI-sisteman indikilon"
 }

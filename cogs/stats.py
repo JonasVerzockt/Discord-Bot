@@ -165,6 +165,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_stats", "help_system",
             "help_reloadshops", "help_shopmapping", "help_shopurl",
             "help_ai_reset",
+            "help_ai_prompt",
         ]
         user_commands  = "\n".join(l10n.get(k, lang) for k in user_keys)
         admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)

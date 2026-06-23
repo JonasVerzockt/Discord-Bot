@@ -282,6 +282,7 @@ Der AI-Chat-Bot reagiert auf **alle** Nachrichten in den konfigurierten `AI_CHAT
 | `/shopurl list` | Alle aktiven URL-Overrides anzeigen |
 | `/ch_delivery remove` | Shop aus CH-Lieferliste entfernen |
 | `/ai_reset` | KI-Chat Budget für einen User oder global zurücksetzen |
+| `/ai_prompt` | Aktuellen System-Prompt des KI-Chats anzeigen (aus `ai_chat_system_prompt.txt`) |
 
 > **Hinweis zu `/ch_delivery remove`:** Jeder User kann seine eigenen Einträge entfernen. Admins und User mit „Nachrichten verwalten" können alle Einträge entfernen.
 

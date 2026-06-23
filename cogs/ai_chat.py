@@ -255,6 +255,29 @@ class AiChatCog(commands.Cog):
             ephemeral=True,
         )
 
+    @discord.slash_command(
+        name="ai_prompt",
+        description="(Admin) Aktuellen System-Prompt des KI-Chats anzeigen",
+    )
+    @commands.has_permissions(manage_messages=True)
+    async def ai_prompt(self, ctx: discord.ApplicationContext) -> None:
+        """Gibt den aktiven System-Prompt aus ai_chat_system_prompt.txt aus (ephemeral)."""
+        prompt = cfg.AI_CHAT_SYSTEM_PROMPT
+        # Discord-Limit: 2000 Zeichen pro Nachricht – in Codeblock einbetten
+        header = "📋 **Aktiver System-Prompt** (`ai_chat_system_prompt.txt`):\n"
+        content = f"```\n{prompt}\n```"
+        full = header + content
+        if len(full) <= 2000:
+            await ctx.respond(full, ephemeral=True)
+        else:
+            # Zu lang: als Dateianhang senden
+            import io
+            await ctx.respond(
+                "📋 **Aktiver System-Prompt** (zu lang fuer Chat, als Datei):",
+                file=discord.File(io.BytesIO(prompt.encode()), filename="system_prompt.txt"),
+                ephemeral=True,
+            )
+
 
 def setup(bot: discord.Bot) -> None:
     bot.add_cog(AiChatCog(bot))
