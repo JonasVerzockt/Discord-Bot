@@ -458,4 +458,4 @@ class NotificationsCog(commands.Cog, name="Notifications"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(NotificationsCog(bot))
+    bot.add_cog(NotificationsCog(bot))

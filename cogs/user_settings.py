@@ -228,4 +228,4 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(UserSettingsCog(bot))
+    bot.add_cog(UserSettingsCog(bot))

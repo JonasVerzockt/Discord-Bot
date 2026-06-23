@@ -186,4 +186,4 @@ class TasksCog(commands.Cog, name="Tasks"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(TasksCog(bot))
+    bot.add_cog(TasksCog(bot))

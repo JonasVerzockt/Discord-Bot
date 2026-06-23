@@ -143,4 +143,4 @@ class AdminCog(commands.Cog, name="Admin"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(AdminCog(bot))
+    bot.add_cog(AdminCog(bot))

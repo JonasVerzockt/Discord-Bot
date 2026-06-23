@@ -268,4 +268,4 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(ReviewsCog(bot))
+    bot.add_cog(ReviewsCog(bot))

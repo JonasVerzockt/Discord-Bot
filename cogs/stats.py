@@ -169,4 +169,4 @@ class StatsCog(commands.Cog, name="Stats"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(StatsCog(bot))
+    bot.add_cog(StatsCog(bot))

@@ -242,4 +242,4 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
 
 def setup(bot: discord.Bot):
-    await bot.add_cog(ShopAdminCog(bot))
+    bot.add_cog(ShopAdminCog(bot))
