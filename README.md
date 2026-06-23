@@ -213,3 +213,15 @@ Texte befinden sich in `locales/{de,en,eo}.json`. Neue Schlüssel einfach in all
 | Abgelaufene Benachrichtigungen | täglich (nach 1 Jahr) |
 | DB VACUUM + ANALYZE | wöchentlich |
 | Bot-Status (Uptime/Server) | jede Minute |
+
+---
+
+## Lizenz
+
+Dieses Projekt steht unter der **GNU Affero General Public License v3.0 oder später (AGPL-3.0-or-later)**.
+
+Copyright (C) 2026 Jonas Beier
+
+Jede Person, die eine modifizierte Version dieses Bots als Netzwerkdienst betreibt, ist verpflichtet, den Quellcode ihrer Änderungen öffentlich zugänglich zu machen.
+
+Weitere Details: [LICENSE](LICENSE) · [gnu.org/licenses/agpl-3.0](https://www.gnu.org/licenses/agpl-3.0.html)
