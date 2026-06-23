@@ -143,6 +143,31 @@ class AiChatCog(commands.Cog):
 
         # @-Erwaehnung aus dem Nachrichtentext entfernen
         user_text = self._strip_mention(message)
+
+        # Text-Anhaenge (.txt, .md, .csv, .log) einlesen und anhaengen
+        text_exts = {".txt", ".md", ".csv", ".log"}
+        for attachment in message.attachments:
+            ext = "." + attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
+            if ext not in text_exts:
+                continue
+            if attachment.size > 10_000:  # max 10 KB
+                await message.reply(
+                    f"❌ Die Datei **{attachment.filename}** ist zu groß "
+                    f"({attachment.size / 1024:.1f} KB). Maximum: 10 KB."
+                )
+                return
+            try:
+                raw = await attachment.read()
+                file_text = raw.decode("utf-8", errors="replace").strip()
+                if file_text:
+                    user_text = (
+                        f"{user_text}\n\n[Dateiinhalt: {attachment.filename}]\n{file_text}"
+                        if user_text else
+                        f"[Dateiinhalt: {attachment.filename}]\n{file_text}"
+                    )
+            except Exception as e:
+                logger.warning(f"[AI-Chat] Anhang konnte nicht gelesen werden: {e}")
+
         if not user_text:
             return
 
