@@ -102,11 +102,50 @@ class SheetCache:
 sheet = SheetCache()
 
 
+import re as _re
+from urllib.parse import urlparse as _urlparse
+
+
+def _extract_domain(url: str) -> str:
+    """Extrahiert den Domainnamen (ohne www.) aus einer URL oder gibt '' zurueck."""
+    if not url:
+        return ""
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    try:
+        domain = _urlparse(url).netloc.lower()
+        return _re.sub(r'^www\.', '', domain)
+    except Exception:
+        return ""
+
+
+def _normalize_for_fuzzy(name: str) -> str:
+    """
+    Normalisiert einen Namen fuer Fuzzy-Fallback-Matching.
+    Entfernt generische TLDs, ersetzt Sonderzeichen durch Leerzeichen.
+    Laendercodes (.at, .de etc.) werden NICHT entfernt damit
+    sie nicht als Fallback-Match verwechselt werden.
+    """
+    # Nur generische TLDs entfernen
+    name = _re.sub(
+        r'\.(com|net|org|shop|store|info)$', '', name, flags=_re.IGNORECASE,
+    )
+    name = _re.sub(r'[-.]', ' ', name)
+    return _re.sub(r'\s+', ' ', name).strip().lower()
+
+
 async def sync_ratings_from_sheet(bot) -> int:
     """
-    Liest Durchschnittsbewertungen aus dem 'Haendler A-Z' Sheet (Spalte A = Name,
-    Spalte C = Durchschnitt) und schreibt sie via Fuzzy-Match (>=80%) in
-    shops.average_rating. Shops ohne passenden Match bleiben unveraendert (kein Rating).
+    Liest Durchschnittsbewertungen aus dem 'Haendler A-Z' Sheet (Spalte A = Domain/Name,
+    Spalte C = Durchschnitt) und schreibt sie in shops.average_rating.
+
+    Matching-Strategie (in Reihenfolge):
+      1. Exakter Domain-Match: Shop-URL aus DB gegen Sheet-Domain (z.B. antstore.at → antstore.at)
+      2. Fuzzy-Fallback: normalisierter Name gegen normalisierte Sheet-Eintraege (>=80%)
+         fuer Shops ohne Domain-Eintrag (z.B. 'asama', 'bambulab')
+
+    So koennen zwei Shops mit gleicher Basis-Domain aber unterschiedlicher TLD
+    (antstore.at vs. antstore.net) korrekt getrennt bewertet werden.
     """
     import logging
     from rapidfuzz import process, fuzz
@@ -117,16 +156,16 @@ async def sync_ratings_from_sheet(bot) -> int:
     def _read():
         ws = _gc.open_by_key(SPREADSHEET_ID).worksheet("Händler A-Z")
         rows = ws.get_all_values()
-        logger.debug(f"sync_ratings: {len(rows)} Zeilen gelesen, erste 3: {rows[:3]}")
+        logger.debug(f"sync_ratings: {len(rows)} Zeilen gelesen")
+        # {sheet_eintrag_lower: rating}  (z.B. {'antstore.at': 6.0, 'antstore.net': 9.2})
         result = {}
-        for row in rows[1:]:  # Headerzeile ueberspringen
+        for row in rows[1:]:
             if len(row) >= 3 and row[0].strip() and row[2].strip():
                 try:
-                    # Deutsches Zahlenformat (Komma) absichern
                     rating_str = row[2].replace(",", ".").strip()
                     result[row[0].strip().lower()] = float(rating_str)
                 except ValueError:
-                    logger.debug(f"sync_ratings: Konnte Rating nicht parsen: '{row[2]}' fuer '{row[0]}'")
+                    logger.debug(f"sync_ratings: Parsing fehlgeschlagen: '{row[2]}' fuer '{row[0]}'")
         return result
 
     try:
@@ -140,21 +179,39 @@ async def sync_ratings_from_sheet(bot) -> int:
         return 0
 
     shop_rows = await execute_db(
-        bot, "SELECT id, name FROM shops WHERE name IS NOT NULL", fetch=True
+        bot, "SELECT id, name, url, url_override FROM shops WHERE name IS NOT NULL", fetch=True
     )
-    sheet_names = list(sheet_ratings.keys())
+
+    # Fuzzy-Fallback: normalisierte Sheet-Eintraege
+    sheet_fuzzy = {_normalize_for_fuzzy(k): (k, v) for k, v in sheet_ratings.items()}
+    sheet_fuzzy_keys = list(sheet_fuzzy.keys())
 
     updated = 0
     for row in shop_rows:
-        shop_name = (row["name"] or "").lower()
-        if not shop_name:
-            continue
-        match = process.extractOne(
-            shop_name, sheet_names, scorer=fuzz.token_sort_ratio, score_cutoff=80
-        )
-        if match:
-            matched_key, score, _ = match
-            rating = sheet_ratings[matched_key]
+        rating = None
+        match_info = ""
+
+        # 1. Exakter Domain-Match gegen Shop-URL
+        effective_url = row["url_override"] or row["url"] or ""
+        domain = _extract_domain(effective_url)
+        if domain and domain in sheet_ratings:
+            rating = sheet_ratings[domain]
+            match_info = f"domain-exact '{domain}'"
+
+        # 2. Fuzzy-Fallback (normalisierter Name)
+        if rating is None:
+            shop_norm = _normalize_for_fuzzy(row["name"] or "")
+            if shop_norm:
+                m = process.extractOne(
+                    shop_norm, sheet_fuzzy_keys,
+                    scorer=fuzz.token_sort_ratio, score_cutoff=80,
+                )
+                if m:
+                    orig_key, orig_rating = sheet_fuzzy[m[0]]
+                    rating = orig_rating
+                    match_info = f"fuzzy '{orig_key}' ({m[1]:.0f}%)"
+
+        if rating is not None:
             await execute_db(
                 bot,
                 "UPDATE shops SET average_rating=? WHERE id=?",
@@ -162,7 +219,7 @@ async def sync_ratings_from_sheet(bot) -> int:
                 commit=True,
             )
             updated += 1
-            logger.debug(f"  Rating: '{row['name']}' → '{matched_key}' ({score:.0f}%) = {rating:.2f}")
+            logger.info(f"  Rating: '{row['name']}' [{match_info}] = {rating:.2f}")
 
     logger.info(f"sync_ratings: {updated}/{len(shop_rows)} Shops mit Sheet-Rating versehen")
     return updated

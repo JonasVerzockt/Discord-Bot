@@ -284,14 +284,17 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         if str(sid) not in shop_data:
             await ctx.respond(l10n.get("shopurl_not_found", lang, id=sid), ephemeral=True)
             return
+        clean_url = url.strip()
+        if clean_url and not clean_url.startswith(("http://", "https://")):
+            clean_url = "https://" + clean_url
         await execute_db(
             self.bot,
             "UPDATE shops SET url_override=? WHERE id=?",
-            (url.strip(), sid), commit=True,
+            (clean_url, sid), commit=True,
         )
         shop_name = shop_data[str(sid)].get("name", str(sid))
         await ctx.respond(
-            l10n.get("shopurl_set_success", lang, shop=shop_name, id=sid, url=url.strip()),
+            l10n.get("shopurl_set_success", lang, shop=shop_name, id=sid, url=clean_url),
             ephemeral=True,
         )
         logger.info(f"shopurl_set: Shop {sid} ({shop_name}) → {url.strip()} von {ctx.author.id}")
