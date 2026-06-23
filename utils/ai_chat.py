@@ -200,6 +200,40 @@ def add_cost(user_id: int, cost: float) -> None:
             )
 
 
+def _reset_time_str() -> str:
+    """Gibt den naechsten Reset-Zeitpunkt als lesbaren String zurueck.
+    Zeigt UTC + MEZ (UTC+1) bzw. MESZ (UTC+2) je nach Jahreszeit."""
+    import datetime as _dt
+    now_utc = _dt.datetime.now(_dt.timezone.utc)
+    # Naechster Reset = naechster Tag 00:00 UTC
+    reset_utc = (now_utc + _dt.timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    # Sommerzeit: letzter Sonntag im Maerz bis letzter Sonntag im Oktober
+    year = reset_utc.year
+    # Letzter Sonntag im Maerz
+    dst_start = max(
+        _dt.datetime(year, 3, d, 2, tzinfo=_dt.timezone.utc)
+        for d in range(25, 32)
+        if _dt.datetime(year, 3, d).weekday() == 6
+    )
+    # Letzter Sonntag im Oktober
+    dst_end = max(
+        _dt.datetime(year, 10, d, 1, tzinfo=_dt.timezone.utc)
+        for d in range(25, 32)
+        if _dt.datetime(year, 10, d).weekday() == 6
+    )
+    if dst_start <= reset_utc < dst_end:
+        offset, tz_name = 2, "MESZ"
+    else:
+        offset, tz_name = 1, "MEZ"
+    reset_local = reset_utc + _dt.timedelta(hours=offset)
+    return (
+        f"00:00 UTC / {reset_local.strftime('%H:%M')} {tz_name} "
+        f"({reset_utc.strftime('%d.%m.%Y')})"
+    )
+
+
 def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
     """
     Prueft ob globales und User-Budget ausreichen.
@@ -210,6 +244,7 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
     """
     global_used = get_global_cost_today()
     user_used   = get_user_cost_today(user_id)
+    reset_str   = _reset_time_str()
 
     if global_used + estimated_cost > cfg.AI_CHAT_DAILY_BUDGET_USD:
         remaining = max(0.0, cfg.AI_CHAT_DAILY_BUDGET_USD - global_used)
@@ -217,7 +252,7 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
             f"⚠️ Das globale Tagesbudget ist erschoepft "
             f"(${cfg.AI_CHAT_DAILY_BUDGET_USD:.2f}/Tag, "
             f"noch ${remaining:.4f} uebrig). "
-            f"Morgen um 00:00 UTC wird es zurueckgesetzt."
+            f"Reset um {reset_str}."
         )
 
     if user_used + estimated_cost > cfg.AI_CHAT_USER_DAILY_BUDGET_USD:
@@ -226,7 +261,7 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
             f"⚠️ Dein persoenliches Tagesbudget ist erschoepft "
             f"(${cfg.AI_CHAT_USER_DAILY_BUDGET_USD:.2f}/Tag, "
             f"noch ${remaining:.4f} uebrig). "
-            f"Morgen um 00:00 UTC wird es zurueckgesetzt."
+            f"Reset um {reset_str}."
         )
 
     return True, ""
