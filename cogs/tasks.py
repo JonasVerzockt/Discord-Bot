@@ -104,7 +104,12 @@ class TasksCog(commands.Cog, name="Tasks"):
                     continue
                 await execute_db(
                     self.bot,
-                    "INSERT OR REPLACE INTO shops (id, name, country, url) VALUES (?, ?, ?, ?)",
+                    """INSERT INTO shops (id, name, country, url)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(id) DO UPDATE SET
+                           name=excluded.name,
+                           country=excluded.country,
+                           url=excluded.url""",
                     (sid, sd.get("name"), sd.get("country"), sd.get("url")),
                     commit=True,
                 )
