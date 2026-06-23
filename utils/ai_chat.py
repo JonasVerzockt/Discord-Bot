@@ -52,13 +52,30 @@ import config as cfg
 
 logger = logging.getLogger(__name__)
 
-# ── Preise: Claude Haiku 4.5 (Stand: Juni 2026) ──────────────────────────────
-# Quellen: https://www.anthropic.com/claude/haiku
-#          https://www.anthropic.com/news/claude-haiku-4-5
-# $1.00 / 1 Mio. Standard-Input-Tokens
-PRICE_INPUT: float  = 1.00 / 1_000_000
-# $5.00 / 1 Mio. Output-Tokens
-PRICE_OUTPUT: float = 5.00 / 1_000_000
+# ── Preise pro Modell (Stand: Juni 2026) ─────────────────────────────────────
+# Quelle: https://www.anthropic.com/pricing
+# Format: (input_usd_per_token, output_usd_per_token)
+_MODEL_PRICES: dict[str, tuple[float, float]] = {
+    "claude-haiku-4-5-20251001": (1.00 / 1_000_000, 5.00  / 1_000_000),
+    "claude-haiku-4-5":          (1.00 / 1_000_000, 5.00  / 1_000_000),
+    "claude-sonnet-4-5":         (3.00 / 1_000_000, 15.00 / 1_000_000),
+    "claude-sonnet-4-6":         (3.00 / 1_000_000, 15.00 / 1_000_000),
+    "claude-opus-4-8":           (15.00 / 1_000_000, 75.00 / 1_000_000),
+    "claude-opus-4":             (15.00 / 1_000_000, 75.00 / 1_000_000),
+}
+# Fallback: passendes Preisniveau anhand Modellname erraten
+def _get_prices() -> tuple[float, float]:
+    model = cfg.AI_CHAT_MODEL.lower()
+    if model in _MODEL_PRICES:
+        return _MODEL_PRICES[model]
+    if "opus" in model:
+        return (15.00 / 1_000_000, 75.00 / 1_000_000)
+    if "sonnet" in model:
+        return (3.00 / 1_000_000, 15.00 / 1_000_000)
+    # Default: Haiku-Preise
+    return (1.00 / 1_000_000, 5.00 / 1_000_000)
+
+PRICE_INPUT,  PRICE_OUTPUT = _get_prices()
 
 # ── Anthropic-Client (Singleton) ──────────────────────────────────────────────
 _client: Optional[anthropic.AsyncAnthropic] = None
