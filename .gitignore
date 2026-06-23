@@ -1,0 +1,48 @@
+# ── Credentials & Secrets ──────────────────────────────────────────────────────
+.env
+service_account.json
+token.json
+credentials.json
+
+# Beispiel-Dateien explizit erlauben
+!.env.example
+!service_account.example.json
+!shop_mapping.example.csv
+
+# ── Alte/Backup-Dateien ────────────────────────────────────────────────────────
+bot.py
+backup_*.zip
+
+# ── Bot-Laufzeitdaten ──────────────────────────────────────────────────────────
+processed_messages.json
+pending_messages.json
+shop_mapping.csv
+dm_blocked_users.json
+shops_ch_delivery.json
+shops_data.json
+antcheckbot.db
+antcheckbot.db-shm
+antcheckbot.db-wal
+
+# ── Logs ───────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ── IDE / Editor ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

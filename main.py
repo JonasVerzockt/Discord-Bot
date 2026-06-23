@@ -1,0 +1,67 @@
+"""
+main.py – Einstiegspunkt für den AAM Discord Bot (modulare Version).
+
+Startet den Bot, richtet Logging ein, initialisiert die DB
+und lädt alle Cogs dynamisch.
+"""
+import asyncio
+import logging
+
+import discord
+from discord.ext import commands
+
+from config import DISCORD_TOKEN
+from utils.logging_setup import setup_logging
+from utils.db import init_db
+
+# ── Logging früh einrichten ────────────────────────────────────────────────────
+setup_logging()
+logger = logging.getLogger(__name__)
+
+# ── Bot-Konfiguration ──────────────────────────────────────────────────────────
+intents                  = discord.Intents.default()
+intents.message_content  = True
+intents.members          = True
+intents.reactions        = True
+
+bot = discord.Bot(intents=intents)
+
+# ── Alle Cogs ──────────────────────────────────────────────────────────────────
+INITIAL_COGS = [
+    "cogs.server_settings",   # /startup, guild events, allowed_channel/admin decorators
+    "cogs.reviews",           # on_message / on_message_edit / on_raw_reaction_add
+    "cogs.admin",             # /status / /pending / /test / /rescan / /export
+    "cogs.user_settings",     # /usersetting language / blacklist_* / shop_list
+    "cogs.notifications",     # /notification / /delete_notifications / /history / /testnotification
+    "cogs.stats",             # /stats / /system / /help
+    "cogs.shop_admin",        # /reloadshops / /shopmapping / /ch_delivery
+    "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
+]
+
+
+async def main():
+    async with bot:
+        # DB initialisieren (Tabellen anlegen / EU-Länder seeden)
+        await init_db(bot)
+        logger.info("✅ Datenbank initialisiert")
+
+        # Cogs laden
+        for cog in INITIAL_COGS:
+            try:
+                await bot.load_extension(cog)
+                logger.info(f"📦 Cog geladen: {cog}")
+            except Exception as e:
+                logger.error(f"❌ Fehler beim Laden von {cog}: {e}", exc_info=True)
+
+        logger.info("🚀 Bot verbindet sich mit Discord…")
+        await bot.start(DISCORD_TOKEN)
+
+
+@bot.event
+async def on_ready():
+    logger.info(f"✅ Bot online als {bot.user} ({bot.user.id})")
+    logger.info(f"   Verbunden mit {len(bot.guilds)} Server(n)")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

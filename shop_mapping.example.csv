@@ -1,0 +1,4 @@
+identifier,shop_url,message_id,hinweis
+ameisenshop.de,https://www.ameisenshop.de,1234567890123456789,Beispiel-Eintrag
+antstore,https://www.antstore.net,1234567890123456780,Fuzzy-Match fuer "antstore"
+"Ant Kingdom",https://www.antkingdom.eu,1234567890123456781,Mit Leerzeichen in Anfuehrungszeichen

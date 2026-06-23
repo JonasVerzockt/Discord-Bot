@@ -1,0 +1,21 @@
+# Discord (py-cord – wird benoetigt fuer Slash Commands / ApplicationContext)
+py-cord>=2.4.0
+
+# KI-Parser (Claude Haiku)
+anthropic>=0.25.0
+
+# Google Sheets
+gspread>=6.0.0
+google-auth>=2.0.0
+
+# HTTP (Grabber)
+requests>=2.31.0
+
+# Fuzzy Matching
+rapidfuzz>=3.0.0
+
+# System-Stats (/system Befehl)
+psutil>=5.9.0
+
+# Umgebungsvariablen
+python-dotenv>=1.0.0
