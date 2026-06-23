@@ -235,9 +235,18 @@ Der AI-Chat-Bot reagiert auf **alle** Nachrichten in den konfigurierten `AI_CHAT
 - Pro-User-Tagesbudget (`AI_CHAT_USER_DAILY_BUDGET_USD`, Standard: $0,10) – individuelles Limit
 - Ist eines der Budgets erschöpft, antwortet der Bot mit einer Fehlermeldung statt einen API-Call zu machen
 
+**Dateianhänge:** Der Bot verarbeitet Anhänge die zusammen mit einer @-Erwähnung gesendet werden:
+
+| Typ | Formate | Max. Größe |
+|-----|---------|-----------|
+| Bilder (Vision) | jpg, jpeg, png, gif, webp | 1 MB |
+| Textdateien | txt, md, csv, log | 10 KB |
+| Videos | – | nicht unterstützt |
+| Sonstige | – | nicht unterstützt |
+
 **System-Prompt:** Wird aus `ai_chat_system_prompt.txt` geladen (falls vorhanden), sonst aus der Umgebungsvariable `AI_CHAT_SYSTEM_PROMPT`. Standardmäßig ist der Bot als deutschsprachiger AAM-Community-Assistent für Ameisenhaltung konfiguriert.
 
-**Modell:** Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) – schnell und kostengünstig.
+**Modell:** Claude Sonnet (`claude-sonnet-4-6`) – unterstützt Text und Vision (Bildanalyse).
 
 ---
 

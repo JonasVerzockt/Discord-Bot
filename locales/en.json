@@ -116,7 +116,7 @@
   "help_rescan": "`/rescan` – Manually re-reconcile last 90 days",
   "help_export": "`/export` – Export raw sheet data as JSON",
   "help_shopurl": "`/shopurl` – Set manual URL overrides for shops",
-  "help_ai_chat": "`/ai_status` – Show your AI chat budget status",
+  "help_ai_chat": "`/ai_status` – Show your AI chat budget status (Tip: tag @AntCheckHelpi in the AI channel to chat – images up to 1 MB and text files up to 10 KB are supported)",
   "help_ai_reset": "`/ai_reset` – (Admin) Reset AI chat budget for a user or globally",
   "help_ai_prompt": "`/ai_prompt` – (Admin) Show the current AI chat system prompt"
 }
