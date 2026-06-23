@@ -210,6 +210,7 @@ Texte befinden sich in `locales/{de,en,eo}.json`. Neue Schlüssel einfach in all
 |------|-----------|
 | Verfügbarkeitsprüfung | alle 5 Minuten |
 | Shop-Daten-Reload | stündlich |
+| Shop-Ratings aus Google Sheet | alle 48 Stunden |
 | Abgelaufene Benachrichtigungen | täglich (nach 1 Jahr) |
 | DB VACUUM + ANALYZE | wöchentlich |
 | Bot-Status (Uptime/Server) | jede Minute |

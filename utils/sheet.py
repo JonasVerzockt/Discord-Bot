@@ -100,3 +100,66 @@ class SheetCache:
 
 # Singleton – wird von allen Cogs und Utils geteilt
 sheet = SheetCache()
+
+
+async def sync_ratings_from_sheet(bot) -> int:
+    """
+    Liest Durchschnittsbewertungen aus dem 'Haendler A-Z' Sheet (Spalte A = Name,
+    Spalte C = Durchschnitt) und schreibt sie via Fuzzy-Match (>=80%) in
+    shops.average_rating. Shops ohne passenden Match bleiben unveraendert (kein Rating).
+    """
+    import logging
+    from rapidfuzz import process, fuzz
+    from utils.db import execute_db
+
+    logger = logging.getLogger(__name__)
+
+    def _read():
+        ws = _gc.open_by_key(SPREADSHEET_ID).worksheet("Händler A-Z")
+        rows = ws.get_all_values()
+        result = {}
+        for row in rows[1:]:  # Headerzeile ueberspringen
+            if len(row) >= 3 and row[0].strip() and row[2].strip():
+                try:
+                    result[row[0].strip().lower()] = float(row[2])
+                except ValueError:
+                    pass
+        return result
+
+    try:
+        sheet_ratings = await bot.loop.run_in_executor(None, _read)
+    except Exception as e:
+        logger.error(f"sync_ratings: Sheet-Lesefehler: {e}")
+        return 0
+
+    if not sheet_ratings:
+        logger.warning("sync_ratings: Keine Ratings im Sheet gefunden")
+        return 0
+
+    shop_rows = await execute_db(
+        bot, "SELECT id, name FROM shops WHERE name IS NOT NULL", fetch=True
+    )
+    sheet_names = list(sheet_ratings.keys())
+
+    updated = 0
+    for row in shop_rows:
+        shop_name = (row["name"] or "").lower()
+        if not shop_name:
+            continue
+        match = process.extractOne(
+            shop_name, sheet_names, scorer=fuzz.token_sort_ratio, score_cutoff=80
+        )
+        if match:
+            matched_key, score, _ = match
+            rating = sheet_ratings[matched_key]
+            await execute_db(
+                bot,
+                "UPDATE shops SET average_rating=? WHERE id=?",
+                (rating, row["id"]),
+                commit=True,
+            )
+            updated += 1
+            logger.debug(f"  Rating: '{row['name']}' → '{matched_key}' ({score:.0f}%) = {rating:.2f}")
+
+    logger.info(f"sync_ratings: {updated}/{len(shop_rows)} Shops mit Sheet-Rating versehen")
+    return updated

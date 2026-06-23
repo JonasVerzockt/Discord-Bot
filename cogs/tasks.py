@@ -45,6 +45,7 @@ class TasksCog(commands.Cog, name="Tasks"):
         # Tasks starten
         self.check_availability.start()
         self.reload_shops_task.start()
+        self.sync_shop_ratings.start()
         self.expire_old_notifications.start()
         self.optimize_db.start()
         self.update_bot_status.start()
@@ -52,6 +53,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     def cog_unload(self):
         self.check_availability.cancel()
         self.reload_shops_task.cancel()
+        self.sync_shop_ratings.cancel()
         self.expire_old_notifications.cancel()
         self.optimize_db.cancel()
         self.update_bot_status.cancel()
@@ -114,6 +116,21 @@ class TasksCog(commands.Cog, name="Tasks"):
     @reload_shops_task.before_loop
     async def before_reload_shops(self):
         await self.bot.wait_until_ready()
+
+    # ── Shop-Ratings aus Google Sheet alle 48 Stunden ─────────────────────────
+    @tasks.loop(hours=48)
+    async def sync_shop_ratings(self):
+        try:
+            from utils.sheet import sync_ratings_from_sheet
+            updated = await sync_ratings_from_sheet(self.bot)
+            logger.info(f"Shop-Ratings synchronisiert: {updated} Shops aktualisiert")
+        except Exception as e:
+            logger.error(f"sync_shop_ratings error: {e}", exc_info=True)
+
+    @sync_shop_ratings.before_loop
+    async def before_sync_shop_ratings(self):
+        await self.bot.wait_until_ready()
+
 
     # ── Abgelaufene Benachrichtigungen täglich markieren ──────────────────────
     @tasks.loop(hours=24)

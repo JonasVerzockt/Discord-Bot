@@ -15,29 +15,18 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-utils/availability.py – AntCheck-Verfügbarkeitsprüfung.
+utils/availability.py - AntCheck-Verfuegbarkeitspruefung.
 
-Liest die von grabber.py erzeugten products_shop_*.json-Dateien und
-prüft ob eine Art/Gattung verfügbar ist.
-
-Verwendung:
-    from utils.availability import (
-        check_availability_for_species, load_shop_data,
-        species_exists, expand_regions, format_rating,
-        split_availability_messages, normalize_species_name,
-    )
+Liest shops_data.json (erzeugt von grabber.py) und prueft ob eine Art/Gattung
+verfuegbar ist. Produkte sind direkt in shops_data.json eingebettet.
 """
-import os
 import re
 import json
 import asyncio
 import logging
-from config import DATA_DIRECTORY, SHOPS_DATA_FILE, DB_FILE
+from config import SHOPS_DATA_FILE
 
 logger = logging.getLogger(__name__)
-
-# Globaler In-Memory-Cache für Shop-Daten
-_shop_data_cache: dict | None = None
 
 
 def normalize_species_name(name: str) -> str:
@@ -47,7 +36,7 @@ def normalize_species_name(name: str) -> str:
 
 
 def format_rating(rating) -> str:
-    """Formatiert eine Shopbewertung als '⭐ 4.75' oder '❌' wenn nicht vorhanden."""
+    """Formatiert eine Shopbewertung als 'Stern 4.75' oder 'kein Rating'."""
     try:
         return f"⭐ {float(rating):.2f}"
     except (TypeError, ValueError):
@@ -55,7 +44,7 @@ def format_rating(rating) -> str:
 
 
 def split_availability_messages(entries: list[str], max_length: int = 2000) -> list[str]:
-    """Teilt eine Liste von Availability-Einträgen in Discord-taugliche Chunks."""
+    """Teilt eine Liste von Availability-Eintraegen in Discord-taugliche Chunks."""
     chunks, current, current_len = [], [], 0
     for entry in entries:
         entry_len = len(entry) + 2
@@ -69,36 +58,53 @@ def split_availability_messages(entries: list[str], max_length: int = 2000) -> l
     return chunks
 
 
+def _load_shops_json() -> dict:
+    """Laedt shops_data.json synchron und gibt {shop_id: shop_dict} zurueck (ohne _meta)."""
+    try:
+        with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        logger.error(f"shops_data.json nicht gefunden: {SHOPS_DATA_FILE}")
+        return {}
+    except Exception as e:
+        logger.error(f"Fehler beim Laden von shops_data.json: {e}")
+        return {}
+
+    # Neues Format: Dict mit shop_id als Key und _meta-Eintrag
+    if isinstance(raw, dict):
+        return {k: v for k, v in raw.items() if k != "_meta" and isinstance(v, dict)}
+
+    # Altes Format: Liste von Shop-Dicts (Fallback)
+    result = {}
+    for shop in raw:
+        if isinstance(shop, dict) and "id" in shop:
+            result[str(shop["id"])] = shop
+    return result
+
+
 async def load_shop_data(bot) -> dict:
     """
-    Lädt shops_data.json und ergänzt Bewertungen aus der DB.
-    Gibt {shop_id_str: shop_dict} zurück.
+    Laedt shops_data.json und ergaenzt Bewertungen aus der DB.
+    Gibt {shop_id_str: shop_dict} zurueck.
     """
     from utils.db import execute_db
 
-    def _read_json():
-        with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
-            return json.load(f)
-
-    try:
-        shops_json = await bot.loop.run_in_executor(None, _read_json)
-    except FileNotFoundError:
-        logger.error(f"shops_data.json nicht gefunden: {SHOPS_DATA_FILE}")
+    shops = await bot.loop.run_in_executor(None, _load_shops_json)
+    if not shops:
         return {}
 
     rows = await execute_db(bot, "SELECT id, average_rating FROM shops", fetch=True)
     ratings = {str(r["id"]): r["average_rating"] for r in rows}
 
-    shop_data = {}
-    for shop in shops_json:
-        sid = str(shop["id"])
-        shop_data[sid] = dict(shop)
-        shop_data[sid]["average_rating"] = ratings.get(sid)
-    return shop_data
+    for sid, shop in shops.items():
+        if ratings.get(sid) is not None:
+            shop["average_rating"] = ratings[sid]
+
+    return shops
 
 
 async def expand_regions(bot, regions: list[str]) -> list[str]:
-    """Ersetzt 'eu' durch alle EU-Ländercodes aus der DB."""
+    """Ersetzt 'eu' durch alle EU-Laendercodes aus der DB."""
     from utils.db import execute_db
 
     regions = [r.strip().lower() for r in regions]
@@ -111,37 +117,22 @@ async def expand_regions(bot, regions: list[str]) -> list[str]:
     return list(set(regions))
 
 
-def species_exists_sync(search_term: str) -> bool:
-    """Synchrone Suche (wird in Executor ausgeführt)."""
-    normalized = normalize_species_name(search_term)
-    is_genus   = " " not in normalized
-    try:
-        files = os.listdir(DATA_DIRECTORY)
-    except FileNotFoundError:
-        logger.error(f"DATA_DIRECTORY nicht gefunden: {DATA_DIRECTORY}")
-        return False
-
-    for filename in files:
-        if not (filename.startswith("products_shop_") and filename.endswith(".json")):
-            continue
-        try:
-            with open(os.path.join(DATA_DIRECTORY, filename), encoding="utf-8") as f:
-                for product in json.load(f):
-                    title = normalize_species_name(product.get("title", ""))
-                    if is_genus:
-                        if title.startswith(normalized + " "):
-                            return True
-                    else:
-                        if title == normalized:
-                            return True
-        except Exception as e:
-            logger.error(f"Fehler beim Lesen von {filename}: {e}")
-    return False
-
-
 async def species_exists(bot, search_term: str) -> bool:
-    """Async Wrapper für species_exists_sync."""
-    return await bot.loop.run_in_executor(None, species_exists_sync, search_term)
+    """Prueft ob eine Art/Gattung in shops_data.json vorkommt."""
+    shops = await bot.loop.run_in_executor(None, _load_shops_json)
+    normalized = normalize_species_name(search_term)
+    is_genus = " " not in normalized.strip()
+
+    for shop in shops.values():
+        for product in shop.get("products", []):
+            title = normalize_species_name(product.get("species", ""))
+            if is_genus:
+                if title.startswith(normalized + " "):
+                    return True
+            else:
+                if title == normalized:
+                    return True
+    return False
 
 
 async def check_availability_for_species(
@@ -154,10 +145,10 @@ async def check_availability_for_species(
     excluded_species_list: set | None = None,
 ) -> list[dict]:
     """
-    Prüft Verfügbarkeit einer Art/Gattung in den gegebenen Regionen.
+    Prueft Verfuegbarkeit einer Art/Gattung in den gegebenen Regionen.
 
     Returns:
-        Liste von verfügbaren Produkten (dicts mit id, species, shop_name, etc.)
+        Liste von verfuegbaren Produkten (dicts mit species, shop_name, etc.)
     """
     from utils.db import execute_db
 
@@ -176,71 +167,47 @@ async def check_availability_for_species(
 
     shop_data = await load_shop_data(bot)
 
-    def _sync():
-        results = []
-        normalized_search = normalize_species_name(species_or_genus)
-        is_genus = " " not in species_or_genus.strip()
-        region_set = {r.lower() for r in regions}
+    normalized_search = normalize_species_name(species_or_genus)
+    is_genus = " " not in species_or_genus.strip()
+    region_set = {r.lower() for r in regions}
 
-        try:
-            files = os.listdir(DATA_DIRECTORY)
-        except FileNotFoundError:
-            logger.error(f"DATA_DIRECTORY nicht gefunden: {DATA_DIRECTORY}")
-            return []
+    results = []
+    for shop_id_str, shop_info in shop_data.items():
+        if shop_id_str in blacklisted:
+            continue
 
-        for filename in files:
-            if not (filename.startswith("products_shop_") and filename.endswith(".json")):
+        if ch_mode:
+            if ch_shops and shop_id_str not in ch_shops:
                 continue
-            try:
-                shop_id_str = str(int(filename.split("_")[2].split(".")[0]))
-            except (IndexError, ValueError):
+        else:
+            if shop_info.get("country", "").lower() not in region_set:
                 continue
 
-            if str(shop_id_str) in blacklisted:
-                continue
+        for product in shop_info.get("products", []):
+            species = product.get("species", "").strip()
+            norm_title = normalize_species_name(species)
 
-            if ch_mode:
-                if ch_shops and shop_id_str not in ch_shops:
-                    continue
+            match = False
+            if is_genus:
+                if norm_title.startswith(normalized_search + " "):
+                    part = norm_title.split()[1] if len(norm_title.split()) > 1 else ""
+                    if part not in excluded_species_list:
+                        match = True
             else:
-                shop_info = shop_data.get(shop_id_str, {})
-                if shop_info.get("country", "").lower() not in region_set:
-                    continue
+                match = norm_title == normalized_search
 
-            try:
-                with open(os.path.join(DATA_DIRECTORY, filename), encoding="utf-8") as f:
-                    products = json.load(f)
-            except Exception:
-                continue
+            if match:
+                results.append({
+                    "id":           product.get("id"),
+                    "species":      species,
+                    "shop_name":    shop_info.get("name", ""),
+                    "min_price":    product.get("min_price"),
+                    "max_price":    product.get("max_price"),
+                    "currency_iso": product.get("currency_iso"),
+                    "antcheck_url": product.get("antcheck_url"),
+                    "shop_url":     shop_info.get("url"),
+                    "shop_id":      shop_id_str,
+                    "rating":       shop_info.get("average_rating"),
+                })
 
-            for product in products:
-                if not product.get("in_stock", False):
-                    continue
-                title      = product.get("title", "").strip()
-                norm_title = normalize_species_name(title)
-                match      = False
-                if is_genus:
-                    if norm_title.startswith(normalized_search + " "):
-                        part = norm_title.split()[1] if len(norm_title.split()) > 1 else ""
-                        if part not in excluded_species_list:
-                            match = True
-                else:
-                    match = norm_title == normalized_search
-
-                if match:
-                    info = shop_data.get(shop_id_str, {})
-                    results.append({
-                        "id":           product.get("id"),
-                        "species":      title,
-                        "shop_name":    info.get("name", ""),
-                        "min_price":    product.get("min_price"),
-                        "max_price":    product.get("max_price"),
-                        "currency_iso": product.get("currency_iso"),
-                        "antcheck_url": product.get("antcheck_url"),
-                        "shop_url":     info.get("url"),
-                        "shop_id":      shop_id_str,
-                        "rating":       info.get("average_rating"),
-                    })
-        return results
-
-    return await bot.loop.run_in_executor(None, _sync)
+    return results
