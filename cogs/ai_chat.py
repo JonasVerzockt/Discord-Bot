@@ -18,8 +18,7 @@
 cogs/ai_chat.py – Discord-Cog fuer den KI-Chat-Bot.
 
 Reagiert auf:
-  - Nachrichten in konfigurierten AI_CHAT_CHANNEL_IDS (alle Nachrichten)
-  - @-Erwaehnung des Bots in beliebigen Kanaelen
+  - @-Erwaehnung des Bots im konfigurierten AI_CHAT_CHANNEL_IDS
 
 Konversations-Fortsetzung:
   Wenn ein User auf eine Bot-Antwort antwortet (Discord-Reply), wird die
@@ -130,7 +129,7 @@ class AiChatCog(commands.Cog):
         if message.author.bot:
             return
 
-        # Nur im konfigurierten AI-Kanal reagieren – keine @-Erwaehnung ausserhalb
+        # Nur im konfigurierten AI-Kanal reagieren
         if not self._is_ai_channel(message.channel.id):
             return
 
@@ -138,8 +137,12 @@ class AiChatCog(commands.Cog):
         if message.content.startswith("/"):
             return
 
-        # Nachrichtentext (ggf. @-Erwaehnung rausschneiden falls vorhanden)
-        user_text = self._strip_mention(message) if self._is_mentioned(message) else message.content.strip()
+        # Nur auf @-Erwaehnung reagieren (auch im AI-Kanal)
+        if not self._is_mentioned(message):
+            return
+
+        # @-Erwaehnung aus dem Nachrichtentext entfernen
+        user_text = self._strip_mention(message)
         if not user_text:
             return
 
