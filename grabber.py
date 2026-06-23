@@ -15,18 +15,20 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-grabber.py – AntCheck API Datenabholer.
+grabber.py - AntCheck API Datenabholer.
 
-Wird als Cron-Job oder per Hand ausgeführt (NICHT Teil des Bots selbst).
-Lädt die aktuelle Verfügbarkeitsliste von der AntCheck API herunter
-und speichert sie als shops_data.json im DATA_DIRECTORY.
+Wird als Cron-Job oder per Hand ausgefuehrt (NICHT Teil des Bots selbst).
+Laedt Shops + Produkte von der AntCheck API und speichert das Ergebnis
+als shops_data.json im DATA_DIRECTORY.
 
 Typischer Aufruf (crontab):
-  0 * * * * cd /opt/antcheckbot && /opt/antcheckbot/.venv/bin/python grabber.py
+  0 * * * * cd /opt/discord-bot && .venv/bin/python grabber.py
 
-Umgebungsvariablen (aus .env oder Shell):
-  DATA_DIRECTORY   – Zielverzeichnis für shops_data.json
-  ANTCHECK_API_URL – Basis-URL der AntCheck API (optional, hat Standardwert)
+Umgebungsvariablen:
+  ANTCHECK_API_KEY   - API-Key (Pflicht)
+  ANTCHECK_API_URL   - Basis-URL (Standard: https://antcheck.info)
+  ANTCHECK_VERIFY_SSL- SSL-Zertifikat pruefen (Standard: true)
+  DATA_DIRECTORY     - Zielverzeichnis fuer shops_data.json
 """
 import json
 import logging
@@ -37,8 +39,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+import urllib3
 
-# ── Logging ────────────────────────────────────────────────────────────────────
+# -- Logging -------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -46,135 +49,140 @@ logging.basicConfig(
 )
 logger = logging.getLogger("grabber")
 
-# ── Konfiguration ──────────────────────────────────────────────────────────────
+# -- Konfiguration -------------------------------------------------------------
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
-DATA_DIRECTORY  = os.getenv("DATA_DIRECTORY", str(Path(__file__).parent))
-OUTPUT_FILE     = Path(DATA_DIRECTORY) / "shops_data.json"
-API_BASE        = os.getenv(
-    "ANTCHECK_API_URL",
-    "https://api.antcheck.info",
-)
-API_OFFERS      = f"{API_BASE}/offers"
+API_KEY         = os.getenv("ANTCHECK_API_KEY", "")
+API_BASE        = os.getenv("ANTCHECK_API_URL", "https://antcheck.info").rstrip("/")
 API_TIMEOUT     = int(os.getenv("ANTCHECK_TIMEOUT", "30"))
 API_RETRIES     = int(os.getenv("ANTCHECK_RETRIES", "3"))
 API_RETRY_DELAY = float(os.getenv("ANTCHECK_RETRY_DELAY", "5"))
+API_VERIFY_SSL  = os.getenv("ANTCHECK_VERIFY_SSL", "true").lower() not in ("0", "false", "no")
+DATA_DIRECTORY  = os.getenv("DATA_DIRECTORY", str(Path(__file__).parent))
+OUTPUT_FILE     = Path(DATA_DIRECTORY) / "shops_data.json"
+
+SHOPS_URL    = f"{API_BASE}/api/v2/ecommerce/shops?online=true&crawler_active=true&page=0&limit=-1&api_key={API_KEY}"
+PRODUCTS_URL = f"{API_BASE}/api/v2/ecommerce/products?shop_id={{shop_id}}&product_type=ants&page=0&limit=-1&api_key={API_KEY}"
+
+if not API_VERIFY_SSL:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def _fetch_json(url: str, timeout: int = API_TIMEOUT) -> dict | list:
+# -- HTTP-Helfer ---------------------------------------------------------------
+
+def _fetch_json(url: str) -> dict | list:
     """Holt JSON von der URL mit Retry-Logik."""
     for attempt in range(1, API_RETRIES + 1):
         try:
-            resp = requests.get(url, timeout=timeout)
+            resp = requests.get(url, timeout=API_TIMEOUT, verify=API_VERIFY_SSL)
             resp.raise_for_status()
             return resp.json()
         except requests.RequestException as e:
             logger.warning(f"Versuch {attempt}/{API_RETRIES} fehlgeschlagen: {e}")
             if attempt < API_RETRIES:
                 time.sleep(API_RETRY_DELAY)
-    raise RuntimeError(f"API nach {API_RETRIES} Versuchen nicht erreichbar: {url}")
+    raise RuntimeError(f"API nach {API_RETRIES} Versuchen nicht erreichbar: {url.split('?')[0]}")
 
 
-def transform_offers(raw: list[dict]) -> dict:
-    """
-    Wandelt die AntCheck API-Antwort in das Format um, das der Bot erwartet:
-    {
-      "<shop_id>": {
-        "id":             "<shop_id>",
-        "name":           "Shop Name",
-        "country":        "de",
-        "url":            "https://...",
-        "average_rating": 8.5,
-        "products": [
-          {
-            "id":          123,
-            "species":     "Messor barbarus",
-            "genus":       "Messor",
-            "min_price":   "12.90",
-            "max_price":   "15.00",
-            "currency_iso":"EUR",
-            "antcheck_url":"https://...",
-            "shop_url":    "https://...",
-          },
-          ...
-        ]
-      }
-    }
-    """
-    shops: dict = {}
-    for offer in raw:
-        try:
-            shop_id  = str(offer.get("shopId") or offer.get("shop_id") or "")
-            if not shop_id:
-                continue
+# -- Datenverarbeitung ---------------------------------------------------------
 
-            if shop_id not in shops:
-                shops[shop_id] = {
-                    "id":             shop_id,
-                    "name":           offer.get("shopName") or offer.get("shop_name", ""),
-                    "country":        (offer.get("shopCountry") or offer.get("country", "")).lower(),
-                    "url":            offer.get("shopUrl") or offer.get("shop_url", ""),
-                    "average_rating": offer.get("shopRating") or offer.get("average_rating"),
-                    "products":       [],
-                }
+def build_shop_map(shops_raw: list) -> dict:
+    """Baut die Shop-Map aus der Shops-API-Antwort auf."""
+    result = {}
+    for shop in shops_raw:
+        sid = str(shop.get("id", ""))
+        if not sid:
+            continue
+        result[sid] = {
+            "id":             sid,
+            "name":           shop.get("name", ""),
+            "country":        (shop.get("country") or shop.get("country_code") or "").lower(),
+            "url":            shop.get("url") or shop.get("website") or "",
+            "average_rating": shop.get("rating") or shop.get("average_rating"),
+            "products":       [],
+        }
+    return result
 
-            species_name = (
-                offer.get("speciesName")
-                or offer.get("species_name")
-                or offer.get("name")
-                or ""
-            ).strip()
-            genus = species_name.split()[0] if " " in species_name else species_name
 
-            shops[shop_id]["products"].append({
-                "id":           offer.get("id"),
-                "species":      species_name,
-                "genus":        genus,
-                "min_price":    str(offer.get("minPrice") or offer.get("min_price") or "0"),
-                "max_price":    str(offer.get("maxPrice") or offer.get("max_price") or "0"),
-                "currency_iso": offer.get("currencyIso") or offer.get("currency_iso") or "EUR",
-                "antcheck_url": offer.get("antcheckUrl") or offer.get("antcheck_url") or "",
-                "shop_url":     offer.get("productUrl") or offer.get("product_url") or "",
-            })
-        except Exception as e:
-            logger.warning(f"Fehler beim Verarbeiten von Angebot: {e} – {offer!r}")
+def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
+    """Fuegt Produkte zu einem Shop in der Map hinzu."""
+    if shop_id not in shop_map:
+        return
+    for p in products_raw:
+        species_name = (
+            p.get("species_name") or p.get("name") or p.get("title") or ""
+        ).strip()
+        genus = species_name.split()[0] if " " in species_name else species_name
+        shop_map[shop_id]["products"].append({
+            "id":            p.get("id"),
+            "species":       species_name,
+            "genus":         genus,
+            "min_price":     str(p.get("min_price") or p.get("price") or "0"),
+            "max_price":     str(p.get("max_price") or p.get("price") or "0"),
+            "currency_iso":  p.get("currency_iso") or p.get("currency") or "EUR",
+            "antcheck_url":  p.get("antcheck_url") or p.get("url") or "",
+            "shop_url":      p.get("product_url") or p.get("shop_url") or "",
+        })
 
-    return shops
 
+# -- Hauptprogramm -------------------------------------------------------------
 
 def main():
+    if not API_KEY:
+        logger.error("ANTCHECK_API_KEY ist nicht gesetzt – abbruch.")
+        sys.exit(1)
+
     start = time.monotonic()
     logger.info(f"Starte AntCheck Grabber – Ziel: {OUTPUT_FILE}")
 
     try:
-        raw     = _fetch_json(API_OFFERS)
-        offers  = raw if isinstance(raw, list) else raw.get("offers", raw.get("data", []))
-        shops   = transform_offers(offers)
+        # 1. Shops laden
+        logger.info("Lade Shops...")
+        shops_raw = _fetch_json(SHOPS_URL)
+        if not isinstance(shops_raw, list):
+            shops_raw = shops_raw.get("data", shops_raw.get("shops", []))
+        shop_map = build_shop_map(shops_raw)
+        logger.info(f"  {len(shop_map)} Shops gefunden")
 
-        # Metadaten hinzufügen
+        # 2. Produkte pro Shop laden
+        total_products = 0
+        for i, (shop_id, shop) in enumerate(shop_map.items(), 1):
+            try:
+                url = PRODUCTS_URL.format(shop_id=shop_id)
+                products_raw = _fetch_json(url)
+                if not isinstance(products_raw, list):
+                    products_raw = products_raw.get("data", products_raw.get("products", []))
+                add_products(shop_map, shop_id, products_raw)
+                count = len(shop_map[shop_id]["products"])
+                total_products += count
+                logger.info(f"  [{i}/{len(shop_map)}] Shop {shop['name']}: {count} Produkte")
+            except Exception as e:
+                logger.warning(f"  Shop {shop_id} Produkte fehlgeschlagen: {e}")
+
+        # 3. Ausgabe schreiben
         output = {
             "_meta": {
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "shop_count": len(shops),
-                "offer_count": len(offers),
+                "fetched_at":    datetime.now(timezone.utc).isoformat(),
+                "shop_count":    len(shop_map),
+                "product_count": total_products,
             },
-            **shops,
+            **shop_map,
         }
-
         OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
         tmp = OUTPUT_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp.replace(OUTPUT_FILE)  # atomarer Schreibvorgang
+        tmp.replace(OUTPUT_FILE)
 
         elapsed = time.monotonic() - start
         logger.info(
-            f"✅ {len(shops)} Shops / {len(offers)} Angebote → {OUTPUT_FILE} "
-            f"({elapsed:.1f}s)"
+            f"Fertig: {len(shop_map)} Shops / {total_products} Produkte "
+            f"-> {OUTPUT_FILE} ({elapsed:.1f}s)"
         )
+
     except Exception as e:
         logger.error(f"Grabber fehlgeschlagen: {e}", exc_info=True)
         sys.exit(1)
