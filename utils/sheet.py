@@ -119,6 +119,17 @@ def _extract_domain(url: str) -> str:
         return ""
 
 
+def _normalize_sheet_key(raw: str) -> str:
+    """
+    Normalisiert einen Sheet-Spalte-A-Eintrag fuer den Domain-Exact-Match.
+    Entfernt fuehrendes 'www.' und abschliessende Slashes,
+    damit 'www.antandco.fr' dasselbe trifft wie extrahiertes 'antandco.fr'.
+    """
+    k = raw.strip().lower().rstrip("/")
+    k = _re.sub(r'^www\.', '', k)
+    return k
+
+
 def _normalize_for_fuzzy(name: str) -> str:
     """
     Normalisiert einen Namen fuer Fuzzy-Fallback-Matching.
@@ -157,13 +168,16 @@ async def sync_ratings_from_sheet(bot) -> int:
         ws = _gc.open_by_key(SPREADSHEET_ID).worksheet("Händler A-Z")
         rows = ws.get_all_values()
         logger.debug(f"sync_ratings: {len(rows)} Zeilen gelesen")
-        # {sheet_eintrag_lower: rating}  (z.B. {'antstore.at': 6.0, 'antstore.net': 9.2})
+        # {normalisierter_sheet_eintrag: rating}
+        # Schluessel: www. und Trailing-Slash entfernt, lowercase
+        # Beispiel: 'www.antandco.fr' → 'antandco.fr', 'anthillshop.es/' → 'anthillshop.es'
         result = {}
         for row in rows[1:]:
             if len(row) >= 3 and row[0].strip() and row[2].strip():
                 try:
                     rating_str = row[2].replace(",", ".").strip()
-                    result[row[0].strip().lower()] = float(rating_str)
+                    key = _normalize_sheet_key(row[0])
+                    result[key] = float(rating_str)
                 except ValueError:
                     logger.debug(f"sync_ratings: Parsing fehlgeschlagen: '{row[2]}' fuer '{row[0]}'")
         return result
