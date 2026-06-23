@@ -22,3 +22,4 @@ python-dotenv>=1.0.0
 
 # Voice-Verschlüsselung (optional, unterdrückt discord voice-warning)
 PyNaCl>=1.5.0
+davey
