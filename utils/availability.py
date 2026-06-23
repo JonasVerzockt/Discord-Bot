@@ -93,12 +93,15 @@ async def load_shop_data(bot) -> dict:
     if not shops:
         return {}
 
-    rows = await execute_db(bot, "SELECT id, average_rating FROM shops", fetch=True)
-    ratings = {str(r["id"]): r["average_rating"] for r in rows}
-
-    for sid, shop in shops.items():
-        if ratings.get(sid) is not None:
-            shop["average_rating"] = ratings[sid]
+    rows = await execute_db(bot, "SELECT id, average_rating, url_override FROM shops", fetch=True)
+    for r in rows:
+        sid = str(r["id"])
+        if sid not in shops:
+            continue
+        if r["average_rating"] is not None:
+            shops[sid]["average_rating"] = r["average_rating"]
+        if r["url_override"]:
+            shops[sid]["url"] = r["url_override"]
 
     return shops
 

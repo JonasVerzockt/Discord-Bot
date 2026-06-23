@@ -57,7 +57,12 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             for sid, sd in shop_data.items():
                 await execute_db(
                     self.bot,
-                    "INSERT OR REPLACE INTO shops (id, name, country, url) VALUES (?, ?, ?, ?)",
+                    """INSERT INTO shops (id, name, country, url)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(id) DO UPDATE SET
+                           name=excluded.name,
+                           country=excluded.country,
+                           url=excluded.url""",
                     (sid, sd.get("name"), sd.get("country"), sd.get("url")),
                     commit=True,
                 )
@@ -237,6 +242,86 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             lines.append(l10n.get(
                 "ch_delivery_entry", lang,
                 shop=shop_name, user=f"<@{r['added_by']}>", timestamp=r["added_at"],
+            ))
+        await ctx.respond("\n".join(lines), ephemeral=True)
+
+
+    # ── /shopurl ───────────────────────────────────────────────────────────────
+    shopurl = discord.SlashCommandGroup(
+        name="shopurl",
+        description="Shop-URL manuell überschreiben (wenn API falsche URL liefert)",
+    )
+
+    @shopurl.command(name="set", description="Manuelle URL für einen Shop setzen")
+    @admin_or_manage_messages()
+    async def shopurl_set(
+        self,
+        ctx: discord.ApplicationContext,
+        shop_id: discord.Option(str, "Interne Shop-ID (z.B. 2 für ANTSTORE)", required=True),
+        url: discord.Option(str, "Korrekte Shop-URL (z.B. https://antstore.net)", required=True),
+    ):
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        try:
+            sid = int(shop_id)
+        except ValueError:
+            await ctx.respond(l10n.get("shopurl_not_found", lang, id=shop_id), ephemeral=True)
+            return
+        shop_data = await load_shop_data(self.bot)
+        if str(sid) not in shop_data:
+            await ctx.respond(l10n.get("shopurl_not_found", lang, id=sid), ephemeral=True)
+            return
+        await execute_db(
+            self.bot,
+            "UPDATE shops SET url_override=? WHERE id=?",
+            (url.strip(), sid), commit=True,
+        )
+        shop_name = shop_data[str(sid)].get("name", str(sid))
+        await ctx.respond(
+            l10n.get("shopurl_set_success", lang, shop=shop_name, id=sid, url=url.strip()),
+            ephemeral=True,
+        )
+        logger.info(f"shopurl_set: Shop {sid} ({shop_name}) → {url.strip()} von {ctx.author.id}")
+
+    @shopurl.command(name="clear", description="Manuelle URL entfernen (API-URL wird wieder genutzt)")
+    @admin_or_manage_messages()
+    async def shopurl_clear(
+        self,
+        ctx: discord.ApplicationContext,
+        shop_id: discord.Option(str, "Interne Shop-ID", required=True),
+    ):
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        try:
+            sid = int(shop_id)
+        except ValueError:
+            await ctx.respond(l10n.get("shopurl_not_found", lang, id=shop_id), ephemeral=True)
+            return
+        rc = await execute_db(
+            self.bot,
+            "UPDATE shops SET url_override=NULL WHERE id=? AND url_override IS NOT NULL",
+            (sid,), commit=True,
+        )
+        shop_data = await load_shop_data(self.bot)
+        shop_name = shop_data.get(str(sid), {}).get("name", str(sid))
+        key = "shopurl_clear_success" if rc else "shopurl_clear_none"
+        await ctx.respond(l10n.get(key, lang, shop=shop_name, id=sid), ephemeral=True)
+
+    @shopurl.command(name="list", description="Alle manuellen URL-Overrides anzeigen")
+    @admin_or_manage_messages()
+    async def shopurl_list(self, ctx: discord.ApplicationContext):
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        rows = await execute_db(
+            self.bot,
+            "SELECT id, name, url, url_override FROM shops WHERE url_override IS NOT NULL ORDER BY name",
+            fetch=True,
+        )
+        if not rows:
+            await ctx.respond(l10n.get("shopurl_list_none", lang), ephemeral=True)
+            return
+        lines = [l10n.get("shopurl_list_header", lang)]
+        for r in rows:
+            lines.append(l10n.get(
+                "shopurl_list_entry", lang,
+                shop=r["name"], id=r["id"], url=r["url_override"],
             ))
         await ctx.respond("\n".join(lines), ephemeral=True)
 

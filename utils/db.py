@@ -103,7 +103,8 @@ CREATE TABLE IF NOT EXISTS shops (
     name           TEXT,
     country        TEXT,
     url            TEXT,
-    average_rating REAL
+    average_rating REAL,
+    url_override   TEXT   DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -192,6 +193,13 @@ async def init_db(bot) -> None:
         try:
             conn.executescript(_SCHEMA)
             conn.commit()
+            # Migration: url_override Spalte (für bestehende DBs)
+            try:
+                conn.execute("ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL")
+                conn.commit()
+                logger.info("DB-Migration: shops.url_override Spalte hinzugefügt")
+            except Exception:
+                pass  # Spalte bereits vorhanden
             # EU-Länder nur einmalig befüllen
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM eu_countries")
