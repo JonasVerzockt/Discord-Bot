@@ -144,29 +144,67 @@ class AiChatCog(commands.Cog):
         # @-Erwaehnung aus dem Nachrichtentext entfernen
         user_text = self._strip_mention(message)
 
-        # Text-Anhaenge (.txt, .md, .csv, .log) einlesen und anhaengen
-        text_exts = {".txt", ".md", ".csv", ".log"}
+        # Anhaenge verarbeiten
+        text_exts  = {".txt", ".md", ".csv", ".log"}
+        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+        image_mime = {
+            ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+        }
+        video_exts = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv"}
+        images: list[tuple[bytes, str]] = []
+
         for attachment in message.attachments:
-            ext = "." + attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
-            if ext not in text_exts:
-                continue
-            if attachment.size > 10_000:  # max 10 KB
+            ext = ("." + attachment.filename.rsplit(".", 1)[-1].lower()) if "." in attachment.filename else ""
+
+            # Videos ablehnen
+            if ext in video_exts:
                 await message.reply(
-                    f"❌ Die Datei **{attachment.filename}** ist zu groß "
-                    f"({attachment.size / 1024:.1f} KB). Maximum: 10 KB."
+                    f"❌ Videos werden nicht unterstuetzt – ich kann leider keine Videodateien analysieren."
                 )
                 return
-            try:
-                raw = await attachment.read()
-                file_text = raw.decode("utf-8", errors="replace").strip()
-                if file_text:
-                    user_text = (
-                        f"{user_text}\n\n[Dateiinhalt: {attachment.filename}]\n{file_text}"
-                        if user_text else
-                        f"[Dateiinhalt: {attachment.filename}]\n{file_text}"
+
+            # Text-Dateien
+            if ext in text_exts:
+                if attachment.size > 10_000:
+                    await message.reply(
+                        f"❌ Die Datei **{attachment.filename}** ist zu groß "
+                        f"({attachment.size / 1024:.1f} KB). Maximum: 10 KB."
                     )
-            except Exception as e:
-                logger.warning(f"[AI-Chat] Anhang konnte nicht gelesen werden: {e}")
+                    return
+                try:
+                    raw = await attachment.read()
+                    file_text = raw.decode("utf-8", errors="replace").strip()
+                    if file_text:
+                        user_text = (
+                            f"{user_text}\n\n[Dateiinhalt: {attachment.filename}]\n{file_text}"
+                            if user_text else
+                            f"[Dateiinhalt: {attachment.filename}]\n{file_text}"
+                        )
+                except Exception as e:
+                    logger.warning(f"[AI-Chat] Textanhang Lesefehler: {e}")
+
+            # Unbekannte Dateitypen ablehnen
+            elif ext not in image_exts:
+                await message.reply(
+                    f"❌ Der Dateityp **{ext or 'unbekannt'}** wird nicht unterstuetzt. "
+                    f"Erlaubt: Bilder (jpg, png, gif, webp) und Textdateien (txt, md, csv, log)."
+                )
+                return
+
+            # Bilder
+            elif ext in image_exts:
+                if attachment.size > 1_000_000:  # max 1 MB
+                    await message.reply(
+                        f"❌ Das Bild **{attachment.filename}** ist zu groß "
+                        f"({attachment.size / 1024:.1f} KB). Maximum: 1 MB."
+                    )
+                    return
+                try:
+                    img_bytes = await attachment.read()
+                    images.append((img_bytes, image_mime[ext]))
+                except Exception as e:
+                    logger.warning(f"[AI-Chat] Bildanhang Lesefehler: {e}")
 
         if not user_text:
             return
@@ -181,6 +219,7 @@ class AiChatCog(commands.Cog):
                 user_message=user_text,
                 prev_bot_message_id=prev_id,
                 channel_id=message.channel.id,
+                images=images or None,
             )
 
         # Antwort in Discord-Chunks senden (max. 2000 Zeichen pro Nachricht)

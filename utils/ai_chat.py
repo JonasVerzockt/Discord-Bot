@@ -147,17 +147,19 @@ def calculate_cost(usage) -> float:
     )
 
 
-def estimate_cost(input_chars: int, history_chars: int = 0) -> float:
+def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0) -> float:
     """
     Grobe Kostenschaetzung VOR dem API-Call.
     Wird fuer den Pre-Budget-Check verwendet (konservativ: 3.5 Zeichen = 1 Token).
     Kein Caching – System-Prompt wird als normaler Input gezaehlt.
+    Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
     """
     system_tokens = len(cfg.AI_CHAT_SYSTEM_PROMPT) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
+    image_tokens  = num_images * 1500
     return (
-        (system_tokens + input_tokens)    * PRICE_INPUT
-        + cfg.AI_CHAT_MAX_OUTPUT_TOKENS   * PRICE_OUTPUT
+        (system_tokens + input_tokens + image_tokens) * PRICE_INPUT
+        + cfg.AI_CHAT_MAX_OUTPUT_TOKENS               * PRICE_OUTPUT
     )
 
 
@@ -401,6 +403,7 @@ async def chat(
     user_message: str,
     prev_bot_message_id: Optional[int] = None,
     channel_id: int = 0,
+    images: Optional[list[tuple[bytes, str]]] = None,
 ) -> dict:
     """
     Sendet eine Nachricht an Claude Haiku.
@@ -448,15 +451,32 @@ async def chat(
             )
 
     # 3. Pre-Budget-Check
-    history_chars = sum(len(m.get("content", "")) for m in history)
-    estimated     = estimate_cost(len(user_message), history_chars)
+    history_chars = sum(len(m.get("content", "") if isinstance(m.get("content"), str) else "") for m in history)
+    num_images    = len(images) if images else 0
+    estimated     = estimate_cost(len(user_message), history_chars, num_images)
     budget_ok, budget_msg = check_budget(user_id, estimated)
     if not budget_ok:
         return {"ok": False, "answer": budget_msg, "cost": 0.0,
                 "history": [], "is_error": False}
 
     # 4. Nachrichten fuer API zusammenstellen
-    messages = history + [{"role": "user", "content": user_message}]
+    import base64 as _b64
+    if images:
+        user_content: list = []
+        for img_bytes, media_type in images:
+            user_content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": _b64.b64encode(img_bytes).decode(),
+                },
+            })
+        if user_message:
+            user_content.append({"type": "text", "text": user_message})
+        messages = history + [{"role": "user", "content": user_content}]
+    else:
+        messages = history + [{"role": "user", "content": user_message}]
 
     # 5. API-Call (kein Prompt Caching: Haiku 4.5 benoetigt min. 4.096 Tokens,
     #    ein typischer System-Prompt hat ~50-200 Tokens – Minimum nie erreicht)
