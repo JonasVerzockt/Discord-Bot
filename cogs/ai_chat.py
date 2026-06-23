@@ -201,7 +201,7 @@ class AiChatCog(commands.Cog):
         embed = discord.Embed(
             title="🤖 KI-Chat Budget-Status",
             color=color,
-            description="Budgets werden taeglich um **00:00 UTC** zurueckgesetzt.",
+            description="Budgets werden taeglich um **00:00 UTC** (01:00 MEZ / 02:00 MESZ) zurueckgesetzt.",
         )
         embed.add_field(
             name="🌍 Globales Tagesbudget",
