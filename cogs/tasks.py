@@ -96,14 +96,18 @@ class TasksCog(commands.Cog, name="Tasks"):
     async def reload_shops_task(self):
         try:
             shop_data = await load_shop_data(self.bot)
+            count = 0
             for sid, sd in shop_data.items():
+                if sid == "_meta" or not isinstance(sd, dict):
+                    continue
                 await execute_db(
                     self.bot,
                     "INSERT OR REPLACE INTO shops (id, name, country, url) VALUES (?, ?, ?, ?)",
                     (sid, sd.get("name"), sd.get("country"), sd.get("url")),
                     commit=True,
                 )
-            logger.info(f"Shop-Daten neu geladen: {len(shop_data)} Shops")
+                count += 1
+            logger.info(f"Shop-Daten neu geladen: {count} Shops")
         except Exception as e:
             logger.error(f"reload_shops_task error: {e}")
 
