@@ -144,6 +144,15 @@ class AiChatCog(commands.Cog):
         # @-Erwaehnung aus dem Nachrichtentext entfernen
         user_text = self._strip_mention(message)
 
+        # Getippte Nachricht vorab auf Laenge pruefen (vor Dateiinhalt-Anhang)
+        if len(user_text) > cfg.AI_CHAT_MAX_INPUT_CHARS:
+            await message.reply(
+                f"❌ Deine Nachricht ist zu lang "
+                f"({len(user_text):,}/{cfg.AI_CHAT_MAX_INPUT_CHARS:,} Zeichen). "
+                f"Bitte kueze sie."
+            )
+            return
+
         # Anhaenge verarbeiten
         text_exts  = {".txt", ".md", ".csv", ".log"}
         image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}

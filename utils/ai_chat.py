@@ -349,18 +349,13 @@ def cleanup_expired_conversations() -> int:
 
 def validate_input(text: str) -> tuple[bool, str]:
     """
-    Prueft den User-Input auf Laenge und Inhalt.
-    Schutzt vor teuren Anfragen durch Zeichen-Limit.
+    Prueft den User-Input auf Inhalt.
+    Laengen-Check fuer getippte Nachrichten erfolgt bereits im Cog (vor Datei-Anhang).
+    Hier wird nur noch auf leere Eingabe geprueft.
     """
     text = text.strip()
     if not text:
         return False, "❌ Leere Nachricht – bitte schreib etwas."
-    if len(text) > cfg.AI_CHAT_MAX_INPUT_CHARS:
-        return False, (
-            f"❌ Deine Nachricht ist zu lang "
-            f"({len(text):,}/{cfg.AI_CHAT_MAX_INPUT_CHARS:,} Zeichen). "
-            f"Bitte kueze sie."
-        )
     return True, ""
 
 
