@@ -457,5 +457,5 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             await ctx.respond(l10n.get("testnotification_forbidden", lang), ephemeral=True)
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(NotificationsCog(bot))

@@ -267,5 +267,5 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             await self._clean_react(message, "🟡", add="🔴")
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(ReviewsCog(bot))

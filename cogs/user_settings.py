@@ -227,5 +227,5 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             await ctx.followup.send(block, ephemeral=True)
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(UserSettingsCog(bot))

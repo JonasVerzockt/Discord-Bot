@@ -168,5 +168,5 @@ class StatsCog(commands.Cog, name="Stats"):
         )
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(StatsCog(bot))

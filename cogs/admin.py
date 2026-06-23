@@ -142,5 +142,5 @@ class AdminCog(commands.Cog, name="Admin"):
             await ctx.respond(f"Fehler: `{e}`", ephemeral=True)
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(AdminCog(bot))

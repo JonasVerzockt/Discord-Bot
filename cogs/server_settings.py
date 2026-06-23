@@ -160,5 +160,5 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
         )
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(ServerSettingsCog(bot))

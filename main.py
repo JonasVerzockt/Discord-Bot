@@ -64,7 +64,7 @@ async def main():
         # Cogs laden
         for cog in INITIAL_COGS:
             try:
-                await bot.load_extension(cog)
+                bot.load_extension(cog)
                 logger.info(f"📦 Cog geladen: {cog}")
             except Exception as e:
                 logger.error(f"❌ Fehler beim Laden von {cog}: {e}", exc_info=True)

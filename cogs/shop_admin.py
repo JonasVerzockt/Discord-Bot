@@ -241,5 +241,5 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         await ctx.respond("\n".join(lines), ephemeral=True)
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(ShopAdminCog(bot))

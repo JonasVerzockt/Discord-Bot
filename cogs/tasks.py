@@ -185,5 +185,5 @@ class TasksCog(commands.Cog, name="Tasks"):
         await self.bot.wait_until_ready()
 
 
-async def setup(bot: discord.Bot):
+def setup(bot: discord.Bot):
     await bot.add_cog(TasksCog(bot))
