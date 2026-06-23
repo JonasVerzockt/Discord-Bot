@@ -107,5 +107,6 @@
   "shopurl_clear_none": "ℹ️ Neniu URL-superskribo trovita por **{shop}** (ID `{id}`).",
   "shopurl_list_header": "🔗 **Manaj URL-superskriboj:**",
   "shopurl_list_entry": "- **{shop}** (ID `{id}`): {url}",
-  "shopurl_list_none": "Neniaj manaj URL-superskriboj agorditas."
+  "shopurl_list_none": "Neniaj manaj URL-superskriboj agorditas.",
+  "ch_delivery_remove_no_permission": "❌ Vi povas forigi nur enojn kiujn vi mem aldonis."
 }

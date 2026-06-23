@@ -107,5 +107,6 @@
   "shopurl_clear_none": "ℹ️ No URL override found for **{shop}** (ID `{id}`).",
   "shopurl_list_header": "🔗 **Manual URL overrides:**",
   "shopurl_list_entry": "- **{shop}** (ID `{id}`): {url}",
-  "shopurl_list_none": "No manual URL overrides set."
+  "shopurl_list_none": "No manual URL overrides set.",
+  "ch_delivery_remove_no_permission": "❌ You can only remove entries you added yourself."
 }

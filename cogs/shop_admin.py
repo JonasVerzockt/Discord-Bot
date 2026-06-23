@@ -36,7 +36,7 @@ from rapidfuzz import process
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data
-from cogs.server_settings import admin_or_manage_messages
+from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     )
 
     @ch_delivery.command(name="add", description="Add a shop to the CH delivery list")
-    @admin_or_manage_messages()
+    @allowed_channel()
     async def ch_delivery_add(
         self,
         ctx: discord.ApplicationContext,
@@ -170,13 +170,6 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             return
         shop_name = best[0]
         shop_id   = next(sid for sid, name in shop_names.items() if name == shop_name)
-
-        # Prüfen ob schon vorhanden
-        existing = await execute_db(
-            self.bot,
-            "SELECT 1 FROM ch_delivery_shops WHERE shop_id=?",
-            (shop_id,), fetch=True,
-        ) if False else []   # Tabelle optional – via migrate
         # Tabelle anlegen falls nicht vorhanden
         await execute_db(
             self.bot,
@@ -197,7 +190,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         await ctx.respond(l10n.get(key, lang, shop=shop_name), ephemeral=True)
 
     @ch_delivery.command(name="remove", description="Remove a shop from the CH delivery list")
-    @admin_or_manage_messages()
+    @allowed_channel()
     async def ch_delivery_remove(
         self,
         ctx: discord.ApplicationContext,
@@ -213,15 +206,36 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             return
         shop_name = best[0]
         shop_id   = next(sid for sid, name in shop_names.items() if name == shop_name)
-        rc = await execute_db(
+
+        # Prüfen ob Eintrag existiert und wer ihn hinzugefügt hat
+        existing = await execute_db(
+            self.bot,
+            "SELECT added_by FROM ch_delivery_shops WHERE shop_id=?",
+            (shop_id,), fetch=True,
+        )
+        if not existing:
+            await ctx.respond(l10n.get("ch_delivery_not_found", lang, shop=shop_name), ephemeral=True)
+            return
+
+        is_admin = ctx.guild and (
+            ctx.author.guild_permissions.administrator
+            or ctx.author.guild_permissions.manage_messages
+        )
+        is_owner = existing[0]["added_by"] == str(ctx.author.id)
+
+        if not is_admin and not is_owner:
+            await ctx.respond(l10n.get("ch_delivery_remove_no_permission", lang, shop=shop_name), ephemeral=True)
+            return
+
+        await execute_db(
             self.bot,
             "DELETE FROM ch_delivery_shops WHERE shop_id=?",
             (shop_id,), commit=True,
         )
-        key = "ch_delivery_remove_success" if rc else "ch_delivery_not_found"
-        await ctx.respond(l10n.get(key, lang, shop=shop_name), ephemeral=True)
+        await ctx.respond(l10n.get("ch_delivery_remove_success", lang, shop=shop_name), ephemeral=True)
 
     @ch_delivery.command(name="list", description="Show all shops delivering to Switzerland")
+    @allowed_channel()
     async def ch_delivery_list(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:
