@@ -218,7 +218,7 @@ async def sync_ratings_from_sheet(bot) -> int:
             if shop_norm:
                 m = process.extractOne(
                     shop_norm, sheet_fuzzy_keys,
-                    scorer=fuzz.token_sort_ratio, score_cutoff=80,
+                    scorer=fuzz.token_sort_ratio, score_cutoff=81,
                 )
                 if m:
                     orig_key, orig_rating = sheet_fuzzy[m[0]]
