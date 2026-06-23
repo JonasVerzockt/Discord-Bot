@@ -6,7 +6,7 @@ Lädt die aktuelle Verfügbarkeitsliste von der AntCheck API herunter
 und speichert sie als shops_data.json im DATA_DIRECTORY.
 
 Typischer Aufruf (crontab):
-  */5 * * * * cd /opt/antcheckbot && /opt/antcheckbot/.venv/bin/python grabber.py
+  0 * * * * cd /opt/antcheckbot && /opt/antcheckbot/.venv/bin/python grabber.py
 
 Umgebungsvariablen (aus .env oder Shell):
   DATA_DIRECTORY   – Zielverzeichnis für shops_data.json

@@ -93,7 +93,7 @@ python grabber.py
 ### Empfohlener Cron-Job für den Grabber
 
 ```cron
-*/5 * * * * cd /pfad/zum/bot && .venv/bin/python grabber.py
+0 * * * * cd /pfad/zum/bot && .venv/bin/python grabber.py
 ```
 
 ---
