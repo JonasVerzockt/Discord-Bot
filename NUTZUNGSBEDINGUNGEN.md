@@ -12,6 +12,7 @@ Der Bot kombiniert zwei Funktionen für die AAM-Community:
 
 - **Bewertungs-Bot** – erkennt Shop-Bewertungen im dafür vorgesehenen Kanal, wertet sie automatisch mit KI aus und trägt sie in eine gemeinschaftliche Bewertungsübersicht ein.
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist.
+- **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Haiku). Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet.
 
 ### Nutzung
 
@@ -19,6 +20,7 @@ Der Bot kombiniert zwei Funktionen für die AAM-Community:
 - Es dürfen ausschließlich echte, selbst erlebte Einkaufserfahrungen bewertet werden.
 - Verfügbarkeitsbenachrichtigungen dienen dem persönlichen Gebrauch und dürfen nicht automatisiert abgefragt werden.
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
+- Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
 
 ### Haftung
 
@@ -63,12 +65,25 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 
 **Nicht** gespeichert werden: Nutzernamen, Profilbilder, Rollen oder sonstige Metadaten.
 
+#### AI-Chat-Bot
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID | Budget-Tracking (Tagesbudget pro User) | Lokale SQLite-Datenbank auf dem Server |
+| Gesprächsverlauf (Nachrichten und KI-Antworten) | Konversationsgedächtnis für Anschlussfragen (per Discord-Reply) | Lokale SQLite-Datenbank auf dem Server, automatisch gelöscht nach 24 Stunden |
+
+> **Hinweis:** **Alle** Nachrichten im AI-Chat-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Im AI-Chat-Kanal sollten daher keine sensiblen personenbezogenen Daten geteilt werden.
+
+**Nicht** gespeichert werden: Nutzernamen oder der Nachrichtentext selbst außerhalb des Gesprächsverlaufs.
+
 ### Drittanbieter
 
 #### Anthropic (KI-Verarbeitung)
 
-Nachrichteninhalte werden zur automatischen Auswertung einmalig an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
+Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft sowohl den Bewertungs-Bot (Shop-Bewertungen) als auch den AI-Chat-Bot (alle Nachrichten im AI-Kanal). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
 → Datenschutz: https://www.anthropic.com/privacy
+
+Gesprächsverläufe werden lokal für **maximal 24 Stunden** zwischengespeichert (für Konversationsgedächtnis) und danach automatisch gelöscht.
 
 #### Google (Tabellenspeicherung)
 
@@ -94,6 +109,8 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **Bewertungsdaten** werden so lange gespeichert wie die Community besteht.
 - **Benachrichtigungseinstellungen** werden auf Wunsch des Nutzers per `/delete_notifications` jederzeit gelöscht.
 - **Gesehene Produkte und Blacklist** werden zusammen mit den zugehörigen Benachrichtigungen entfernt.
+- **AI-Chat-Konversationsverläufe** werden automatisch nach **24 Stunden** gelöscht (oder sofort wenn du nicht auf eine Bot-Antwort antwortest).
+- **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte

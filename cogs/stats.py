@@ -157,13 +157,14 @@ class StatsCog(commands.Cog, name="Stats"):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         user_keys = [
             "help_notification", "help_history", "help_test", "help_delete",
-            "help_usersetting", "help_ch_delivery",
+            "help_usersetting", "help_ch_delivery", "help_ai_chat",
         ]
         admin_keys = [
             "help_startup", "help_status", "help_pending", "help_test_admin",
             "help_rescan", "help_export",
             "help_stats", "help_system",
             "help_reloadshops", "help_shopmapping", "help_shopurl",
+            "help_ai_reset",
         ]
         user_commands  = "\n".join(l10n.get(k, lang) for k in user_keys)
         admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)

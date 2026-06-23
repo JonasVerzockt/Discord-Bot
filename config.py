@@ -55,3 +55,45 @@ LOCALES_DIR = BASE_DIR / "locales"
 # Verhalten
 SCAN_DAYS       = 90
 FUZZY_THRESHOLD = 80
+
+# Anthropic (Review-Bot + KI-Chat)
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
+# Modell fuer den Chat (Standard: claude-haiku-4-5-20251001)
+AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-4-5-20251001")
+
+# Kanal-ID in dem der Bot auf ALLE Nachrichten reagiert (eine ID).
+# Zusaetzlich reagiert der Bot immer auf @-Erwaehnung in jedem Kanal.
+# Leer lassen = nur @-Erwaehnung funktioniert.
+AI_CHAT_CHANNEL_IDS: list[int] = [
+    int(x) for x in os.getenv("AI_CHAT_CHANNEL_IDS", "").split(",") if x.strip()
+]
+
+# Budget in USD (Reset taeglich 00:00 UTC)
+AI_CHAT_DAILY_BUDGET_USD      = float(os.getenv("AI_CHAT_DAILY_BUDGET_USD",      "0.50"))
+AI_CHAT_USER_DAILY_BUDGET_USD = float(os.getenv("AI_CHAT_USER_DAILY_BUDGET_USD", "0.10"))
+
+# Limits pro Anfrage (Schutz vor teuren Requests)
+AI_CHAT_MAX_INPUT_CHARS   = int(os.getenv("AI_CHAT_MAX_INPUT_CHARS",   "1500"))
+AI_CHAT_MAX_OUTPUT_TOKENS = int(os.getenv("AI_CHAT_MAX_OUTPUT_TOKENS", "800"))
+AI_CHAT_MAX_HISTORY_TURNS = int(os.getenv("AI_CHAT_MAX_HISTORY_TURNS", "10"))
+
+# Wie lange wird eine Konversation gespeichert (Stunden)
+AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
+
+# System-Prompt: zuerst Datei, dann Env-Variable, dann eingebauter Standard
+_SYSTEM_PROMPT_FILE = BASE_DIR / "ai_chat_system_prompt.txt"
+if _SYSTEM_PROMPT_FILE.exists():
+    AI_CHAT_SYSTEM_PROMPT: str = _SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
+else:
+    AI_CHAT_SYSTEM_PROMPT = os.getenv(
+        "AI_CHAT_SYSTEM_PROMPT",
+        (
+            "Du bist ein hilfreicher Assistent der AAM (Ameisen an die Macht) "
+            "Discord-Community – einer Gemeinschaft rund um Ameisenhaltung und "
+            "Myrmekologie. Beantworte Fragen freundlich, praegnant und auf Deutsch. "
+            "Bei Fragen zu Ameisen, Haltung oder Zucht antworte fachkundig. "
+            "Halte Antworten kurz und klar."
+        ),
+    )

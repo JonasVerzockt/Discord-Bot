@@ -115,5 +115,7 @@
   "help_test_admin": "`/test` – KI-Parser testen ohne Sheet-Eintrag",
   "help_rescan": "`/rescan` – Letzte 90 Tage manuell neu abgleichen",
   "help_export": "`/export` – Sheet-Rohdaten als JSON anzeigen",
-  "help_shopurl": "`/shopurl` – Manuelle URL-Overrides für Shops setzen"
+  "help_shopurl": "`/shopurl` – Manuelle URL-Overrides für Shops setzen",
+  "help_ai_chat": "`/ai_status` – Deinen KI-Chat Budget-Status anzeigen",
+  "help_ai_reset": "`/ai_reset` – (Admin) KI-Chat Budget eines Users oder global zurücksetzen"
 }

@@ -4,6 +4,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert zw
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist
+- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal mit Claude Haiku, inkl. Konversationsgedächtnis (per Discord-Reply) und Tagesbudget-Kontrolle
 
 ---
 
@@ -72,12 +73,19 @@ ANTCHECK_API_KEY=dein_api_key_hier
 ANTCHECK_API_URL=https://antcheck.info
 ANTCHECK_VERIFY_SSL=false                 # false bei self-signed Zertifikat
 
+# ── KI-Chat-Bot ───────────────────────────────────────────────
+AI_CHAT_CHANNEL_IDS=123456789012345678   # Kanal-ID, in dem der Bot antwortet
+AI_CHAT_DAILY_BUDGET_USD=0.50            # Gesamtes Tagesbudget (alle User)
+AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
+
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
 
 # ── Python ────────────────────────────────────────────────────
 PYTHONUNBUFFERED=1
 ```
+
+Alle Limits (Eingabetechenanzahl, Output-Tokens, Konversationsgedächtnis, TTL) haben sinnvolle Defaults und müssen nur gesetzt werden wenn sie angepasst werden sollen – siehe `.env.example`.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
@@ -214,6 +222,25 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 
 ---
 
+## AI-Chat-Bot
+
+### Funktionsweise
+
+Der AI-Chat-Bot reagiert auf **alle** Nachrichten in den konfigurierten `AI_CHAT_CHANNEL_IDS`. Slash-Commands und eigene Bot-Nachrichten werden ignoriert.
+
+**Konversationsgedächtnis:** Wenn ein User auf eine Bot-Antwort antwortet (Discord-Reply), wird die gespeicherte Gesprächshistorie geladen und der Kontext fortgeführt. Die KI „erinnert sich" bis zu `AI_CHAT_MAX_HISTORY_TURNS` Gesprächsrunden (Standard: 10) oder bis zur TTL-Grenze (Standard: 24 Stunden).
+
+**Budget-Kontrolle (Tagesreset 00:00 UTC):**
+- Globales Tagesbudget (`AI_CHAT_DAILY_BUDGET_USD`, Standard: $0,50) – gemeinsamer Pool aller User
+- Pro-User-Tagesbudget (`AI_CHAT_USER_DAILY_BUDGET_USD`, Standard: $0,10) – individuelles Limit
+- Ist eines der Budgets erschöpft, antwortet der Bot mit einer Fehlermeldung statt einen API-Call zu machen
+
+**System-Prompt:** Wird aus `ai_chat_system_prompt.txt` geladen (falls vorhanden), sonst aus der Umgebungsvariable `AI_CHAT_SYSTEM_PROMPT`. Standardmäßig ist der Bot als deutschsprachiger AAM-Community-Assistent für Ameisenhaltung konfiguriert.
+
+**Modell:** Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) – schnell und kostengünstig.
+
+---
+
 ## Slash Commands
 
 ### Für alle User (nur im Bot-Kanal)
@@ -231,6 +258,7 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 | `/usersetting shop_list` | Alle Shops anzeigen, optional nach Land filtern |
 | `/ch_delivery add` | Shop zur CH-Lieferliste hinzufügen |
 | `/ch_delivery list` | CH-Lieferliste anzeigen |
+| `/ai_status` | Eigenen KI-Chat Budget-Status anzeigen (globales + persönliches Tagesbudget) |
 | `/help` | Befehlsübersicht |
 
 ### Nur Admin / Nachrichten verwalten
@@ -253,6 +281,7 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 | `/shopurl clear` | Manuelle URL entfernen (API-URL wird wieder genutzt) |
 | `/shopurl list` | Alle aktiven URL-Overrides anzeigen |
 | `/ch_delivery remove` | Shop aus CH-Lieferliste entfernen |
+| `/ai_reset` | KI-Chat Budget für einen User oder global zurücksetzen |
 
 > **Hinweis zu `/ch_delivery remove`:** Jeder User kann seine eigenen Einträge entfernen. Admins und User mit „Nachrichten verwalten" können alle Einträge entfernen.
 
@@ -268,6 +297,7 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` |
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
 | Bot-Status | jede Minute | Aktualisiert den Discord-Status (Uptime, Server, User) |
+| AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 
 ---
 
@@ -307,6 +337,8 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `review_pending` | Ausstehende Nachrichten (unaufgelöster Shop / Parse-Fehler) |
 | `global_stats` | Gesamtstatistiken (z.B. gelöschte Benachrichtigungen) |
 | `eu_countries` | EU-Ländercodes (beim Start einmalig befüllt) |
+| `ai_chat_budget` | KI-Chat Tagesbudgets pro User (date, user_id, cost_usd) |
+| `ai_chat_history` | KI-Gesprächshistorie pro Bot-Nachricht-ID (TTL: 24h) |
 
 ---
 
@@ -324,6 +356,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 ├── shops_data.json          # Von grabber.py erzeugt (nicht im Git)
 ├── antcheckbot.db           # SQLite-Datenbank (nicht im Git)
 ├── shop_mapping.csv         # Manuelles Shop-Mapping (nicht im Git)
+├── ai_chat_system_prompt.txt  # System-Prompt für den KI-Chat (optional)
 │
 ├── cogs/
 │   ├── server_settings.py   # /startup + allowed_channel/admin_or_manage_messages Decorators
@@ -333,7 +366,8 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
 │   ├── stats.py             # /stats /system /help
 │   ├── shop_admin.py        # /reloadshops /shopmapping /shopurl /ch_delivery
-│   └── tasks.py             # Alle Hintergrundaufgaben
+│   ├── tasks.py             # Alle Hintergrundaufgaben
+│   └── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
@@ -341,6 +375,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 │   ├── sheet.py             # Google Sheets Cache (SheetCache) + Rating-Sync
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
+│   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler

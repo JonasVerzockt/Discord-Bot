@@ -52,6 +52,7 @@ INITIAL_COGS = [
     "cogs.stats",             # /stats / /system / /help
     "cogs.shop_admin",        # /reloadshops / /shopmapping / /ch_delivery
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
+    "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
 ]
 
 
