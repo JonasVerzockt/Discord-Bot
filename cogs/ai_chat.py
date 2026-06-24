@@ -231,11 +231,13 @@ class AiChatCog(commands.Cog):
                 images=images or None,
             )
 
-        # Disclaimer an Antwort anhaengen
+        # Disclaimer (inkl. tatsaechliche Kosten) an Antwort anhaengen
+        cost_str = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
+        cost_part = f" · 💰 {cost_str}" if cost_str else ""
         DISCLAIMER = (
-            "\n-# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz fuer Fachrat. "
-            "Angaben immer selbst pruefen! · "
-            "Quellcode: <https://github.com/JonasVerzockt/Discord-Bot>"
+            f"\n-# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz fuer Fachrat. "
+            f"Angaben immer selbst pruefen!{cost_part} · "
+            f"Quellcode: <https://github.com/JonasVerzockt/Discord-Bot>"
         )
         answer_with_disclaimer = result["answer"] + DISCLAIMER
 
