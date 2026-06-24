@@ -253,7 +253,8 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
         return False, (
             f"⚠️ Das globale Tagesbudget ist erschoepft "
             f"(${cfg.AI_CHAT_DAILY_BUDGET_USD:.2f}/Tag, "
-            f"noch ${remaining:.4f} uebrig). "
+            f"noch ${remaining:.4f} uebrig – "
+            f"geschaetzte Kosten fuer diese Anfrage: ~${estimated_cost:.4f}). "
             f"Reset um {reset_str}."
         )
 
@@ -262,7 +263,8 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
         return False, (
             f"⚠️ Dein persoenliches Tagesbudget ist erschoepft "
             f"(${cfg.AI_CHAT_USER_DAILY_BUDGET_USD:.2f}/Tag, "
-            f"noch ${remaining:.4f} uebrig). "
+            f"noch ${remaining:.4f} uebrig – "
+            f"geschaetzte Kosten fuer diese Anfrage: ~${estimated_cost:.4f}). "
             f"Reset um {reset_str}."
         )
 
