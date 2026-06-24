@@ -476,14 +476,23 @@ async def chat(
     else:
         messages = history + [{"role": "user", "content": user_message}]
 
-    # 5. API-Call (kein Prompt Caching: Haiku 4.5 benoetigt min. 4.096 Tokens,
+    # 5. System-Prompt zusammenbauen (Basis + optionaler Shop-Daten-Block)
+    from utils.sheets_shop_data import get_cached_block as _shop_block
+    shop_data = _shop_block()
+    system_prompt = (
+        cfg.AI_CHAT_SYSTEM_PROMPT + "\n\n" + shop_data
+        if shop_data else
+        cfg.AI_CHAT_SYSTEM_PROMPT
+    )
+
+    # 6. API-Call (kein Prompt Caching: Haiku 4.5 benoetigt min. 4.096 Tokens,
     #    ein typischer System-Prompt hat ~50-200 Tokens – Minimum nie erreicht)
     try:
         client   = _get_client()
         response = await client.messages.create(
             model=cfg.AI_CHAT_MODEL,
             max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
-            system=cfg.AI_CHAT_SYSTEM_PROMPT,
+            system=system_prompt,
             messages=messages,
         )
 
@@ -509,12 +518,12 @@ async def chat(
             "cost": 0.0, "history": [], "is_error": True,
         }
 
-    # 6. Antwort extrahieren
+    # 7. Antwort extrahieren
     answer = "".join(
         block.text for block in response.content if hasattr(block, "text")
     ) or "(Keine Antwort erhalten)"
 
-    # 7. Tatsaechliche Kosten tracken (nach erfolgreichem Call)
+    # 8. Tatsaechliche Kosten tracken (nach erfolgreichem Call)
     actual_cost = calculate_cost(response.usage)
     add_cost(user_id, actual_cost)
 
@@ -527,7 +536,7 @@ async def chat(
         f"cost=${actual_cost:.6f}"
     )
 
-    # 8. Aktualisierte History (wird vom Cog nach bot.reply() gespeichert)
+    # 9. Aktualisierte History (wird vom Cog nach bot.reply() gespeichert)
     new_history = trim_history(
         messages + [{"role": "assistant", "content": answer}]
     )

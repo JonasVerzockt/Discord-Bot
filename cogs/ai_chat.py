@@ -45,6 +45,7 @@ from utils.ai_chat import (
     load_conversation,
     save_conversation,
 )
+from utils.sheets_shop_data import refresh as refresh_shop_data
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +70,14 @@ class AiChatCog(commands.Cog):
         self.bot = bot
         # Tabellen sicher anlegen (idempotent)
         init_ai_chat_tables()
-        # Cleanup-Loop starten
+        # Hintergrundtasks starten
         self.cleanup_loop.start()
+        self.shop_data_loop.start()
         logger.info("✅ AiChatCog geladen")
 
     def cog_unload(self) -> None:
         self.cleanup_loop.cancel()
+        self.shop_data_loop.cancel()
 
     # ── Hintergrundtask: abgelaufene Konversationen loeschen ────────────────
 
@@ -86,6 +89,20 @@ class AiChatCog(commands.Cog):
 
     @cleanup_loop.before_loop
     async def _before_cleanup(self) -> None:
+        await self.bot.wait_until_ready()
+
+    # ── Hintergrundtask: Shop-Daten aus Google Sheets laden ─────────────────
+
+    @tasks.loop(hours=6)
+    async def shop_data_loop(self) -> None:
+        ok = refresh_shop_data()
+        if ok:
+            logger.info("[AI-Chat] Shop-Daten aus Google Sheets aktualisiert")
+        else:
+            logger.debug("[AI-Chat] Shop-Daten nicht aktualisiert (nicht konfiguriert oder Fehler)")
+
+    @shop_data_loop.before_loop
+    async def _before_shop_data(self) -> None:
         await self.bot.wait_until_ready()
 
     # ── Hilfsmethoden ────────────────────────────────────────────────────────
