@@ -12,7 +12,7 @@ Der Bot kombiniert zwei Funktionen für die AAM-Community:
 
 - **Bewertungs-Bot** – erkennt Shop-Bewertungen im dafür vorgesehenen Kanal, wertet sie automatisch mit KI aus und trägt sie in eine gemeinschaftliche Bewertungsübersicht ein.
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist.
-- **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten.
+- **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. *(aktuell nicht öffentlich verfügbar im AAM Discord)*
 
 ### Nutzung
 
@@ -20,7 +20,7 @@ Der Bot kombiniert zwei Funktionen für die AAM-Community:
 - Es dürfen ausschließlich echte, selbst erlebte Einkaufserfahrungen bewertet werden.
 - Verfügbarkeitsbenachrichtigungen dienen dem persönlichen Gebrauch und dürfen nicht automatisiert abgefragt werden.
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
-- Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
+- Der AI-Chat-Bot ist im AAM Discord aktuell nicht öffentlich zugänglich. Sobald er aktiviert wird, gilt: Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
 
 ### Haftung
 

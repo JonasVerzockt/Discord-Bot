@@ -4,7 +4,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert zw
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist
-- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet
+- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 
 ---
 
@@ -223,6 +223,8 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 ---
 
 ## AI-Chat-Bot
+
+> **Hinweis:** Der AI-Chat-Bot ist im AAM Discord aktuell **nicht öffentlich verfügbar**. Die Funktion ist vollständig implementiert und kann jederzeit aktiviert werden, wird aber momentan nur intern genutzt. Hintergrund: Die Community setzt bewusst auf echte Antworten von erfahrenen Haltern statt auf KI – viele Mitglieder schätzen den persönlichen Austausch und stehen KI-generierten Antworten skeptisch gegenüber. Der Bot bleibt als optionales Feature erhalten, das bei Bedarf aktiviert werden kann.
 
 ### Funktionsweise
 
