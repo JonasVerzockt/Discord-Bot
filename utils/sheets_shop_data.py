@@ -88,26 +88,58 @@ def get_cached_shop_names() -> frozenset[str]:
 def _parse_haendler_az(rows: list[list[str]]) -> str:
     """
     Parst den Tab 'Haendler A-Z'.
-    Erwartet: Kopfzeile + Datenzeilen (Shop, Anzahl, Durchschnitt, ...).
-    Leere Zeilen (kein Shop-Name in Spalte A) werden uebersprungen.
-    Interne Hilfsspalten (z.B. 'Hilfsspalte') werden ausgeblendet.
+    - Leere Zeilen (kein Shop-Name in Spalte A) werden uebersprungen.
+    - Shops mit < 4 Bewertungen werden weggelassen (zu wenig Datenbasis).
+    - Kompaktes Format: "shopname ⭐9.97 (63x)" statt verbose Key:Value.
     """
-    _SKIP_COLS = {"hilfsspalte", "helper", "intern"}
-    headers = [h.strip() for h in rows[0]]
+    MIN_REVIEWS = 4
+
+    # Header normalisieren (Zeilenumbrueche aus mehrzeiligen Zellen entfernen)
+    headers = [h.strip().replace("\n", " ").replace("\r", "") for h in rows[0]]
+
+    def _find_col(*keywords: str) -> int | None:
+        """Gibt den Index der ersten Spalte zurueck deren Header einen der Keywords enthaelt."""
+        for i, h in enumerate(headers):
+            hl = h.lower()
+            if any(kw in hl for kw in keywords):
+                return i
+        return None
+
+    idx_anzahl = _find_col("anzahl", "count", "reviews")
+    idx_rating  = _find_col("durchschnitt", "average", "rating")
+
     lines: list[str] = []
 
     for row in rows[1:]:
         if not row[0].strip():
-            continue  # Leere Zeile (z.B. nur Hilfsspalte mit FALSE)
-        parts = [
-            f"{h}: {v.strip()}"
-            for h, v in zip(headers, row)
-            if h and v.strip() and h.strip().lower() not in _SKIP_COLS
-        ]
-        if parts:
-            lines.append(" | ".join(parts))
+            continue  # Leere Zeile
 
-    return "[Haendler A-Z – alle Shops mit Community-Bewertung]\n" + "\n".join(lines)
+        shop = row[0].strip()
+
+        # Anzahl-Filter
+        anzahl = 0
+        if idx_anzahl is not None and idx_anzahl < len(row):
+            try:
+                anzahl = int(row[idx_anzahl].strip())
+            except ValueError:
+                pass
+        if anzahl < MIN_REVIEWS:
+            continue
+
+        # Kompaktformat: "shopname ⭐9.97 (63x)"
+        if idx_rating is not None and idx_rating < len(row):
+            raw_rating = row[idx_rating].strip().replace(",", ".")
+            try:
+                lines.append(f"{shop} ⭐{float(raw_rating):.2f} ({anzahl}x)")
+            except ValueError:
+                lines.append(f"{shop} ⭐{raw_rating} ({anzahl}x)")
+        else:
+            lines.append(shop)
+
+    return (
+        "[Haendler A-Z – Community-Bewertungen (mind. 4 Bewertungen)]\n"
+        + "\n".join(lines)
+    )
 
 
 def _parse_uebersicht(rows: list[list[str]]) -> str:

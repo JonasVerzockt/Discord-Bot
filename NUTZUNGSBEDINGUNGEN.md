@@ -73,7 +73,7 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 | Gesprächsverlauf (Nachrichten und KI-Antworten) | Konversationsgedächtnis für Anschlussfragen (per Discord-Reply) | Lokale SQLite-Datenbank auf dem Server, automatisch gelöscht nach 24 Stunden |
 | Bildanhänge (jpg, png, gif, webp, max. 1 MB) | Bildanalyse durch die KI | Werden einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
 | Textdateianhänge (txt, md, csv, log, max. 10 KB) | Analyse durch die KI | Inhalt wird einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
-| Shop-Bewertungsdaten aus Google Sheets (Tabs „Übersicht" + „Händler A-Z") | Als Kontextwissen im System-Prompt – ermöglicht Shop-Fragen | Werden alle 6 Stunden geladen und beim API-Call mitgeschickt; enthalten keine personenbezogenen Daten |
+| Shop-Bewertungsdaten aus Google Sheets (Tabs „Übersicht" + „Händler A-Z") | Als Kontextwissen im System-Prompt – ermöglicht Shop-Fragen | Werden alle 6 Stunden geladen; nur bei shop-relevanten Anfragen an die API übermittelt (3-stufige Vorqualifizierung); enthalten keine personenbezogenen Daten |
 
 > **Hinweis:** **Alle** Nachrichten im AI-Chat-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Im AI-Chat-Kanal sollten daher keine sensiblen personenbezogenen Daten geteilt werden. Die KI-Antworten sind unverbindlich – jede Antwort enthält automatisch einen entsprechenden Disclaimer.
 
