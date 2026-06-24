@@ -79,14 +79,16 @@ def load_shop_data() -> Optional[str]:
         lines: list[str] = []
 
         for row in rows[1:]:
-            # Leere Zeilen ueberspringen
-            if not any(cell.strip() for cell in row):
+            # Zeilen ohne Inhalt in Spalte A ueberspringen
+            # (betrifft leere Zeilen die Sheet-intern eine Hilfsspalte mit FALSE haben)
+            if not row[0].strip():
                 continue
-            # Nur Zellen mit Inhalt ausgeben: "Spalte: Wert"
+            # Interne Hilfsspalten ausschliessen, nur Zellen mit Inhalt ausgeben
+            _SKIP_COLS = {"hilfsspalte", "helper", "intern"}
             parts = [
                 f"{h}: {v.strip()}"
                 for h, v in zip(headers, row)
-                if h and v.strip()
+                if h and v.strip() and h.strip().lower() not in _SKIP_COLS
             ]
             if parts:
                 lines.append(" | ".join(parts))
