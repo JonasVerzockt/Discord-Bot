@@ -21,7 +21,19 @@ Verwaltet:
   - Budget-Tracking (global + per User, taeglich um 00:00 UTC zurueckgesetzt)
   - Konversations-Historie (fuer Thread-Antworten via Discord-Reply)
   - Eingabe-Validierung und Kostenabschaetzung (Pre-Check)
+  - 3-stufige Shop-Daten-Vorqualifizierung (Keyword → Haiku → Sonnet)
   - Anthropic-API-Call (ohne Prompt Caching)
+
+SHOP-DATEN-VORQUALIFIZIERUNG (3 Stufen):
+  Stage 1 – Keyword-Check (kostenlos, sofort):
+    Enthaelt die Nachricht shop-relevante Woerter? → Ja: Shop-Daten rein,
+    fertig. Nein: weiter zu Stage 2.
+  Stage 2 – Haiku-Klassifikation (~$0.00025, ~200ms):
+    Haiku bewertet ob die Nachricht indirekt shop-relevant ist
+    (z.B. "wo kaufe ich günstig?"). Nur bei "JA" werden Shop-Daten geladen.
+    Kosten werden immer zum Gesamtbetrag addiert und im Disclaimer angezeigt.
+  Stage 3 – Sonnet-Hauptaufruf:
+    Mit oder ohne Shop-Daten im System-Prompt je nach Stage-1/2-Ergebnis.
 
 WARUM KEIN PROMPT CACHING:
   Claude Haiku 4.5 erfordert mindestens 4.096 Tokens um einen Cache-Eintrag
@@ -98,6 +110,86 @@ def _get_client() -> anthropic.AsyncAnthropic:
             raise RuntimeError("ANTHROPIC_API_KEY nicht gesetzt!")
         _client = anthropic.AsyncAnthropic(api_key=cfg.ANTHROPIC_API_KEY)
     return _client
+
+
+# ── 3-stufige Shop-Daten-Vorqualifizierung ────────────────────────────────────
+
+# Stage 1: Generische Shop-Begriffe (statisch, Shop-Namen kommen dynamisch aus Sheet)
+_SHOP_KEYWORDS: frozenset[str] = frozenset({
+    "shop", "händler", "haendler", "kaufen", "kauf", "bestellen", "bestellung",
+    "warnung", "warnhinweis", "scam", "betrug", "abzocke",
+    "bewertung", "bewertungen", "empfehlung", "empfehlen",
+    "preis", "preise", "versand", "lieferung", "liefern",
+    "erfahrung", "erfahrungen", "anbieter", "store", "webshop",
+})
+
+
+def _needs_shop_data(message: str) -> bool:
+    """
+    Stage 1: Schneller Keyword-Check ohne API-Kosten.
+    Prueft statische generische Begriffe UND dynamisch geladene Shop-Namen
+    aus dem Google Sheet (wird alle 6 Stunden aktualisiert).
+    """
+    from utils.sheets_shop_data import get_cached_shop_names
+    msg = message.lower()
+    return (
+        any(kw in msg for kw in _SHOP_KEYWORDS)
+        or any(name in msg for name in get_cached_shop_names())
+    )
+
+
+# Stage 2: Haiku-Klassifikation
+_HAIKU_CLASSIFY_MODEL = "claude-haiku-4-5-20251001"
+_HAIKU_PRICE_IN  = 1.00 / 1_000_000
+_HAIKU_PRICE_OUT = 5.00 / 1_000_000
+
+_CLASSIFY_SYSTEM = (
+    "Du klassifizierst Discord-Nachrichten fuer einen Ameisen-Community-Bot. "
+    "Antworte NUR mit 'JA' wenn die Nachricht eine Frage oder Aussage zu "
+    "Ameisen-Shops, Haendlern, Kaufempfehlungen, Warnhinweisen, Scams oder "
+    "Online-Bestellungen enthaelt. "
+    "Antworte NUR mit 'NEIN' in allen anderen Faellen. Kein weiterer Text."
+)
+
+
+async def _classify_shop_haiku(message: str) -> dict:
+    """
+    Stage 2: Haiku klassifiziert ob Shop-Daten benoetigt werden.
+    Wird nur aufgerufen wenn Stage 1 (Keyword) keinen Treffer hatte.
+
+    Returns:
+        {"needs_shop": bool, "cost": float}
+    Fehlerfall: Fallback auf needs_shop=True (sicherer als ohne Daten antworten).
+    """
+    try:
+        client = _get_client()
+        response = await client.messages.create(
+            model=_HAIKU_CLASSIFY_MODEL,
+            max_tokens=5,
+            system=_CLASSIFY_SYSTEM,
+            messages=[{"role": "user", "content": message}],
+        )
+        answer = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip().upper()
+        cost = (
+            response.usage.input_tokens  * _HAIKU_PRICE_IN
+            + response.usage.output_tokens * _HAIKU_PRICE_OUT
+        )
+        needs_shop = answer.startswith("JA")
+        logger.debug(
+            f"[AI-Chat] Stage 2 Haiku: '{answer}' → shop={needs_shop} "
+            f"(in={response.usage.input_tokens}t out={response.usage.output_tokens}t "
+            f"cost=${cost:.6f})"
+        )
+        return {"needs_shop": needs_shop, "cost": cost}
+
+    except Exception as e:
+        logger.warning(
+            f"[AI-Chat] Stage 2 Haiku-Klassifikation fehlgeschlagen: {e} "
+            f"– Fallback: shop=True"
+        )
+        return {"needs_shop": True, "cost": 0.0}
 
 
 # ── DB-Initialisierung (selbstaendig, kein Eingriff in db.py noetig) ─────────
@@ -486,9 +578,25 @@ async def chat(
     else:
         messages = history + [{"role": "user", "content": user_message}]
 
-    # 5. System-Prompt zusammenbauen (Basis + optionaler Shop-Daten-Block)
+    # 5. Shop-Daten 3-stufig bestimmen
+    #    Stage 1: Keyword-Check (kostenlos)
+    #    Stage 2: Haiku-Klassifikation (nur wenn kein Keyword gefunden)
+    #    Stage 3: Shop-Block in System-Prompt einbetten (oder weglassen)
     from utils.sheets_shop_data import get_cached_block as _shop_block
-    shop_data = _shop_block()
+
+    precheck_cost = 0.0
+    if _needs_shop_data(user_message):
+        shop_data = _shop_block()
+        logger.debug("[AI-Chat] Stage 1: Keyword-Treffer → Shop-Daten eingeschlossen")
+    else:
+        classify    = await _classify_shop_haiku(user_message)
+        precheck_cost = classify["cost"]
+        shop_data   = _shop_block() if classify["needs_shop"] else None
+        logger.debug(
+            f"[AI-Chat] Stage 2: Haiku → shop={classify['needs_shop']} "
+            f"(precheck_cost=${precheck_cost:.6f})"
+        )
+
     system_prompt = (
         cfg.AI_CHAT_SYSTEM_PROMPT + "\n\n" + shop_data
         if shop_data else
@@ -533,8 +641,8 @@ async def chat(
         block.text for block in response.content if hasattr(block, "text")
     ) or "(Keine Antwort erhalten)"
 
-    # 8. Tatsaechliche Kosten tracken (nach erfolgreichem Call)
-    actual_cost = calculate_cost(response.usage)
+    # 8. Tatsaechliche Kosten tracken (Sonnet-Call + Haiku-Precheck falls vorhanden)
+    actual_cost = calculate_cost(response.usage) + precheck_cost
     add_cost(user_id, actual_cost)
 
     logger.info(
@@ -544,6 +652,7 @@ async def chat(
         f"cache_w={getattr(response.usage, 'cache_creation_input_tokens', 0)}t "
         f"cache_h={getattr(response.usage, 'cache_read_input_tokens', 0)}t "
         f"cost=${actual_cost:.6f}"
+        + (f" (inkl. Haiku-Precheck ${precheck_cost:.6f})" if precheck_cost else "")
     )
 
     # 9. Aktualisierte History (wird vom Cog nach bot.reply() gespeichert)

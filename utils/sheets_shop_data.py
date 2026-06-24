@@ -27,17 +27,60 @@ der Review-Bot – keine extra Konfiguration noetig.
 """
 
 import logging
+import re
 from typing import Optional
 
 import config as cfg
 
 logger = logging.getLogger(__name__)
 
+# ── Shop-Namen-Normalisierung ─────────────────────────────────────────────────
+
+# Bekannte TLDs inkl. zwei-stufige (.co.uk, .co.at, ...)
+_TLD_RE = re.compile(
+    r'\.(de|com|eu|net|fr|store|co\.uk|co\.at|uk|nl|at|ch|be|pl|es|it|info|org|io)$',
+    re.IGNORECASE,
+)
+
+
+def _shop_name_variants(raw: str) -> set[str]:
+    """
+    Erzeugt alle sinnvollen Such-Varianten eines Shop-Namens:
+      - Original lowercase: "www.exotic-ants.de"
+      - Ohne Protokoll:    "exotic-ants.de"
+      - Ohne www:          "exotic-ants.de"
+      - Ohne TLD:          "exotic-ants"        ← der Kern
+
+    Damit matcht z.B. "exotic-ants" sowohl auf "exotic-ants.de" als auch
+    auf eine Nutzernachricht die nur "exotic ants" oder "exotic-ants" enthaelt.
+    """
+    name = raw.strip().lower().rstrip("/")
+    name = re.sub(r'^https?://', '', name)   # Protokoll entfernen
+    name = re.sub(r'^www\.', '', name)        # www. entfernen
+    core = _TLD_RE.sub('', name)              # TLD entfernen: "exotic-ants"
+
+    variants: set[str] = {raw.strip().lower(), name, core}
+    variants.discard('')
+    return variants
+
 # Nur diese Tabs werden eingelesen
 _ALLOWED_TABS = {"Übersicht", "Händler A-Z"}
 
 # Gecachter Shop-Daten-Block (wird vom Cog aktualisiert)
 _cached_block: Optional[str] = None
+
+# Gecachte Shop-Namen (lowercase, mit + ohne TLD) fuer dynamischen Keyword-Filter
+_cached_shop_names: frozenset[str] = frozenset()
+
+
+def get_cached_shop_names() -> frozenset[str]:
+    """
+    Gibt alle bekannten Shop-Namen als lowercase frozenset zurueck.
+    Enthaelt sowohl vollstaendige Domains (z.B. 'exotic-ants.de')
+    als auch Namen ohne TLD ('exotic-ants').
+    Wird bei jedem Sheet-Refresh automatisch aktualisiert.
+    """
+    return _cached_shop_names
 
 
 # ── Tab-spezifische Parser ────────────────────────────────────────────────────
@@ -151,6 +194,7 @@ def load_shop_data() -> Optional[str]:
         return None
 
     sections: list[str] = []
+    shop_names: set[str] = set()
 
     for ws in sh.worksheets():
         if ws.title not in _ALLOWED_TABS:
@@ -168,6 +212,11 @@ def load_shop_data() -> Optional[str]:
         try:
             if ws.title == "Händler A-Z":
                 section = _parse_haendler_az(rows)
+                # Shop-Namen fuer dynamischen Keyword-Filter extrahieren
+                # (alle Varianten: mit/ohne TLD, www, Protokoll)
+                for row in rows[1:]:
+                    if row and row[0].strip():
+                        shop_names.update(_shop_name_variants(row[0]))
             elif ws.title == "Übersicht":
                 section = _parse_uebersicht(rows)
             else:
@@ -183,6 +232,11 @@ def load_shop_data() -> Optional[str]:
     if not sections:
         logger.info("[ShopData] Sheet geladen, aber keine Daten gefunden")
         return None
+
+    # Shop-Namen-Cache aktualisieren (fuer dynamischen Keyword-Filter)
+    global _cached_shop_names
+    _cached_shop_names = frozenset(shop_names)
+    logger.debug(f"[ShopData] {len(_cached_shop_names)} Shop-Namen fuer Keyword-Filter geladen")
 
     block = (
         "### Shop-Bewertungsdaten (AAM Community, automatisch geladen)\n\n"
