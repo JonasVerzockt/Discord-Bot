@@ -4,7 +4,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert zw
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist
-- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal mit Claude Haiku, inkl. Konversationsgedächtnis (per Discord-Reply) und Tagesbudget-Kontrolle
+- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet
 
 ---
 
@@ -21,8 +21,8 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert zw
 ## Installation
 
 ```bash
-git clone https://github.com/JonasVerzockt/AntCheckBot
-cd AntCheckBot
+git clone https://github.com/JonasVerzockt/Discord-Bot
+cd Discord-Bot
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -226,14 +226,14 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 
 ### Funktionsweise
 
-Der AI-Chat-Bot reagiert auf **alle** Nachrichten in den konfigurierten `AI_CHAT_CHANNEL_IDS`. Slash-Commands und eigene Bot-Nachrichten werden ignoriert.
+Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfigurierten `AI_CHAT_CHANNEL_IDS`. Slash-Commands und eigene Bot-Nachrichten werden ignoriert.
 
 **Konversationsgedächtnis:** Wenn ein User auf eine Bot-Antwort antwortet (Discord-Reply), wird die gespeicherte Gesprächshistorie geladen und der Kontext fortgeführt. Die KI „erinnert sich" bis zu `AI_CHAT_MAX_HISTORY_TURNS` Gesprächsrunden (Standard: 10) oder bis zur TTL-Grenze (Standard: 24 Stunden).
 
-**Budget-Kontrolle (Tagesreset 00:00 UTC):**
+**Budget-Kontrolle (Tagesreset 00:00 UTC / 01:00 MEZ / 02:00 MESZ):**
 - Globales Tagesbudget (`AI_CHAT_DAILY_BUDGET_USD`, Standard: $0,50) – gemeinsamer Pool aller User
 - Pro-User-Tagesbudget (`AI_CHAT_USER_DAILY_BUDGET_USD`, Standard: $0,10) – individuelles Limit
-- Ist eines der Budgets erschöpft, antwortet der Bot mit einer Fehlermeldung statt einen API-Call zu machen
+- Ist eines der Budgets erschöpft, antwortet der Bot mit einer Fehlermeldung inkl. geschätzter Anforderungskosten und Resetzeit
 
 **Dateianhänge:** Der Bot verarbeitet Anhänge die zusammen mit einer @-Erwähnung gesendet werden:
 
@@ -241,12 +241,17 @@ Der AI-Chat-Bot reagiert auf **alle** Nachrichten in den konfigurierten `AI_CHAT
 |-----|---------|-----------|
 | Bilder (Vision) | jpg, jpeg, png, gif, webp | 1 MB |
 | Textdateien | txt, md, csv, log | 10 KB |
-| Videos | – | nicht unterstützt |
-| Sonstige | – | nicht unterstützt |
+| Videos | – | nicht unterstützt (wird abgelehnt) |
+| Sonstige | – | nicht unterstützt (wird abgelehnt) |
 
-**System-Prompt:** Wird aus `ai_chat_system_prompt.txt` geladen (falls vorhanden), sonst aus der Umgebungsvariable `AI_CHAT_SYSTEM_PROMPT`. Standardmäßig ist der Bot als deutschsprachiger AAM-Community-Assistent für Ameisenhaltung konfiguriert.
+**System-Prompt:** Wird aus `ai_chat_system_prompt.txt` geladen (Platzhalter `{model}` wird beim Start automatisch durch das konfigurierte Modell ersetzt). Standardmäßig als deutschsprachiger AAM-Community-Assistent für Ameisenhaltung konfiguriert, inkl. Hinweisen zu Quellenpflicht, Jugendschutz und Discord-Markdown-Formatierung.
 
-**Modell:** Claude Sonnet (`claude-sonnet-4-6`) – unterstützt Text und Vision (Bildanalyse).
+**Shop-Wissen:** Beim Start und alle 6 Stunden werden die Tabs **„Übersicht"** und **„Händler A-Z"** aus dem AAM Google Sheet geladen und automatisch an den System-Prompt angehängt. Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot – keine extra Konfiguration nötig.
+
+**Disclaimer:** Jede Antwort wird automatisch im Code um einen Disclaimer ergänzt (nicht durch die KI selbst), inkl. der tatsächlichen Anforderungskosten und einem Link zum Quellcode:
+> -# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz für Fachrat. Angaben immer selbst prüfen! · 💰 $0.00312 · Quellcode: https://github.com/JonasVerzockt/Discord-Bot
+
+**Modell:** Standard `claude-haiku-4-5-20251001`, konfigurierbar per `AI_CHAT_MODEL` – aktuell `claude-sonnet-4-6` (unterstützt Text und Vision).
 
 ---
 
@@ -308,6 +313,7 @@ Der AI-Chat-Bot reagiert auf **alle** Nachrichten in den konfigurierten `AI_CHAT
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
 | Bot-Status | jede Minute | Aktualisiert den Discord-Status (Uptime, Server, User) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
+| AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest Tabs „Übersicht" + „Händler A-Z" aus Google Sheet und aktualisiert den System-Prompt-Anhang |
 
 ---
 
@@ -386,6 +392,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
+│   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
