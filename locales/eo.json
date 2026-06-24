@@ -118,5 +118,28 @@
   "help_shopurl": "`/shopurl` – Agordi manajn URL-anstataŭigojn por butiko",
   "help_ai_chat": "`/ai_status` – Montri vian KI-babilad-budĝetan staton (Konsilo: marku @AntCheckHelpi en la KI-kanalo – bildoj ĝis 1 MB kaj tekstdosieroj ĝis 10 KB estas subtenataj)",
   "help_ai_reset": "`/ai_reset` – (Administranto) Restarigi KI-budĝeton por uzanto aŭ tutmonde",
-  "help_ai_prompt": "`/ai_prompt` – (Administranto) Montri la aktualan KI-sisteman indikilon"
+  "help_ai_prompt": "`/ai_prompt` – (Administranto) Montri la aktualan KI-sisteman indikilon",
+
+  "admin_error": "❌ Eraro: `{error}`",
+  "admin_rescan_cog_missing": "❌ ReviewsCog ne ŝargita.",
+  "admin_rescan_channel_missing": "❌ Recenzo-kanalo ne trovita.",
+  "admin_rescan_scanning": "🔍 Rekunigas lastajn {days} tagojn...",
+  "admin_rescan_result": "✅ **{mapped} mapitaj** · **{written} nove skribitaj** · **{pending} atendantaj**",
+  "admin_export_header": "**📊 Folioeksporto** ({rows} vicoj):",
+  "admin_export_too_long": "**📊 Folioeksporto** ({rows} vicoj) – tro longa por antaŭrigardo.",
+  "admin_pending_more": "...kaj {count} pliaj",
+
+  "ai_msg_too_long": "❌ Via mesaĝo estas tro longa ({length}/{max} signoj). Bonvolu mallongigi ĝin.",
+  "ai_video_unsupported": "❌ Videoj ne estas subtenataj – mi bedaŭrinde ne povas analizi videodosierojn.",
+  "ai_file_too_large": "❌ La dosiero **{filename}** estas tro granda ({size} KB). Maksimumo: 10 KB.",
+  "ai_filetype_unsupported": "❌ La dosiertypo **{ext}** ne estas subtenata. Permesitaj: bildoj (jpg, png, gif, webp) kaj tekstdosieroj (txt, md, csv, log).",
+  "ai_image_too_large": "❌ La bildo **{filename}** estas tro granda ({size} KB). Maksimumo: 1 MB.",
+  "ai_disclaimer": "\n-# 🤖 KI-respondo – nur por orientiĝo, ne anstataŭo por faka konsilo. Ĉiam mem kontrolu informojn!{cost_part} · Fontkodo: <https://github.com/JonasVerzockt/Discord-Bot>",
+  "ai_status_title": "🤖 KI-babilado Budĝeta Stato",
+  "ai_status_description": "Budĝetoj estas restarigitaj ĉiutage je **00:00 UTC** (01:00 MEZ / 02:00 MESZ).",
+  "ai_status_global_field": "🌍 Tutmonda Taga Budĝeto",
+  "ai_status_user_field": "👤 Via Taga Budĝeto",
+  "ai_reset_success": "✅ Budĝeto por **{label}** estis restarigita por hodiaŭ.",
+  "ai_prompt_header": "📋 **Aktiva sistema indikilo** (`ai_chat_system_prompt.txt`):",
+  "ai_prompt_file_header": "📋 **Aktiva sistema indikilo** (tro longa por babilado, kiel dosiero):"
 }

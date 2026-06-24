@@ -36,6 +36,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config as cfg
+from utils.localization import l10n, get_user_lang
 from utils.ai_chat import (
     chat,
     chunk_discord,
@@ -161,12 +162,20 @@ class AiChatCog(commands.Cog):
         # @-Erwaehnung aus dem Nachrichtentext entfernen
         user_text = self._strip_mention(message)
 
+        # Sprache des Users bestimmen (einmalig fuer alle Fehlermeldungen in on_message)
+        lang = await get_user_lang(
+            self.bot, message.author.id,
+            message.guild.id if message.guild else None,
+        )
+
         # Getippte Nachricht vorab auf Laenge pruefen (vor Dateiinhalt-Anhang)
         if len(user_text) > cfg.AI_CHAT_MAX_INPUT_CHARS:
             await message.reply(
-                f"❌ Deine Nachricht ist zu lang "
-                f"({len(user_text):,}/{cfg.AI_CHAT_MAX_INPUT_CHARS:,} Zeichen). "
-                f"Bitte kueze sie."
+                l10n.get(
+                    "ai_msg_too_long", lang,
+                    length=f"{len(user_text):,}",
+                    max=f"{cfg.AI_CHAT_MAX_INPUT_CHARS:,}",
+                )
             )
             return
 
@@ -185,17 +194,18 @@ class AiChatCog(commands.Cog):
 
             # Videos ablehnen
             if ext in video_exts:
-                await message.reply(
-                    f"❌ Videos werden nicht unterstuetzt – ich kann leider keine Videodateien analysieren."
-                )
+                await message.reply(l10n.get("ai_video_unsupported", lang))
                 return
 
             # Text-Dateien
             if ext in text_exts:
                 if attachment.size > 10_000:
                     await message.reply(
-                        f"❌ Die Datei **{attachment.filename}** ist zu groß "
-                        f"({attachment.size / 1024:.1f} KB). Maximum: 10 KB."
+                        l10n.get(
+                            "ai_file_too_large", lang,
+                            filename=attachment.filename,
+                            size=f"{attachment.size / 1024:.1f}",
+                        )
                     )
                     return
                 try:
@@ -213,8 +223,10 @@ class AiChatCog(commands.Cog):
             # Unbekannte Dateitypen ablehnen
             elif ext not in image_exts:
                 await message.reply(
-                    f"❌ Der Dateityp **{ext or 'unbekannt'}** wird nicht unterstuetzt. "
-                    f"Erlaubt: Bilder (jpg, png, gif, webp) und Textdateien (txt, md, csv, log)."
+                    l10n.get(
+                        "ai_filetype_unsupported", lang,
+                        ext=ext or "unbekannt",
+                    )
                 )
                 return
 
@@ -222,8 +234,11 @@ class AiChatCog(commands.Cog):
             elif ext in image_exts:
                 if attachment.size > 1_000_000:  # max 1 MB
                     await message.reply(
-                        f"❌ Das Bild **{attachment.filename}** ist zu groß "
-                        f"({attachment.size / 1024:.1f} KB). Maximum: 1 MB."
+                        l10n.get(
+                            "ai_image_too_large", lang,
+                            filename=attachment.filename,
+                            size=f"{attachment.size / 1024:.1f}",
+                        )
                     )
                     return
                 try:
@@ -246,17 +261,14 @@ class AiChatCog(commands.Cog):
                 prev_bot_message_id=prev_id,
                 channel_id=message.channel.id,
                 images=images or None,
+                user_lang=lang,
             )
 
         # Disclaimer (inkl. tatsaechliche Kosten) an Antwort anhaengen
-        cost_str = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
+        cost_str  = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
         cost_part = f" · 💰 {cost_str}" if cost_str else ""
-        DISCLAIMER = (
-            f"\n-# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz fuer Fachrat. "
-            f"Angaben immer selbst pruefen!{cost_part} · "
-            f"Quellcode: <https://github.com/JonasVerzockt/Discord-Bot>"
-        )
-        answer_with_disclaimer = result["answer"] + DISCLAIMER
+        disclaimer = l10n.get("ai_disclaimer", lang, cost_part=cost_part)
+        answer_with_disclaimer = result["answer"] + disclaimer
 
         # Antwort in Discord-Chunks senden (max. 2000 Zeichen pro Nachricht)
         chunks   = chunk_discord(answer_with_disclaimer)
@@ -289,6 +301,7 @@ class AiChatCog(commands.Cog):
     )
     async def ai_status(self, ctx: discord.ApplicationContext) -> None:
         """Zeigt globales und persoenliches Tagesbudget (nur fuer dich sichtbar)."""
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         s = get_budget_status(ctx.author.id)
 
         if s["global_pct"] >= 90 or s["user_pct"] >= 90:
@@ -299,12 +312,12 @@ class AiChatCog(commands.Cog):
             color = discord.Color.green()
 
         embed = discord.Embed(
-            title="🤖 KI-Chat Budget-Status",
+            title=l10n.get("ai_status_title", lang),
             color=color,
-            description="Budgets werden taeglich um **00:00 UTC** (01:00 MEZ / 02:00 MESZ) zurueckgesetzt.",
+            description=l10n.get("ai_status_description", lang),
         )
         embed.add_field(
-            name="🌍 Globales Tagesbudget",
+            name=l10n.get("ai_status_global_field", lang),
             value=(
                 f"`{_bar(s['global_pct'])}` {s['global_pct']:.1f} %\n"
                 f"**${s['global_used']:.4f}** / ${s['global_limit']:.2f}"
@@ -312,7 +325,7 @@ class AiChatCog(commands.Cog):
             inline=False,
         )
         embed.add_field(
-            name="👤 Dein Tagesbudget",
+            name=l10n.get("ai_status_user_field", lang),
             value=(
                 f"`{_bar(s['user_pct'])}` {s['user_pct']:.1f} %\n"
                 f"**${s['user_used']:.4f}** / ${s['user_limit']:.2f}"
@@ -349,9 +362,10 @@ class AiChatCog(commands.Cog):
                 (today, target_uid),
             )
 
+        lang  = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         label = f"<@{user.id}>" if user else "global"
         await ctx.respond(
-            f"✅ Budget fuer **{label}** wurde fuer heute zurueckgesetzt.",
+            l10n.get("ai_reset_success", lang, label=label),
             ephemeral=True,
         )
 
@@ -361,20 +375,28 @@ class AiChatCog(commands.Cog):
     )
     @commands.has_permissions(manage_messages=True)
     async def ai_prompt(self, ctx: discord.ApplicationContext) -> None:
-        """Gibt den aktiven System-Prompt aus ai_chat_system_prompt.txt aus (ephemeral)."""
-        prompt = cfg.AI_CHAT_SYSTEM_PROMPT
+        """Gibt den aktiven System-Prompt in der Sprache des Users aus (ephemeral)."""
+        lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        prompt = (
+            cfg.AI_CHAT_SYSTEM_PROMPTS.get(lang)
+            or cfg.AI_CHAT_SYSTEM_PROMPTS.get("en")
+            or cfg.AI_CHAT_SYSTEM_PROMPT
+        )
         # Discord-Limit: 2000 Zeichen pro Nachricht – in Codeblock einbetten
-        header = "📋 **Aktiver System-Prompt** (`ai_chat_system_prompt.txt`):\n"
+        header  = l10n.get("ai_prompt_header", lang) + "\n"
         content = f"```\n{prompt}\n```"
-        full = header + content
+        full    = header + content
         if len(full) <= 2000:
             await ctx.respond(full, ephemeral=True)
         else:
             # Zu lang: als Dateianhang senden
             import io
             await ctx.respond(
-                "📋 **Aktiver System-Prompt** (zu lang fuer Chat, als Datei):",
-                file=discord.File(io.BytesIO(prompt.encode()), filename="system_prompt.txt"),
+                l10n.get("ai_prompt_file_header", lang),
+                file=discord.File(
+                    io.BytesIO(prompt.encode()),
+                    filename=f"system_prompt_{lang}.txt",
+                ),
                 ephemeral=True,
             )
 

@@ -118,5 +118,28 @@
   "help_shopurl": "`/shopurl` – Manuelle URL-Overrides für Shops setzen",
   "help_ai_chat": "`/ai_status` – Deinen KI-Chat Budget-Status anzeigen (Tipp: @AntCheckHelpi im KI-Kanal taggen zum Chatten – Bilder bis 1 MB und Textdateien bis 10 KB werden unterstützt)",
   "help_ai_reset": "`/ai_reset` – (Admin) KI-Chat Budget eines Users oder global zurücksetzen",
-  "help_ai_prompt": "`/ai_prompt` – (Admin) Aktuellen System-Prompt des KI-Chats anzeigen"
+  "help_ai_prompt": "`/ai_prompt` – (Admin) Aktuellen System-Prompt des KI-Chats anzeigen",
+
+  "admin_error": "❌ Fehler: `{error}`",
+  "admin_rescan_cog_missing": "❌ ReviewsCog nicht geladen.",
+  "admin_rescan_channel_missing": "❌ Review-Kanal nicht gefunden.",
+  "admin_rescan_scanning": "🔍 Gleiche letzte {days} Tage ab...",
+  "admin_rescan_result": "✅ **{mapped} gemappt** · **{written} neu geschrieben** · **{pending} ausstehend**",
+  "admin_export_header": "**📊 Sheet-Export** ({rows} Zeilen):",
+  "admin_export_too_long": "**📊 Sheet-Export** ({rows} Zeilen) – zu lang für Vorschau.",
+  "admin_pending_more": "...und {count} weitere",
+
+  "ai_msg_too_long": "❌ Deine Nachricht ist zu lang ({length}/{max} Zeichen). Bitte kürze sie.",
+  "ai_video_unsupported": "❌ Videos werden nicht unterstützt – ich kann leider keine Videodateien analysieren.",
+  "ai_file_too_large": "❌ Die Datei **{filename}** ist zu groß ({size} KB). Maximum: 10 KB.",
+  "ai_filetype_unsupported": "❌ Der Dateityp **{ext}** wird nicht unterstützt. Erlaubt: Bilder (jpg, png, gif, webp) und Textdateien (txt, md, csv, log).",
+  "ai_image_too_large": "❌ Das Bild **{filename}** ist zu groß ({size} KB). Maximum: 1 MB.",
+  "ai_disclaimer": "\n-# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz für Fachrat. Angaben immer selbst prüfen!{cost_part} · Quellcode: <https://github.com/JonasVerzockt/Discord-Bot>",
+  "ai_status_title": "🤖 KI-Chat Budget-Status",
+  "ai_status_description": "Budgets werden täglich um **00:00 UTC** (01:00 MEZ / 02:00 MESZ) zurückgesetzt.",
+  "ai_status_global_field": "🌍 Globales Tagesbudget",
+  "ai_status_user_field": "👤 Dein Tagesbudget",
+  "ai_reset_success": "✅ Budget für **{label}** wurde für heute zurückgesetzt.",
+  "ai_prompt_header": "📋 **Aktiver System-Prompt** (`ai_chat_system_prompt.txt`):",
+  "ai_prompt_file_header": "📋 **Aktiver System-Prompt** (zu lang für Chat, als Datei):"
 }

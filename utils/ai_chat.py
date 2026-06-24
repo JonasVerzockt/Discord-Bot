@@ -256,7 +256,8 @@ def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0)
     Kein Caching – System-Prompt wird als normaler Input gezaehlt.
     Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
     """
-    system_tokens = len(cfg.AI_CHAT_SYSTEM_PROMPT) / 3.5
+    # Konservative Schaetzung: laengsten verfuegbaren Prompt nehmen
+    system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=len(cfg.AI_CHAT_SYSTEM_PROMPT)) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
     image_tokens  = num_images * 1500
     return (
@@ -503,6 +504,7 @@ async def chat(
     prev_bot_message_id: Optional[int] = None,
     channel_id: int = 0,
     images: Optional[list[tuple[bytes, str]]] = None,
+    user_lang: str = "en",
 ) -> dict:
     """
     Sendet eine Nachricht an das konfigurierte Claude-Modell.
@@ -597,10 +599,16 @@ async def chat(
             f"(precheck_cost=${precheck_cost:.6f})"
         )
 
+    # Sprachspezifischen System-Prompt auswaehlen (Fallback: en → de → eingebaut)
+    base_prompt = (
+        cfg.AI_CHAT_SYSTEM_PROMPTS.get(user_lang)
+        or cfg.AI_CHAT_SYSTEM_PROMPTS.get("en")
+        or cfg.AI_CHAT_SYSTEM_PROMPT
+    )
     system_prompt = (
-        cfg.AI_CHAT_SYSTEM_PROMPT + "\n\n" + shop_data
+        base_prompt + "\n\n" + shop_data
         if shop_data else
-        cfg.AI_CHAT_SYSTEM_PROMPT
+        base_prompt
     )
 
     # 6. API-Call (kein Prompt Caching: Haiku 4.5 benoetigt min. 4.096 Tokens,

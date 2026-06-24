@@ -82,22 +82,34 @@ AI_CHAT_MAX_HISTORY_TURNS = int(os.getenv("AI_CHAT_MAX_HISTORY_TURNS", "10"))
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
 
-# System-Prompt: zuerst Datei, dann Env-Variable, dann eingebauter Standard
-_SYSTEM_PROMPT_FILE = BASE_DIR / "ai_chat_system_prompt.txt"
-if _SYSTEM_PROMPT_FILE.exists():
-    AI_CHAT_SYSTEM_PROMPT: str = (
-        _SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
-        .strip()
-        .replace("{model}", AI_CHAT_MODEL)
+# System-Prompts: eine Datei pro Sprache (de/en/eo).
+# Dateiname: ai_chat_system_prompt_{lang}.txt
+# Fallback-Reihenfolge: User-Sprache → en → eingebauter Notfall-Prompt
+_BUILTIN_PROMPT = (
+    "You are a helpful assistant for the AAM (Ameisen an die Macht) Discord community – "
+    "a community around ant keeping and myrmecology. Answer questions in the user's language, "
+    "friendly and concise. For ant-related questions, respond with expertise. "
+    "Keep answers short and clear."
+)
+
+AI_CHAT_SYSTEM_PROMPTS: dict[str, str] = {}
+for _lang in ("de", "en", "eo"):
+    _f = BASE_DIR / f"ai_chat_system_prompt_{_lang}.txt"
+    if _f.exists():
+        AI_CHAT_SYSTEM_PROMPTS[_lang] = (
+            _f.read_text(encoding="utf-8").strip().replace("{model}", AI_CHAT_MODEL)
+        )
+
+# Legacy-Datei (ai_chat_system_prompt.txt) → wird als 'de' verwendet, falls keine de-Datei
+_legacy_file = BASE_DIR / "ai_chat_system_prompt.txt"
+if "de" not in AI_CHAT_SYSTEM_PROMPTS and _legacy_file.exists():
+    AI_CHAT_SYSTEM_PROMPTS["de"] = (
+        _legacy_file.read_text(encoding="utf-8").strip().replace("{model}", AI_CHAT_MODEL)
     )
-else:
-    AI_CHAT_SYSTEM_PROMPT = os.getenv(
-        "AI_CHAT_SYSTEM_PROMPT",
-        (
-            "Du bist ein hilfreicher Assistent der AAM (Ameisen an die Macht) "
-            "Discord-Community – einer Gemeinschaft rund um Ameisenhaltung und "
-            "Myrmekologie. Beantworte Fragen freundlich, praegnant und auf Deutsch. "
-            "Bei Fragen zu Ameisen, Haltung oder Zucht antworte fachkundig. "
-            "Halte Antworten kurz und klar."
-        ),
-    )
+
+# Env-Variable als letzter Fallback fuer 'en'
+if "en" not in AI_CHAT_SYSTEM_PROMPTS:
+    AI_CHAT_SYSTEM_PROMPTS["en"] = os.getenv("AI_CHAT_SYSTEM_PROMPT", _BUILTIN_PROMPT)
+
+# Rueckwaertskompatibilitaet: AI_CHAT_SYSTEM_PROMPT zeigt auf den deutschen Prompt (oder en)
+AI_CHAT_SYSTEM_PROMPT: str = AI_CHAT_SYSTEM_PROMPTS.get("de", AI_CHAT_SYSTEM_PROMPTS["en"])

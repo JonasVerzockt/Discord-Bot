@@ -118,5 +118,28 @@
   "help_shopurl": "`/shopurl` – Set manual URL overrides for shops",
   "help_ai_chat": "`/ai_status` – Show your AI chat budget status (Tip: tag @AntCheckHelpi in the AI channel to chat – images up to 1 MB and text files up to 10 KB are supported)",
   "help_ai_reset": "`/ai_reset` – (Admin) Reset AI chat budget for a user or globally",
-  "help_ai_prompt": "`/ai_prompt` – (Admin) Show the current AI chat system prompt"
+  "help_ai_prompt": "`/ai_prompt` – (Admin) Show the current AI chat system prompt",
+
+  "admin_error": "❌ Error: `{error}`",
+  "admin_rescan_cog_missing": "❌ ReviewsCog not loaded.",
+  "admin_rescan_channel_missing": "❌ Review channel not found.",
+  "admin_rescan_scanning": "🔍 Reconciling last {days} days...",
+  "admin_rescan_result": "✅ **{mapped} mapped** · **{written} newly written** · **{pending} pending**",
+  "admin_export_header": "**📊 Sheet export** ({rows} rows):",
+  "admin_export_too_long": "**📊 Sheet export** ({rows} rows) – too long for preview.",
+  "admin_pending_more": "...and {count} more",
+
+  "ai_msg_too_long": "❌ Your message is too long ({length}/{max} characters). Please shorten it.",
+  "ai_video_unsupported": "❌ Videos are not supported – I'm unable to analyze video files.",
+  "ai_file_too_large": "❌ The file **{filename}** is too large ({size} KB). Maximum: 10 KB.",
+  "ai_filetype_unsupported": "❌ The file type **{ext}** is not supported. Allowed: images (jpg, png, gif, webp) and text files (txt, md, csv, log).",
+  "ai_image_too_large": "❌ The image **{filename}** is too large ({size} KB). Maximum: 1 MB.",
+  "ai_disclaimer": "\n-# 🤖 AI response – for guidance only, not a substitute for expert advice. Always verify information yourself!{cost_part} · Source code: <https://github.com/JonasVerzockt/Discord-Bot>",
+  "ai_status_title": "🤖 AI Chat Budget Status",
+  "ai_status_description": "Budgets are reset daily at **00:00 UTC** (01:00 CET / 02:00 CEST).",
+  "ai_status_global_field": "🌍 Global Daily Budget",
+  "ai_status_user_field": "👤 Your Daily Budget",
+  "ai_reset_success": "✅ Budget for **{label}** has been reset for today.",
+  "ai_prompt_header": "📋 **Active system prompt** (`ai_chat_system_prompt.txt`):",
+  "ai_prompt_file_header": "📋 **Active system prompt** (too long for chat, as file):"
 }
