@@ -85,7 +85,11 @@ AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS",
 # System-Prompt: zuerst Datei, dann Env-Variable, dann eingebauter Standard
 _SYSTEM_PROMPT_FILE = BASE_DIR / "ai_chat_system_prompt.txt"
 if _SYSTEM_PROMPT_FILE.exists():
-    AI_CHAT_SYSTEM_PROMPT: str = _SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
+    AI_CHAT_SYSTEM_PROMPT: str = (
+        _SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
+        .strip()
+        .replace("{model}", AI_CHAT_MODEL)
+    )
 else:
     AI_CHAT_SYSTEM_PROMPT = os.getenv(
         "AI_CHAT_SYSTEM_PROMPT",

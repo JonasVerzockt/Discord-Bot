@@ -403,7 +403,8 @@ async def chat(
     images: Optional[list[tuple[bytes, str]]] = None,
 ) -> dict:
     """
-    Sendet eine Nachricht an Claude Haiku.
+    Sendet eine Nachricht an das konfigurierte Claude-Modell.
+    Standard: claude-haiku-4-5 – aktuell: claude-sonnet-4-6 (siehe .env / config.py).
 
     Ablauf:
       1. Eingabe validieren (Laenge)

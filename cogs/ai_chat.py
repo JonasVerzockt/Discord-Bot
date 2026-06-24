@@ -231,8 +231,16 @@ class AiChatCog(commands.Cog):
                 images=images or None,
             )
 
+        # Disclaimer an Antwort anhaengen
+        DISCLAIMER = (
+            "\n-# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz fuer Fachrat. "
+            "Angaben immer selbst pruefen! · "
+            "Quellcode: <https://github.com/JonasVerzockt/Discord-Bot>"
+        )
+        answer_with_disclaimer = result["answer"] + DISCLAIMER
+
         # Antwort in Discord-Chunks senden (max. 2000 Zeichen pro Nachricht)
-        chunks   = chunk_discord(result["answer"])
+        chunks   = chunk_discord(answer_with_disclaimer)
         sent_msg = None
 
         for i, chunk in enumerate(chunks):
