@@ -53,14 +53,22 @@ import config as cfg
 logger = logging.getLogger(__name__)
 
 # ── Preise pro Modell (Stand: Juni 2026) ─────────────────────────────────────
-# Quelle: https://www.anthropic.com/pricing
+# Quelle: https://docs.anthropic.com/en/docs/about-claude/pricing
 # Format: (input_usd_per_token, output_usd_per_token)
 _MODEL_PRICES: dict[str, tuple[float, float]] = {
-    "claude-haiku-4-5-20251001": (1.00 / 1_000_000, 5.00  / 1_000_000),
-    "claude-haiku-4-5":          (1.00 / 1_000_000, 5.00  / 1_000_000),
+    # Haiku
+    "claude-haiku-4-5-20251001": (1.00 / 1_000_000,  5.00 / 1_000_000),
+    "claude-haiku-4-5":          (1.00 / 1_000_000,  5.00 / 1_000_000),
+    # Sonnet
     "claude-sonnet-4-5":         (3.00 / 1_000_000, 15.00 / 1_000_000),
     "claude-sonnet-4-6":         (3.00 / 1_000_000, 15.00 / 1_000_000),
-    "claude-opus-4-8":           (15.00 / 1_000_000, 75.00 / 1_000_000),
+    # Opus 4.5+ (neue Preisstruktur: $5/$25)
+    "claude-opus-4-5":           (5.00 / 1_000_000, 25.00 / 1_000_000),
+    "claude-opus-4-6":           (5.00 / 1_000_000, 25.00 / 1_000_000),
+    "claude-opus-4-7":           (5.00 / 1_000_000, 25.00 / 1_000_000),
+    "claude-opus-4-8":           (5.00 / 1_000_000, 25.00 / 1_000_000),
+    # Opus 4.1 (deprecated) + Opus 4 (retired) – alte Preisstruktur: $15/$75
+    "claude-opus-4-1":           (15.00 / 1_000_000, 75.00 / 1_000_000),
     "claude-opus-4":             (15.00 / 1_000_000, 75.00 / 1_000_000),
 }
 # Fallback: passendes Preisniveau anhand Modellname erraten
@@ -69,7 +77,9 @@ def _get_prices() -> tuple[float, float]:
     if model in _MODEL_PRICES:
         return _MODEL_PRICES[model]
     if "opus" in model:
-        return (15.00 / 1_000_000, 75.00 / 1_000_000)
+        # Opus 4.5+ kostet $5/$25 – aeltere Versionen $15/$75
+        # Im Zweifel neuere Preise nehmen (konservativ fuer Budget-Check)
+        return (5.00 / 1_000_000, 25.00 / 1_000_000)
     if "sonnet" in model:
         return (3.00 / 1_000_000, 15.00 / 1_000_000)
     # Default: Haiku-Preise
