@@ -246,7 +246,7 @@ Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfiguri
 | Videos | – | nicht unterstützt (wird abgelehnt) |
 | Sonstige | – | nicht unterstützt (wird abgelehnt) |
 
-**System-Prompt:** Wird aus `ai_chat_system_prompt.txt` geladen (Platzhalter `{model}` wird beim Start automatisch durch das konfigurierte Modell ersetzt). Standardmäßig als deutschsprachiger AAM-Community-Assistent für Ameisenhaltung konfiguriert, inkl. Hinweisen zu Quellenpflicht, Jugendschutz und Discord-Markdown-Formatierung.
+**System-Prompt:** Wird beim Start aus sprachspezifischen Dateien geladen – `ai_chat_system_prompt_de.txt`, `ai_chat_system_prompt_en.txt`, `ai_chat_system_prompt_eo.txt`. Der Platzhalter `{model}` wird automatisch durch das konfigurierte Modell ersetzt. Jeder Prompt ist vollständig in der jeweiligen Sprache verfasst und konfiguriert die KI als AAM-Community-Assistent für Ameisenhaltung, inkl. Quellenpflicht, Jugendschutz und Discord-Markdown-Formatierung. Die Legacy-Datei `ai_chat_system_prompt.txt` wird weiterhin als Deutsch-Fallback erkannt.
 
 **Shop-Wissen:** Beim Start und alle 6 Stunden werden die Tabs **„Übersicht"** und **„Händler A-Z"** aus dem AAM Google Sheet geladen. Händler A-Z wird kompakt aufbereitet (`shopname ⭐9.97 (63x)`) und auf Shops mit **mindestens 4 Bewertungen** gefiltert. Der Shop-Block wird nur bei shop-relevanten Anfragen in den System-Prompt eingebettet – per **3-stufiger Vorqualifizierung**:
 
@@ -304,7 +304,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | `/shopurl list` | Alle aktiven URL-Overrides anzeigen |
 | `/ch_delivery remove` | Shop aus CH-Lieferliste entfernen |
 | `/ai_reset` | KI-Chat Budget für einen User oder global zurücksetzen |
-| `/ai_prompt` | Aktuellen System-Prompt des KI-Chats anzeigen (aus `ai_chat_system_prompt.txt`) |
+| `/ai_prompt` | System-Prompt des KI-Chats anzeigen – in der eigenen Sprache des Users |
 
 > **Hinweis zu `/ch_delivery remove`:** Jeder User kann seine eigenen Einträge entfernen. Admins und User mit „Nachrichten verwalten" können alle Einträge entfernen.
 
@@ -380,7 +380,10 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 ├── shops_data.json          # Von grabber.py erzeugt (nicht im Git)
 ├── antcheckbot.db           # SQLite-Datenbank (nicht im Git)
 ├── shop_mapping.csv         # Manuelles Shop-Mapping (nicht im Git)
-├── ai_chat_system_prompt.txt  # System-Prompt für den KI-Chat (optional)
+├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
+├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
+├── ai_chat_system_prompt_eo.txt  # System-Prompt Esperanto
+├── ai_chat_system_prompt.txt     # Legacy-Datei (wird als de-Fallback erkannt)
 │
 ├── cogs/
 │   ├── server_settings.py   # /startup + allowed_channel/admin_or_manage_messages Decorators
@@ -415,7 +418,12 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 
 ## Lokalisierung
 
-Alle Bot-Texte befinden sich in `locales/{de,en,eo}.json`. Neue Schlüssel müssen in alle drei Dateien eingetragen werden. Der Bot wählt die Sprache in dieser Reihenfolge:
+Der Bot ist vollständig dreisprachig (de / en / eo). Die Sprache gilt für **alle** User-sichtbaren Ausgaben:
+
+- **Bot-Texte** (Fehlermeldungen, Embed-Titel, Disclaimer, Slash-Command-Antworten): `locales/{de,en,eo}.json`. Neue Keys müssen in alle drei Dateien eingetragen werden.
+- **KI-Antworten**: Die KI verwendet den System-Prompt der User-Sprache (`ai_chat_system_prompt_{lang}.txt`) und antwortet entsprechend auf Deutsch, Englisch oder Esperanto.
+
+Sprachauswahl-Reihenfolge:
 
 1. Eigene User-Einstellung (`/usersetting language`)
 2. Server-Einstellung (`/startup language`)
