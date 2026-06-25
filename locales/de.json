@@ -147,5 +147,4 @@
   "ai_prompt_file_header": "📋 **Aktiver System-Prompt** (zu lang für Chat, als Datei):",
 
   "admin_reprocess_not_found": "❌ Nachricht `{mid}` im Review-Kanal nicht gefunden.",
-  "admin_reprocess_success": "✅ Nachricht `{mid}` neu verarbeitet → **{shop}**"
-}
+  "admin_reprocess_su
