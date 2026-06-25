@@ -33,7 +33,10 @@ from discord.ext import commands
 
 from config import MAPPING_FILE, SCAN_DAYS, REVIEW_CHANNEL_ID
 from utils.sheet import sheet
-from utils.tracking import get_all_pending, get_all_tracking, pending_count, tracking_count
+from utils.tracking import (
+    get_all_pending, get_all_tracking, pending_count, tracking_count,
+    get_tracking, remove_pending,
+)
 from utils.ai_parser import parse_with_ai
 from cogs.server_settings import admin_or_manage_messages
 from utils.localization import l10n, get_user_lang
@@ -157,6 +160,55 @@ class AdminCog(commands.Cog, name="Admin"):
         except Exception as e:
             logger.error(f"export error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
+
+
+    @discord.slash_command(name="reprocess", description="Re-process a review message by ID (Admin/Mod)")
+    @admin_or_manage_messages()
+    async def cmd_reprocess(
+        self,
+        ctx: discord.ApplicationContext,
+        message_id: discord.Option(str, "Discord Message-ID der Bewertung", required=True),
+    ):
+        """Verarbeitet eine Bewertungsnachricht anhand ihrer ID neu und überschreibt den Sheet-Eintrag."""
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        reviews_cog = self.bot.cogs.get("Reviews")
+        if not reviews_cog:
+            await ctx.respond(l10n.get("admin_rescan_cog_missing", lang), ephemeral=True)
+            return
+
+        channel = self.bot.get_channel(REVIEW_CHANNEL_ID)
+        if not channel:
+            await ctx.respond(l10n.get("admin_rescan_channel_missing", lang), ephemeral=True)
+            return
+
+        try:
+            message = await channel.fetch_message(int(message_id))
+        except (discord.NotFound, discord.HTTPException, ValueError):
+            await ctx.followup.send(
+                l10n.get("admin_reprocess_not_found", lang, mid=message_id), ephemeral=True
+            )
+            return
+
+        try:
+            existing_row = await get_tracking(self.bot, message_id)
+            await reviews_cog._process(message, is_edit=(existing_row is not None))
+            await remove_pending(self.bot, message_id)
+            await reviews_cog._clean_react(message, "🟡", "🔴", add="🟢")
+            from utils.shop import resolve_shop
+            try:
+                shop = resolve_shop(message.content, message.guild)
+            except Exception:
+                shop = "?"
+            await ctx.followup.send(
+                l10n.get("admin_reprocess_success", lang, mid=message_id, shop=shop),
+                ephemeral=True,
+            )
+            logger.info(f"♻️  Reprocess OK: {message_id} → {shop}")
+        except Exception as e:
+            logger.error(f"reprocess error {message_id}: {e}")
+            await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
 
 def setup(bot: discord.Bot):

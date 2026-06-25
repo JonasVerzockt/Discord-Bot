@@ -114,6 +114,7 @@
   "help_pending": "`/pending` – Ausstehende Nachrichten anzeigen (🟡)",
   "help_test_admin": "`/test` – KI-Parser testen ohne Sheet-Eintrag",
   "help_rescan": "`/rescan` – Letzte 90 Tage manuell neu abgleichen",
+  "help_reprocess": "`/reprocess` – Bewertungsnachricht anhand der Message-ID neu verarbeiten (überschreibt Sheet-Eintrag)",
   "help_export": "`/export` – Sheet-Rohdaten als JSON anzeigen",
   "help_shopurl": "`/shopurl` – Manuelle URL-Overrides für Shops setzen",
   "help_ai_chat": "`/ai_status` – Deinen KI-Chat Budget-Status anzeigen (Tipp: @AntCheckHelpi im KI-Kanal taggen zum Chatten – Bilder bis 1 MB und Textdateien bis 10 KB werden unterstützt)",
@@ -128,6 +129,8 @@
   "admin_export_header": "**📊 Sheet-Export** ({rows} Zeilen):",
   "admin_export_too_long": "**📊 Sheet-Export** ({rows} Zeilen) – zu lang für Vorschau.",
   "admin_pending_more": "...und {count} weitere",
+  "admin_reprocess_not_found": "❌ Nachricht `{mid}` im Review-Kanal nicht gefunden.",
+  "admin_reprocess_success": "✅ Nachricht `{mid}` neu verarbeitet → **{shop}**",
 
   "ai_msg_too_long": "❌ Deine Nachricht ist zu lang ({length}/{max} Zeichen). Bitte kürze sie.",
   "ai_video_unsupported": "❌ Videos werden nicht unterstützt – ich kann leider keine Videodateien analysieren.",
@@ -140,6 +143,9 @@
   "ai_status_global_field": "🌍 Globales Tagesbudget",
   "ai_status_user_field": "👤 Dein Tagesbudget",
   "ai_reset_success": "✅ Budget für **{label}** wurde für heute zurückgesetzt.",
-  "ai_prompt_header": "📋 **Aktiver System-Prompt** (`ai_chat_system_prompt.txt`):",
-  "ai_prompt_file_header": "📋 **Aktiver System-Prompt** (zu lang für Chat, als Datei):"
+  "ai_prompt_header": "📋 **Aktiver System-Prompt**(`ai_chat_system_prompt.txt`):",
+  "ai_prompt_file_header": "📋 **Aktiver System-Prompt** (zu lang für Chat, als Datei):",
+
+  "admin_reprocess_not_found": "❌ Nachricht `{mid}` im Review-Kanal nicht gefunden.",
+  "admin_reprocess_success": "✅ Nachricht `{mid}` neu verarbeitet → **{shop}**"
 }

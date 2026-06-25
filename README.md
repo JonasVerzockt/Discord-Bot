@@ -292,6 +292,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | `/pending` | Ausstehende Nachrichten auflisten (🟡) |
 | `/test` | KI-Parser testen ohne Sheet-Eintrag |
 | `/rescan` | Letzte 90 Tage manuell neu abgleichen |
+| `/reprocess` | Bewertungsnachricht anhand der Message-ID neu verarbeiten (überschreibt Sheet-Eintrag) |
 | `/export` | Sheet-Rohdaten als JSON anzeigen (erste 50 Zeilen) |
 | `/stats` | Benachrichtigungsstatistiken + Top-Arten |
 | `/system` | Systemstatus (Uptime, CPU, RAM, DB, Shop-Datei-Alter) |
@@ -388,7 +389,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 ├── cogs/
 │   ├── server_settings.py   # /startup + allowed_channel/admin_or_manage_messages Decorators
 │   ├── reviews.py           # Review-Bot: on_message, on_edit, on_reaction, Reconcile
-│   ├── admin.py             # /status /pending /test /rescan /export
+│   ├── admin.py             # /status /pending /test /rescan /reprocess /export
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
 │   ├── stats.py             # /stats /system /help

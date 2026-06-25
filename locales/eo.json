@@ -114,6 +114,7 @@
   "help_pending": "`/pending` – Listigi atendantajn mesaĝojn (🟡)",
   "help_test_admin": "`/test` – Testi KI-analizilon sen skribi en folio",
   "help_rescan": "`/rescan` – Mane rekunigi lastajn 90 tagojn",
+  "help_reprocess": "`/reprocess` – Reprocesi recenzan mesaĝon laŭ mesaĝ-ID (anstataŭigas folian enskribon)",
   "help_export": "`/export` – Eksporti krudajn datumojn de folio kiel JSON",
   "help_shopurl": "`/shopurl` – Agordi manajn URL-anstataŭigojn por butiko",
   "help_ai_chat": "`/ai_status` – Montri vian KI-babilad-budĝetan staton (Konsilo: marku @AntCheckHelpi en la KI-kanalo – bildoj ĝis 1 MB kaj tekstdosieroj ĝis 10 KB estas subtenataj)",
@@ -128,6 +129,8 @@
   "admin_export_header": "**📊 Folioeksporto** ({rows} vicoj):",
   "admin_export_too_long": "**📊 Folioeksporto** ({rows} vicoj) – tro longa por antaŭrigardo.",
   "admin_pending_more": "...kaj {count} pliaj",
+  "admin_reprocess_not_found": "❌ Mesaĝo `{mid}` ne trovita en la recenzo-kanalo.",
+  "admin_reprocess_success": "✅ Mesaĝo `{mid}` reprocessita → **{shop}**",
 
   "ai_msg_too_long": "❌ Via mesaĝo estas tro longa ({length}/{max} signoj). Bonvolu mallongigi ĝin.",
   "ai_video_unsupported": "❌ Videoj ne estas subtenataj – mi bedaŭrinde ne povas analizi videodosierojn.",
@@ -141,5 +144,8 @@
   "ai_status_user_field": "👤 Via Taga Budĝeto",
   "ai_reset_success": "✅ Budĝeto por **{label}** estis restarigita por hodiaŭ.",
   "ai_prompt_header": "📋 **Aktiva sistema indikilo** (`ai_chat_system_prompt.txt`):",
-  "ai_prompt_file_header": "📋 **Aktiva sistema indikilo** (tro longa por babilado, kiel dosiero):"
+  "ai_prompt_file_header": "📋 **Aktiva sistema indikilo** (tro longa por babilado, sendita kiel dosiero):",
+
+  "admin_reprocess_not_found": "❌ Mesaĝo `{mid}` ne trovita en la recenzo-kanalo.",
+  "admin_reprocess_success": "✅ Mesaĝo `{mid}` reprocessita → **{shop}**"
 }

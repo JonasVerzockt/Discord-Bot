@@ -161,7 +161,7 @@ class StatsCog(commands.Cog, name="Stats"):
         ]
         admin_keys = [
             "help_startup", "help_status", "help_pending", "help_test_admin",
-            "help_rescan", "help_export",
+            "help_rescan", "help_reprocess", "help_export",
             "help_stats", "help_system",
             "help_reloadshops", "help_shopmapping", "help_shopurl",
             "help_ai_reset",
