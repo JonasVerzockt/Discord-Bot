@@ -53,8 +53,8 @@ MAPPING_FILE = str(BASE_DIR / "shop_mapping.csv")
 LOCALES_DIR = BASE_DIR / "locales"
 
 # Verhalten
-SCAN_DAYS       = 90
-FUZZY_THRESHOLD = 80
+SCAN_DAYS       = 400
+FUZZY_THRESHOLD = 81
 
 # Anthropic (Review-Bot + KI-Chat)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")

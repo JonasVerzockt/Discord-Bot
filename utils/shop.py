@@ -82,11 +82,15 @@ def _read_csv() -> dict:
     if not Path(MAPPING_FILE).exists():
         return {}
     with open(MAPPING_FILE, newline="", encoding="utf-8") as f:
-        return {
-            r["identifier"].strip(): r["shop_url"].strip()
-            for r in csv.DictReader(f)
-            if r.get("shop_url", "").strip()
-        }
+        result = {}
+        for r in csv.DictReader(f):
+            raw_url = r.get("shop_url", "").strip()
+            if not raw_url:
+                continue
+            identifier = _strip_markdown_url(r["identifier"].strip())
+            shop_url   = _strip_markdown_url(raw_url)
+            result[identifier] = shop_url
+        return result
 
 
 def _write_csv_row(identifier: str, shop_url: str, msg_id: str, hint: str) -> bool:
@@ -130,6 +134,11 @@ def add_to_csv(identifier: str, msg_id: str, hint: str = "") -> None:
 def learn_shop(identifier: str, shop_url: str) -> None:
     """Aus Reconcile gelernt: Identifier → Shop dauerhaft speichern."""
     global _map_cache
+    # Markdown-Links vor dem Speichern bereinigen
+    identifier = _strip_markdown_url(identifier)
+    shop_url   = _strip_markdown_url(shop_url)
+    if not shop_url:
+        return
     mapping = load_mapping()
     if identifier in mapping:
         return
