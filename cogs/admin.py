@@ -246,3 +246,4 @@ class AdminCog(commands.Cog, name="Admin"):
 
 def setup(bot: discord.Bot):
     bot.add_cog(AdminCog(bot))
+bot.add_cog(AdminCog(bot))

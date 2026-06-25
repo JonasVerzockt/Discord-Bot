@@ -147,4 +147,5 @@
   "ai_prompt_file_header": "📋 **Active system prompt** (too long for chat, sent as file):",
 
   "admin_reprocess_not_found": "❌ Message `{mid}` not found in the review channel.",
-  "admin_reprocess_su
+  "admin_reprocess_success": "✅ Message `{mid}` re-processed → **{shop}**"
+}

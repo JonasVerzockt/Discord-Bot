@@ -147,4 +147,5 @@
   "ai_prompt_file_header": "📋 **Aktiva sistema indikilo** (tro longa por babilado, sendita kiel dosiero):",
 
   "admin_reprocess_not_found": "❌ Mesaĝo `{mid}` ne trovita en la recenzo-kanalo.",
-  "a
+  "admin_reprocess_success": "✅ Mesaĝo `{mid}` reprocessita → **{shop}**"
+}

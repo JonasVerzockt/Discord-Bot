@@ -320,3 +320,19 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
 def setup(bot: discord.Bot) -> None:
     bot.add_cog(ReviewsCog(bot))
+ try:
+            await self._process(
+                message,
+                is_edit=(existing_row is not None),
+                shop_override=shop_override,
+            )
+            await remove_pending(self.bot, mid)
+            await self._clean_react(message, "🟡", "🔴", add="🟢")
+            logger.info(f"✅ Retry OK: {mid}")
+        except Exception as e:
+            logger.error(f"❌ Retry fehlgeschlagen {mid}: {e}")
+            await self._clean_react(message, "🟡", add="🔴")
+
+
+def setup(bot: discord.Bot):
+    bot.add_cog(ReviewsCog(bot))
