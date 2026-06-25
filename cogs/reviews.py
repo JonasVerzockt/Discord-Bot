@@ -33,7 +33,7 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timezone, timedelta
 
-from config import REVIEW_CHANNEL_ID, SCAN_DAYS
+from config import REVIEW_CHANNEL_ID, SCAN_DAYS, ACCUMULATION_DELAY
 from utils.sheet import sheet
 from utils.tracking import (
     get_tracking, set_tracking, get_all_tracking,
@@ -53,6 +53,9 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
     def __init__(self, bot: discord.Bot):
         self.bot = bot
+        # Nachrichtenakkumulation: geteilte Reviews zusammenführen
+        self._acc_buffer: dict[int, list[discord.Message]] = {}
+        self._acc_tasks:  dict[int, asyncio.Task]          = {}
 
     # ── Hilfsmethoden ──────────────────────────────────────────────────────────
     async def _clean_react(self, msg: discord.Message, *remove: str, add: str) -> None:
@@ -68,16 +71,21 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         message: discord.Message,
         is_edit: bool = False,
         shop_override: str | None = None,
+        combined_content: str | None = None,
+        extra_messages: list[discord.Message] | None = None,
     ) -> None:
         """
         Parst die Nachricht mit KI und schreibt sie ins Sheet.
         Bei Erfolg wird das Tracking in der DB aktualisiert.
+        combined_content: zusammengeführter Text aus mehreren Nachrichten desselben Users.
+        extra_messages:   Folgenachrichten (werden nur für Reaktionen verwendet).
         """
         mid      = str(message.id)
         date_str = message.created_at.strftime("%d.%m.%Y")
+        content  = combined_content or message.content
 
-        shop   = shop_override or resolve_shop(message.content, message.guild)
-        parsed = parse_with_ai(message.content, shop, date_str)
+        shop   = shop_override or resolve_shop(content, message.guild)
+        parsed = parse_with_ai(content, shop, date_str)
         # KI darf shop_name nicht umbenennen – aufgelöste Domain ist autoritativ
         parsed["shop_name"] = shop
         row    = build_row(parsed)
@@ -214,16 +222,55 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             return
         if message.channel.id != REVIEW_CHANNEL_ID:
             return
-        if not looks_like_review(message.content):
+
+        uid = message.author.id
+        is_review  = looks_like_review(message.content)
+        has_buffer = uid in self._acc_buffer
+
+        # Nur verarbeiten wenn: Nachricht sieht wie Review aus ODER
+        # User hat bereits einen aktiven Buffer (= Fortsetzungsnachricht)
+        if not is_review and not has_buffer:
             return
 
+        self._acc_buffer.setdefault(uid, []).append(message)
+
+        # Laufenden Timer abbrechen und neu starten (Debounce)
+        if uid in self._acc_tasks:
+            self._acc_tasks[uid].cancel()
+        self._acc_tasks[uid] = asyncio.create_task(self._flush_accumulation(uid))
+
+    async def _flush_accumulation(self, uid: int) -> None:
+        """Wartet ACCUMULATION_DELAY Sekunden, dann verarbeitet alle gesammelten Nachrichten."""
+        await asyncio.sleep(ACCUMULATION_DELAY)
+
+        messages = self._acc_buffer.pop(uid, [])
+        self._acc_tasks.pop(uid, None)
+
+        if not messages:
+            return
+
+        anchor = messages[0]
+        extra  = messages[1:]
+        combined = "\n".join(m.content for m in messages) if extra else None
+
+        if extra:
+            logger.info(
+                f"🔗 {len(messages)} Nachrichten von User {uid} zusammengeführt "
+                f"(Anker: {anchor.id})"
+            )
+
         try:
-            await self._process(message)
-            await message.add_reaction("🟢")
+            await self._process(anchor, combined_content=combined, extra_messages=extra)
+            await anchor.add_reaction("🟢")
+            for m in extra:
+                try:
+                    await m.add_reaction("🟢")
+                except Exception:
+                    pass
         except UnresolvableShop as e:
-            await self._mark_unresolvable(message, e)
+            await self._mark_unresolvable(anchor, e)
         except Exception as e:
-            await self._mark_error(message, e)
+            await self._mark_error(anchor, e)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
@@ -258,18 +305,22 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         channel = self.bot.get_channel(payload.channel_id)
         try:
             message = await channel.fetch_message(payload.message_id)
-        except Exception:
+        except discord.NotFound:
             return
 
-        identifier    = entry.get("identifier", "")
-        shop_override = reload_mapping().get(identifier) if identifier else None
-
-        if entry["reason"] == "unresolved_shop" and not shop_override:
-            logger.info(f"⏳ CSV für '{identifier}' noch nicht ausgefüllt")
-            return
-
-        existing_row = await get_tracking(self.bot, mid)
         try:
+            await self._process(message)
+            await remove_pending(self.bot, mid)
+            await self._clean_react(message, "🟡", "🔴", add="🟢")
+        except UnresolvableShop as e:
+            await self._mark_unresolvable(message, e)
+        except Exception as e:
+            await self._mark_error(message, e)
+
+
+def setup(bot: discord.Bot) -> None:
+    bot.add_cog(ReviewsCog(bot))
+ try:
             await self._process(
                 message,
                 is_edit=(existing_row is not None),

@@ -114,7 +114,7 @@
   "help_pending": "`/pending` – Ausstehende Nachrichten anzeigen (🟡)",
   "help_test_admin": "`/test` – KI-Parser testen ohne Sheet-Eintrag",
   "help_rescan": "`/rescan` – Letzte 90 Tage manuell neu abgleichen",
-  "help_reprocess": "`/reprocess` – Bewertungsnachricht anhand der Message-ID neu verarbeiten (überschreibt Sheet-Eintrag)",
+  "help_reprocess": "`/reprocess` – Bewertungsnachricht(en) neu verarbeiten (eine oder mehrere Message-IDs, leerzeichen-/kommagetrennt; mehrere IDs werden zu einer Review zusammengeführt)",
   "help_export": "`/export` – Sheet-Rohdaten als JSON anzeigen",
   "help_shopurl": "`/shopurl` – Manuelle URL-Overrides für Shops setzen",
   "help_ai_chat": "`/ai_status` – Deinen KI-Chat Budget-Status anzeigen (Tipp: @AntCheckHelpi im KI-Kanal taggen zum Chatten – Bilder bis 1 MB und Textdateien bis 10 KB werden unterstützt)",

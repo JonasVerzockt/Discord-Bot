@@ -114,7 +114,7 @@
   "help_pending": "`/pending` – Listigi atendantajn mesaĝojn (🟡)",
   "help_test_admin": "`/test` – Testi KI-analizilon sen skribi en folio",
   "help_rescan": "`/rescan` – Mane rekunigi lastajn 90 tagojn",
-  "help_reprocess": "`/reprocess` – Reprocesi recenzan mesaĝon laŭ mesaĝ-ID (anstataŭigas folian enskribon)",
+  "help_reprocess": "`/reprocess` – Reprocesi recenzajn mesaĝojn laŭ ID (unu aŭ pluraj ID-oj, apartigitaj per spacoj aŭ komoj; pluraj ID-oj estas kunfanditaj en unu recenzan enskribon)",
   "help_export": "`/export` – Eksporti krudajn datumojn de folio kiel JSON",
   "help_shopurl": "`/shopurl` – Agordi manajn URL-anstataŭigojn por butiko",
   "help_ai_chat": "`/ai_status` – Montri vian KI-babilad-budĝetan staton (Konsilo: marku @AntCheckHelpi en la KI-kanalo – bildoj ĝis 1 MB kaj tekstdosieroj ĝis 10 KB estas subtenataj)",

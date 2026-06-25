@@ -53,8 +53,11 @@ MAPPING_FILE = str(BASE_DIR / "shop_mapping.csv")
 LOCALES_DIR = BASE_DIR / "locales"
 
 # Verhalten
-SCAN_DAYS       = 400
-FUZZY_THRESHOLD = 81
+SCAN_DAYS          = 400
+FUZZY_THRESHOLD    = 81
+# Sekunden die der Bot wartet, bevor er eine Review verarbeitet –
+# damit geteilte Nachrichten desselben Users zusammengeführt werden können.
+ACCUMULATION_DELAY = int(os.getenv("ACCUMULATION_DELAY", "8"))
 
 # Anthropic (Review-Bot + KI-Chat)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")

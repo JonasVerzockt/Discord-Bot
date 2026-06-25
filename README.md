@@ -119,6 +119,8 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 
 **Erkennung:** Eine Nachricht wird als Bewertung erkannt wenn sie das 🛒-Emoji enthält **oder** sowohl `Shop:` als auch `Fazit`, `/10` oder `/5` enthält.
 
+**Geteilte Nachrichten:** Schickt ein User mehrere Nachrichten hintereinander (z. B. weil Discord die Zeichengrenze erreicht), wartet der Bot `ACCUMULATION_DELAY` Sekunden (Standard: 8) nach der letzten Nachricht und führt alle Teile automatisch zu einer Review zusammen.
+
 **Shop-Auflösung** (in dieser Reihenfolge):
 1. `shop_mapping.csv` – manuell oder automatisch gelernte Mappings
 2. Discord-Mention (`@User`) → Display-Name wenn URL-artig
@@ -292,7 +294,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | `/pending` | Ausstehende Nachrichten auflisten (🟡) |
 | `/test` | KI-Parser testen ohne Sheet-Eintrag |
 | `/rescan` | Letzte 90 Tage manuell neu abgleichen |
-| `/reprocess` | Bewertungsnachricht anhand der Message-ID neu verarbeiten (überschreibt Sheet-Eintrag) |
+| `/reprocess` | Bewertungsnachricht(en) neu verarbeiten – eine oder mehrere Message-IDs (leerzeichen-/kommagetrennt); mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt |
 | `/export` | Sheet-Rohdaten als JSON anzeigen (erste 50 Zeilen) |
 | `/stats` | Benachrichtigungsstatistiken + Top-Arten |
 | `/system` | Systemstatus (Uptime, CPU, RAM, DB, Shop-Datei-Alter) |
