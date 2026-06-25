@@ -45,10 +45,22 @@ class UnresolvableShop(Exception):
 
 
 # ── Interne Helfer ──────────────────────────────────────────────────────────────
-_CSV_COLS = ["identifier", "shop_url", "message_id", "hinweis"]
-_URL_RE   = re.compile(r'[\w\-]+\.(de|com|net|fr|store|eu|shop|at|ch|nl|pl|es|co\.uk)', re.I)
+_CSV_COLS    = ["identifier", "shop_url", "message_id", "hinweis"]
+_URL_RE      = re.compile(r'[\w\-]+\.(de|com|net|fr|store|eu|shop|at|ch|nl|pl|es|co\.uk)', re.I)
+_MARKDOWN_RE = re.compile(r'\[([^\]]*)\]\(https?://(?:www\.)?([^/)\s]+)[^)]*\)')
 
 _map_cache: dict | None = None   # None = noch nicht geladen
+
+
+def _strip_markdown_url(s: str) -> str:
+    """
+    Wandelt Discord-Markdown-Links in saubere Domains um:
+      [www.antpire.net](https://www.antpire.net) → antpire.net
+      [Antpire](https://www.antpire.net/shop)   → antpire.net
+    Ohne Match: Originalstring zurück.
+    """
+    m = _MARKDOWN_RE.search(s)
+    return m.group(2) if m else s
 
 
 def _is_url(s: str) -> bool:
@@ -132,7 +144,9 @@ def extract_identifier(content: str) -> str | None:
     if ids:
         return ids[0]
     m = re.search(r"Shop:\s*(.+?)(?:\n|\r|$)", content)
-    return m.group(1).strip() if m else None
+    if m:
+        return _strip_markdown_url(m.group(1).strip())
+    return None
 
 
 def resolve_shop(content: str, guild: discord.Guild) -> str:
@@ -165,7 +179,7 @@ def resolve_shop(content: str, guild: discord.Guild) -> str:
     # Variante B: "Shop: <name>"
     m = re.search(r"Shop:\s*(.+?)(?:\n|\r|$)", content)
     if m:
-        raw = m.group(1).strip()
+        raw = _strip_markdown_url(m.group(1).strip())
         if raw in mapping:
             return mapping[raw]
         if _is_url(raw):

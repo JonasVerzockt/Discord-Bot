@@ -78,6 +78,8 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
         shop   = shop_override or resolve_shop(message.content, message.guild)
         parsed = parse_with_ai(message.content, shop, date_str)
+        # KI darf shop_name nicht umbenennen – aufgelöste Domain ist autoritativ
+        parsed["shop_name"] = shop
         row    = build_row(parsed)
 
         existing_row = await get_tracking(self.bot, mid)
