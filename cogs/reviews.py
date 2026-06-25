@@ -40,7 +40,7 @@ from utils.tracking import (
     get_pending, set_pending, remove_pending, get_all_pending,
 )
 from utils.shop import (
-    resolve_shop, extract_identifier, learn_shop,
+    resolve_shop, extract_identifier, learn_shop, load_mapping,
     add_to_csv, reload_mapping, UnresolvableShop,
 )
 from utils.ai_parser import looks_like_review, parse_with_ai, build_row
@@ -119,12 +119,26 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         already_mapped = set(all_tracking.values())
 
         # 1. Nicht gemappte Review-Nachrichten sammeln
+        #    Bereits getrackte Nachrichten: CSV-Lücken nachfüllen, dann überspringen
         msgs_by_date: dict[str, list[discord.Message]] = {}
         async for msg in channel.history(limit=None, after=cutoff, oldest_first=True):
             if msg.author.bot or not looks_like_review(msg.content):
                 continue
             mid = str(msg.id)
-            if mid in all_tracking or mid in all_pending:
+            if mid in all_pending:
+                continue
+            if mid in all_tracking:
+                # CSV ggf. auffüllen: Identifier → Shopname aus dem Sheet lernen
+                identifier = extract_identifier(msg.content)
+                if identifier and identifier not in load_mapping():
+                    row_num = all_tracking[mid]
+                    try:
+                        sheet_row  = sheet.rows[row_num - 1]
+                        sheet_shop = sheet_row[2].strip() if len(sheet_row) > 2 else ""
+                        if sheet_shop:
+                            learn_shop(identifier, sheet_shop)
+                    except IndexError:
+                        pass
                 continue
             date_str = msg.created_at.strftime("%d.%m.%Y")
             msgs_by_date.setdefault(date_str, []).append(msg)
