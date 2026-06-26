@@ -85,7 +85,7 @@ class StatsCog(commands.Cog, name="Stats"):
             )
         except Exception as e:
             logger.error(f"stats error: {e}")
-            await ctx.respond(l10n.get("stats_error", lang), ephemeral=True)
+            await ctx.respond(l10n.get("stats_error", lang))
 
     @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)")
     @admin_or_manage_messages()

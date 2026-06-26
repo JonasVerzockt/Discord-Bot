@@ -291,13 +291,13 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         lang      = await get_user_lang(self.bot, ctx.author.id, server_id)
 
         if species and genus:
-            await ctx.respond(l10n.get("notification_error_both_genus_species", lang), ephemeral=True)
+            await ctx.respond(l10n.get("notification_error_both_genus_species", lang))
             return
         if not species and not genus:
-            await ctx.respond(l10n.get("notification_error_neither_genus_species", lang), ephemeral=True)
+            await ctx.respond(l10n.get("notification_error_neither_genus_species", lang))
             return
         if species and " " not in species:
-            await ctx.respond(l10n.get("notification_error_species_format", lang, species=species), ephemeral=True)
+            await ctx.respond(l10n.get("notification_error_species_format", lang, species=species))
             return
 
         search_term = species or genus
@@ -314,19 +314,19 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         else:
             if not regions:
                 avail = sorted({sd.get("country", "").lower() for sd in shop_data.values() if sd.get("country")})
-                await ctx.respond(l10n.get("notification_error_no_region", lang, regions=", ".join(avail)), ephemeral=True)
+                await ctx.respond(l10n.get("notification_error_no_region", lang, regions=", ".join(avail)))
                 return
             expanded = await expand_regions(self.bot, [r.strip().lower() for r in regions.split(",")])
             avail_countries = {sd.get("country", "").lower() for sd in shop_data.values() if sd.get("country")}
             valid_regions = [r for r in expanded if r in avail_countries]
             if not valid_regions:
-                await ctx.respond(l10n.get("invalid_regions", lang, regions=", ".join(sorted(avail_countries))), ephemeral=True)
+                await ctx.respond(l10n.get("invalid_regions", lang, regions=", ".join(sorted(avail_countries))))
                 return
 
         # Art-Existenz prüfen
         term_exists = await species_exists(self.bot, search_term)
         if not term_exists and not force:
-            await ctx.respond(l10n.get("species_or_genus_not_found", lang, term=search_term), ephemeral=True)
+            await ctx.respond(l10n.get("species_or_genus_not_found", lang, term=search_term))
             return
 
         regions_str  = ",".join(valid_regions)
@@ -379,7 +379,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         try:
             id_list = [int(x.strip()) for x in ids.split(",")]
         except ValueError:
-            await ctx.respond(l10n.get("invalid_ids", lang), ephemeral=True)
+            await ctx.respond(l10n.get("invalid_ids", lang))
             return
 
         deleted = []
@@ -404,7 +404,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         if deleted:
             await ctx.respond(l10n.get("deleted_success", lang, ids=", ".join(deleted)), ephemeral=True)
         else:
-            await ctx.respond(l10n.get("delete_error", lang), ephemeral=True)
+            await ctx.respond(l10n.get("delete_error", lang))
 
     @discord.slash_command(name="history", description="Show your notification history")
     @allowed_channel()

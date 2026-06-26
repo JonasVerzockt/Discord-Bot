@@ -205,7 +205,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             filtered = list(shop_data.values())
 
         if not filtered:
-            await ctx.respond(l10n.get("no_shops_found", lang), ephemeral=True)
+            await ctx.respond(l10n.get("no_shops_found", lang))
             return
 
         # Nach Bewertung sortieren
