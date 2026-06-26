@@ -5,6 +5,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert zw
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
+- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 
 ---
 
@@ -328,6 +329,41 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 
 ---
 
+## iNat-Tracker (`cogs/inat_tracker.py`)
+
+Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in ein separates Google Sheet – gedacht für Community-Events mit zeitlich begrenzter Erfassung.
+
+**Funktionsweise:**
+- Überwacht den konfigurierten `INAT_CHANNEL_ID` auf Nachrichten mit iNaturalist-Links
+- Akzeptiert sowohl `http://` als auch `https://`-Links – schreibt immer `https`
+- Verarbeitet nur Nachrichten innerhalb des konfigurierten Zeitfensters (`INAT_START` – `INAT_END`, Berliner Zeit)
+- Reagiert mit ✅ auf die Nachricht wenn mindestens ein Link eingetragen wurde
+- Spalte C im Sheet wird bewusst nicht beschrieben (wird von der Tabelle selbst befüllt)
+
+**Sheet-Struktur:**
+
+| Spalte | Inhalt |
+|--------|--------|
+| A | Discord User-ID |
+| B | Anzeigename auf dem Server (display_name) |
+| C | *(leer – vom Sheet selbst befüllt)* |
+| D | iNaturalist-Link (`https://www.inaturalist.org/observations/ID`) |
+| E | Datum (Berliner Zeit, `DD.MM.YYYY`) |
+
+**Konfiguration** (ganz oben in `cogs/inat_tracker.py`):
+
+```python
+INAT_CHANNEL_ID = 123456789012345678      # zu überwachender Kanal
+INAT_SHEET_ID   = "DEINE_GOOGLE_SHEET_ID" # separates Sheet (nicht das Review-Sheet)
+INAT_WORKSHEET  = "Tabelle1"              # Tab-Name
+INAT_START      = "2026-06-26 18:00"      # Zeitfenster Beginn (Berliner Zeit)
+INAT_END        = "2026-06-28 22:00"      # Zeitfenster Ende (Berliner Zeit)
+```
+
+Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein.
+
+---
+
 ## Grabber (`grabber.py`)
 
 Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Lädt Shops und Produkte von der AntCheck API v2 in zwei Schritten:
@@ -397,7 +433,8 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 │   ├── stats.py             # /stats /system /help
 │   ├── shop_admin.py        # /reloadshops /shopmapping /shopurl /ch_delivery
 │   ├── tasks.py             # Alle Hintergrundaufgaben
-│   └── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset
+│   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset
+│   └── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)

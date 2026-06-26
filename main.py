@@ -53,6 +53,7 @@ INITIAL_COGS = [
     "cogs.shop_admin",        # /reloadshops / /shopmapping / /ch_delivery
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
     "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
+    "cogs.inat_tracker",      # iNaturalist-Links → Google Sheets
 ]
 
 

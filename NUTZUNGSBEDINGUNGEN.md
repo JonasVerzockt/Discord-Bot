@@ -13,6 +13,7 @@ Der Bot kombiniert zwei Funktionen für die AAM-Community:
 - **Bewertungs-Bot** – erkennt Shop-Bewertungen im dafür vorgesehenen Kanal, wertet sie automatisch mit KI aus und trägt sie in eine gemeinschaftliche Bewertungsübersicht ein.
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist.
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
+- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch in ein Google Sheet ein. Dabei werden Discord User-ID, Servername und der Link erfasst.
 
 ### Nutzung
 
@@ -78,6 +79,17 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 > **Hinweis:** **Alle** Nachrichten im AI-Chat-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Im AI-Chat-Kanal sollten daher keine sensiblen personenbezogenen Daten geteilt werden. Die KI-Antworten sind unverbindlich – jede Antwort enthält automatisch einen entsprechenden Disclaimer.
 
 **Nicht** gespeichert werden: Nutzernamen oder der Nachrichtentext selbst außerhalb des Gesprächsverlaufs.
+
+#### iNat-Tracker
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID | Zuordnung der Beobachtung zur einsendenden Person | Google Sheets (separates Sheet) |
+| Anzeigename auf dem Server (display_name) | Leserliche Zuordnung im Sheet | Google Sheets (separates Sheet) |
+| iNaturalist-Beobachtungslink | Kern-Inhalt der Erfassung | Google Sheets (separates Sheet) |
+| Datum der Nachricht (Berliner Zeit) | Zeitliche Zuordnung | Google Sheets (separates Sheet) |
+
+Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten werden ausschließlich im Google Sheet gespeichert – lokal auf dem Server werden keine iNat-Tracker-Daten abgelegt.
 
 ### Drittanbieter
 
