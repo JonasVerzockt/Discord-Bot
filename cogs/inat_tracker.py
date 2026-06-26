@@ -19,13 +19,13 @@ Links werden nur im konfigurierten Zeitfenster erkannt.
 #  KONFIGURATION – nur hier anpassen
 # ══════════════════════════════════════════════════════════════════════════════
 
-INAT_CHANNEL_ID    = 123456789012345678      # Kanal-ID der zu überwachenden iNat-Channel
-INAT_SHEET_ID      = "DEINE_GOOGLE_SHEET_ID" # aus der Sheet-URL: /d/XXXXXXX/edit
-INAT_WORKSHEET     = "Tabelle1"              # Name des Tabellenblatts / Tabs
+INAT_CHANNEL_ID    = 1166491005814579300      # Kanal-ID der zu überwachenden iNat-Channel
+INAT_SHEET_ID      = "1aPQKNiVBCscjM6VbBGaBtG8MOvLKVoTw_PYKMp17dtQ" # aus der Sheet-URL: /d/XXXXXXX/edit
+INAT_WORKSHEET     = "Rohdaten"              # Name des Tabellenblatts / Tabs
 
 # Zeitfenster (Berliner Zeit) – Format: "YYYY-MM-DD HH:MM"
-INAT_START = "2026-06-26 18:00"
-INAT_END   = "2026-06-28 22:00"
+INAT_START = "2026-06-05 00:00"
+INAT_END   = "2026-10-30 20:00"
 
 # ══════════════════════════════════════════════════════════════════════════════
 
