@@ -337,7 +337,11 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 - Überwacht den konfigurierten `INAT_CHANNEL_ID` auf Nachrichten mit iNaturalist-Links
 - Akzeptiert sowohl `http://` als auch `https://`-Links – schreibt immer `https`
 - Verarbeitet nur Nachrichten innerhalb des konfigurierten Zeitfensters (`INAT_START` – `INAT_END`, Berliner Zeit)
-- Reagiert mit ✅ auf die Nachricht wenn mindestens ein Link eingetragen wurde
+- Vor dem Eintragen werden zwei Prüfungen durchgeführt:
+  1. **Duplikat-Check:** Ist der Link bereits in Spalte D vorhanden? → ignorieren (wird geloggt)
+  2. **Taxon-Check via iNaturalist API:** Gehört die Beobachtung zur Überfamilie Formicoidea (`taxon_id=1269340`)? → sonst ignorieren (wird geloggt)
+- Reagiert mit ✅ wenn mindestens ein Link eingetragen wurde
+- Ist die iNaturalist API nicht erreichbar: ⏳-Reaktion + automatischer Retry alle 5 Minuten bis die API antwortet; bei Erfolg wird ⏳ durch ✅ ersetzt
 - Spalte C im Sheet wird bewusst nicht beschrieben (wird von der Tabelle selbst befüllt)
 
 **Sheet-Struktur:**
