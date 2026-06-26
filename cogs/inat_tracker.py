@@ -44,7 +44,7 @@ from datetime import datetime
 
 import discord
 import gspread
-import pytz
+from zoneinfo import ZoneInfo
 import requests
 from discord.ext import commands
 from google.oauth2.service_account import Credentials
@@ -55,7 +55,7 @@ GOOGLE_CREDS_FILE = str(BASE_DIR / "service_account.json")
 
 logger = logging.getLogger(__name__)
 
-BERLIN  = pytz.timezone("Europe/Berlin")
+BERLIN  = ZoneInfo("Europe/Berlin")
 INAT_RE = re.compile(
     r"https?://www\.inaturalist\.org/observations/(\d+)",
     re.IGNORECASE,
@@ -68,8 +68,8 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
     def __init__(self, bot: discord.Bot):
         self.bot   = bot
         self._ws: gspread.Worksheet | None = None
-        self._start = BERLIN.localize(datetime.strptime(INAT_START, "%Y-%m-%d %H:%M"))
-        self._end   = BERLIN.localize(datetime.strptime(INAT_END,   "%Y-%m-%d %H:%M"))
+        self._start = datetime.strptime(INAT_START, "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
+        self._end   = datetime.strptime(INAT_END,   "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
 
     # ── Sheet-Verbindung (lazy, damit Bot-Start nicht blockiert) ──────────────
 
@@ -84,7 +84,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
     # ── Hilfsmethoden ─────────────────────────────────────────────────────────
 
     def _in_window(self) -> bool:
-        return self._start <= datetime.now(BERLIN) <= self._end
+        return self._start <= datetime.now(tz=BERLIN) <= self._end
 
     def _link_exists(self, ws: gspread.Worksheet, url: str) -> bool:
         """Prüft ob die URL bereits in Spalte D vorhanden ist."""
@@ -136,7 +136,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
     ) -> int:
         """Schreibt A, B, D, E – C bleibt unberührt."""
         row      = self._next_free_row(ws)
-        date_str = datetime.now(BERLIN).strftime("%d.%m.%Y")
+        date_str = datetime.now(tz=BERLIN).strftime("%d.%m.%Y")
         ws.batch_update([
             {"range": f"A{row}", "values": [[str(discord_id)]]},
             {"range": f"B{row}", "values": [[display_name]]},
