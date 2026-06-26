@@ -222,9 +222,9 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
         text   = l10n.get("available_shops", lang, shops="\n- " + "\n- ".join(entries))
         blocks = await _split_message(text)
 
-        await ctx.respond(blocks[0], ephemeral=True)
+        await ctx.respond(blocks[0])
         for block in blocks[1:]:
-            await ctx.followup.send(block, ephemeral=True)
+            await ctx.followup.send(block)
 
 
 def setup(bot: discord.Bot):

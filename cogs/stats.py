@@ -82,7 +82,6 @@ class StatsCog(commands.Cog, name="Stats"):
                     deleted_total=deleted_total,
                     top_species=top_species,
                 ),
-                ephemeral=True,
             )
         except Exception as e:
             logger.error(f"stats error: {e}")
