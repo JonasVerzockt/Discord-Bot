@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # ── Hilfsfunktion ─────────────────────────────────────────────────────────────
 
-async def _split_message(text: str, max_length: int = 2000) -> list[str]:
+def _split_message(text: str, max_length: int = 2000) -> list[str]:
     lines, blocks, current = text.split("\n"), [], ""
     for line in lines:
         if len(current) + len(line) + 1 > max_length:
@@ -192,7 +192,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
                     self.bot,
                     "SELECT shop_id FROM ch_delivery_shops",
                     fetch=True,
-                ) if False else []  # Tabelle optional – Fallback auf country-Filter
+                )
                 manual_ids = {str(r["shop_id"]) for r in ch_rows}
                 auto_ids   = {sid for sid, sd in shop_data.items()
                               if sd.get("country", "").lower() == "ch"}
@@ -220,7 +220,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             for s in filtered
         ]
         text   = l10n.get("available_shops", lang, shops="\n- " + "\n- ".join(entries))
-        blocks = await _split_message(text)
+        blocks = _split_message(text)
 
         await ctx.respond(blocks[0])
         for block in blocks[1:]:

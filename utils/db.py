@@ -25,7 +25,8 @@ Schema:
   server_settings, user_settings, shops, notifications,
   user_shop_blacklist, shop_name_mappings, server_user_mappings,
   user_seen_products, global_stats, server_info, eu_countries,
-  review_tracking, review_pending, user_price_tracking
+  review_tracking, review_pending, ch_delivery_shops, user_price_tracking,
+  user_species_watch, user_species_watch_seen, ai_chat_budget, ai_chat_history
 """
 import sqlite3
 import logging
@@ -53,6 +54,9 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
     def _sync():
         conn = sqlite3.connect(DB_FILE, check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        # Wartet bis zu 5s wenn die DB gerade gesperrt ist (verhindert
+        # "database is locked" bei parallelen Schreibzugriffen / WAL).
+        conn.execute("PRAGMA busy_timeout=5000")
         try:
             cur = conn.cursor()
             cur.execute(query, params)
@@ -185,6 +189,46 @@ CREATE TABLE IF NOT EXISTS user_price_tracking (
     added_at          TEXT    NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, product_id)
 );
+
+-- Arten-Beobachtung (alle Shops) – vormals in price_tracking.py erzeugt
+CREATE TABLE IF NOT EXISTS user_species_watch (
+    user_id    TEXT    NOT NULL,
+    species    TEXT    NOT NULL,
+    is_genus   INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, species)
+);
+
+CREATE TABLE IF NOT EXISTS user_species_watch_seen (
+    user_id         TEXT    NOT NULL,
+    watched_species TEXT    NOT NULL,
+    product_id      INTEGER NOT NULL,
+    last_min        REAL,
+    last_max        REAL,
+    currency        TEXT,
+    PRIMARY KEY (user_id, watched_species, product_id)
+);
+
+-- KI-Chat: Tagesbudget (user_id = 0 -> global) – vormals in utils/ai_chat.py
+CREATE TABLE IF NOT EXISTS ai_chat_budget (
+    date     TEXT    NOT NULL,
+    user_id  INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL    NOT NULL DEFAULT 0.0,
+    PRIMARY KEY (date, user_id)
+);
+
+-- KI-Chat: Konversations-Historie (Key: Discord-Message-ID der Bot-Antwort)
+CREATE TABLE IF NOT EXISTS ai_chat_history (
+    message_id   INTEGER PRIMARY KEY,
+    user_id      INTEGER NOT NULL,
+    channel_id   INTEGER NOT NULL,
+    history_json TEXT    NOT NULL,
+    created_at   TEXT    NOT NULL,
+    expires_at   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_history_expires
+    ON ai_chat_history (expires_at);
 """
 
 # Standard EU-Länder (falls DB noch leer)
@@ -200,6 +244,9 @@ async def init_db(bot) -> None:
     def _sync():
         conn = sqlite3.connect(DB_FILE, check_same_thread=False)
         try:
+            # WAL: bessere Nebenläufigkeit (Leser blockieren Schreiber nicht).
+            # Persistent – muss nur einmal gesetzt werden.
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(_SCHEMA)
             conn.commit()
             # Migration: url_override Spalte (für bestehende DBs)

@@ -192,34 +192,9 @@ async def _classify_shop_haiku(message: str) -> dict:
         return {"needs_shop": True, "cost": 0.0}
 
 
-# ── DB-Initialisierung (selbstaendig, kein Eingriff in db.py noetig) ──────────
-
-def init_ai_chat_tables() -> None:
-    """Legt die benotigten Tabellen an, falls sie noch nicht existieren."""
-    with sqlite3.connect(str(cfg.DB_FILE)) as con:
-        con.executescript("""
-            -- Tagesbudget-Tracking (user_id = 0 → global)
-            CREATE TABLE IF NOT EXISTS ai_chat_budget (
-                date     TEXT    NOT NULL,
-                user_id  INTEGER NOT NULL DEFAULT 0,
-                cost_usd REAL    NOT NULL DEFAULT 0.0,
-                PRIMARY KEY (date, user_id)
-            );
-
-            -- Konversations-Historie (Key: Discord-Message-ID der Bot-Antwort)
-            CREATE TABLE IF NOT EXISTS ai_chat_history (
-                message_id   INTEGER PRIMARY KEY,
-                user_id      INTEGER NOT NULL,
-                channel_id   INTEGER NOT NULL,
-                history_json TEXT    NOT NULL,
-                created_at   TEXT    NOT NULL,
-                expires_at   TEXT    NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_ai_history_expires
-                ON ai_chat_history (expires_at);
-        """)
-    logger.debug("[AI-Chat] Tabellen initialisiert")
+# ── DB-Initialisierung ────────────────────────────────────────────────────────
+# Die Tabellen ai_chat_budget und ai_chat_history werden zentral in
+# utils/db.py:init_db() angelegt (siehe dortiges _SCHEMA).
 
 
 # ── Hilfsfunktionen ───────────────────────────────────────────────────────────

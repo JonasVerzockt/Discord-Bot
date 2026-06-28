@@ -309,7 +309,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         shop_data = await load_shop_data(self.bot)
         ch_shops  = None
         if swiss_only:
-            ch_rows  = await execute_db(self.bot, "SELECT shop_id FROM ch_delivery_shops", fetch=True) if False else []
+            ch_rows  = await execute_db(self.bot, "SELECT shop_id FROM ch_delivery_shops", fetch=True)
             ch_shops = {str(r["shop_id"]) for r in ch_rows}
             ch_shops |= {sid for sid, sd in shop_data.items() if sd.get("country", "").lower() == "ch"}
             valid_regions = ["ch"]

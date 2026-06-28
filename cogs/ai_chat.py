@@ -42,7 +42,6 @@ from utils.ai_chat import (
     chunk_discord,
     cleanup_expired_conversations,
     get_budget_status,
-    init_ai_chat_tables,
     load_conversation,
     save_conversation,
 )
@@ -69,8 +68,7 @@ class AiChatCog(commands.Cog):
 
     def __init__(self, bot: discord.Bot) -> None:
         self.bot = bot
-        # Tabellen sicher anlegen (idempotent)
-        init_ai_chat_tables()
+        # ai_chat_budget / ai_chat_history werden zentral in utils/db.py:init_db() angelegt.
         # Hintergrundtasks starten
         self.cleanup_loop.start()
         self.shop_data_loop.start()

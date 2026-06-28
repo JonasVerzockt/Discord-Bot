@@ -29,7 +29,7 @@ Nutzung:
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -44,7 +44,7 @@ _API_URL    = "https://api.frankfurter.app/latest?from=EUR"
 async def ensure_rates() -> None:
     """Lädt Kurse falls Cache abgelaufen oder noch leer ist."""
     global _LAST_FETCH
-    if _LAST_FETCH is None or datetime.utcnow() - _LAST_FETCH > _CACHE_TTL:
+    if _LAST_FETCH is None or datetime.now(timezone.utc) - _LAST_FETCH > _CACHE_TTL:
         await asyncio.to_thread(_fetch_rates_sync)
 
 
@@ -63,7 +63,7 @@ def _fetch_rates_sync() -> None:
             if rate
         }
         _RATES["EUR"] = 1.0
-        _LAST_FETCH = datetime.utcnow()
+        _LAST_FETCH = datetime.now(timezone.utc)
         logger.info("💶 Währungskurse geladen: %d Währungen", len(_RATES))
     except Exception as e:
         logger.warning("⚠️ Frankfurter API nicht erreichbar: %s", e)

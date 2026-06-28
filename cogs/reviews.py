@@ -72,20 +72,21 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         is_edit: bool = False,
         shop_override: str | None = None,
         combined_content: str | None = None,
-        extra_messages: list[discord.Message] | None = None,
     ) -> None:
         """
         Parst die Nachricht mit KI und schreibt sie ins Sheet.
         Bei Erfolg wird das Tracking in der DB aktualisiert.
         combined_content: zusammengeführter Text aus mehreren Nachrichten desselben Users.
-        extra_messages:   Folgenachrichten (werden nur für Reaktionen verwendet).
+
+        KI- (anthropic) und Sheet- (gspread) Aufrufe sind synchron/blockierend –
+        sie laufen daher in asyncio.to_thread(), damit der Event-Loop frei bleibt.
         """
         mid      = str(message.id)
         date_str = message.created_at.strftime("%d.%m.%Y")
         content  = combined_content or message.content
 
         shop   = shop_override or resolve_shop(content, message.guild)
-        parsed = parse_with_ai(content, shop, date_str)
+        parsed = await asyncio.to_thread(parse_with_ai, content, shop, date_str)
         # KI darf shop_name nicht umbenennen – aufgelöste Domain ist autoritativ
         parsed["shop_name"] = shop
         row    = build_row(parsed)
@@ -98,10 +99,10 @@ class ReviewsCog(commands.Cog, name="Reviews"):
                     f"({sheet.row_count - 1} Einträge) – übersprungen"
                 )
                 return
-            sheet.update(existing_row, row)
+            await asyncio.to_thread(sheet.update, existing_row, row)
             logger.info(f"✏️  [{date_str}] {parsed['shop_name']} Zeile {existing_row}")
         else:
-            row_num = sheet.append(row)
+            row_num = await asyncio.to_thread(sheet.append, row)
             await set_tracking(self.bot, mid, row_num)
             logger.info(f"➕ [{date_str}] {parsed['shop_name']} {parsed.get('bewertung')}/10")
 
@@ -207,7 +208,7 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             logger.error("Review-Kanal nicht gefunden!")
             return
 
-        sheet.load()
+        await asyncio.to_thread(sheet.load)
         logger.info(f"🔍 Gleiche letzte {SCAN_DAYS} Tage mit bestehenden Zeilen ab…")
         mapped, written = await self._reconcile_scan(channel)
         all_pending = await get_all_pending(self.bot)
@@ -260,7 +261,7 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             )
 
         try:
-            await self._process(anchor, combined_content=combined, extra_messages=extra)
+            await self._process(anchor, combined_content=combined)
             await anchor.add_reaction("🟢")
             for m in extra:
                 try:
@@ -320,4 +321,3 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
 def setup(bot: discord.Bot) -> None:
     bot.add_cog(ReviewsCog(bot))
-

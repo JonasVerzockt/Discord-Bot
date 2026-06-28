@@ -170,16 +170,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             return
         shop_name = best[0]
         shop_id   = next(sid for sid, name in shop_names.items() if name == shop_name)
-        # Tabelle anlegen falls nicht vorhanden
-        await execute_db(
-            self.bot,
-            """CREATE TABLE IF NOT EXISTS ch_delivery_shops (
-               shop_id   TEXT PRIMARY KEY,
-               added_by  TEXT,
-               added_at  TEXT
-            )""",
-            commit=True,
-        )
+        # ch_delivery_shops wird zentral in utils/db.py:init_db() angelegt.
         rc = await execute_db(
             self.bot,
             "INSERT OR IGNORE INTO ch_delivery_shops (shop_id, added_by, added_at) VALUES (?, ?, ?)",

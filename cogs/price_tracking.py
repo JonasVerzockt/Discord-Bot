@@ -23,9 +23,9 @@ Slash Commands:
   /my_price_tracking  – Alle beobachteten Produkte + Arten-Beobachtungen (mit Preisen)
   /untrack_price      – Produkte und Arten-Beobachtungen entfernen
 
-Background Tasks:
-  check_price_changes (stündlich)  – Preisänderungen bei beobachteten Einzelprodukten
-  check_species_watches (stündlich) – Neue Produkte + Preisänderungen bei Arten-Beobachtungen
+Background Tasks (gestaffelt, damit nicht beide gleichzeitig laufen):
+  check_price_changes (alle 65 Min)  – Preisänderungen bei beobachteten Einzelprodukten
+  check_species_watches (alle 67 Min) – Neue Produkte + Preisänderungen bei Arten-Beobachtungen
 """
 import asyncio
 import logging
@@ -897,7 +897,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     @tasks.loop(minutes=65)
     async def check_price_changes(self):
-        """Prüft stündlich Preisänderungen bei beobachteten Einzelprodukten."""
+        """Prüft ~stündlich (alle 65 Min) Preisänderungen bei beobachteten Einzelprodukten."""
         try:
             rows = await execute_db(
                 self.bot,
@@ -958,7 +958,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
     @tasks.loop(minutes=67)
     async def check_species_watches(self):
         """
-        Prüft stündlich alle Arten-Beobachtungen:
+        Prüft ~stündlich (alle 67 Min) alle Arten-Beobachtungen:
         - Neue Produkte → DM
         - Preisänderungen bei bekannten Produkten → DM
         """
@@ -989,31 +989,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
     @check_species_watches.before_loop
     async def before_check_species_watches(self):
         await self.bot.wait_until_ready()
-        # DB-Tabellen für Arten-Beobachtung anlegen (idempotent)
-        await execute_db(
-            self.bot,
-            """CREATE TABLE IF NOT EXISTS user_species_watch (
-                user_id    TEXT    NOT NULL,
-                species    TEXT    NOT NULL,
-                is_genus   INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT    NOT NULL DEFAULT (datetime('now')),
-                PRIMARY KEY (user_id, species)
-            )""",
-            commit=True,
-        )
-        await execute_db(
-            self.bot,
-            """CREATE TABLE IF NOT EXISTS user_species_watch_seen (
-                user_id         TEXT    NOT NULL,
-                watched_species TEXT    NOT NULL,
-                product_id      INTEGER NOT NULL,
-                last_min        REAL,
-                last_max        REAL,
-                currency        TEXT,
-                PRIMARY KEY (user_id, watched_species, product_id)
-            )""",
-            commit=True,
-        )
+        # Tabellen user_species_watch / user_species_watch_seen werden
+        # zentral in utils/db.py:init_db() angelegt.
 
     async def _process_species_watch(self, watch: dict, shop_data: dict):
         """Verarbeitet eine einzelne Arten-Beobachtung."""
@@ -1115,44 +1092,6 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                      user_id, watched_species, pid),
                     commit=True,
                 )
-
-    async def _notify_new_product(self, user_id: str, product: dict, watched_species: str):
-        """DM: Neues Produkt für eine beobachtete Art entdeckt."""
-        try:
-            uid  = int(user_id)
-            user = await self.bot.fetch_user(uid)
-        except Exception as e:
-            logger.warning("⚠️ User %s nicht abrufbar: %s", user_id, e)
-            return
-
-        lang = await get_user_lang(self.bot, user_id, None)
-
-        try:
-            min_p = float(product.get("min_price") or 0)
-            max_p = float(product.get("max_price") or 0)
-        except (ValueError, TypeError):
-            min_p = max_p = 0.0
-        currency = product.get("currency_iso") or "EUR"
-
-        price_str = format_price(min_p, max_p, currency) if (min_p or max_p) else "kein Preis bekannt"
-
-        msg = l10n.get(
-            "pt_dm_new_product", lang,
-            species=watched_species,
-            shop=product.get("_shop_name") or "?",
-            title=product.get("title") or product.get("species") or "?",
-            price=price_str,
-            url=product.get("antcheck_url") or "",
-        )
-
-        try:
-            await user.send(msg)
-            logger.info("📩 Neues-Produkt-DM: user=%s species=%s product=%s",
-                        user_id, watched_species, product.get("id"))
-        except discord.Forbidden:
-            await self._fallback_server_message(user_id, msg)
-        except Exception as e:
-            logger.error("❌ _notify_new_product DM-Fehler: %s", e)
 
     async def _notify_species_price_change(
         self,

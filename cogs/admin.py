@@ -316,7 +316,6 @@ class AdminCog(commands.Cog, name="Admin"):
                 anchor,
                 is_edit=(existing_row is not None),
                 combined_content=combined,
-                extra_messages=extra,
             )
             await remove_pending(self.bot, anchor_id)
             await reviews_cog._clean_react(anchor, "🟡", "🔴", add="🟢")
