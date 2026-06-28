@@ -12,7 +12,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 
 - **Bewertungs-Bot** – erkennt Shop-Bewertungen im dafür vorgesehenen Kanal, wertet sie automatisch mit KI aus und trägt sie in eine gemeinschaftliche Bewertungsübersicht ein.
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist. Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung.
-- **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird.
+- **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird. Alternativ kann über "Alle Shops beobachten" eine gesamte Art oder Gattung shopübergreifend beobachtet werden – der Bot benachrichtigt dann bei Preisänderungen **und** bei Neuerscheinungen (neue Produkte für diese Art).
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht.
 
@@ -72,11 +72,13 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 | Daten | Zweck | Speicherort |
 |-------|-------|-------------|
 | Discord User-ID | Zuordnung der Tracking-Einträge zur Person | Lokale SQLite-Datenbank auf dem Server (`antcheckbot.db`) |
-| Produkt-ID, Produkttitel, Produkt-URL | Identifikation des beobachteten Produkts | Lokale SQLite-Datenbank auf dem Server |
+| Produkt-ID, Produkttitel, Produkt-URL | Identifikation des beobachteten Produkts (Einzelprodukt-Tracking) | Lokale SQLite-Datenbank auf dem Server |
 | Shop-Name, Shop-ID | Zuordnung zum jeweiligen Shop | Lokale SQLite-Datenbank auf dem Server |
 | Währungskürzel (ISO) | Darstellung und Umrechnung der Preise | Lokale SQLite-Datenbank auf dem Server |
 | Zuletzt gemeldeter Preis (min/max) | Erkennung von Preisänderungen (Vergleichswert) | Lokale SQLite-Datenbank auf dem Server |
 | Datum des Tracking-Starts | Transparenz für den Nutzer | Lokale SQLite-Datenbank auf dem Server |
+| Beobachtete Art/Gattung (normalisierter Name) | Arten-Beobachtung shopübergreifend | Lokale SQLite-Datenbank auf dem Server |
+| Bekannte Produkt-IDs je Art-Beobachtung + letzter Preis | Erkennung von Neuerscheinungen und Preisänderungen | Lokale SQLite-Datenbank auf dem Server |
 
 Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Datenbank, die vom Grabber-Skript befüllt wird. Diese Daten enthalten keine personenbezogenen Informationen. Wechselkurse für die EUR-Umrechnung werden von der [Frankfurter API](https://www.frankfurter.app) abgerufen (keine personenbezogenen Daten übermittelt, 6-Stunden-Cache).
 
@@ -143,7 +145,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **Bewertungsdaten** werden so lange gespeichert wie die Community besteht.
 - **Benachrichtigungseinstellungen** werden auf Wunsch des Nutzers per `/delete_notifications` jederzeit gelöscht.
 - **Gesehene Produkte und Blacklist** werden zusammen mit den zugehörigen Benachrichtigungen entfernt.
-- **Preis-Tracking-Einstellungen** (beobachtete Produkte, Baseline-Preise) werden auf Wunsch per `/untrack_price` jederzeit entfernt.
+- **Preis-Tracking-Einstellungen** (beobachtete Produkte, Arten-Beobachtungen, Baseline-Preise) werden auf Wunsch per `/untrack_price` jederzeit entfernt.
 - **AI-Chat-Konversationsverläufe** werden automatisch nach **24 Stunden** gelöscht (oder sofort wenn du nicht auf eine Bot-Antwort antwortest).
 - **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.

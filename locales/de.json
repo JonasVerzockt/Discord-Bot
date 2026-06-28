@@ -164,5 +164,14 @@
   "pt_untrack_none": "📭 Du beobachtest aktuell keine Produkte.",
   "pt_dm_cheaper": "📉 **Preissenkung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)",
   "pt_dm_dearer": "📈 **Preiserhöhung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)",
-  "help_ai_section": "\n\n**🤖 KI-Funktionen** *(aktuell nicht öffentlich verfügbar)*\n{ai_commands}"
+  "help_ai_section": "\n\n**🤖 KI-Funktionen** *(aktuell nicht öffentlich verfügbar)*\n{ai_commands}",
+  "pt_watch_all_shops_label": "Alle Shops beobachten",
+  "pt_watch_all_shops_desc": "Preisänderungen & Neuerscheinungen für alle Shops",
+  "pt_species_watch_confirm": "🔭 **{species}** über alle Shops beobachten?\n\nDu wirst per DM benachrichtigt bei:\n• Preisänderungen bei jedem passenden Produkt\n• Neuerscheinungen (neue Produkte)\n\n✅ Bestätigen oder ❌ Abbrechen.",
+  "pt_species_watch_saved": "✅ **{species}** wird jetzt über alle Shops beobachtet – du erhältst DMs bei Preisänderungen und Neuerscheinungen.",
+  "pt_species_watch_announced": "🔭 **{user}** beobachtet jetzt alle Produkte für **{species}** (alle Shops, Preisänderungen & Neuerscheinungen)!",
+  "pt_watch_list_header": "🔭 **Arten-Beobachtungen (alle Shops):**",
+  "pt_watch_list_entry": "• **{species}** – seit {date}",
+  "pt_unwatch_done": "🔭 **{count}** Arten-Beobachtung(en) entfernt.",
+  "pt_dm_new_product": "🆕 **Neues Produkt** für **{species}**!\n\n🏪 Shop: **{shop}**\n🏷️ {title}\n💶 {price}\n\n🔗 [Zum Produkt](<{url}>)"
 }

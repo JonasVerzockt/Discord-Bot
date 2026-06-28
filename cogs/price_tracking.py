@@ -19,11 +19,13 @@ cogs/price_tracking.py – Preis-Tracking für Ameisenprodukte.
 
 Slash Commands:
   /track_price        – Interaktiv Produkt(e) zum Preis-Tracking hinzufügen
-  /my_price_tracking  – Alle beobachteten Produkte anzeigen (mit aktuellen Preisen)
-  /untrack_price      – Produkte aus dem Tracking entfernen
+                        Neu: "Alle Shops beobachten" Option für Art-/Gattungsweites Tracking
+  /my_price_tracking  – Alle beobachteten Produkte + Arten-Beobachtungen (mit Preisen)
+  /untrack_price      – Produkte und Arten-Beobachtungen entfernen
 
-Background Task:
-  check_price_changes (stündlich) – liest price_history.db, sendet DM bei Preisänderung
+Background Tasks:
+  check_price_changes (stündlich)  – Preisänderungen bei beobachteten Einzelprodukten
+  check_species_watches (stündlich) – Neue Produkte + Preisänderungen bei Arten-Beobachtungen
 """
 import asyncio
 import logging
@@ -42,6 +44,11 @@ from utils.currency import ensure_rates, format_price
 logger = logging.getLogger(__name__)
 
 PRICE_HISTORY_DB = Path(DATA_DIRECTORY) / "price_history.db"
+
+# Sentinel-Wert für "Alle Shops beobachten"-Option
+_ALL_SHOPS_SENTINEL = "__all__"
+# Präfix für Arten-Beobachtungen im Untrack-Select
+_SW_PREFIX = "__sw__"
 
 # ── SQLite-Helfer (laufen im ThreadPool) ──────────────────────────────────────
 
@@ -106,8 +113,7 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
     normalized = normalize_species_name(species_query)
     is_genus = " " not in normalized.strip()
 
-    # Alle passenden Produkte sammeln
-    candidates: dict[str, list] = {}   # shop_id → [product, ...]
+    candidates: dict[str, list] = {}
     zero_price_ids: list[int] = []
 
     for shop_id, shop_info in shop_data.items():
@@ -139,14 +145,12 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
             else:
                 candidates.setdefault(shop_id, []).append(product)
 
-    # Batch-Lookup historischer Preise für Produkte ohne aktuellen Preis
     hist_prices: dict[int, tuple[float, float, str]] = {}
     if zero_price_ids:
         hist_prices = await asyncio.to_thread(
             _get_latest_prices_sync, zero_price_ids
         )
 
-    # Ergebnis zusammenbauen
     result: dict = {}
     for shop_id, products in candidates.items():
         shop_info = shop_data[shop_id]
@@ -175,6 +179,33 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
     return result
 
 
+def _make_product_label(p: dict) -> str:
+    """
+    Eindeutiges Label für ein Produkt im Select-Menü.
+    Reihenfolge: title (wenn != species) > species + description > species + #ID.
+    Die AntCheck API liefert aktuell kein separates Varianten-Feld;
+    description/comment werden genutzt falls ein Shop sie befüllt.
+    """
+    raw_title   = (p.get("title") or p.get("species") or "?").strip()
+    species     = (p.get("species") or "").strip()
+    description = (p.get("description") or "").strip()
+    pid_str     = str(p.get("id", ""))
+
+    if raw_title.lower() != species.lower():
+        # title enthält Varianteninfo → direkt nutzen
+        label = raw_title
+    elif description:
+        # description enthält Varianteninfo (z.B. "1Q + 10W")
+        label = f"{raw_title} – {description}"
+    elif pid_str:
+        # Fallback: Produkt-ID als Disambiguator
+        label = f"{raw_title} (#{pid_str})"
+    else:
+        label = raw_title
+
+    return label[:97]
+
+
 # ── Discord-UI Views ──────────────────────────────────────────────────────────
 
 class _BaseView(discord.ui.View):
@@ -200,9 +231,16 @@ class _BaseView(discord.ui.View):
 # ── Shop-Auswahl ──────────────────────────────────────────────────────────────
 
 class _ShopSelectItem(discord.ui.Select):
-    def __init__(self, shops_with_products: dict):
-        options = []
-        for shop_id, data in list(shops_with_products.items())[:25]:
+    def __init__(self, shops_with_products: dict, species: str, lang: str):
+        options = [
+            discord.SelectOption(
+                label=l10n.get("pt_watch_all_shops_label", lang),
+                value=_ALL_SHOPS_SENTINEL,
+                description=l10n.get("pt_watch_all_shops_desc", lang),
+                emoji="🔭",
+            )
+        ]
+        for shop_id, data in list(shops_with_products.items())[:24]:
             name  = data["shop_info"].get("name", shop_id)
             count = len(data["products"])
             options.append(discord.SelectOption(
@@ -235,9 +273,24 @@ class ShopSelectView(_BaseView):
         self.species = species
         self.bot = bot
         self.lang = lang
-        self.add_item(_ShopSelectItem(shops_with_products))
+        self.add_item(_ShopSelectItem(shops_with_products, species, lang))
 
     async def on_shop_selected(self, shop_id: str, interaction: discord.Interaction):
+        # "Alle Shops beobachten" gewählt
+        if shop_id == _ALL_SHOPS_SENTINEL:
+            normalized = normalize_species_name(self.species)
+            view = SpeciesWatchConfirmView(
+                self.species, normalized, self.bot, self.owner_id, self.lang
+            )
+            await interaction.response.edit_message(
+                content=l10n.get(
+                    "pt_species_watch_confirm", self.lang,
+                    species=self.species,
+                ),
+                view=view,
+            )
+            return
+
         data      = self.shops_with_products[shop_id]
         products  = data["products"]
         shop_info = data["shop_info"]
@@ -252,13 +305,105 @@ class ShopSelectView(_BaseView):
         )
 
 
+# ── Arten-Beobachtung (alle Shops) ────────────────────────────────────────────
+
+class SpeciesWatchConfirmView(_BaseView):
+    """Bestätigung für Arten-weite Beobachtung (alle Shops)."""
+
+    def __init__(self, species_raw: str, species_normalized: str, bot, owner_id: int, lang: str):
+        super().__init__(owner_id)
+        self.species_raw        = species_raw
+        self.species_normalized = species_normalized
+        self.bot  = bot
+        self.lang = lang
+
+    @discord.ui.button(label="🔭 Beobachten", style=discord.ButtonStyle.success)
+    async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+        normalized = self.species_normalized
+        is_genus   = 1 if " " not in normalized.strip() else 0
+
+        await execute_db(
+            self.bot,
+            """INSERT INTO user_species_watch (user_id, species, is_genus)
+               VALUES (?, ?, ?)
+               ON CONFLICT(user_id, species) DO NOTHING""",
+            (str(self.owner_id), normalized, is_genus),
+            commit=True,
+        )
+
+        # Alle aktuell bekannten Produkte als "gesehen" markieren (keine Spam-DMs beim Start)
+        await self._init_seen_products(normalized, is_genus)
+
+        self.disable_all_items()
+        await interaction.response.edit_message(
+            content=l10n.get("pt_species_watch_saved", self.lang, species=self.species_raw),
+            view=self,
+        )
+        if interaction.channel:
+            await interaction.channel.send(
+                l10n.get(
+                    "pt_species_watch_announced", self.lang,
+                    user=interaction.user.display_name,
+                    species=self.species_raw,
+                )
+            )
+        self.stop()
+
+    async def _init_seen_products(self, normalized: str, is_genus: int):
+        """Lädt alle aktuellen Produkte und speichert sie als Baseline."""
+        try:
+            shop_data = await load_shop_data(self.bot)
+            for shop_id, shop_info in shop_data.items():
+                for product in shop_info.get("products", []):
+                    species = (product.get("species") or "").strip()
+                    norm    = normalize_species_name(species)
+                    if is_genus:
+                        match = norm.startswith(normalized + " ")
+                    else:
+                        match = norm == normalized
+                    if not match:
+                        continue
+                    pid = product.get("id")
+                    if pid is None:
+                        continue
+                    try:
+                        min_p = float(product.get("min_price") or 0)
+                        max_p = float(product.get("max_price") or 0)
+                    except (ValueError, TypeError):
+                        min_p = max_p = 0.0
+                    await execute_db(
+                        self.bot,
+                        """INSERT OR IGNORE INTO user_species_watch_seen
+                           (user_id, watched_species, product_id, last_min, last_max, currency)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (
+                            str(self.owner_id), normalized, int(pid),
+                            min_p or None, max_p or None,
+                            product.get("currency_iso") or "EUR",
+                        ),
+                        commit=True,
+                    )
+        except Exception as e:
+            logger.error("❌ _init_seen_products error: %s", e)
+
+    @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger)
+    async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.disable_all_items()
+        await interaction.response.edit_message(content="❌ Abgebrochen.", view=self)
+        self.stop()
+
+    def disable_all_items(self):
+        for item in self.children:
+            item.disabled = True
+
+
 # ── Produkt-Auswahl (Multi-Select) ────────────────────────────────────────────
 
 class _ProductSelectItem(discord.ui.Select):
     def __init__(self, products: list, lang: str):
         options = []
         for p in products[:25]:
-            title    = (p.get("species") or p.get("title") or "?")[:97]
+            label    = _make_product_label(p)
             currency = p.get("currency_iso", "EUR")
 
             if p.get("_no_price"):
@@ -281,9 +426,10 @@ class _ProductSelectItem(discord.ui.Select):
                 stock_icon = "❌"
 
             options.append(discord.SelectOption(
-                label=title,
+                label=label,
                 value=str(p.get("id", "")),
-                description=f"{stock_icon} {price_str}"[:100],
+                description=price_str[:100],
+                emoji=stock_icon,
             ))
         super().__init__(
             placeholder="Produkt(e) auswählen …",
@@ -334,7 +480,7 @@ class ProductSelectView(_BaseView):
                     p.get("min_price", 0), p.get("max_price", 0), p.get("currency_iso", "EUR")
                 )
                 stock = "✅" if p.get("in_stock") else "❌"
-            title = p.get("species") or p.get("title") or "?"
+            title = _make_product_label(p)
             url   = p.get("antcheck_url") or ""
             lines.append(f"• {stock} [{title}](<{url}>) – {price_str}")
 
@@ -391,7 +537,6 @@ class ConfirmView(_BaseView):
             except (ValueError, TypeError):
                 min_p = max_p = 0.0
 
-            # Aktuellsten Preis als Baseline setzen (oder API-Preis wenn kein History-Eintrag)
             current = await asyncio.to_thread(_get_latest_price_sync, int(pid))
             if current:
                 baseline_min, baseline_max, currency = current
@@ -410,7 +555,7 @@ class ConfirmView(_BaseView):
                 (
                     user_id, pid,
                     p.get("species") or "",
-                    p.get("species") or p.get("title") or "",
+                    p.get("title") or p.get("species") or "",
                     p.get("antcheck_url") or "",
                     shop_name, self.shop_id,
                     currency,
@@ -426,7 +571,6 @@ class ConfirmView(_BaseView):
             content=l10n.get("pt_saved", self.lang, count=saved),
             view=self,
         )
-        # Öffentliche Meldung im Kanal (nur wenn Tracking erfolgreich gespeichert)
         if saved > 0 and interaction.channel:
             await interaction.channel.send(
                 l10n.get(
@@ -454,24 +598,39 @@ class ConfirmView(_BaseView):
 # ── Untrack-Auswahl ───────────────────────────────────────────────────────────
 
 class _UntrackSelectItem(discord.ui.Select):
-    def __init__(self, tracked_rows: list, current_prices: dict, lang: str):
+    def __init__(
+        self,
+        tracked_rows: list,
+        current_prices: dict,
+        species_watches: list,
+        lang: str,
+    ):
         options = []
-        for row in tracked_rows[:25]:
+        # Einzelne Produkte
+        for row in tracked_rows[:20]:
             pid      = row["product_id"]
-            title    = (row["product_title"] or row["species"] or f"Produkt {pid}")[:97]
-            shop     = row["shop_name"] or "?"
+            title    = (row["product_title"] or row["species"] or f"Produkt {pid}")[:80]
+            shop     = (row["shop_name"] or "?")[:15]
             current  = current_prices.get(pid)
-            if current:
-                price_str = format_price(current[0], current[1], current[2])
-            else:
-                price_str = "kein Preis"
+            price_str = format_price(current[0], current[1], current[2]) if current else "kein Preis"
             options.append(discord.SelectOption(
-                label=title,
+                label=f"{title}"[:97],
                 value=str(pid),
                 description=f"{shop} – {price_str}"[:100],
+                emoji="🏷️",
+            ))
+        # Arten-Beobachtungen
+        for sw in species_watches[:5]:
+            species = sw["species"]
+            label   = species[:90]
+            options.append(discord.SelectOption(
+                label=label,
+                value=f"{_SW_PREFIX}{species}",
+                description="Arten-Beobachtung (alle Shops)",
+                emoji="🔭",
             ))
         super().__init__(
-            placeholder="Produkt(e) auswählen …",
+            placeholder="Produkt(e) / Arten-Beobachtung auswählen …",
             min_values=1,
             max_values=min(len(options), 25),
             options=options,
@@ -482,27 +641,60 @@ class _UntrackSelectItem(discord.ui.Select):
 
 
 class UntrackView(_BaseView):
-    def __init__(self, tracked_rows: list, current_prices: dict, bot, owner_id: int, lang: str):
+    def __init__(
+        self,
+        tracked_rows: list,
+        current_prices: dict,
+        species_watches: list,
+        bot,
+        owner_id: int,
+        lang: str,
+    ):
         super().__init__(owner_id)
         self.bot       = bot
         self.lang      = lang
-        self.add_item(_UntrackSelectItem(tracked_rows, current_prices, lang))
+        self.add_item(_UntrackSelectItem(tracked_rows, current_prices, species_watches, lang))
 
-    async def on_products_selected(self, product_ids: list[str], interaction: discord.Interaction):
-        user_id = str(self.owner_id)
-        removed = 0
-        for pid_str in product_ids:
-            await execute_db(
-                self.bot,
-                "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=?",
-                (user_id, int(pid_str)),
-                commit=True,
-            )
-            removed += 1
+    async def on_products_selected(self, values: list[str], interaction: discord.Interaction):
+        user_id  = str(self.owner_id)
+        removed  = 0
+        sw_removed = 0
+
+        for val in values:
+            if val.startswith(_SW_PREFIX):
+                # Arten-Beobachtung entfernen
+                species = val[len(_SW_PREFIX):]
+                await execute_db(
+                    self.bot,
+                    "DELETE FROM user_species_watch WHERE user_id=? AND species=?",
+                    (user_id, species),
+                    commit=True,
+                )
+                await execute_db(
+                    self.bot,
+                    "DELETE FROM user_species_watch_seen WHERE user_id=? AND watched_species=?",
+                    (user_id, species),
+                    commit=True,
+                )
+                sw_removed += 1
+            else:
+                # Einzelprodukt entfernen
+                await execute_db(
+                    self.bot,
+                    "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=?",
+                    (user_id, int(val)),
+                    commit=True,
+                )
+                removed += 1
 
         self.disable_all_items()
+        parts = []
+        if removed:
+            parts.append(l10n.get("pt_untrack_done", self.lang, count=removed))
+        if sw_removed:
+            parts.append(l10n.get("pt_unwatch_done", self.lang, count=sw_removed))
         await interaction.response.edit_message(
-            content=l10n.get("pt_untrack_done", self.lang, count=removed),
+            content="\n".join(parts) or "✅ Entfernt.",
             view=self,
         )
         self.stop()
@@ -519,9 +711,11 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
         self.check_price_changes.start()
+        self.check_species_watches.start()
 
     def cog_unload(self):
         self.check_price_changes.cancel()
+        self.check_species_watches.cancel()
 
     # ── /track_price ──────────────────────────────────────────────────────────
 
@@ -578,42 +772,63 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             fetch=True,
         )
 
-        if not rows:
+        sw_rows = await execute_db(
+            self.bot,
+            "SELECT species, is_genus, created_at FROM user_species_watch WHERE user_id=? ORDER BY species",
+            (user_id,),
+            fetch=True,
+        )
+
+        if not rows and not sw_rows:
             await ctx.followup.send(
                 l10n.get("pt_list_empty", lang), ephemeral=True
             )
             return
 
         await ensure_rates()
-        pids    = [r["product_id"] for r in rows]
-        current = await asyncio.to_thread(_get_latest_prices_sync, pids)
+        msg_parts = []
 
-        lines = []
-        for row in rows:
-            pid   = row["product_id"]
-            title = row["product_title"] or row["species"] or f"ID {pid}"
-            url   = row["product_url"] or ""
-            shop  = row["shop_name"] or "?"
-
-            curr = current.get(pid)
-            if curr:
-                price_str = format_price(curr[0], curr[1], curr[2])
-            else:
-                price_str = format_price(
-                    row["last_notified_min"] or 0,
-                    row["last_notified_max"] or 0,
-                    row["currency_iso"] or "EUR",
+        # Arten-Beobachtungen
+        if sw_rows:
+            sw_lines = [l10n.get("pt_watch_list_header", lang)]
+            for sw in sw_rows:
+                date_str = (sw["created_at"] or "")[:10]
+                sw_lines.append(
+                    l10n.get("pt_watch_list_entry", lang,
+                             species=sw["species"], date=date_str)
                 )
+            msg_parts.append("\n".join(sw_lines))
 
-            lines.append(l10n.get(
-                "pt_list_entry", lang,
-                title=title, url=url, shop=shop, price=price_str,
-                status="",
-            ))
+        # Einzelprodukte
+        if rows:
+            pids    = [r["product_id"] for r in rows]
+            current = await asyncio.to_thread(_get_latest_prices_sync, pids)
 
-        header = l10n.get("pt_list_header", lang)
-        msg    = header + "\n" + "\n".join(lines)
+            lines = [l10n.get("pt_list_header", lang)]
+            for row in rows:
+                pid   = row["product_id"]
+                title = row["product_title"] or row["species"] or f"ID {pid}"
+                url   = row["product_url"] or ""
+                shop  = row["shop_name"] or "?"
 
+                curr = current.get(pid)
+                if curr:
+                    price_str = format_price(curr[0], curr[1], curr[2])
+                else:
+                    price_str = format_price(
+                        row["last_notified_min"] or 0,
+                        row["last_notified_max"] or 0,
+                        row["currency_iso"] or "EUR",
+                    )
+
+                lines.append(l10n.get(
+                    "pt_list_entry", lang,
+                    title=title, url=url, shop=shop, price=price_str,
+                    status="",
+                ))
+            msg_parts.append("\n".join(lines))
+
+        msg = "\n\n".join(msg_parts)
         if len(msg) > 2000:
             msg = msg[:1990] + "…"
 
@@ -623,8 +838,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     @discord.slash_command(
         name="untrack_price",
-        description="Remove products from price tracking.",
-        description_localizations={"de": "Produkte aus dem Preis-Tracking entfernen."},
+        description="Remove products or species watches from price tracking.",
+        description_localizations={"de": "Produkte oder Arten-Beobachtungen aus dem Preis-Tracking entfernen."},
     )
     async def untrack_price(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
@@ -641,7 +856,14 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             fetch=True,
         )
 
-        if not rows:
+        sw_rows = await execute_db(
+            self.bot,
+            "SELECT species, is_genus FROM user_species_watch WHERE user_id=?",
+            (user_id,),
+            fetch=True,
+        )
+
+        if not rows and not sw_rows:
             await ctx.followup.send(
                 l10n.get("pt_untrack_none", lang), ephemeral=True
             )
@@ -649,23 +871,20 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
         await ensure_rates()
         pids    = [r["product_id"] for r in rows]
-        current = await asyncio.to_thread(_get_latest_prices_sync, pids)
+        current = await asyncio.to_thread(_get_latest_prices_sync, pids) if pids else {}
 
-        view = UntrackView(list(rows), current, self.bot, ctx.author.id, lang)
+        view = UntrackView(list(rows), current, list(sw_rows), self.bot, ctx.author.id, lang)
         await ctx.followup.send(
             l10n.get("pt_untrack_select", lang),
             view=view,
             ephemeral=True,
         )
 
-    # ── Hintergrundtask: Preisänderungen prüfen ───────────────────────────────
+    # ── Hintergrundtask: Einzelprodukte prüfen ────────────────────────────────
 
     @tasks.loop(minutes=65)
     async def check_price_changes(self):
-        """
-        Prüft stündlich ob sich Preise für beobachtete Produkte geändert haben
-        und benachrichtigt betroffene User per DM.
-        """
+        """Prüft stündlich Preisänderungen bei beobachteten Einzelprodukten."""
         try:
             rows = await execute_db(
                 self.bot,
@@ -679,21 +898,19 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
             pids    = list({r["product_id"] for r in rows})
             current = await asyncio.to_thread(_get_latest_prices_sync, pids)
-
             await ensure_rates()
 
             for row in rows:
                 pid      = row["product_id"]
                 curr_row = current.get(pid)
                 if not curr_row:
-                    continue  # Noch kein Preis in History
+                    continue
 
                 curr_min, curr_max, curr_currency = curr_row
                 last_min = row["last_notified_min"]
                 last_max = row["last_notified_max"]
 
                 if last_min is None or last_max is None:
-                    # Erster Lauf: Baseline setzen ohne Nachricht
                     await execute_db(
                         self.bot,
                         "UPDATE user_price_tracking SET last_notified_min=?, last_notified_max=?, currency_iso=? "
@@ -704,12 +921,10 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     continue
 
                 if curr_min == last_min and curr_max == last_max:
-                    continue  # Keine Änderung
+                    continue
 
-                # Preisänderung erkannt → User benachrichtigen
                 await self._notify_user(row, curr_min, curr_max, curr_currency, last_min, last_max)
 
-                # Baseline aktualisieren
                 await execute_db(
                     self.bot,
                     "UPDATE user_price_tracking SET last_notified_min=?, last_notified_max=?, currency_iso=? "
@@ -725,6 +940,250 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
     async def before_check_price_changes(self):
         await self.bot.wait_until_ready()
 
+    # ── Hintergrundtask: Arten-Beobachtungen prüfen ───────────────────────────
+
+    @tasks.loop(minutes=67)
+    async def check_species_watches(self):
+        """
+        Prüft stündlich alle Arten-Beobachtungen:
+        - Neue Produkte → DM
+        - Preisänderungen bei bekannten Produkten → DM
+        """
+        try:
+            watches = await execute_db(
+                self.bot,
+                "SELECT user_id, species, is_genus FROM user_species_watch",
+                fetch=True,
+            )
+            if not watches:
+                return
+
+            shop_data = await load_shop_data(self.bot)
+            await ensure_rates()
+
+            for watch in watches:
+                try:
+                    await self._process_species_watch(watch, shop_data)
+                except Exception as e:
+                    logger.error(
+                        "❌ species watch error user=%s species=%s: %s",
+                        watch["user_id"], watch["species"], e,
+                    )
+
+        except Exception as e:
+            logger.error("❌ check_species_watches error: %s", e, exc_info=True)
+
+    @check_species_watches.before_loop
+    async def before_check_species_watches(self):
+        await self.bot.wait_until_ready()
+        # DB-Tabellen für Arten-Beobachtung anlegen (idempotent)
+        await execute_db(
+            self.bot,
+            """CREATE TABLE IF NOT EXISTS user_species_watch (
+                user_id    TEXT    NOT NULL,
+                species    TEXT    NOT NULL,
+                is_genus   INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, species)
+            )""",
+            commit=True,
+        )
+        await execute_db(
+            self.bot,
+            """CREATE TABLE IF NOT EXISTS user_species_watch_seen (
+                user_id         TEXT    NOT NULL,
+                watched_species TEXT    NOT NULL,
+                product_id      INTEGER NOT NULL,
+                last_min        REAL,
+                last_max        REAL,
+                currency        TEXT,
+                PRIMARY KEY (user_id, watched_species, product_id)
+            )""",
+            commit=True,
+        )
+
+    async def _process_species_watch(self, watch: dict, shop_data: dict):
+        """Verarbeitet eine einzelne Arten-Beobachtung."""
+        user_id         = watch["user_id"]
+        watched_species = watch["species"]
+        is_genus        = bool(watch["is_genus"])
+
+        # Alle aktuell passenden Produkte sammeln
+        current_products: dict[int, dict] = {}
+        for shop_id, shop_info in shop_data.items():
+            for product in shop_info.get("products", []):
+                species = (product.get("species") or "").strip()
+                norm    = normalize_species_name(species)
+                if is_genus:
+                    match = norm.startswith(watched_species + " ")
+                else:
+                    match = norm == watched_species
+                if not match:
+                    continue
+                pid = product.get("id")
+                if pid is None:
+                    continue
+                current_products[int(pid)] = {
+                    **product,
+                    "_shop_name": shop_info.get("name", shop_id),
+                }
+
+        # Bekannte Produkte laden
+        seen_rows = await execute_db(
+            self.bot,
+            "SELECT product_id, last_min, last_max, currency "
+            "FROM user_species_watch_seen WHERE user_id=? AND watched_species=?",
+            (user_id, watched_species),
+            fetch=True,
+        )
+        seen     = {r["product_id"]: r for r in seen_rows}
+        seen_ids = set(seen.keys())
+        curr_ids = set(current_products.keys())
+
+        # 1) Neue Produkte benachrichtigen + in seen aufnehmen
+        for new_pid in curr_ids - seen_ids:
+            p = current_products[new_pid]
+            await self._notify_new_product(user_id, p, watched_species)
+            try:
+                min_p = float(p.get("min_price") or 0)
+                max_p = float(p.get("max_price") or 0)
+            except (ValueError, TypeError):
+                min_p = max_p = 0.0
+            await execute_db(
+                self.bot,
+                """INSERT OR REPLACE INTO user_species_watch_seen
+                   (user_id, watched_species, product_id, last_min, last_max, currency)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (user_id, watched_species, new_pid,
+                 min_p or None, max_p or None, p.get("currency_iso") or "EUR"),
+                commit=True,
+            )
+
+        # 2) Preisänderungen bei bereits bekannten Produkten
+        overlap_ids = list(curr_ids & seen_ids)
+        if overlap_ids:
+            hist = await asyncio.to_thread(_get_latest_prices_sync, overlap_ids)
+            for pid in overlap_ids:
+                curr_price = hist.get(pid)
+                if not curr_price:
+                    continue
+                curr_min, curr_max, curr_currency = curr_price
+                seen_row = seen[pid]
+                last_min = seen_row["last_min"]
+                last_max = seen_row["last_max"]
+
+                if last_min is None or last_max is None:
+                    # Baseline setzen, keine DM
+                    await execute_db(
+                        self.bot,
+                        "UPDATE user_species_watch_seen "
+                        "SET last_min=?, last_max=?, currency=? "
+                        "WHERE user_id=? AND watched_species=? AND product_id=?",
+                        (curr_min, curr_max, curr_currency,
+                         user_id, watched_species, pid),
+                        commit=True,
+                    )
+                    continue
+
+                if curr_min == last_min and curr_max == last_max:
+                    continue
+
+                p = current_products.get(pid, {})
+                await self._notify_species_price_change(
+                    user_id, p, watched_species,
+                    curr_min, curr_max, curr_currency,
+                    last_min, last_max,
+                )
+                await execute_db(
+                    self.bot,
+                    "UPDATE user_species_watch_seen "
+                    "SET last_min=?, last_max=?, currency=? "
+                    "WHERE user_id=? AND watched_species=? AND product_id=?",
+                    (curr_min, curr_max, curr_currency,
+                     user_id, watched_species, pid),
+                    commit=True,
+                )
+
+    async def _notify_new_product(self, user_id: str, product: dict, watched_species: str):
+        """DM: Neues Produkt für eine beobachtete Art entdeckt."""
+        try:
+            uid  = int(user_id)
+            user = await self.bot.fetch_user(uid)
+        except Exception as e:
+            logger.warning("⚠️ User %s nicht abrufbar: %s", user_id, e)
+            return
+
+        lang = await get_user_lang(self.bot, user_id, None)
+
+        try:
+            min_p = float(product.get("min_price") or 0)
+            max_p = float(product.get("max_price") or 0)
+        except (ValueError, TypeError):
+            min_p = max_p = 0.0
+        currency = product.get("currency_iso") or "EUR"
+
+        price_str = format_price(min_p, max_p, currency) if (min_p or max_p) else "kein Preis bekannt"
+
+        msg = l10n.get(
+            "pt_dm_new_product", lang,
+            species=watched_species,
+            shop=product.get("_shop_name") or "?",
+            title=product.get("title") or product.get("species") or "?",
+            price=price_str,
+            url=product.get("antcheck_url") or "",
+        )
+
+        try:
+            await user.send(msg)
+            logger.info("📩 Neues-Produkt-DM: user=%s species=%s product=%s",
+                        user_id, watched_species, product.get("id"))
+        except discord.Forbidden:
+            await self._fallback_server_message(user_id, msg)
+        except Exception as e:
+            logger.error("❌ _notify_new_product DM-Fehler: %s", e)
+
+    async def _notify_species_price_change(
+        self,
+        user_id: str,
+        product: dict,
+        watched_species: str,
+        curr_min: float,
+        curr_max: float,
+        currency: str,
+        last_min: float,
+        last_max: float,
+    ):
+        """DM: Preisänderung bei Arten-Beobachtung."""
+        try:
+            uid  = int(user_id)
+            user = await self.bot.fetch_user(uid)
+        except Exception as e:
+            logger.warning("⚠️ User %s nicht abrufbar: %s", user_id, e)
+            return
+
+        lang = await get_user_lang(self.bot, user_id, None)
+
+        old_avg = (last_min + last_max) / 2
+        new_avg = (curr_min + curr_max) / 2
+        key = "pt_dm_cheaper" if new_avg < old_avg else "pt_dm_dearer"
+
+        msg = l10n.get(
+            key, lang,
+            shop=product.get("_shop_name") or "?",
+            species=watched_species,
+            title=product.get("title") or product.get("species") or "?",
+            old_price=format_price(last_min, last_max, currency),
+            new_price=format_price(curr_min, curr_max, currency),
+            url=product.get("antcheck_url") or "",
+        )
+
+        try:
+            await user.send(msg)
+        except discord.Forbidden:
+            await self._fallback_server_message(user_id, msg)
+        except Exception as e:
+            logger.error("❌ _notify_species_price_change DM-Fehler: %s", e)
+
     async def _notify_user(
         self,
         row,
@@ -734,7 +1193,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         last_min: float,
         last_max: float,
     ):
-        """Sendet eine DM an den User über die Preisänderung."""
+        """Sendet eine DM an den User über die Preisänderung (Einzelprodukt)."""
         user_id_str = row["user_id"]
         try:
             user_id = int(user_id_str)
@@ -749,10 +1208,6 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
         lang = await get_user_lang(self.bot, user_id_str, None)
 
-        old_price_str = format_price(last_min, last_max, currency)
-        new_price_str = format_price(curr_min, curr_max, currency)
-
-        # Günstiger wenn Mittelwert gesunken
         old_avg = (last_min + last_max) / 2
         new_avg = (curr_min + curr_max) / 2
         key     = "pt_dm_cheaper" if new_avg < old_avg else "pt_dm_dearer"
@@ -762,19 +1217,20 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             shop=row["shop_name"] or "?",
             species=row["species"] or "?",
             title=row["product_title"] or row["species"] or "?",
-            old_price=old_price_str,
-            new_price=new_price_str,
+            old_price=format_price(last_min, last_max, currency),
+            new_price=format_price(curr_min, curr_max, currency),
             url=row["product_url"] or "",
         )
 
         try:
             await user.send(msg)
             logger.info(
-                "📩 Preis-Benachrichtigung gesendet: user=%s product=%s %s→%s",
-                user_id_str, row["product_id"], old_price_str, new_price_str,
+                "📩 Preis-Benachrichtigung: user=%s product=%s %s→%s",
+                user_id_str, row["product_id"],
+                format_price(last_min, last_max, currency),
+                format_price(curr_min, curr_max, currency),
             )
         except discord.Forbidden:
-            # DM blockiert – versuche Server-Kanal als Fallback
             await self._fallback_server_message(user_id_str, msg)
         except Exception as e:
             logger.error("❌ Fehler beim Senden der Preis-DM an %s: %s", user_id_str, e)

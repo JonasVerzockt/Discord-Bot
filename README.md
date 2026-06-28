@@ -4,7 +4,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
-- **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis nach oben oder unten verändert; interaktive Auswahl über Shop → Produkt → Bestätigen
+- **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen *und* Neuerscheinungen
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 
@@ -236,37 +236,47 @@ Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `e
 
 ## Preis-Tracking
 
-Ergänzend zur Verfügbarkeitsbenachrichtigung können User einzelne Produkte dauerhaft beobachten und werden automatisch per DM informiert, wenn sich der Preis verändert – unabhängig von Verfügbarkeit oder Region.
+Ergänzend zur Verfügbarkeitsbenachrichtigung gibt es zwei Modi:
 
-### Ablauf
+### Modus 1: Einzelprodukt-Tracking
 
-**1. `/track_price species:<Art oder Gattung>` aufrufen**
+Beobachtet gezielt konkrete Produkte und benachrichtigt per DM bei jeder Preisänderung.
 
-Der Bot sucht alle Produkte (auch aktuell nicht verfügbare) zur angegebenen Art oder Gattung in `shops_data.json`. Falls Produkte gefunden werden, startet eine interaktive 3-Schritt-Auswahl per Discord-Menü:
+**`/track_price species:<Art oder Gattung>`**
 
-1. **Shop auswählen** – Dropdown mit allen Shops, die passende Produkte haben (max. 25)
-2. **Produkte auswählen** – Multi-Select-Dropdown der Produkte im gewählten Shop (max. 25); Produkte werden immer angezeigt, unabhängig davon ob ein Preis bekannt ist:
+1. **Shop auswählen** – Dropdown (max. 24 Shops) + erste Option „🔭 Alle Shops beobachten" (→ Modus 2)
+2. **Produkte auswählen** – Multi-Select; Status als Emoji-Icon direkt am Eintrag sichtbar:
    - ✅ Verfügbar – aktueller Preis
-   - ❌ Nicht verfügbar – aktueller (Nicht-Verfügbar-)Preis
-   - ⏸️ Zuletzt gesehen – aktuell kein Preis in API, aber letzter bekannter Preis aus `price_history.db` vorhanden
-   - ❓ Kein Preis bekannt – noch nie ein Preis erfasst (z. B. neues Produkt)
-3. **Bestätigen** – Schaltflächen „Bestätigen" / „Abbrechen"; nach Bestätigung wird der aktuelle Preis als Baseline gesetzt und eine **öffentliche Ankündigung** im Bot-Kanal gepostet (z. B. `🎯 Jonas beobachtet jetzt den Preis für Oecophylla smaragdina bei Antstore (2 Produkt(e))!`)
+   - ❌ Nicht verfügbar – aktueller Preis
+   - ⏸️ Zuletzt gesehen – letzter bekannter Preis aus `price_history.db`
+   - ❓ Kein Preis bekannt – noch nie erfasst
+   
+   Wenn mehrere Produkte dieselbe Art haben, wird die ID als Fallback angehängt (`Messor galla (#42)`). Sobald die API Varianteninfo in `description` liefert, wird diese stattdessen genutzt.
 
-Die Interaktion ist ephemeral (nur für den ausführenden User sichtbar) und läuft automatisch nach 3 Minuten ohne Eingabe ab.
+3. **Bestätigen** – aktueller Preis als Baseline, öffentliche Ankündigung im Kanal
 
-**2. Hintergrund-Check (stündlich)**
+**Hintergrund-Check alle ~65 Minuten:** Preis gesunken → 📉-DM, gestiegen → 📈-DM.
 
-Alle ~65 Minuten vergleicht der Bot den aktuellen Preis aus `price_history.db` mit dem zuletzt notierten Preis (`last_notified_min/max`):
-- Kein Preis bisher gesetzt → Baseline setzen, keine DM
-- Preis gesunken → DM mit 📉 (günstiger)
-- Preis gestiegen → DM mit 📈 (teurer)
-- Kein neuer Preis in DB → keine Aktion
+### Modus 2: Arten-Beobachtung (alle Shops)
 
-Nach jeder Benachrichtigung wird der neue Preis als Baseline gespeichert.
+Beobachtet **alle** Produkte einer Art oder Gattung **shopübergreifend** – ohne Shop- oder Produktauswahl.
 
-**3. DM-Fallback**
+**Aktivieren:** Im Shop-Dropdown „🔭 Alle Shops beobachten" wählen → Bestätigung.
 
-Falls DMs des Users blockiert sind, wird der Server-Kanal als Fallback genutzt (gleiches Verhalten wie bei der Verfügbarkeitsbenachrichtigung).
+**DMs werden ausgelöst bei:**
+- **Preisänderung** an einem bekannten Produkt → 📉 / 📈
+- **Neuerscheinung** – neues Produkt für diese Art taucht in irgendeinem Shop auf → 🆕-DM
+
+Beim Einrichten werden alle aktuell bekannten Produkte sofort als Baseline gespeichert (kein Spam).
+
+**Hintergrund-Check alle ~67 Minuten** (läuft parallel zu Modus 1).
+
+`/my_price_tracking` zeigt Arten-Beobachtungen (🔭) oben getrennt von Einzelprodukten (🏷️).  
+`/untrack_price` zeigt beides gemeinsam im Dropdown – in einer Interaktion entfernbar.
+
+### DM-Fallback
+
+Falls DMs des Users blockiert sind, wird der Server-Kanal als Fallback genutzt.
 
 ---
 
@@ -321,9 +331,9 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. |
 | `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). |
 | `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. |
-| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung: zuerst Shop-Auswahl per Dropdown, dann Produkt-Auswahl (Mehrfachauswahl möglich), dann Bestätigung. Aktueller Preis wird als Baseline gesetzt – Benachrichtigung erfolgt nur bei zukünftigen Preisänderungen. |
-| `/my_price_tracking` | – | Listet alle aktuell beobachteten Produkte mit dem zuletzt notierten Preis, dem aktuellen Preis aus der Preishistorie und dem Datum der letzten Benachrichtigung. |
-| `/untrack_price` | – | Zeigt alle beobachteten Produkte als Multi-Select-Dropdown und entfernt die ausgewählten aus dem Tracking. |
+| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisaenderungen + Neuerscheinungen shopuebergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Aktueller Preis als Baseline. |
+| `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (Rotelesecop, alle Shops) mit Startdatum, darunter Einzelprodukte mit aktuellem Preis. |
+| `/untrack_price` | – | Zeigt Einzelprodukte und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewaehlten. |
 | `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. |
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. |
 | `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. |
@@ -365,12 +375,13 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | Task | Intervall | Beschreibung |
 |------|-----------|-------------|
 | Verfügbarkeitsprüfung | alle 5 Minuten | Prüft alle `active`-Benachrichtigungen gegen `shops_data.json` |
-| Preis-Check | alle ~65 Minuten | Vergleicht aktuelle Preise aus `price_history.db` mit gespeicherten Baselines; sendet DM bei Preisänderung |
+| Preis-Check Einzelprodukte | alle ~65 Minuten | Vergleicht aktuelle Preise aus `price_history.db` mit gespeicherten Baselines; sendet DM bei Preisaenderung |
+| Arten-Beobachtung alle Shops | alle ~67 Minuten | Prueft alle Arten-Beobachtungen: neue Produkte senden Neu-DM; Preisaenderungen senden Guenstiger/Teurer-DM |
 | Shop-Daten-Reload | stündlich | Liest `shops_data.json` neu, schreibt Shops in DB (ohne `average_rating` und `url_override` zu überschreiben) |
 | Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` und sendet Abschluss-DM |
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
-| Bot-Status | jede Minute | Aktualisiert den Discord-Status (Uptime, Server, User) |
+| Bot-Status | alle 2 Minuten | Rotierender Discord-Status mit Ameisen-Spruechen (20 Quotes) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 | AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest Tabs „Übersicht" + „Händler A-Z" aus Google Sheet und aktualisiert den System-Prompt-Anhang |
 
@@ -568,19 +579,4 @@ WantedBy=multi-user.target
 
 ```bash
 systemctl daemon-reload
-systemctl enable aam-bot
-systemctl start aam-bot
-journalctl -u aam-bot -f    # Logs live verfolgen
-```
-
----
-
-## Lizenz
-
-Dieses Projekt steht unter der **GNU Affero General Public License v3.0 oder später (AGPL-3.0-or-later)**.
-
-Copyright (C) 2026 Jonas Beier
-
-Jede Person, die eine modifizierte Version dieses Bots als Netzwerkdienst betreibt, ist verpflichtet, den Quellcode ihrer Änderungen öffentlich zugänglich zu machen.
-
-Weitere Details: [LICENSE](LICENSE) · [gnu.org/licenses/agpl-3.0](https://www.gnu.org/licenses/agpl-3.0.html)
+systemctl enable aam-b

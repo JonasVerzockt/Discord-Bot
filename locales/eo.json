@@ -164,5 +164,14 @@
   "pt_untrack_none": "📭 Vi ne monitoras iujn ajn produktojn.",
   "pt_dm_cheaper": "📉 **Prezmalpliiĝo!** ĉe **{shop}**\n🐜 **{species}** – {title}\n\nAnte: {old_price}\nNun:  {new_price}\n\n🔗 [Produkto-ligilo](<{url}>)",
   "pt_dm_dearer": "📈 **Prezaltiĝo!** ĉe **{shop}**\n🐜 **{species}** – {title}\n\nAnte: {old_price}\nNun:  {new_price}\n\n🔗 [Ligilaro](<{url}>)",
-  "help_ai_section": "\n\n**🤖 KI-funkcioj** *(nuntempe ne publike havebla)*\n{ai_commands}"
+  "help_ai_section": "\n\n**🤖 KI-funkcioj** *(nuntempe ne publike havebla)*\n{ai_commands}",
+  "pt_watch_all_shops_label": "Ĉiuj butikojn observi",
+  "pt_watch_all_shops_desc": "Prezŝanĝoj kaj novaĵoj tra ĉiuj butikojn",
+  "pt_species_watch_confirm": "🔭 Observi **{species}** en ĉiuj butikojn?\n\nVi ricevos DM-ojn por:\n• Prezŝanĝoj sur ajna kongrua produkto\n• Novaj produktoj\n\n✅ Konfirmi aŭ ❌ Nuligi.",
+  "pt_species_watch_saved": "✅ **{species}** nun estas observata en ĉiuj butikojn – vi ricevos DM-ojn pri prezŝanĝoj kaj novaj produktoj.",
+  "pt_species_watch_announced": "🔭 **{user}** nun observas ĉiujn produktojn por **{species}** (ĉiuj butikojn, prezŝanĝoj kaj novaj afiŝoj)!",
+  "pt_watch_list_header": "🔭 **Speciobservoj (ĉiuj butikojn):**",
+  "pt_watch_list_entry": "• **{species}** – ekde {date}",
+  "pt_unwatch_done": "🔭 **{count}** speciobservo(j) forigita(j).",
+  "pt_dm_new_product": "🆕 **Nova produkto** por **{species}**!\n\n🏪 Butiko: **{shop}**\n🏷️ {title}\n💶 {price}\n\n🔗 [Vidi produkton](<{url}>)"
 }

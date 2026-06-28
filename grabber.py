@@ -118,10 +118,15 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
         species_name = (
             p.get("species_name") or p.get("name") or p.get("title") or ""
         ).strip()
+        # Varianteninfo: description/comment falls vorhanden, sonst Artname
+        description = (p.get("description") or p.get("comment") or "").strip()
+        product_title = (p.get("name") or p.get("title") or species_name).strip()
         genus = species_name.split()[0] if " " in species_name else species_name
         shop_map[shop_id]["products"].append({
             "id":            p.get("id"),
             "species":       species_name,
+            "title":         product_title,
+            "description":   description,
             "genus":         genus,
             "min_price":     str(p.get("min_price") or p.get("price") or "0"),
             "max_price":     str(p.get("max_price") or p.get("price") or "0"),
