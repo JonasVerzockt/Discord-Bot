@@ -15,6 +15,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird. Alternativ kann über "Alle Shops beobachten" eine gesamte Art oder Gattung shopübergreifend beobachtet werden – der Bot benachrichtigt dann bei Preisänderungen. Neue Produkte werden automatisch in die Beobachtung aufgenommen, lösen aber keine separate DM aus (dafür gibt es die Verfügbarkeitsbenachrichtigung via `/notification`).
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht. Nach jeweils 5 eingetragenen Beobachtungen postet der Bot automatisch ein aktuelles Ranking-Bild (aus dem Übersicht-Tab des Sheets) im Channel. Durch das Schreiben von `Rangliste` im Channel kann das Ranking-Bild jederzeit manuell abgerufen werden (maximal einmal pro Minute).
+- **Rabattcode-Tracker** – liest im dafür vorgesehenen Kanal alle Nachrichten und extrahiert per KI (Claude Haiku) Rabattcodes inkl. Shop, Rabatthöhe und Gültigkeitszeitraum. Jede Nachricht wird dabei nur einmal an die KI übermittelt; beim Start wird der gesamte Kanalverlauf einmalig verarbeitet. Über `/codes` rufen Mitglieder die aktuell gültigen Codes ab. Abgelaufene Codes werden automatisch ausgeblendet. **Alle** Textnachrichten dieses Kanals werden zur Auswertung an die Anthropic API übermittelt.
 
 ### Nutzung
 
@@ -23,6 +24,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - Verfügbarkeitsbenachrichtigungen und Preis-Tracking dienen dem persönlichen Gebrauch und dürfen nicht automatisiert abgefragt werden.
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
 - Der AI-Chat-Bot ist im AAM Discord aktuell nicht öffentlich zugänglich. Sobald er aktiviert wird, gilt: Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
+- Im Rabattcode-Kanal werden **alle** Textnachrichten zur automatischen Code-Erkennung an die Anthropic API übermittelt. Bitte auch dort keine sensiblen personenbezogenen Daten teilen.
 
 ### Haftung
 
@@ -107,11 +109,23 @@ Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Da
 
 Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten werden ausschließlich im Google Sheet gespeichert – lokal auf dem Server werden keine iNat-Tracker-Daten abgelegt.
 
+#### Rabattcode-Tracker
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Nachrichteninhalte des Rabattcode-Kanals | KI-Extraktion von Rabattcodes | Einmalig an Anthropic API übermittelt, dort nicht dauerhaft gespeichert |
+| Discord Message-IDs | Vermeidung doppelter KI-Auswertung (jede Nachricht nur einmal) | Lokale SQLite-Datenbank auf dem Server |
+| Extrahierte Codes (Shop, Code, Rabatthöhe, Gültigkeit, ggf. Mindestbestellwert) | Bereitstellung über `/codes` | Lokale SQLite-Datenbank auf dem Server |
+| Discord-Username des Verfassers der Code-Nachricht | Nachvollziehbarkeit der Quelle | Lokale SQLite-Datenbank auf dem Server |
+| Datum der Quellnachricht | Berechnung von Gültigkeit/Alter eines Codes | Lokale SQLite-Datenbank auf dem Server |
+
+> **Hinweis:** **Alle** Textnachrichten im Rabattcode-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Teile dort daher keine sensiblen personenbezogenen Daten. Anders als bei Bewertungen wird hier der Discord-Username des Verfassers gespeichert (zur Quellenangabe der Codes).
+
 ### Drittanbieter
 
 #### Anthropic (KI-Verarbeitung)
 
-Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft sowohl den Bewertungs-Bot (Shop-Bewertungen) als auch den AI-Chat-Bot (alle Nachrichten im AI-Kanal). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
+Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft den Bewertungs-Bot (Shop-Bewertungen), den AI-Chat-Bot (alle Nachrichten im AI-Kanal) sowie den Rabattcode-Tracker (alle Textnachrichten im Rabattcode-Kanal). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
 → Datenschutz: https://www.anthropic.com/privacy
 
 Gesprächsverläufe werden lokal für **maximal 24 Stunden** zwischengespeichert (für Konversationsgedächtnis) und danach automatisch gelöscht.
@@ -148,6 +162,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **Preis-Tracking-Einstellungen** (beobachtete Produkte, Arten-Beobachtungen, Baseline-Preise) werden auf Wunsch per `/untrack_price` jederzeit entfernt.
 - **AI-Chat-Konversationsverläufe** werden automatisch nach **24 Stunden** gelöscht (oder sofort wenn du nicht auf eine Bot-Antwort antwortest).
 - **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
+- **Rabattcodes** (extrahierte Codes inkl. Quell-Username und Scan-Historie) werden gespeichert, solange sie für die Community relevant sind; eine Bereinigung erfolgt bei Bedarf manuell.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte

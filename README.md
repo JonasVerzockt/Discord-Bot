@@ -80,6 +80,10 @@ AI_CHAT_CHANNEL_IDS=123456789012345678   # Kanal-ID, in dem der Bot antwortet
 AI_CHAT_DAILY_BUDGET_USD=0.50            # Gesamtes Tagesbudget (alle User)
 AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
 
+# ── Rabattcode-Tracker ────────────────────────────────────────
+DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
+# DISCOUNT_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Code-Extraktion
+
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
 
