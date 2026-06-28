@@ -108,20 +108,11 @@ def build_shop_map(shops_raw: list) -> dict:
     return result
 
 
-_FIELDS_LOGGED = False  # einmalig alle API-Felder eines Produkts loggen
-
-
 def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
     """Fuegt Produkte zu einem Shop in der Map hinzu."""
-    global _FIELDS_LOGGED
     if shop_id not in shop_map:
         return
     for p in products_raw:
-        # Einmalig alle Felder loggen damit wir die API-Antwort kennen
-        if not _FIELDS_LOGGED and p:
-            logger.info(f"[DEBUG] API-Felder eines Produkts: {sorted(p.keys())}")
-            _FIELDS_LOGGED = True
-
         species_name = (
             p.get("species_name") or p.get("name") or p.get("title") or ""
         ).strip()
@@ -135,6 +126,8 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
             "currency_iso":  p.get("currency_iso") or p.get("currency") or "EUR",
             "antcheck_url":  p.get("antcheck_url") or p.get("url") or "",
             "shop_url":      p.get("product_url") or p.get("shop_url") or "",
+            "in_stock":      bool(p.get("in_stock", False)),
+            "is_active":     bool(p.get("is_active", False)),
         })
 
 

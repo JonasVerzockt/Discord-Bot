@@ -200,16 +200,17 @@ async def check_availability_for_species(
                 match = norm_title == normalized_search
 
             if match:
-                # Preis 0.00/0.00 = kein Preis gesetzt -> out of stock, ueberspringen
-                try:
-                    min_p = float(product.get("min_price") or 0)
-                    max_p = float(product.get("max_price") or 0)
-                except (TypeError, ValueError):
-                    min_p = max_p = 0.0
-                if min_p == 0.0 and max_p == 0.0:
+                # Nur lagerverfuegbare, aktive Produkte beruecksichtigen
+                if not product.get("in_stock", False):
                     logger.debug(
                         f"Produkt {product.get('id')} ({species}) bei "
-                        f"{shop_info.get('name', shop_id_str)}: kein Preis (out of stock) -- uebersprungen"
+                        f"{shop_info.get('name', shop_id_str)}: not in_stock -- uebersprungen"
+                    )
+                    continue
+                if not product.get("is_active", False):
+                    logger.debug(
+                        f"Produkt {product.get('id')} ({species}) bei "
+                        f"{shop_info.get('name', shop_id_str)}: not is_active -- uebersprungen"
                     )
                     continue
 
