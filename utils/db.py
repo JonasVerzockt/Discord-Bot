@@ -163,6 +163,13 @@ CREATE TABLE IF NOT EXISTS review_pending (
     identifier TEXT DEFAULT ''
 );
 
+-- CH-Lieferliste (manuell hinzugefügte Shops)
+CREATE TABLE IF NOT EXISTS ch_delivery_shops (
+    shop_id   TEXT PRIMARY KEY,
+    added_by  TEXT,
+    added_at  TEXT DEFAULT (datetime('now'))
+);
+
 -- Preis-Tracking: User -> beobachtete Produkte
 CREATE TABLE IF NOT EXISTS user_price_tracking (
     user_id           TEXT    NOT NULL,
