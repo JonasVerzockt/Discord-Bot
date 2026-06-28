@@ -355,7 +355,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | `/test` | `message_id` | KI-Parser testen ohne Sheet-Eintrag. Zeigt was die KI aus der Nachricht extrahieren würde. |
 | `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. |
 | `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). |
-| `/export` | – | Gibt die ersten 50 Zeilen der Sheet-Rohdaten als JSON aus (zum Debuggen). |
+| `/export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). |
 | `/stats` | – | Benachrichtigungsstatistiken: Gesamtanzahl, aktive, abgelaufene, Top-10-gesuchte Arten. |
 | `/system` | – | Systemstatus: Uptime, CPU-Auslastung, RAM-Verbrauch, DB-Größe, Alter der `shops_data.json`, Bot-Version. |
 | `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). |

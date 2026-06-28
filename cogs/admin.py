@@ -144,14 +144,14 @@ class AdminCog(commands.Cog, name="Admin"):
             ephemeral=True,
         )
 
-    @discord.slash_command(name="export", description="Export raw sheet data as JSON (Admin/Mod)", description_localizations={"de": "Sheet-Rohdaten als JSON exportieren (Admin/Mod)"})
+    @discord.slash_command(name="export", description="Export DB data as JSON (Admin/Mod)", description_localizations={"de": "DB-Daten als JSON exportieren (Admin/Mod)"})
     @admin_or_manage_messages()
     async def cmd_export(
         self,
         ctx: discord.ApplicationContext,
-        user_id: discord.Option(str, "Discord-ID des Users (leer = Sheet-Export)", required=False, default=None),
+        user_id: discord.Option(str, "Discord-ID des Users (leer = Alle-User-Export)", required=False, default=None),
     ):
-        """Sheet-Export ODER User-Daten-Export per DM."""
+        """DB-Export aller User ODER einzelner User-Daten per DM."""
         await ctx.defer(ephemeral=True)
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
 
@@ -216,17 +216,44 @@ class AdminCog(commands.Cog, name="Admin"):
                 await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
             return
 
-        # ── Sheet-Export (Standard) ───────────────────────────────────────────
+        # ── DB-Export (Standard, alle User) ──────────────────────────────────
         try:
-            rows  = sheet.rows[:51]
-            lines = json.dumps(rows, ensure_ascii=False, indent=2)
-            row_count = len(rows) - 1
-            if len(lines) < 1900:
-                header = l10n.get("admin_export_header", lang, rows=row_count)
-                msg = f"{header}\n```json\n{lines}\n```"
-            else:
-                msg = l10n.get("admin_export_too_long", lang, rows=row_count)
-            await ctx.followup.send(msg, ephemeral=True)
+            from utils.db import execute_db
+            tables = [
+                "user_settings",
+                "notifications",
+                "user_shop_blacklist",
+                "user_seen_products",
+                "user_price_tracking",
+                "user_species_watch",
+                "user_species_watch_seen",
+                "server_user_mappings",
+                "ch_delivery_shops",
+                "ai_chat_budget",
+                "review_tracking",
+                "review_pending",
+                "server_settings",
+            ]
+            export: dict = {"exported_at": datetime.utcnow().isoformat() + "Z", "tables": {}}
+            for table in tables:
+                try:
+                    rows = await execute_db(
+                        self.bot, f"SELECT * FROM {table} LIMIT 500", fetch=True
+                    )
+                    export["tables"][table] = [dict(r) for r in rows]
+                except Exception:
+                    export["tables"][table] = None  # Tabelle existiert nicht
+
+            payload = json.dumps(export, ensure_ascii=False, indent=2, default=str)
+            buf = io.BytesIO(payload.encode("utf-8"))
+            buf.seek(0)
+            file = discord.File(buf, filename="db_export.json")
+            total = sum(len(v) for v in export["tables"].values() if v is not None)
+            await ctx.followup.send(
+                l10n.get("admin_export_header", lang, rows=total),
+                file=file,
+                ephemeral=True,
+            )
         except Exception as e:
             logger.error(f"❌ export error: {e}")
             await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
