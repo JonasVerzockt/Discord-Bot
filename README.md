@@ -331,7 +331,7 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 - **Einmal pro Nachricht:** Jede verarbeitete `message_id` wird in `discount_scanned` festgehalten, damit dieselbe Nachricht nie zweimal an Haiku geschickt wird.
 - **Backfill beim Start:** Beim ersten `on_ready` wird der gesamte Kanal (älteste zuerst) durchgegangen; bereits gescannte Nachrichten werden übersprungen. Mehrfaches `on_ready` (Reconnects) löst keinen erneuten Scan aus.
 - **Live:** Neue Posts im Kanal werden sofort verarbeitet (Reaktion 🏷️ bei gefundenem Code).
-- **Vorfilter:** Nur Nachrichten mit Code-/Rabatt-Bezug (`Code`, `Rabatt`, `%`, `Gutschein`, `discount`, …) gehen an Haiku – das spart Kosten. Alle anderen werden als gescannt markiert. Rein bildbasierte Posts ohne Text können nicht erfasst werden.
+- **Kein Keyword-Vorfilter:** Jede nicht-leere Nachricht geht an Haiku, das im Zweifel selbst entscheidet (kein Code → leeres Ergebnis). Rein bildbasierte Posts ohne Text werden ohne API-Aufruf übersprungen und nur als gescannt markiert.
 - **Datumslogik:** Relative/teilweise Angaben werden anhand des Nachrichtendatums aufgelöst (`nur heute`, `bis morgen`, `bis 14.06.`, `vom X bis Y`); `dauerhaft`/`immer` ⇒ permanenter Code ohne Enddatum.
 - **Mehrere Codes pro Nachricht** werden unterstützt (z. B. Sammel-Posts mit mehreren Shops).
 
