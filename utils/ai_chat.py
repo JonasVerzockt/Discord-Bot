@@ -205,7 +205,10 @@ def _today() -> str:
 
 
 def _db() -> sqlite3.Connection:
-    return sqlite3.connect(str(cfg.DB_FILE))
+    con = sqlite3.connect(str(cfg.DB_FILE))
+    # Konsistent zu utils/db.py: bis zu 5s warten statt sofort "database is locked".
+    con.execute("PRAGMA busy_timeout=5000")
+    return con
 
 
 def calculate_cost(usage) -> float:

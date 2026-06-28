@@ -18,7 +18,7 @@
 cogs/reviews.py – Review-Verarbeitung als discord.py Cog.
 
 Enthält:
-  • on_ready   → Sheet laden + Reconcile-Scan
+  • on_ready   → Sheet laden + Reconcile-Scan (einmalig pro Prozess)
   • on_message → neue Bewertungen verarbeiten
   • on_message_edit → bestehende Sheet-Zeile aktualisieren
   • on_raw_reaction_add → Retry bei 🟡
@@ -56,6 +56,13 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         # Nachrichtenakkumulation: geteilte Reviews zusammenführen
         self._acc_buffer: dict[int, list[discord.Message]] = {}
         self._acc_tasks:  dict[int, asyncio.Task]          = {}
+        # Serialisiert Sheet-Schreibzugriffe: SheetCache ist ein geteiltes
+        # Singleton mit veränderlicher _rows-Liste. Da append/update jetzt in
+        # asyncio.to_thread() laufen, könnten parallele _process()-Aufrufe die
+        # Liste sonst verschränkt mutieren (falsche Zeilenzuordnung).
+        self._sheet_lock = asyncio.Lock()
+        # Verhindert mehrfachen Reconcile-Scan bei Discord-Reconnects.
+        self._reconcile_done = False
 
     # ── Hilfsmethoden ─────────────────────────────────────────────────────────
     async def _clean_react(self, msg: discord.Message, *remove: str, add: str) -> None:
@@ -80,6 +87,7 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
         KI- (anthropic) und Sheet- (gspread) Aufrufe sind synchron/blockierend –
         sie laufen daher in asyncio.to_thread(), damit der Event-Loop frei bleibt.
+        Der Sheet-Schreibblock ist zusätzlich per Lock serialisiert (Cache-Konsistenz).
         """
         mid      = str(message.id)
         date_str = message.created_at.strftime("%d.%m.%Y")
@@ -91,20 +99,22 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         parsed["shop_name"] = shop
         row    = build_row(parsed)
 
-        existing_row = await get_tracking(self.bot, mid)
-        if is_edit and existing_row is not None:
-            if existing_row > sheet.row_count:
-                logger.warning(
-                    f"Tracking-Fehler: Zeile {existing_row} außerhalb des Sheets "
-                    f"({sheet.row_count - 1} Einträge) – übersprungen"
-                )
-                return
-            await asyncio.to_thread(sheet.update, existing_row, row)
-            logger.info(f"✏️  [{date_str}] {parsed['shop_name']} Zeile {existing_row}")
-        else:
-            row_num = await asyncio.to_thread(sheet.append, row)
-            await set_tracking(self.bot, mid, row_num)
-            logger.info(f"➕ [{date_str}] {parsed['shop_name']} {parsed.get('bewertung')}/10")
+        # Schreib-/Tracking-Block serialisieren (geteilter SheetCache)
+        async with self._sheet_lock:
+            existing_row = await get_tracking(self.bot, mid)
+            if is_edit and existing_row is not None:
+                if existing_row > sheet.row_count:
+                    logger.warning(
+                        f"Tracking-Fehler: Zeile {existing_row} außerhalb des Sheets "
+                        f"({sheet.row_count - 1} Einträge) – übersprungen"
+                    )
+                    return
+                await asyncio.to_thread(sheet.update, existing_row, row)
+                logger.info(f"✏️  [{date_str}] {parsed['shop_name']} Zeile {existing_row}")
+            else:
+                row_num = await asyncio.to_thread(sheet.append, row)
+                await set_tracking(self.bot, mid, row_num)
+                logger.info(f"➕ [{date_str}] {parsed['shop_name']} {parsed.get('bewertung')}/10")
 
     async def _mark_unresolvable(self, msg: discord.Message, e: UnresolvableShop) -> None:
         add_to_csv(e.identifier, str(msg.id), msg.created_at.strftime("%d.%m.%Y"))
@@ -203,14 +213,18 @@ class ReviewsCog(commands.Cog, name="Reviews"):
     # ── Bot-Events ────────────────────────────────────────────────────────────
     @commands.Cog.listener()
     async def on_ready(self):
+        # on_ready kann bei Reconnects mehrfach feuern – Scan nur einmal pro Prozess
+        if self._reconcile_done:
+            return
         channel = self.bot.get_channel(REVIEW_CHANNEL_ID)
         if not channel:
             logger.error("Review-Kanal nicht gefunden!")
-            return
+            return  # _reconcile_done bleibt False → erneuter Versuch beim nächsten on_ready
 
         await asyncio.to_thread(sheet.load)
         logger.info(f"🔍 Gleiche letzte {SCAN_DAYS} Tage mit bestehenden Zeilen ab…")
         mapped, written = await self._reconcile_scan(channel)
+        self._reconcile_done = True
         all_pending = await get_all_pending(self.bot)
         logger.info(
             f"✅ Fertig – {mapped} gemappt, {written} neu geschrieben, "
