@@ -393,7 +393,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in ein separates Google Sheet – gedacht für Community-Events mit zeitlich begrenzter Erfassung.
 
 **Funktionsweise:**
-- Überwacht den konfigurierten `INAT_CHANNEL_ID` auf Nachrichten mit iNaturalist-Links
+- Überwacht den konfigurierten `INAT_CHANNEL_ID` auf Nachrichten mit iNaturalist-Links (mit oder ohne `www.`)
 - Akzeptiert sowohl `http://` als auch `https://`-Links – schreibt immer `https`
 - Verarbeitet nur Nachrichten innerhalb des konfigurierten Zeitfensters (`INAT_START` – `INAT_END`, Berliner Zeit)
 - Vor dem Eintragen werden zwei Prüfungen durchgeführt:
@@ -403,11 +403,26 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 - Ist die iNaturalist API nicht erreichbar: ⏳-Reaktion + automatischer Retry alle 5 Minuten bis die API antwortet; bei Erfolg wird ⏳ durch ✅ ersetzt
 - Spalte C im Sheet wird bewusst nicht beschrieben (wird von der Tabelle selbst befüllt)
 
-**Sheet-Struktur:**
+**Ranking-Snapshot:**
+
+Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 5) neu eingetragenen Beobachtungen exportiert der Bot automatisch den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten A–E bis zur letzten befüllten Zeile) als PNG und postet es im Channel.
+
+Ablauf:
+1. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
+2. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
+3. 10 Sekunden warten damit das Script Z2 auf `block` setzen kann
+4. Warten bis Z2 wieder leer ist – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600)
+5. PNG-Export via Google Sheets Export-API (OAuth Bearer Token) und Post im Channel
+
+Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
+
+**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Zeitfenster und Eintrags-Zähler. Cooldown: 1 Minute (⏱️-Reaktion wenn zu früh).
+
+**Sheet-Struktur (Rohdaten-Tab):**
 
 | Spalte | Inhalt |
 |--------|--------|
-| A | Discord User-ID |
+| A | Discord Username (z.B. `jonasverzockt`) |
 | B | Anzeigename auf dem Server (display_name) |
 | C | *(leer – vom Sheet selbst befüllt)* |
 | D | iNaturalist-Link (`https://www.inaturalist.org/observations/ID`) |
@@ -416,14 +431,24 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 **Konfiguration** (ganz oben in `cogs/inat_tracker.py`):
 
 ```python
-INAT_CHANNEL_ID = 123456789012345678      # zu überwachender Kanal
-INAT_SHEET_ID   = "DEINE_GOOGLE_SHEET_ID" # separates Sheet (nicht das Review-Sheet)
-INAT_WORKSHEET  = "Tabelle1"              # Tab-Name
-INAT_START      = "2026-06-26 18:00"      # Zeitfenster Beginn (Berliner Zeit)
-INAT_END        = "2026-06-28 22:00"      # Zeitfenster Ende (Berliner Zeit)
+INAT_CHANNEL_ID      = 123456789012345678       # zu überwachender Kanal
+INAT_SHEET_ID        = "DEINE_GOOGLE_SHEET_ID"  # separates Sheet (nicht das Review-Sheet)
+INAT_WORKSHEET       = "Rohdaten"               # Tab mit den Rohdaten
+INAT_UEBERSICHT      = "Übersicht"              # Tab mit dem Ranking (für Snapshot)
+INAT_START           = "2026-05-01 00:00"       # Zeitfenster Beginn (Berliner Zeit)
+INAT_END             = "2026-10-30 20:00"       # Zeitfenster Ende (Berliner Zeit)
+INAT_SNAPSHOT_EVERY  = 5                        # Snapshot nach jeweils N Einträgen
+INAT_Z2_TIMEOUT      = 600                      # Max. Wartezeit auf Z2-Freigabe (Sekunden)
 ```
 
-Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein.
+Über `.env` optional:
+
+```env
+INAT_WEBAPP_URL=https://script.google.com/macros/s/.../exec   # Apps Script Web App URL
+INAT_WEBAPP_SECRET=dein-secret                                  # Muss mit BOT_TRIGGER_SECRET im Script übereinstimmen
+```
+
+Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein und den Scope `drive.readonly` für den PNG-Export besitzen.
 
 ---
 
