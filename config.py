@@ -63,6 +63,12 @@ ACCUMULATION_DELAY = int(os.getenv("ACCUMULATION_DELAY", "8"))
 # Anthropic (Review-Bot + KI-Chat)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
+# ── Rabattcode-Tracker ────────────────────────────────────────────────────────
+# Kanal, in dem Rabattcodes gepostet werden (0 = Feature inaktiv).
+DISCOUNT_CHANNEL_ID = int(os.getenv("DISCOUNT_CHANNEL_ID", "0"))
+# Modell für die Code-Extraktion (günstiges Haiku für strukturierte Parserei).
+DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-4-5-20251001")
+
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)
 AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-4-5-20251001")

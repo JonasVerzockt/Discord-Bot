@@ -26,7 +26,8 @@ Schema:
   user_shop_blacklist, shop_name_mappings, server_user_mappings,
   user_seen_products, global_stats, server_info, eu_countries,
   review_tracking, review_pending, ch_delivery_shops, user_price_tracking,
-  user_species_watch, user_species_watch_seen, ai_chat_budget, ai_chat_history
+  user_species_watch, user_species_watch_seen, ai_chat_budget, ai_chat_history,
+  discount_scanned, discount_codes
 """
 import sqlite3
 import logging
@@ -229,6 +230,36 @@ CREATE TABLE IF NOT EXISTS ai_chat_history (
 
 CREATE INDEX IF NOT EXISTS idx_ai_history_expires
     ON ai_chat_history (expires_at);
+
+-- Rabattcode-Tracker: bereits an Haiku geschickte Nachrichten (nur einmal parsen)
+CREATE TABLE IF NOT EXISTS discount_scanned (
+    message_id TEXT PRIMARY KEY,
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Rabattcode-Tracker: extrahierte Codes (mehrere pro Nachricht möglich)
+-- status_override: NULL = automatisch (Datumslogik), 'valid' = manuell gültig,
+--                  'invalid' = manuell deaktiviert
+CREATE TABLE IF NOT EXISTS discount_codes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id      TEXT    NOT NULL,
+    shop            TEXT    NOT NULL DEFAULT '',
+    shop_url        TEXT    NOT NULL DEFAULT '',
+    code            TEXT    NOT NULL,
+    discount        TEXT    NOT NULL DEFAULT '',
+    valid_from      TEXT,
+    valid_until     TEXT,
+    is_permanent    INTEGER NOT NULL DEFAULT 0,
+    min_order       TEXT,
+    message_date    TEXT,
+    author          TEXT,
+    status_override TEXT,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(message_id, code, shop)
+);
+
+CREATE INDEX IF NOT EXISTS idx_discount_until
+    ON discount_codes (valid_until);
 """
 
 # Standard EU-Länder (falls DB noch leer)
@@ -236,6 +267,13 @@ _EU_COUNTRIES = [
     "at","be","bg","cy","cz","de","dk","ee","es","fi",
     "fr","gr","hr","hu","ie","it","lt","lu","lv","mt",
     "nl","pl","pt","ro","se","si","sk",
+]
+
+
+# Spalten-Migrationen für bestehende DBs: (Tabelle, Spalte, DDL)
+_MIGRATIONS = [
+    ("shops",          "url_override",    "ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL"),
+    ("discount_codes", "status_override", "ALTER TABLE discount_codes ADD COLUMN status_override TEXT"),
 ]
 
 
@@ -249,13 +287,14 @@ async def init_db(bot) -> None:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(_SCHEMA)
             conn.commit()
-            # Migration: url_override Spalte (für bestehende DBs)
-            try:
-                conn.execute("ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL")
-                conn.commit()
-                logger.info("🔄 DB-Migration: shops.url_override Spalte hinzugefügt")
-            except Exception:
-                pass  # Spalte bereits vorhanden
+            # Spalten-Migrationen für bestehende DBs (idempotent)
+            for _table, _col, _ddl in _MIGRATIONS:
+                try:
+                    conn.execute(_ddl)
+                    conn.commit()
+                    logger.info(f"🔄 DB-Migration: {_table}.{_col} Spalte hinzugefügt")
+                except Exception:
+                    pass  # Spalte bereits vorhanden
             # EU-Länder nur einmalig befüllen
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM eu_countries")

@@ -55,6 +55,7 @@ INITIAL_COGS = [
     "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
     "cogs.inat_tracker",      # iNaturalist-Links → Google Sheets
     "cogs.price_tracking",    # /track_price /my_price_tracking /untrack_price + stündl. Preischeck
+    "cogs.discount_codes",    # /codes /codes_rescan + Haiku-Rabattcode-Tracker
 ]
 
 
