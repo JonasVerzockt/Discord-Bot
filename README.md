@@ -407,7 +407,7 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 
 **Ranking-Snapshot:**
 
-Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 5) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler.
+Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 5) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …).
 
 Ablauf:
 1. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)

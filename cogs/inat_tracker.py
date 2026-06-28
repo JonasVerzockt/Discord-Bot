@@ -111,32 +111,48 @@ def _parse_ranking(rows: list) -> list:
 
 def _render_ranking_png(entries: list) -> bytes:
     """
-    Rendert die Rangliste lokal als PNG: Top 3 als farbiges Treppchen
-    (Gold/Silber/Bronze), Platz 4+ als Tabelle. Gibt PNG-Bytes zurück.
+    Rendert die Rangliste lokal als PNG: die obersten drei Ränge als farbiges
+    Treppchen (Gold/Silber/Bronze), Platz 4+ als Tabelle. Personen mit gleicher
+    Artenzahl teilen sich denselben Rang und dieselbe Treppchen-Stufe
+    (Competition-Ranking: 1, 1, 3, …). Gibt PNG-Bytes zurück.
     Läuft blockierend → vom Aufrufer in asyncio.to_thread() aufrufen.
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    BG      = "#0d1117"
-    FG      = "#e6edf3"
+    BG, FG = "#0d1117", "#e6edf3"
     GOLD, SILVER, BRONZE = "#FFD700", "#C0C0C0", "#CD7F32"
+    STEP_COLORS = [GOLD, SILVER, BRONZE]
 
     def _clip(s, n):
         s = str(s)
         return s if len(s) <= n else s[: n - 1] + "…"
 
-    top  = entries[:3]
-    rest = entries[3:]
-    n_rest = len(rest)
+    # Nach Artenzahl gruppieren → geteilte Ränge (gleiche Anzahl = gleicher Rang)
+    places = []          # (rang, anzahl, [namen])
+    i, rank = 0, 1
+    while i < len(entries):
+        val = entries[i][2]
+        names = []
+        j = i
+        while j < len(entries) and entries[j][2] == val:
+            names.append(entries[j][1])
+            j += 1
+        places.append((rank, val, names))
+        rank += (j - i)
+        i = j
 
-    fig_h = 5.4 + 0.42 * n_rest
+    podium    = places[:3]
+    rest      = places[3:]
+    rest_rows = [(rg, nm, val) for (rg, val, names) in rest for nm in names]
+
+    fig_h = 5.6 + 0.42 * len(rest_rows)
     fig = plt.figure(figsize=(8, fig_h), dpi=150)
     fig.patch.set_facecolor(BG)
 
-    if n_rest > 0:
-        gs = fig.add_gridspec(2, 1, height_ratios=[3.4, 0.8 + 0.42 * n_rest], hspace=0.18)
+    if rest_rows:
+        gs = fig.add_gridspec(2, 1, height_ratios=[3.4, 0.8 + 0.42 * len(rest_rows)], hspace=0.18)
         ax  = fig.add_subplot(gs[0])
         axt = fig.add_subplot(gs[1])
     else:
@@ -146,38 +162,32 @@ def _render_ranking_png(entries: list) -> bytes:
     ax.set_facecolor(BG)
     fig.suptitle("Arten-Rangliste", color=FG, fontsize=22, fontweight="bold", y=0.97)
 
-    # ── Treppchen (Top 3) ──────────────────────────────────────────────────────
-    # Anzeige-Reihenfolge: 2. links, 1. Mitte, 3. rechts
-    layout = [(0, 1, SILVER), (1, 0, GOLD), (2, 2, BRONZE)]
-    maxv = max((e[2] for e in top), default=1) or 1
+    slot_for_step = {0: 1, 1: 0, 2: 2}        # Stufe -> x-Position (2. links, 1. Mitte, 3. rechts)
+    step_heights  = {0: 3.0, 1: 2.0, 2: 1.0}  # gleichmäßiges Treppchen; echte Werte stehen als Label
+    maxh = 3.0
 
-    for xpos, ti, col in layout:
-        if ti >= len(top):
-            continue
-        _rang, name, anz = top[ti]
-        ax.bar(xpos, anz, width=0.72, color=col, edgecolor="white",
-               linewidth=1.4, zorder=3)
-        # Platznummer in den Balken
-        ax.text(xpos, anz / 2 if anz else maxv * 0.05, str(ti + 1),
+    for step_idx, (rg, val, names) in enumerate(podium):
+        xpos = slot_for_step.get(step_idx, step_idx)
+        col  = STEP_COLORS[step_idx]
+        h    = step_heights.get(step_idx, 1.0)
+        ax.bar(xpos, h, width=0.72, color=col, edgecolor="white", linewidth=1.4, zorder=3)
+        ax.text(xpos, h / 2, str(rg),
                 ha="center", va="center", color=BG, fontsize=30, fontweight="bold", zorder=4)
-        # Anzahl über dem Balken
-        ax.text(xpos, anz + maxv * 0.04, f"{anz}", ha="center", va="bottom",
+        ax.text(xpos, h + maxh * 0.04, f"{val}", ha="center", va="bottom",
                 color=FG, fontsize=14, fontweight="bold")
-        # Name unter dem Balken
-        ax.text(xpos, -maxv * 0.07, _clip(name, 18), ha="center", va="top",
-                color=col, fontsize=12, fontweight="bold")
+        shown = [_clip(n, 16) for n in names[:5]]
+        if len(names) > 5:
+            shown.append(f"+{len(names) - 5} weitere")
+        ax.text(xpos, -maxh * 0.06, "\n".join(shown), ha="center", va="top",
+                color=col, fontsize=11, fontweight="bold", linespacing=1.35)
 
     ax.set_xlim(-0.7, 2.7)
-    ax.set_ylim(-maxv * 0.22, maxv * 1.2)
+    ax.set_ylim(-maxh * 0.34, maxh * 1.22)
     ax.axis("off")
 
-    # ── Tabelle (Platz 4+) ─────────────────────────────────────────────────────
     if axt is not None:
         axt.axis("off")
-        cell_text = []
-        for i, (rang, name, anz) in enumerate(rest, start=4):
-            platz = rang if rang is not None else i
-            cell_text.append([str(platz), _clip(name, 30), str(anz)])
+        cell_text = [[str(rg), _clip(nm, 30), str(val)] for (rg, nm, val) in rest_rows]
         tbl = axt.table(
             cellText=cell_text,
             colLabels=["Platz", "Name", "Arten"],
@@ -392,11 +402,19 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
             buf = io.BytesIO(png)
             buf.seek(0)
-            await channel.send(
-                l10n.get("inat_ranking_caption", lang),
-                file=discord.File(buf, filename="ranking.png"),
-            )
-            logger.info(f"📊 Ranking-Snapshot gepostet ({len(entries)} Einträge, lokal gerendert)")
+            try:
+                await channel.send(
+                    l10n.get("inat_ranking_caption", lang),
+                    file=discord.File(buf, filename="ranking.png"),
+                )
+                logger.info(f"📊 Ranking-Snapshot gepostet ({len(entries)} Einträge, lokal gerendert)")
+            except discord.Forbidden:
+                logger.error(
+                    "⚠️ Keine Berechtigung zum Posten im iNat-Kanal – dem Bot fehlt "
+                    "'Nachrichten senden' und/oder 'Dateien anhängen' in diesem Kanal."
+                )
+            except discord.HTTPException as e:
+                logger.error(f"❌ Ranking-Snapshot Sende-Fehler: {e}")
 
         except Exception as e:
             logger.error(f"❌ Ranking-Snapshot fehlgeschlagen: {e}", exc_info=True)
@@ -442,6 +460,11 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 buf.seek(0)
                 await channel.send(caption, file=discord.File(buf, filename="ranking.txt"))
             logger.info(f"📊 Ranking-Text-Fallback gepostet (Übersicht A1:C{last_row})")
+        except discord.Forbidden:
+            logger.error(
+                "⚠️ Keine Berechtigung zum Posten im iNat-Kanal "
+                "(Nachrichten senden / Dateien anhängen)."
+            )
         except discord.HTTPException as e:
             logger.error(f"❌ Text-Fallback Sende-Fehler: {e}")
 
