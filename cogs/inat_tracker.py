@@ -215,7 +215,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                         requests.post,
                         INAT_WEBAPP_URL,
                         json={"secret": INAT_WEBAPP_SECRET},
-                        timeout=30,
+                        timeout=120,
                     )
                     logger.info(
                         f"📡 Apps Script Antwort: {resp_wa.status_code} – {resp_wa.text[:200]}"
@@ -262,19 +262,33 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 f"https://docs.google.com/spreadsheets/d/{INAT_SHEET_ID}/export"
                 f"?format=png&gid={gid}&range=A1:E{last_row}"
             )
-            resp = await asyncio.to_thread(
-                requests.get,
-                export_url,
-                headers={"Authorization": f"Bearer {creds.token}"},
-                timeout=30,
-            )
-            resp.raise_for_status()
-
-            if "image" not in resp.headers.get("Content-Type", ""):
-                logger.error(
-                    f"❌ Ranking-Snapshot: unerwarteter Content-Type "
-                    f"'{resp.headers.get('Content-Type')}' – abgebrochen"
+            # Der Google-Sheets-PNG-Export ist sporadisch flaky (transiente 500er /
+            # Timeouts) → mehrere Versuche mit Backoff, bevor wir aufgeben.
+            resp = None
+            for attempt in range(1, 5):
+                try:
+                    r = await asyncio.to_thread(
+                        requests.get,
+                        export_url,
+                        headers={"Authorization": f"Bearer {creds.token}"},
+                        timeout=30,
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ PNG-Export Versuch {attempt}/4 (Netzwerk): {e}")
+                    await asyncio.sleep(5 * attempt)
+                    continue
+                if r.status_code == 200 and "image" in r.headers.get("Content-Type", ""):
+                    resp = r
+                    break
+                logger.warning(
+                    f"⚠️ PNG-Export Versuch {attempt}/4: HTTP {r.status_code}, "
+                    f"Content-Type '{r.headers.get('Content-Type', '')}' – neuer Versuch"
                 )
+                await asyncio.sleep(5 * attempt)
+
+            if resp is None:
+                logger.error("❌ Ranking-Snapshot: PNG-Export nach 4 Versuchen fehlgeschlagen – Text-Fallback")
+                await self._post_ranking_text_fallback(ws_ue, last_row)
                 return
 
             # 4. Bild im Channel posten
@@ -296,6 +310,51 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
         except Exception as e:
             logger.error(f"❌ Ranking-Snapshot fehlgeschlagen: {e}", exc_info=True)
+
+    async def _post_ranking_text_fallback(self, ws_ue, last_row: int) -> None:
+        """
+        Fallback wenn der PNG-Export scheitert: liest A1:E{last_row} aus dem
+        Übersicht-Tab und postet das Ranking als Text-Tabelle (bzw. als .txt,
+        falls zu lang für eine Discord-Nachricht).
+        """
+        try:
+            values = await asyncio.to_thread(lambda: ws_ue.get(f"A1:E{last_row}"))
+        except Exception as e:
+            logger.error(f"❌ Text-Fallback: Sheet-Lesefehler: {e}")
+            return
+
+        channel = self.bot.get_channel(INAT_CHANNEL_ID)
+        if channel is None:
+            logger.warning("⚠️ Text-Fallback: Channel nicht gefunden")
+            return
+        guild_id = channel.guild.id if hasattr(channel, "guild") and channel.guild else None
+        lang = await get_guild_lang(self.bot, guild_id) if guild_id else "en"
+
+        # Monospace-Tabelle mit ausgerichteten Spalten bauen
+        ncols = max((len(r) for r in values), default=0)
+        widths = [0] * ncols
+        for r in values:
+            for i, c in enumerate(r):
+                widths[i] = max(widths[i], len(str(c)))
+
+        def _row(r):
+            cells = [str(r[i]) if i < len(r) else "" for i in range(ncols)]
+            return " | ".join(c.ljust(widths[i]) for i, c in enumerate(cells))
+
+        table   = "\n".join(_row(r) for r in values)
+        caption = l10n.get("inat_ranking_fallback", lang)
+
+        body = f"{caption}\n```\n{table}\n```"
+        try:
+            if len(body) <= 2000:
+                await channel.send(body)
+            else:
+                buf = io.BytesIO(table.encode("utf-8"))
+                buf.seek(0)
+                await channel.send(caption, file=discord.File(buf, filename="ranking.txt"))
+            logger.info(f"📊 Ranking-Text-Fallback gepostet (Übersicht A1:E{last_row})")
+        except discord.HTTPException as e:
+            logger.error(f"❌ Text-Fallback Sende-Fehler: {e}")
 
     # ── Event ─────────────────────────────────────────────────────────────────
 

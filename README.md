@@ -413,11 +413,11 @@ Ablauf:
 2. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
 3. 10 Sekunden warten damit das Script Z2 auf `block` setzen kann
 4. Warten bis Z2 wieder leer ist – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600)
-5. PNG-Export via Google Sheets Export-API (OAuth Bearer Token) und Post im Channel
+5. PNG-Export via Google Sheets Export-API (OAuth Bearer Token) und Post im Channel – mit bis zu 4 Wiederholversuchen (Backoff), da der Export-Endpoint sporadisch transiente 500er liefert. Schlagen alle Versuche fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) gepostet – die Rangliste geht also nie verloren.
 
 Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
 
-**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Zeitfenster und Eintrags-Zähler. Cooldown: 1 Minute (⏱️-Reaktion wenn zu früh).
+**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 1 Minute (⏱️-Reaktion wenn zu früh).
 
 **Sheet-Struktur (Rohdaten-Tab):**
 

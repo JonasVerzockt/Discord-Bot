@@ -240,5 +240,6 @@
   "discount_set_state_invalid": "nevalida",
   "discount_set_state_auto": "aŭtomata (laŭ dato)",
   "help_codes_set": "🏷️ `/codes_set <code> <status> [shop]` – Marki kodon valida/nevalida/aŭtomata (Admin)",
-  "discount_expired_old": "verŝajne eksvalida"
+  "discount_expired_old": "verŝajne eksvalida",
+  "inat_ranking_fallback": "📊 **Ranglisto** (bild-eksporto nuntempe ne disponebla – kiel teksto):"
 }

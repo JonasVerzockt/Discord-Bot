@@ -240,5 +240,6 @@
   "discount_set_state_invalid": "invalid",
   "discount_set_state_auto": "automatic (by date)",
   "help_codes_set": "🏷️ `/codes_set <code> <status> [shop]` – Mark code valid/invalid/auto (Admin)",
-  "discount_expired_old": "likely expired"
+  "discount_expired_old": "likely expired",
+  "inat_ranking_fallback": "📊 **Ranking** (image export currently unavailable – shown as text):"
 }
