@@ -91,19 +91,26 @@ def _get_latest_prices_sync(product_ids: list[int]) -> dict[int, tuple[float, fl
 
 async def _find_products_for_tracking(bot, species_query: str) -> dict:
     """
-    Sucht Produkte (auch nicht verfügbare) für eine Art/Gattung über alle Shops.
+    Sucht Produkte für eine Art/Gattung über alle Shops.
+
+    Alle passenden Produkte werden zurückgegeben, unabhängig vom Preis:
+    - Aktueller Preis > 0  → Produkt mit aktuellem Preis (✅ / ❌ je in_stock)
+    - Preis = 0 + History  → Letzter bekannter Preis injiziert (⏸️ "zul. X")
+    - Preis = 0, kein Hist.→ Trotzdem wählbar, mit ❓ "kein Preis bekannt"
 
     Returns:
         {shop_id: {"shop_info": {...}, "products": [...]}}
-        Nur Shops die mindestens ein Produkt mit Preis > 0 haben.
+        Nur Shops mit mindestens einem Produkt.
     """
     shop_data = await load_shop_data(bot)
     normalized = normalize_species_name(species_query)
     is_genus = " " not in normalized.strip()
 
-    result: dict = {}
+    # Alle passenden Produkte sammeln
+    candidates: dict[str, list] = {}   # shop_id → [product, ...]
+    zero_price_ids: list[int] = []
+
     for shop_id, shop_info in shop_data.items():
-        matches = []
         for product in shop_info.get("products", []):
             species = (product.get("species") or "").strip()
             norm = normalize_species_name(species)
@@ -116,16 +123,51 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
             if not match:
                 continue
 
-            # Produkte ohne jeglichen Preis ignorieren
             try:
                 min_p = float(product.get("min_price") or 0)
                 max_p = float(product.get("max_price") or 0)
             except (ValueError, TypeError):
-                continue
-            if min_p == 0.0 and max_p == 0.0:
-                continue
+                min_p = max_p = 0.0
 
-            matches.append(product)
+            if min_p == 0.0 and max_p == 0.0:
+                pid = product.get("id")
+                if pid is not None:
+                    zero_price_ids.append(pid)
+                candidates.setdefault(shop_id, []).append(
+                    {**product, "_price_zero": True}
+                )
+            else:
+                candidates.setdefault(shop_id, []).append(product)
+
+    # Batch-Lookup historischer Preise für Produkte ohne aktuellen Preis
+    hist_prices: dict[int, tuple[float, float, str]] = {}
+    if zero_price_ids:
+        hist_prices = await asyncio.to_thread(
+            _get_latest_prices_sync, zero_price_ids
+        )
+
+    # Ergebnis zusammenbauen
+    result: dict = {}
+    for shop_id, products in candidates.items():
+        shop_info = shop_data[shop_id]
+        matches = []
+        for p in products:
+            if p.get("_price_zero"):
+                pid = p.get("id")
+                hist = hist_prices.get(pid)
+                if hist is not None:
+                    min_h, max_h, cur_h = hist
+                    p = {
+                        **p,
+                        "min_price":     str(min_h),
+                        "max_price":     str(max_h),
+                        "currency_iso":  cur_h,
+                        "_from_history": True,
+                    }
+                else:
+                    p = {**p, "_no_price": True}
+                p = {k: v for k, v in p.items() if k != "_price_zero"}
+            matches.append(p)
 
         if matches:
             result[shop_id] = {"shop_info": shop_info, "products": matches}
@@ -151,10 +193,8 @@ class _BaseView(discord.ui.View):
         return True
 
     async def on_timeout(self):
-        # Alle Komponenten deaktivieren wenn Timeout
         for item in self.children:
             item.disabled = True
-        # Kein edit_original_response möglich ohne Referenz – wird von den Subklassen überschrieben
 
 
 # ── Shop-Auswahl ──────────────────────────────────────────────────────────────
@@ -198,8 +238,8 @@ class ShopSelectView(_BaseView):
         self.add_item(_ShopSelectItem(shops_with_products))
 
     async def on_shop_selected(self, shop_id: str, interaction: discord.Interaction):
-        data     = self.shops_with_products[shop_id]
-        products = data["products"]
+        data      = self.shops_with_products[shop_id]
+        products  = data["products"]
         shop_info = data["shop_info"]
 
         view = ProductSelectView(
@@ -211,24 +251,35 @@ class ShopSelectView(_BaseView):
             view=view,
         )
 
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-
 
 # ── Produkt-Auswahl (Multi-Select) ────────────────────────────────────────────
 
 class _ProductSelectItem(discord.ui.Select):
     def __init__(self, products: list, lang: str):
-        await_rates = False  # sync context, rates already loaded before building view
         options = []
         for p in products[:25]:
             title    = (p.get("species") or p.get("title") or "?")[:97]
-            min_p    = p.get("min_price", "0")
-            max_p    = p.get("max_price", "0")
             currency = p.get("currency_iso", "EUR")
-            price_str = format_price(min_p, max_p, currency)[:90]
-            stock_icon = "✅" if p.get("in_stock") else "❌"
+
+            if p.get("_no_price"):
+                stock_icon = "❓"
+                price_str  = "kein Preis bekannt"
+            elif p.get("_from_history"):
+                min_p      = p.get("min_price", "0")
+                max_p      = p.get("max_price", "0")
+                price_str  = "zul. " + format_price(min_p, max_p, currency)
+                stock_icon = "⏸️"
+            elif p.get("in_stock"):
+                min_p      = p.get("min_price", "0")
+                max_p      = p.get("max_price", "0")
+                price_str  = format_price(min_p, max_p, currency)
+                stock_icon = "✅"
+            else:
+                min_p      = p.get("min_price", "0")
+                max_p      = p.get("max_price", "0")
+                price_str  = format_price(min_p, max_p, currency)
+                stock_icon = "❌"
+
             options.append(discord.SelectOption(
                 label=title,
                 value=str(p.get("id", "")),
@@ -270,8 +321,19 @@ class ProductSelectView(_BaseView):
 
         lines = []
         for p in selected:
-            price_str = format_price(p.get("min_price", 0), p.get("max_price", 0), p.get("currency_iso", "EUR"))
-            stock = "✅" if p.get("in_stock") else "❌"
+            if p.get("_no_price"):
+                price_str = "kein Preis bekannt"
+                stock = "❓"
+            elif p.get("_from_history"):
+                price_str = "zul. " + format_price(
+                    p.get("min_price", 0), p.get("max_price", 0), p.get("currency_iso", "EUR")
+                )
+                stock = "⏸️"
+            else:
+                price_str = format_price(
+                    p.get("min_price", 0), p.get("max_price", 0), p.get("currency_iso", "EUR")
+                )
+                stock = "✅" if p.get("in_stock") else "❌"
             title = p.get("species") or p.get("title") or "?"
             url   = p.get("antcheck_url") or ""
             lines.append(f"• {stock} [{title}](<{url}>) – {price_str}")
@@ -329,7 +391,7 @@ class ConfirmView(_BaseView):
             except (ValueError, TypeError):
                 min_p = max_p = 0.0
 
-            # Aktuellsten Preis als Baseline setzen
+            # Aktuellsten Preis als Baseline setzen (oder API-Preis wenn kein History-Eintrag)
             current = await asyncio.to_thread(_get_latest_price_sync, int(pid))
             if current:
                 baseline_min, baseline_max, currency = current
@@ -352,7 +414,8 @@ class ConfirmView(_BaseView):
                     p.get("antcheck_url") or "",
                     shop_name, self.shop_id,
                     currency,
-                    baseline_min, baseline_max,
+                    baseline_min if (baseline_min or baseline_max) else None,
+                    baseline_max if (baseline_min or baseline_max) else None,
                 ),
                 commit=True,
             )
@@ -363,6 +426,18 @@ class ConfirmView(_BaseView):
             content=l10n.get("pt_saved", self.lang, count=saved),
             view=self,
         )
+        # Öffentliche Meldung im Kanal (nur wenn Tracking erfolgreich gespeichert)
+        if saved > 0 and interaction.channel:
+            await interaction.channel.send(
+                l10n.get(
+                    "pt_tracking_announced",
+                    self.lang,
+                    user=interaction.user.display_name,
+                    species=self.species,
+                    shop=self.shop_info.get("name", self.shop_id),
+                    count=saved,
+                )
+            )
         self.stop()
 
     @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger)
@@ -387,7 +462,7 @@ class _UntrackSelectItem(discord.ui.Select):
             shop     = row["shop_name"] or "?"
             current  = current_prices.get(pid)
             if current:
-                price_str = format_price(current[0], current[1], current[2])[:90]
+                price_str = format_price(current[0], current[1], current[2])
             else:
                 price_str = "kein Preis"
             options.append(discord.SelectOption(
@@ -452,7 +527,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     @discord.slash_command(
         name="track_price",
-        description="Preise für eine Art beobachten und bei Änderung per PN informiert werden.",
+        description="Track prices for an ant species and get notified on changes.",
+        description_localizations={"de": "Preise für eine Art beobachten und bei Änderung per PN informiert werden."},
     )
     async def track_price(
         self,
@@ -484,7 +560,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     @discord.slash_command(
         name="my_price_tracking",
-        description="Alle beobachteten Produkte mit aktuellen Preisen anzeigen.",
+        description="Show all tracked products with current prices.",
+        description_localizations={"de": "Alle beobachteten Produkte mit aktuellen Preisen anzeigen."},
     )
     async def my_price_tracking(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
@@ -537,7 +614,6 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         header = l10n.get("pt_list_header", lang)
         msg    = header + "\n" + "\n".join(lines)
 
-        # Discord-Längengrenze beachten
         if len(msg) > 2000:
             msg = msg[:1990] + "…"
 
@@ -547,7 +623,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     @discord.slash_command(
         name="untrack_price",
-        description="Produkte aus dem Preis-Tracking entfernen.",
+        description="Remove products from price tracking.",
+        description_localizations={"de": "Produkte aus dem Preis-Tracking entfernen."},
     )
     async def untrack_price(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
@@ -719,20 +796,14 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     (server_id,),
                     fetch=True,
                 )
-                channel_id = ch_row[0]["channel_id"] if ch_row else None
-                channel    = self.bot.get_channel(channel_id) if channel_id else None
-                if not channel:
-                    guild   = self.bot.get_guild(server_id)
-                    channel = guild.system_channel if guild else None
+                if not ch_row:
+                    continue
+                channel = self.bot.get_channel(ch_row[0]["channel_id"])
                 if channel:
-                    try:
-                        await channel.send(f"<@{user_id}>\n{msg}")
-                        return
-                    except discord.HTTPException:
-                        pass
+                    await channel.send(msg)
         except Exception as e:
             logger.error("❌ _fallback_server_message error: %s", e)
 
 
-def setup(bot: discord.Bot):
+def setup(bot):
     bot.add_cog(PriceTrackingCog(bot))

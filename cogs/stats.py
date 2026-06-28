@@ -46,7 +46,7 @@ class StatsCog(commands.Cog, name="Stats"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="stats", description="Show bot statistics (Admin/Mod)")
+    @discord.slash_command(name="stats", description="Show bot statistics (Admin/Mod)", description_localizations={"de": "Bot-Statistiken anzeigen (Admin/Mod)"})
     @admin_or_manage_messages()
     async def stats(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -87,7 +87,7 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ stats error: {e}")
             await ctx.respond(l10n.get("stats_error", lang))
 
-    @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)")
+    @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)", description_localizations={"de": "System- und Bot-Status anzeigen (Admin/Mod)"})
     @admin_or_manage_messages()
     async def system(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -150,13 +150,14 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ system error: {e}")
             await ctx.respond(l10n.get("system_error", lang), ephemeral=True)
 
-    @discord.slash_command(name="help", description="Show all available commands")
+    @discord.slash_command(name="help", description="Show all available commands", description_localizations={"de": "Alle verfügbaren Befehle anzeigen"})
     @allowed_channel()
     async def help_cmd(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         user_keys = [
             "help_notification", "help_history", "help_test", "help_delete",
             "help_usersetting", "help_ch_delivery", "help_ai_chat",
+            "help_track_price", "help_my_price_tracking", "help_untrack_price",
         ]
         admin_keys = [
             "help_startup", "help_status", "help_pending", "help_test_admin",
@@ -170,7 +171,6 @@ class StatsCog(commands.Cog, name="Stats"):
         admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)
         await ctx.respond(
             l10n.get("help_full", lang, user_commands=user_commands, admin_commands=admin_commands),
-            ephemeral=True,
         )
 
 

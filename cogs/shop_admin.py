@@ -47,7 +47,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         self.bot = bot
 
     # ── /reloadshops ──────────────────────────────────────────────────────────
-    @discord.slash_command(name="reloadshops", description="Reload shop data from JSON file (Admin/Mod)")
+    @discord.slash_command(name="reloadshops", description="Reload shop data from JSON file (Admin/Mod)", description_localizations={"de": "Shop-Daten aus JSON-Datei neu laden (Admin/Mod)"})
     @admin_or_manage_messages()
     async def reloadshops(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)

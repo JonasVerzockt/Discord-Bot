@@ -245,7 +245,11 @@ Ergänzend zur Verfügbarkeitsbenachrichtigung können User einzelne Produkte da
 Der Bot sucht alle Produkte (auch aktuell nicht verfügbare) zur angegebenen Art oder Gattung in `shops_data.json`. Falls Produkte gefunden werden, startet eine interaktive 3-Schritt-Auswahl per Discord-Menü:
 
 1. **Shop auswählen** – Dropdown mit allen Shops, die passende Produkte haben (max. 25)
-2. **Produkte auswählen** – Multi-Select-Dropdown der Produkte im gewählten Shop (max. 25); für jedes Produkt wird der aktuelle Preis aus `price_history.db` angezeigt
+2. **Produkte auswählen** – Multi-Select-Dropdown der Produkte im gewählten Shop (max. 25); Produkte werden immer angezeigt, unabhängig davon ob ein Preis bekannt ist:
+   - ✅ Verfügbar – aktueller Preis
+   - ❌ Nicht verfügbar – aktueller (Nicht-Verfügbar-)Preis
+   - ⏸️ Zuletzt gesehen – aktuell kein Preis in API, aber letzter bekannter Preis aus `price_history.db` vorhanden
+   - ❓ Kein Preis bekannt – noch nie ein Preis erfasst (z. B. neues Produkt)
 3. **Bestätigen** – Schaltflächen „Bestätigen" / „Abbrechen"; nach Bestätigung wird der aktuelle Preis als Baseline gesetzt
 
 Die Interaktion ist ephemeral (nur für den ausführenden User sichtbar) und läuft automatisch nach 3 Minuten ohne Eingabe ab.
@@ -328,7 +332,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | `/ch_delivery add` | `shop` | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. |
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. |
 | `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. |
-| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). |
+| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. |
 
 ### Nur Admin / Nachrichten verwalten
 

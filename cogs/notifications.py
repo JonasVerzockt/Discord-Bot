@@ -277,7 +277,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
 
     # ── Slash Commands ────────────────────────────────────────────────────────
 
-    @discord.slash_command(name="notification", description="Set up availability notification for an ant species or genus")
+    @discord.slash_command(name="notification", description="Set up availability notification for an ant species or genus", description_localizations={"de": "Verfügbarkeitsbenachrichtigung für eine Ameisenart oder Gattung einrichten"})
     @allowed_channel()
     async def notification(
         self,
@@ -370,7 +370,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         else:
             await ctx.followup.send(l10n.get("availability_check_error", lang, species=search_term))
 
-    @discord.slash_command(name="delete_notifications", description="Delete your notifications by ID")
+    @discord.slash_command(name="delete_notifications", description="Delete your notifications by ID", description_localizations={"de": "Eigene Benachrichtigungen per ID löschen"})
     @allowed_channel()
     async def delete_notifications(
         self,
@@ -408,7 +408,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         else:
             await ctx.respond(l10n.get("delete_error", lang))
 
-    @discord.slash_command(name="history", description="Show your notification history")
+    @discord.slash_command(name="history", description="Show your notification history", description_localizations={"de": "Eigene Benachrichtigungshistorie anzeigen"})
     @allowed_channel()
     async def history(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -448,7 +448,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 lines.extend(f"  {e}" for e in buckets[bucket])
         await ctx.respond("\n".join(lines), ephemeral=True)
 
-    @discord.slash_command(name="testnotification", description="Send a test DM to yourself")
+    @discord.slash_command(name="testnotification", description="Send a test DM to yourself", description_localizations={"de": "Test-PN an dich selbst senden"})
     @allowed_channel()
     async def testnotification(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
