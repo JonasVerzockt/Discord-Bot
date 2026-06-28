@@ -448,6 +448,59 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 lines.extend(f"  {e}" for e in buckets[bucket])
         await ctx.respond("\n".join(lines), ephemeral=True)
 
+        # ── Preis-Tracking Zusammenfassung ────────────────────────────────────
+        try:
+            pt_rows = await execute_db(
+                self.bot,
+                """SELECT COUNT(*) AS total,
+                          COUNT(DISTINCT shop_name) AS shops,
+                          GROUP_CONCAT(DISTINCT shop_name) AS shop_names,
+                          MIN(created_at) AS oldest
+                   FROM user_price_tracking WHERE user_id=?""",
+                (str(ctx.author.id),), fetch=True,
+            )
+            sw_rows = await execute_db(
+                self.bot,
+                "SELECT species, created_at FROM user_species_watch WHERE user_id=? ORDER BY species",
+                (str(ctx.author.id),), fetch=True,
+            )
+            pt = pt_rows[0] if pt_rows else None
+            has_pt = pt and (pt["total"] or 0) > 0
+            has_sw = bool(sw_rows)
+
+            if has_pt or has_sw:
+                embed = discord.Embed(
+                    title=l10n.get("history_pt_title", lang),
+                    color=discord.Color.blurple(),
+                )
+                if has_pt:
+                    embed.add_field(
+                        name=l10n.get("history_pt_products_header", lang),
+                        value=l10n.get(
+                            "history_pt_products_value", lang,
+                            total=pt["total"],
+                            shops=pt["shops"],
+                            shop_names=pt["shop_names"] or "–",
+                            oldest=(pt["oldest"] or "")[:10],
+                        ),
+                        inline=False,
+                    )
+                if has_sw:
+                    watch_lines = "\n".join(
+                        l10n.get("history_pt_watch_entry", lang,
+                                 species=r["species"],
+                                 date=(r["created_at"] or "")[:10])
+                        for r in sw_rows
+                    )
+                    embed.add_field(
+                        name=l10n.get("history_pt_watches_header", lang, count=len(sw_rows)),
+                        value=watch_lines or "–",
+                        inline=False,
+                    )
+                await ctx.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"❌ history pt followup error: {e}")
+
     @discord.slash_command(name="testnotification", description="Send a test DM to yourself", description_localizations={"de": "Test-PN an dich selbst senden"})
     @allowed_channel()
     async def testnotification(self, ctx: discord.ApplicationContext):
