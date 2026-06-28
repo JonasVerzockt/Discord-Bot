@@ -72,7 +72,7 @@ class TasksCog(commands.Cog, name="Tasks"):
 
             notifications_cog = self.bot.cogs.get("Notifications")
             if not notifications_cog:
-                logger.warning("NotificationsCog nicht geladen – Verfügbarkeitsprüfung übersprungen")
+                logger.warning("⚠️ NotificationsCog nicht geladen – Verfügbarkeitsprüfung übersprungen")
                 return
 
             for row in rows:
@@ -85,15 +85,15 @@ class TasksCog(commands.Cog, name="Tasks"):
                         excluded_species_list=excluded,
                     )
                 except Exception as e:
-                    logger.error(f"Verfügbarkeitsprüfung fehlgeschlagen ({row['user_id']}, {row['species']}): {e}")
+                    logger.error(f"❌ Verfügbarkeitsprüfung fehlgeschlagen ({row['user_id']}, {row['species']}): {e}")
         except Exception as e:
-            logger.error(f"check_availability task error: {e}", exc_info=True)
+            logger.error(f"❌ check_availability task error: {e}", exc_info=True)
 
     @check_availability.before_loop
     async def before_check_availability(self):
         await self.bot.wait_until_ready()
 
-    # ── Shop-Daten-Reload stündlich ────────────────────────────────────────────
+    # ── Shop-Daten-Reload stündlich ───────────────────────────────────────────
     @tasks.loop(hours=1)
     async def reload_shops_task(self):
         try:
@@ -114,9 +114,9 @@ class TasksCog(commands.Cog, name="Tasks"):
                     commit=True,
                 )
                 count += 1
-            logger.info(f"Shop-Daten neu geladen: {count} Shops")
+            logger.info(f"🏪 Shop-Daten neu geladen: {count} Shops")
         except Exception as e:
-            logger.error(f"reload_shops_task error: {e}")
+            logger.error(f"❌ reload_shops_task error: {e}")
 
     @reload_shops_task.before_loop
     async def before_reload_shops(self):
@@ -128,9 +128,9 @@ class TasksCog(commands.Cog, name="Tasks"):
         try:
             from utils.sheet import sync_ratings_from_sheet
             updated = await sync_ratings_from_sheet(self.bot)
-            logger.info(f"Shop-Ratings synchronisiert: {updated} Shops aktualisiert")
+            logger.info(f"📊 Shop-Ratings synchronisiert: {updated} Shops aktualisiert")
         except Exception as e:
-            logger.error(f"sync_shop_ratings error: {e}", exc_info=True)
+            logger.error(f"❌ sync_shop_ratings error: {e}", exc_info=True)
 
     @sync_shop_ratings.before_loop
     async def before_sync_shop_ratings(self):
@@ -166,23 +166,23 @@ class TasksCog(commands.Cog, name="Tasks"):
                 except Exception:
                     pass
             if rows:
-                logger.info(f"{len(rows)} Benachrichtigungen als abgelaufen markiert")
+                logger.info(f"🔔 {len(rows)} Benachrichtigungen als abgelaufen markiert")
         except Exception as e:
-            logger.error(f"expire_old_notifications error: {e}")
+            logger.error(f"❌ expire_old_notifications error: {e}")
 
     @expire_old_notifications.before_loop
     async def before_expire(self):
         await self.bot.wait_until_ready()
 
-    # ── DB-Optimierung wöchentlich ─────────────────────────────────────────────
+    # ── DB-Optimierung wöchentlich ────────────────────────────────────────────
     @tasks.loop(hours=168)
     async def optimize_db(self):
         try:
             await execute_db(self.bot, "VACUUM", commit=True)
             await execute_db(self.bot, "ANALYZE", commit=True)
-            logger.info("DB VACUUM + ANALYZE abgeschlossen")
+            logger.info("🗄️ DB VACUUM + ANALYZE abgeschlossen")
         except Exception as e:
-            logger.error(f"optimize_db error: {e}")
+            logger.error(f"❌ optimize_db error: {e}")
 
     @optimize_db.before_loop
     async def before_optimize(self):
@@ -204,7 +204,7 @@ class TasksCog(commands.Cog, name="Tasks"):
                 )
             )
         except Exception as e:
-            logger.debug(f"update_bot_status error: {e}")
+            logger.debug(f"🔍 update_bot_status error: {e}")
 
     @update_bot_status.before_loop
     async def before_status(self):

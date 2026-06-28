@@ -8,10 +8,11 @@
 
 ### Zweck
 
-Der Bot kombiniert zwei Funktionen für die AAM-Community:
+Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 
 - **Bewertungs-Bot** – erkennt Shop-Bewertungen im dafür vorgesehenen Kanal, wertet sie automatisch mit KI aus und trägt sie in eine gemeinschaftliche Bewertungsübersicht ein.
-- **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist.
+- **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist. Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung.
+- **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird.
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht.
 
@@ -19,13 +20,13 @@ Der Bot kombiniert zwei Funktionen für die AAM-Community:
 
 - Der Bot steht allen Mitgliedern des AAM-Discord-Servers kostenlos zur Verfügung.
 - Es dürfen ausschließlich echte, selbst erlebte Einkaufserfahrungen bewertet werden.
-- Verfügbarkeitsbenachrichtigungen dienen dem persönlichen Gebrauch und dürfen nicht automatisiert abgefragt werden.
+- Verfügbarkeitsbenachrichtigungen und Preis-Tracking dienen dem persönlichen Gebrauch und dürfen nicht automatisiert abgefragt werden.
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
 - Der AI-Chat-Bot ist im AAM Discord aktuell nicht öffentlich zugänglich. Sobald er aktiviert wird, gilt: Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
 
 ### Haftung
 
-Der Bot wird ohne Gewähr betrieben. Für die Richtigkeit der eingetragenen Bewertungen oder der angezeigten Verfügbarkeitsdaten übernimmt der Betreiber keine Haftung. Technische Ausfälle oder Fehler bei der Datenerfassung begründen keine Ansprüche.
+Der Bot wird ohne Gewähr betrieben. Für die Richtigkeit der eingetragenen Bewertungen, der angezeigten Verfügbarkeitsdaten oder der angezeigten Preise übernimmt der Betreiber keine Haftung. Preisangaben (inkl. EUR-Umrechnung via Frankfurter API) sind unverbindlich und können von tatsächlichen Preisen abweichen. Technische Ausfälle oder Fehler bei der Datenerfassung begründen keine Ansprüche.
 
 ### Änderungen
 
@@ -66,6 +67,19 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 
 **Nicht** gespeichert werden: Nutzernamen, Profilbilder, Rollen oder sonstige Metadaten.
 
+#### Preis-Tracking
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID | Zuordnung der Tracking-Einträge zur Person | Lokale SQLite-Datenbank auf dem Server (`antcheckbot.db`) |
+| Produkt-ID, Produkttitel, Produkt-URL | Identifikation des beobachteten Produkts | Lokale SQLite-Datenbank auf dem Server |
+| Shop-Name, Shop-ID | Zuordnung zum jeweiligen Shop | Lokale SQLite-Datenbank auf dem Server |
+| Währungskürzel (ISO) | Darstellung und Umrechnung der Preise | Lokale SQLite-Datenbank auf dem Server |
+| Zuletzt gemeldeter Preis (min/max) | Erkennung von Preisänderungen (Vergleichswert) | Lokale SQLite-Datenbank auf dem Server |
+| Datum des Tracking-Starts | Transparenz für den Nutzer | Lokale SQLite-Datenbank auf dem Server |
+
+Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Datenbank, die vom Grabber-Skript befüllt wird. Diese Daten enthalten keine personenbezogenen Informationen. Wechselkurse für die EUR-Umrechnung werden von der [Frankfurter API](https://www.frankfurter.app) abgerufen (keine personenbezogenen Daten übermittelt, 6-Stunden-Cache).
+
 #### AI-Chat-Bot
 
 | Daten | Zweck | Speicherort |
@@ -102,8 +116,13 @@ Gesprächsverläufe werden lokal für **maximal 24 Stunden** zwischengespeichert
 
 #### Google (Tabellenspeicherung)
 
-Ausgewertete Bewertungen werden in Google Sheets (Deutschland) gespeichert.  
+Ausgewertete Bewertungen und iNat-Daten werden in Google Sheets (Deutschland) gespeichert.  
 → Datenschutz: https://policies.google.com/privacy
+
+#### Frankfurter API (Währungskurse)
+
+Zur EUR-Umrechnung von Preisen werden aktuelle Wechselkurse von `api.frankfurter.app` abgerufen. Es werden dabei **keine personenbezogenen Daten** übermittelt – die Anfrage enthält nur den Basiswährungscode (EUR). Kurse werden 6 Stunden im Speicher gecacht.  
+→ https://www.frankfurter.app
 
 #### AntCheck API
 
@@ -124,6 +143,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **Bewertungsdaten** werden so lange gespeichert wie die Community besteht.
 - **Benachrichtigungseinstellungen** werden auf Wunsch des Nutzers per `/delete_notifications` jederzeit gelöscht.
 - **Gesehene Produkte und Blacklist** werden zusammen mit den zugehörigen Benachrichtigungen entfernt.
+- **Preis-Tracking-Einstellungen** (beobachtete Produkte, Baseline-Preise) werden auf Wunsch per `/untrack_price` jederzeit entfernt.
 - **AI-Chat-Konversationsverläufe** werden automatisch nach **24 Stunden** gelöscht (oder sofort wenn du nicht auf eine Bot-Antwort antwortest).
 - **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
@@ -133,6 +153,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 Du hast jederzeit das Recht auf **Auskunft, Berichtigung oder Löschung** deiner Daten.
 
 - Benachrichtigungen und zugehörige Einstellungen kannst du selbst per `/delete_notifications` löschen.
+- Preis-Tracking-Einträge kannst du selbst per `/untrack_price` entfernen.
 - Für alle weiteren Anfragen (Auskunft, manuelle Löschung) wende dich an:  
   📧 aam-bot@proton.me
 
@@ -140,7 +161,7 @@ Da Bewertungen anonym erfasst werden, ist eine Zuordnung zu einzelnen Personen d
 
 ### Rechtsgrundlage
 
-Die Verarbeitung erfolgt auf Grundlage des berechtigten Interesses (Art. 6 Abs. 1 lit. f DSGVO) – nämlich den Betrieb einer gemeinschaftlichen, anonymen Shop-Bewertungsplattform sowie eines personalisierten Verfügbarkeitsdienstes für die AAM-Community.
+Die Verarbeitung erfolgt auf Grundlage des berechtigten Interesses (Art. 6 Abs. 1 lit. f DSGVO) – nämlich den Betrieb einer gemeinschaftlichen, anonymen Shop-Bewertungsplattform sowie eines personalisierten Verfügbarkeits- und Preis-Tracking-Dienstes für die AAM-Community.
 
 ---
 

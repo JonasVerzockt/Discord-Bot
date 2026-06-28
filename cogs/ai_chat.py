@@ -51,7 +51,7 @@ from utils.sheets_shop_data import refresh as refresh_shop_data
 logger = logging.getLogger(__name__)
 
 
-# ── Hilfsfunktion fuer Budget-Fortschrittsbalken ─────────────────────────────
+# ── Hilfsfunktion fuer Budget-Fortschrittsbalken ──────────────────────────────
 
 def _bar(pct: float, width: int = 10) -> str:
     """Erzeugt einen einfachen Textfortschrittsbalken."""
@@ -59,7 +59,7 @@ def _bar(pct: float, width: int = 10) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
-# ── Cog ──────────────────────────────────────────────────────────────────────
+# ── Cog ───────────────────────────────────────────────────────────────────────
 
 class AiChatCog(commands.Cog):
     """
@@ -80,33 +80,33 @@ class AiChatCog(commands.Cog):
         self.cleanup_loop.cancel()
         self.shop_data_loop.cancel()
 
-    # ── Hintergrundtask: abgelaufene Konversationen loeschen ────────────────
+    # ── Hintergrundtask: abgelaufene Konversationen loeschen ──────────────────
 
     @tasks.loop(hours=6)
     async def cleanup_loop(self) -> None:
         deleted = cleanup_expired_conversations()
         if deleted:
-            logger.info(f"[AI-Chat] Cleanup: {deleted} abgelaufene Konversationen geloescht")
+            logger.info(f"🤖 [AI-Chat] Cleanup: {deleted} abgelaufene Konversationen gelöscht")
 
     @cleanup_loop.before_loop
     async def _before_cleanup(self) -> None:
         await self.bot.wait_until_ready()
 
-    # ── Hintergrundtask: Shop-Daten aus Google Sheets laden ─────────────────
+    # ── Hintergrundtask: Shop-Daten aus Google Sheets laden ───────────────────
 
     @tasks.loop(hours=6)
     async def shop_data_loop(self) -> None:
         ok = refresh_shop_data()
         if ok:
-            logger.info("[AI-Chat] Shop-Daten aus Google Sheets aktualisiert")
+            logger.info("🤖 [AI-Chat] Shop-Daten aus Google Sheets aktualisiert")
         else:
-            logger.debug("[AI-Chat] Shop-Daten nicht aktualisiert (nicht konfiguriert oder Fehler)")
+            logger.debug("🔍 [AI-Chat] Shop-Daten nicht aktualisiert (nicht konfiguriert oder Fehler)")
 
     @shop_data_loop.before_loop
     async def _before_shop_data(self) -> None:
         await self.bot.wait_until_ready()
 
-    # ── Hilfsmethoden ────────────────────────────────────────────────────────
+    # ── Hilfsmethoden ─────────────────────────────────────────────────────────
 
     def _is_ai_channel(self, channel_id: int) -> bool:
         """True wenn der Kanal ein konfigurierter AI-Chat-Kanal ist."""
@@ -218,7 +218,7 @@ class AiChatCog(commands.Cog):
                             f"[Dateiinhalt: {attachment.filename}]\n{file_text}"
                         )
                 except Exception as e:
-                    logger.warning(f"[AI-Chat] Textanhang Lesefehler: {e}")
+                    logger.warning(f"⚠️ [AI-Chat] Textanhang Lesefehler: {e}")
 
             # Unbekannte Dateitypen ablehnen
             elif ext not in image_exts:
@@ -245,7 +245,7 @@ class AiChatCog(commands.Cog):
                     img_bytes = await attachment.read()
                     images.append((img_bytes, image_mime[ext]))
                 except Exception as e:
-                    logger.warning(f"[AI-Chat] Bildanhang Lesefehler: {e}")
+                    logger.warning(f"⚠️ [AI-Chat] Bildanhang Lesefehler: {e}")
 
         if not user_text:
             return
@@ -281,7 +281,7 @@ class AiChatCog(commands.Cog):
                 else:
                     sent_msg = await message.channel.send(chunk)
             except discord.HTTPException as e:
-                logger.error(f"[AI-Chat] Sendefehler: {e}")
+                logger.error(f"❌ [AI-Chat] Sendefehler: {e}")
                 break
 
         # Konversations-Historie speichern (nur bei Erfolg und bekannter Msg-ID)

@@ -36,7 +36,7 @@ from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
 
-# ── Hilfsfunktion ──────────────────────────────────────────────────────────────
+# ── Hilfsfunktion ─────────────────────────────────────────────────────────────
 
 async def _split_message(text: str, max_length: int = 2000) -> list[str]:
     lines, blocks, current = text.split("\n"), [], ""
@@ -50,7 +50,7 @@ async def _split_message(text: str, max_length: int = 2000) -> list[str]:
     return blocks
 
 
-# ── Cog ────────────────────────────────────────────────────────────────────────
+# ── Cog ───────────────────────────────────────────────────────────────────────
 
 class UserSettingsCog(commands.Cog, name="UserSettings"):
 

@@ -64,7 +64,7 @@ import config as cfg
 
 logger = logging.getLogger(__name__)
 
-# ── Preise pro Modell (Stand: Juni 2026) ─────────────────────────────────────
+# ── Preise pro Modell (Stand: Juni 2026) ──────────────────────────────────────
 # Quelle: https://docs.anthropic.com/en/docs/about-claude/pricing
 # Format: (input_usd_per_token, output_usd_per_token)
 _MODEL_PRICES: dict[str, tuple[float, float]] = {
@@ -192,7 +192,7 @@ async def _classify_shop_haiku(message: str) -> dict:
         return {"needs_shop": True, "cost": 0.0}
 
 
-# ── DB-Initialisierung (selbstaendig, kein Eingriff in db.py noetig) ─────────
+# ── DB-Initialisierung (selbstaendig, kein Eingriff in db.py noetig) ──────────
 
 def init_ai_chat_tables() -> None:
     """Legt die benotigten Tabellen an, falls sie noch nicht existieren."""

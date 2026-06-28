@@ -15,31 +15,17 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-utils/db.py – SQLite-Datenbankhelfer für den AAM Discord Bot.
+utils/db.py - SQLite-Datenbankhelfer für den AAM Discord Bot.
 
 Enthält:
-  • execute_db()  – async Wrapper mit ThreadPoolExecutor
-  • init_db()     – legt alle Tabellen an (idempotent)
+  * execute_db()  - async Wrapper mit ThreadPoolExecutor
+  * init_db()     - legt alle Tabellen an (idempotent)
 
-Vollständiges Schema:
-  server_settings      – Kanal + Sprache pro Server
-  user_settings        – Sprache pro User
-  shops                – Shopdaten inkl. Bewertung
-  notifications        – Benachrichtigungen (active/completed/expired)
-  user_shop_blacklist  – Blacklist pro User
-  shop_name_mappings   – Externer Shopname → interne Shop-ID
-  server_user_mappings – Welcher User ist auf welchem Server aktiv
-  user_seen_products   – Bereits gemeldete Produkte (Deduplizierung)
-  global_stats         – Gesamtstatistiken (z.B. gelöschte Benachrichtigungen)
-  server_info          – Server-Metadaten
-  eu_countries         – EU-Ländercodes
-  review_tracking      – Discord-Nachrichten-ID → Sheet-Zeilennummer
-  review_pending       – Ausstehende Nachrichten (unaufgelöste Shops / Fehler)
-
-Verwendung:
-    from utils.db import execute_db, init_db
-    await init_db(bot)
-    rows = await execute_db(bot, "SELECT * FROM shops", fetch=True)
+Schema:
+  server_settings, user_settings, shops, notifications,
+  user_shop_blacklist, shop_name_mappings, server_user_mappings,
+  user_seen_products, global_stats, server_info, eu_countries,
+  review_tracking, review_pending, user_price_tracking
 """
 import sqlite3
 import logging
@@ -52,14 +38,14 @@ logger    = logging.getLogger(__name__)
 
 async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = False, fetch: bool = False):
     """
-    Führt eine SQLite-Query in einem Thread-Pool aus (non-blocking).
+    Fuehrt eine SQLite-Query in einem Thread-Pool aus (non-blocking).
 
     Args:
-        bot:    discord.Bot-Instanz (für bot.loop)
+        bot:    discord.Bot-Instanz (fuer bot.loop)
         query:  SQL-Query
         params: Query-Parameter
-        commit: True → schreibende Operation
-        fetch:  True → gibt fetchall() zurück
+        commit: True -> schreibende Operation
+        fetch:  True -> gibt fetchall() zurueck
 
     Returns:
         list[sqlite3.Row] wenn fetch=True, sonst rowcount (int)
@@ -76,7 +62,7 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
                 return cur.fetchall()
             return cur.rowcount
         except Exception as e:
-            logger.error(f"DB error | query={query!r} params={params} | {e}")
+            logger.error(f"❌ DB error | query={query!r} params={params} | {e}")
             raise
         finally:
             conn.close()
@@ -84,7 +70,7 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
     return await bot.loop.run_in_executor(_executor, _sync)
 
 
-# ── Schema ──────────────────────────────────────────────────────────────────────
+# ── Schema ────────────────────────────────────────────────────────────────────
 _SCHEMA = """
 -- AntCheckBot-Tabellen
 CREATE TABLE IF NOT EXISTS server_settings (
@@ -165,7 +151,7 @@ CREATE TABLE IF NOT EXISTS eu_countries (
     code TEXT PRIMARY KEY
 );
 
--- Review-Bot-Tabellen (ersetzt JSON-Flatfiles)
+-- Review-Bot-Tabellen
 CREATE TABLE IF NOT EXISTS review_tracking (
     message_id TEXT    PRIMARY KEY,
     sheet_row  INTEGER NOT NULL
@@ -175,6 +161,22 @@ CREATE TABLE IF NOT EXISTS review_pending (
     message_id TEXT PRIMARY KEY,
     reason     TEXT NOT NULL,
     identifier TEXT DEFAULT ''
+);
+
+-- Preis-Tracking: User -> beobachtete Produkte
+CREATE TABLE IF NOT EXISTS user_price_tracking (
+    user_id           TEXT    NOT NULL,
+    product_id        INTEGER NOT NULL,
+    species           TEXT    NOT NULL DEFAULT '',
+    product_title     TEXT    NOT NULL DEFAULT '',
+    product_url       TEXT    NOT NULL DEFAULT '',
+    shop_name         TEXT    NOT NULL DEFAULT '',
+    shop_id           TEXT    NOT NULL DEFAULT '',
+    currency_iso      TEXT    NOT NULL DEFAULT 'EUR',
+    last_notified_min REAL,
+    last_notified_max REAL,
+    added_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, product_id)
 );
 """
 
@@ -197,7 +199,7 @@ async def init_db(bot) -> None:
             try:
                 conn.execute("ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL")
                 conn.commit()
-                logger.info("DB-Migration: shops.url_override Spalte hinzugefügt")
+                logger.info("🔄 DB-Migration: shops.url_override Spalte hinzugefügt")
             except Exception:
                 pass  # Spalte bereits vorhanden
             # EU-Länder nur einmalig befüllen

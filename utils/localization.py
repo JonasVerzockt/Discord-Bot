@@ -46,9 +46,9 @@ class Localization:
             try:
                 with open(f, encoding="utf-8") as fh:
                     self._langs[lang] = json.load(fh)
-                logger.debug(f"Sprache geladen: {lang}")
+                logger.debug(f"🔍 Sprache geladen: {lang}")
             except Exception as e:
-                logger.error(f"Fehler beim Laden von {f}: {e}")
+                logger.error(f"❌ Fehler beim Laden von {f}: {e}")
 
     def get(self, key: str, lang: str = "en", **kwargs) -> str:
         """
@@ -63,7 +63,7 @@ class Localization:
         try:
             return text.format(**kwargs)
         except KeyError as e:
-            logger.error(f"l10n: Fehlender Platzhalter {e} in Key '{key}'")
+            logger.error(f"❌ l10n: Fehlender Platzhalter {e} in Key '{key}'")
             return text
 
 
@@ -100,6 +100,6 @@ async def get_user_lang(bot, user_id: int | str, server_id: int | str | None) ->
             if rows:
                 return rows[0]["language"]
     except Exception as e:
-        logger.error(f"get_user_lang error (user={user_id}): {e}")
+        logger.error(f"❌ get_user_lang error (user={user_id}): {e}")
 
     return "en"

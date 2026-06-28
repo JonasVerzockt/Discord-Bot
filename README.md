@@ -1,9 +1,10 @@
 # AAM Discord Bot
 
-Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert zwei eigenständige Funktionen in einem Bot:
+Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
-- **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist
+- **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
+- **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis nach oben oder unten verändert; interaktive Auswahl über Shop → Produkt → Bestätigen
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 
@@ -43,7 +44,7 @@ pip install -r requirements.txt
 | `anthropic>=0.25.0` | Claude Haiku KI-Parser |
 | `gspread>=6.0.0` | Google Sheets |
 | `google-auth>=2.0.0` | Google Auth |
-| `requests>=2.31.0` | HTTP (Grabber) |
+| `requests>=2.31.0` | HTTP (Grabber + Frankfurter Währungs-API) |
 | `rapidfuzz>=3.0.0` | Fuzzy Shop-Matching |
 | `psutil>=5.9.0` | System-Stats (`/system`) |
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
@@ -86,7 +87,7 @@ DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
 PYTHONUNBUFFERED=1
 ```
 
-Alle Limits (Eingabetechenanzahl, Output-Tokens, Konversationsgedächtnis, TTL) haben sinnvolle Defaults und müssen nur gesetzt werden wenn sie angepasst werden sollen – siehe `.env.example`.
+Alle Limits (Eingabezeichenanzahl, Output-Tokens, Konversationsgedächtnis, TTL) haben sinnvolle Defaults und müssen nur gesetzt werden wenn sie angepasst werden sollen – siehe `.env.example`.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
@@ -207,7 +208,15 @@ Für alle `active`-Benachrichtigungen:
 
 **4. DM bei Fund**
 
-Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Bei mehr als ~2000 Zeichen werden mehrere DMs gesendet. Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal.
+Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache):
+
+```
+34.49CAD (ca. 23.50€)
+10.00-20.00CAD (ca. 6.80-13.60€)
+59.99EUR
+```
+
+Bei mehr als ~2000 Zeichen werden mehrere DMs gesendet. Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal.
 
 **5. Feedback nach DM**
 
@@ -222,6 +231,38 @@ Der Bot fragt per DM nach (48h Wartefenster):
 **6. Jahres-Ablauf**
 
 Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `expired` markiert und der User bekommt eine Abschluss-DM.
+
+---
+
+## Preis-Tracking
+
+Ergänzend zur Verfügbarkeitsbenachrichtigung können User einzelne Produkte dauerhaft beobachten und werden automatisch per DM informiert, wenn sich der Preis verändert – unabhängig von Verfügbarkeit oder Region.
+
+### Ablauf
+
+**1. `/track_price species:<Art oder Gattung>` aufrufen**
+
+Der Bot sucht alle Produkte (auch aktuell nicht verfügbare) zur angegebenen Art oder Gattung in `shops_data.json`. Falls Produkte gefunden werden, startet eine interaktive 3-Schritt-Auswahl per Discord-Menü:
+
+1. **Shop auswählen** – Dropdown mit allen Shops, die passende Produkte haben (max. 25)
+2. **Produkte auswählen** – Multi-Select-Dropdown der Produkte im gewählten Shop (max. 25); für jedes Produkt wird der aktuelle Preis aus `price_history.db` angezeigt
+3. **Bestätigen** – Schaltflächen „Bestätigen" / „Abbrechen"; nach Bestätigung wird der aktuelle Preis als Baseline gesetzt
+
+Die Interaktion ist ephemeral (nur für den ausführenden User sichtbar) und läuft automatisch nach 3 Minuten ohne Eingabe ab.
+
+**2. Hintergrund-Check (stündlich)**
+
+Alle ~65 Minuten vergleicht der Bot den aktuellen Preis aus `price_history.db` mit dem zuletzt notierten Preis (`last_notified_min/max`):
+- Kein Preis bisher gesetzt → Baseline setzen, keine DM
+- Preis gesunken → DM mit 📉 (günstiger)
+- Preis gestiegen → DM mit 📈 (teurer)
+- Kein neuer Preis in DB → keine Aktion
+
+Nach jeder Benachrichtigung wird der neue Preis als Baseline gespeichert.
+
+**3. DM-Fallback**
+
+Falls DMs des Users blockiert sind, wird der Server-Kanal als Fallback genutzt (gleiches Verhalten wie bei der Verfügbarkeitsbenachrichtigung).
 
 ---
 
@@ -270,47 +311,48 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 
 ### Für alle User (nur im Bot-Kanal)
 
-| Befehl | Beschreibung |
-|--------|-------------|
-| `/notification` | Verfügbarkeitsbenachrichtigung einrichten (Art oder Gattung, Regionen, CH-only, Ausschlüsse) |
-| `/delete_notifications` | Eigene Benachrichtigungen per ID löschen |
-| `/history` | Eigene Benachrichtigungshistorie anzeigen (letzte 20) |
-| `/testnotification` | Test-DM an sich selbst senden |
-| `/usersetting language` | Eigene Sprache setzen (de / en / eo) |
-| `/usersetting blacklist_add` | Shop von Benachrichtigungen ausschließen (Fuzzy-Match) |
-| `/usersetting blacklist_remove` | Shop wieder einschließen |
-| `/usersetting blacklist_list` | Eigene Blacklist anzeigen |
-| `/usersetting shop_list` | Alle Shops anzeigen, optional nach Land filtern |
-| `/ch_delivery add` | Shop zur CH-Lieferliste hinzufügen |
-| `/ch_delivery list` | CH-Lieferliste anzeigen |
-| `/ai_status` | Eigenen KI-Chat Budget-Status anzeigen (globales + persönliches Tagesbudget) |
-| `/help` | Befehlsübersicht |
+| Befehl | Parameter | Beschreibung |
+|--------|-----------|-------------|
+| `/notification` | `species` oder `genus` (Pflicht, nicht beides), `regions` (z.B. `de,at` oder `eu`), `swiss_only`, `exclude_species`, `force` | Verfügbarkeitsbenachrichtigung einrichten. `regions: eu` wird automatisch auf alle EU-Ländercodes aufgelöst. `exclude_species` schließt bestimmte Arten innerhalb einer Gattungs-Suche aus. `force: True` überspringt die Prüfung ob die Art in der DB vorkommt. |
+| `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. |
+| `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). |
+| `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. |
+| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung: zuerst Shop-Auswahl per Dropdown, dann Produkt-Auswahl (Mehrfachauswahl möglich), dann Bestätigung. Aktueller Preis wird als Baseline gesetzt – Benachrichtigung erfolgt nur bei zukünftigen Preisänderungen. |
+| `/my_price_tracking` | – | Listet alle aktuell beobachteten Produkte mit dem zuletzt notierten Preis, dem aktuellen Preis aus der Preishistorie und dem Datum der letzten Benachrichtigung. |
+| `/untrack_price` | – | Zeigt alle beobachteten Produkte als Multi-Select-Dropdown und entfernt die ausgewählten aus dem Tracking. |
+| `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. |
+| `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. |
+| `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. |
+| `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). |
+| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen, optional nach Länderkürzel gefiltert. Zeigt Name, URL und AAM-Rating. |
+| `/ch_delivery add` | `shop` | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. |
+| `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. |
+| `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. |
+| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). |
 
 ### Nur Admin / Nachrichten verwalten
 
-| Befehl | Beschreibung |
-|--------|-------------|
-| `/startup` | Bot-Kanal und Sprache für diesen Server festlegen |
-| `/status` | Bewertungsanzahl / verarbeitet / ausstehend |
-| `/pending` | Ausstehende Nachrichten auflisten (🟡) |
-| `/test` | KI-Parser testen ohne Sheet-Eintrag |
-| `/rescan` | Letzte 90 Tage manuell neu abgleichen |
-| `/reprocess` | Bewertungsnachricht(en) neu verarbeiten – eine oder mehrere Message-IDs (leerzeichen-/kommagetrennt); mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt |
-| `/export` | Sheet-Rohdaten als JSON anzeigen (erste 50 Zeilen) |
-| `/stats` | Benachrichtigungsstatistiken + Top-Arten |
-| `/system` | Systemstatus (Uptime, CPU, RAM, DB, Shop-Datei-Alter) |
-| `/reloadshops` | `shops_data.json` neu einlesen und DB aktualisieren |
-| `/shopmapping add` | Externen Shopnamen → interne Shop-ID mappen |
-| `/shopmapping show` | Alle Mappings anzeigen |
-| `/shopmapping remove` | Mapping löschen |
-| `/shopurl set` | Manuelle URL für einen Shop setzen (überschreibt API-URL dauerhaft) |
-| `/shopurl clear` | Manuelle URL entfernen (API-URL wird wieder genutzt) |
-| `/shopurl list` | Alle aktiven URL-Overrides anzeigen |
-| `/ch_delivery remove` | Shop aus CH-Lieferliste entfernen |
-| `/ai_reset` | KI-Chat Budget für einen User oder global zurücksetzen |
-| `/ai_prompt` | System-Prompt des KI-Chats anzeigen – in der eigenen Sprache des Users |
-
-> **Hinweis zu `/ch_delivery remove`:** Jeder User kann seine eigenen Einträge entfernen. Admins und User mit „Nachrichten verwalten" können alle Einträge entfernen.
+| Befehl | Parameter | Beschreibung |
+|--------|-----------|-------------|
+| `/startup` | `language` (`de`/`en`/`eo`), `channel` | Bot-Kanal und Sprache für diesen Server festlegen. Muss einmalig pro Server aufgerufen werden. |
+| `/status` | – | Zeigt Anzahl verarbeiteter Bewertungen, ausstehende (🟡) und fehlgeschlagene (🔴) Nachrichten. |
+| `/pending` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. |
+| `/test` | `message_id` | KI-Parser testen ohne Sheet-Eintrag. Zeigt was die KI aus der Nachricht extrahieren würde. |
+| `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. |
+| `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). |
+| `/export` | – | Gibt die ersten 50 Zeilen der Sheet-Rohdaten als JSON aus (zum Debuggen). |
+| `/stats` | – | Benachrichtigungsstatistiken: Gesamtanzahl, aktive, abgelaufene, Top-10-gesuchte Arten. |
+| `/system` | – | Systemstatus: Uptime, CPU-Auslastung, RAM-Verbrauch, DB-Größe, Alter der `shops_data.json`, Bot-Version. |
+| `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). |
+| `/shopmapping add` | `external_name`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. |
+| `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. |
+| `/shopmapping remove` | `external_name` | Mapping löschen. |
+| `/shopurl set` | `shop_id`, `url` | Manuelle URL für einen Shop setzen. Überschreibt die API-URL dauerhaft und überlebt stündliche Shop-Reloads. Nützlich wenn die API eine falsche Domain liefert. |
+| `/shopurl clear` | `shop_id` | Manuelle URL-Override entfernen – API-URL wird wieder genutzt. |
+| `/shopurl list` | – | Alle aktiven URL-Overrides anzeigen. |
+| `/ch_delivery remove` | `shop_id` | Shop aus CH-Lieferliste entfernen. Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. |
+| `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. |
+| `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. |
 
 ---
 
@@ -318,10 +360,11 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 
 | Task | Intervall | Beschreibung |
 |------|-----------|-------------|
-| Verfügbarkeitsprüfung | alle 5 Minuten | Prüft alle `active`-Benachrichtigungen |
+| Verfügbarkeitsprüfung | alle 5 Minuten | Prüft alle `active`-Benachrichtigungen gegen `shops_data.json` |
+| Preis-Check | alle ~65 Minuten | Vergleicht aktuelle Preise aus `price_history.db` mit gespeicherten Baselines; sendet DM bei Preisänderung |
 | Shop-Daten-Reload | stündlich | Liest `shops_data.json` neu, schreibt Shops in DB (ohne `average_rating` und `url_override` zu überschreiben) |
 | Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
-| Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` |
+| Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` und sendet Abschluss-DM |
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
 | Bot-Status | jede Minute | Aktualisiert den Discord-Status (Uptime, Server, User) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
@@ -377,6 +420,8 @@ Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Läd
 
 Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename).
 
+Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` (Tabelle `product_price_history`) – diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
+
 **Empfohlener Cron-Job (stündlich):**
 
 ```cron
@@ -385,7 +430,9 @@ Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename).
 
 ---
 
-## Datenbank (`antcheckbot.db`)
+## Datenbank
+
+### `antcheckbot.db` (Bot-Datenbank)
 
 SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 
@@ -400,12 +447,17 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `ch_delivery_shops` | Shops die nach CH liefern (manuell hinzugefügt) |
 | `server_user_mappings` | User → Server-Zuordnung (für DM-Fallback) |
 | `user_seen_products` | Bereits gemeldete Produkt-IDs (Deduplizierung) |
+| `user_price_tracking` | Preis-Tracking: User → beobachtete Produkte mit Baseline-Preis und letzter Benachrichtigung |
 | `review_tracking` | Discord-Nachrichten-ID → Sheet-Zeilennummer |
 | `review_pending` | Ausstehende Nachrichten (unaufgelöster Shop / Parse-Fehler) |
 | `global_stats` | Gesamtstatistiken (z.B. gelöschte Benachrichtigungen) |
 | `eu_countries` | EU-Ländercodes (beim Start einmalig befüllt) |
 | `ai_chat_budget` | KI-Chat Tagesbudgets pro User (date, user_id, cost_usd) |
 | `ai_chat_history` | KI-Gesprächshistorie pro Bot-Nachricht-ID (TTL: 24h) |
+
+### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
+
+Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `product_price_history` mit dem Preisverlauf aller Produkte (product_id, min_price, max_price, currency_iso, recorded_at).
 
 ---
 
@@ -415,13 +467,14 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 .
 ├── main.py                  # Einstiegspunkt – lädt alle Cogs
 ├── config.py                # Zentrale Konfiguration + Umgebungsvariablen
-├── grabber.py               # AntCheck API → shops_data.json (Cron-Job)
+├── grabber.py               # AntCheck API → shops_data.json + price_history.db
 ├── service_account.json     # Google Service Account (nicht im Git)
 ├── .env                     # Umgebungsvariablen (nicht im Git)
 ├── .env.example             # Vorlage
 ├── requirements.txt
 ├── shops_data.json          # Von grabber.py erzeugt (nicht im Git)
-├── antcheckbot.db           # SQLite-Datenbank (nicht im Git)
+├── antcheckbot.db           # SQLite Bot-Datenbank (nicht im Git)
+├── price_history.db         # SQLite Preishistorie – vom Grabber befüllt (nicht im Git)
 ├── shop_mapping.csv         # Manuelles Shop-Mapping (nicht im Git)
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
 ├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
@@ -434,15 +487,17 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 │   ├── admin.py             # /status /pending /test /rescan /reprocess /export
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
+│   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task
 │   ├── stats.py             # /stats /system /help
 │   ├── shop_admin.py        # /reloadshops /shopmapping /shopurl /ch_delivery
 │   ├── tasks.py             # Alle Hintergrundaufgaben
-│   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset
+│   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset, /ai_prompt
 │   └── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
 │   ├── availability.py      # Verfügbarkeitsprüfung gegen shops_data.json
+│   ├── currency.py          # Währungsumrechnung via Frankfurter API (6h Cache)
 │   ├── sheet.py             # Google Sheets Cache (SheetCache) + Rating-Sync
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)

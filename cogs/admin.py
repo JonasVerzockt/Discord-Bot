@@ -64,7 +64,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 ephemeral=True,
             )
         except Exception as e:
-            logger.error(f"status error: {e}")
+            logger.error(f"❌ status error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
     @discord.slash_command(name="pending", description="List pending messages (Admin/Mod)")
@@ -109,7 +109,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 ephemeral=True,
             )
         except Exception as e:
-            logger.error(f"test error: {e}")
+            logger.error(f"❌ test error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
     @discord.slash_command(name="rescan", description="Manually re-reconcile last N days (Admin/Mod)")
@@ -158,7 +158,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 msg = l10n.get("admin_export_too_long", lang, rows=row_count)
             await ctx.respond(msg, ephemeral=True)
         except Exception as e:
-            logger.error(f"export error: {e}")
+            logger.error(f"❌ export error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
 
@@ -240,7 +240,7 @@ class AdminCog(commands.Cog, name="Admin"):
             )
             logger.info(f"♻️  Reprocess OK: {ids_str} → {shop}")
         except Exception as e:
-            logger.error(f"reprocess error {raw_ids}: {e}")
+            logger.error(f"❌ reprocess error {raw_ids}: {e}")
             await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
 

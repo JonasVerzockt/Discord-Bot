@@ -30,11 +30,11 @@ from config import DISCORD_TOKEN
 from utils.logging_setup import setup_logging
 from utils.db import init_db
 
-# ── Logging früh einrichten ────────────────────────────────────────────────────
+# ── Logging früh einrichten ───────────────────────────────────────────────────
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# ── Bot-Konfiguration ──────────────────────────────────────────────────────────
+# ── Bot-Konfiguration ─────────────────────────────────────────────────────────
 intents                  = discord.Intents.default()
 intents.message_content  = True
 intents.members          = True
@@ -42,7 +42,7 @@ intents.reactions        = True
 
 bot = discord.Bot(intents=intents)
 
-# ── Alle Cogs ──────────────────────────────────────────────────────────────────
+# ── Alle Cogs ─────────────────────────────────────────────────────────────────
 INITIAL_COGS = [
     "cogs.server_settings",   # /startup, guild events, allowed_channel/admin decorators
     "cogs.reviews",           # on_message / on_message_edit / on_raw_reaction_add
@@ -54,6 +54,7 @@ INITIAL_COGS = [
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
     "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
     "cogs.inat_tracker",      # iNaturalist-Links → Google Sheets
+    "cogs.price_tracking",    # /track_price /my_price_tracking /untrack_price + stündl. Preischeck
 ]
 
 

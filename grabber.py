@@ -42,7 +42,7 @@ from pathlib import Path
 import requests
 import urllib3
 
-# -- Logging -------------------------------------------------------------------
+# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -50,7 +50,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("grabber")
 
-# -- Konfiguration -------------------------------------------------------------
+# ── Konfiguration ─────────────────────────────────────────────────────────────
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -74,7 +74,7 @@ if not API_VERIFY_SSL:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-# -- HTTP-Helfer ---------------------------------------------------------------
+# ── HTTP-Helfer ───────────────────────────────────────────────────────────────
 
 def _fetch_json(url: str) -> dict | list:
     """Holt JSON von der URL mit Retry-Logik."""
@@ -84,13 +84,13 @@ def _fetch_json(url: str) -> dict | list:
             resp.raise_for_status()
             return resp.json()
         except requests.RequestException as e:
-            logger.warning(f"Versuch {attempt}/{API_RETRIES} fehlgeschlagen: {e}")
+            logger.warning(f"⚠️ Versuch {attempt}/{API_RETRIES} fehlgeschlagen: {e}")
             if attempt < API_RETRIES:
                 time.sleep(API_RETRY_DELAY)
     raise RuntimeError(f"API nach {API_RETRIES} Versuchen nicht erreichbar: {url.split('?')[0]}")
 
 
-# -- Datenverarbeitung ---------------------------------------------------------
+# ── Datenverarbeitung ─────────────────────────────────────────────────────────
 
 def build_shop_map(shops_raw: list) -> dict:
     """Baut die Shop-Map aus der Shops-API-Antwort auf."""
@@ -133,7 +133,7 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
         })
 
 
-# -- Preis-Tracking ------------------------------------------------------------
+# ── Preis-Tracking ────────────────────────────────────────────────────────────
 
 _PRICE_HISTORY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS product_price_history (
@@ -204,24 +204,24 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
         conn.close()
 
 
-# -- Hauptprogramm -------------------------------------------------------------
+# ── Hauptprogramm ─────────────────────────────────────────────────────────────
 
 def main():
     if not API_KEY:
-        logger.error("ANTCHECK_API_KEY ist nicht gesetzt – abbruch.")
+        logger.error("❌ ANTCHECK_API_KEY ist nicht gesetzt – abbruch.")
         sys.exit(1)
 
     start = time.monotonic()
-    logger.info(f"Starte AntCheck Grabber – Ziel: {OUTPUT_FILE}")
+    logger.info(f"🚀 Starte AntCheck Grabber – Ziel: {OUTPUT_FILE}")
 
     try:
         # 1. Shops laden
-        logger.info("Lade Shops...")
+        logger.info("🏪 Lade Shops...")
         shops_raw = _fetch_json(SHOPS_URL)
         if not isinstance(shops_raw, list):
             shops_raw = shops_raw.get("data", shops_raw.get("shops", []))
         shop_map = build_shop_map(shops_raw)
-        logger.info(f"  {len(shop_map)} Shops gefunden")
+        logger.info(f"✅ {len(shop_map)} Shops gefunden")
 
         # 2. Produkte pro Shop laden
         total_products = 0
@@ -234,9 +234,9 @@ def main():
                 add_products(shop_map, shop_id, products_raw)
                 count = len(shop_map[shop_id]["products"])
                 total_products += count
-                logger.info(f"  [{i}/{len(shop_map)}] Shop {shop['name']}: {count} Produkte")
+                logger.info(f"  📦 [{i}/{len(shop_map)}] Shop {shop['name']}: {count} Produkte")
             except Exception as e:
-                logger.warning(f"  Shop {shop_id} Produkte fehlgeschlagen: {e}")
+                logger.warning(f"  ⚠️ Shop {shop_id} Produkte fehlgeschlagen: {e}")
 
         # 3. Ausgabe schreiben
         output = {
@@ -256,20 +256,20 @@ def main():
         try:
             new_entries, checked = _track_prices(shop_map)
             logger.info(
-                f"Preis-Tracking: {checked} Produkte gecheckt, "
+                f"💶 Preis-Tracking: {checked} Produkte gecheckt, "
                 f"{new_entries} neue Eintraege -> {PRICE_HISTORY_DB}"
             )
         except Exception as e:
-            logger.warning(f"Preis-Tracking fehlgeschlagen (nicht kritisch): {e}")
+            logger.warning(f"⚠️ Preis-Tracking fehlgeschlagen (nicht kritisch): {e}")
 
         elapsed = time.monotonic() - start
         logger.info(
-            f"Fertig: {len(shop_map)} Shops / {total_products} Produkte "
+            f"✅ Fertig: {len(shop_map)} Shops / {total_products} Produkte "
             f"-> {OUTPUT_FILE} ({elapsed:.1f}s)"
         )
 
     except Exception as e:
-        logger.error(f"Grabber fehlgeschlagen: {e}", exc_info=True)
+        logger.error(f"❌ Grabber fehlgeschlagen: {e}", exc_info=True)
         sys.exit(1)
 
 

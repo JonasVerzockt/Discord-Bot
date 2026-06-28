@@ -45,7 +45,7 @@ class SheetCache:
         self._ws: gspread.Worksheet | None = None
         self._rows: list[list] | None = None
 
-    # ── Verbindung ─────────────────────────────────────────────────────────────
+    # ── Verbindung ────────────────────────────────────────────────────────────
     @property
     def ws(self) -> gspread.Worksheet:
         if self._ws is None:
@@ -62,7 +62,7 @@ class SheetCache:
         self._rows = all_rows[:last]
         print(f"📥 Sheet geladen: {len(self._rows) - 1} Einträge (von {len(all_rows)} Zeilen)")
 
-    # ── Lese-Helfer ────────────────────────────────────────────────────────────
+    # ── Lese-Helfer ───────────────────────────────────────────────────────────
     @property
     def rows(self) -> list[list]:
         if self._rows is None:
@@ -77,7 +77,7 @@ class SheetCache:
     def row_count(self) -> int:
         return len(self.rows)
 
-    # ── Schreib-Operationen ────────────────────────────────────────────────────
+    # ── Schreib-Operationen ───────────────────────────────────────────────────
     def append(self, row: list) -> int:
         """Hängt Zeile an, gibt Zeilennummer zurück, aktualisiert Cache."""
         self.ws.append_row(row, value_input_option="USER_ENTERED")
@@ -167,7 +167,7 @@ async def sync_ratings_from_sheet(bot) -> int:
     def _read():
         ws = _gc.open_by_key(SPREADSHEET_ID).worksheet("Händler A-Z")
         rows = ws.get_all_values()
-        logger.debug(f"sync_ratings: {len(rows)} Zeilen gelesen")
+        logger.debug(f"🔍 sync_ratings: {len(rows)} Zeilen gelesen")
         # {normalisierter_sheet_eintrag: rating}
         # Schluessel: www. und Trailing-Slash entfernt, lowercase
         # Beispiel: 'www.antandco.fr' → 'antandco.fr', 'anthillshop.es/' → 'anthillshop.es'
@@ -179,17 +179,17 @@ async def sync_ratings_from_sheet(bot) -> int:
                     key = _normalize_sheet_key(row[0])
                     result[key] = float(rating_str)
                 except ValueError:
-                    logger.debug(f"sync_ratings: Parsing fehlgeschlagen: '{row[2]}' fuer '{row[0]}'")
+                    logger.debug(f"🔍 sync_ratings: Parsing fehlgeschlagen: '{row[2]}' fuer '{row[0]}'")
         return result
 
     try:
         sheet_ratings = await bot.loop.run_in_executor(None, _read)
     except Exception as e:
-        logger.error(f"sync_ratings: Sheet-Lesefehler: {e}")
+        logger.error(f"❌ sync_ratings: Sheet-Lesefehler: {e}")
         return 0
 
     if not sheet_ratings:
-        logger.warning("sync_ratings: Keine Ratings im Sheet gefunden")
+        logger.warning("⚠️ sync_ratings: Keine Ratings im Sheet gefunden")
         return 0
 
     shop_rows = await execute_db(
@@ -233,7 +233,7 @@ async def sync_ratings_from_sheet(bot) -> int:
                 commit=True,
             )
             updated += 1
-            logger.info(f"  Rating: '{row['name']}' [{match_info}] = {rating:.2f}")
+            logger.info(f"  📊 Rating: '{row['name']}' [{match_info}] = {rating:.2f}")
 
-    logger.info(f"sync_ratings: {updated}/{len(shop_rows)} Shops mit Sheet-Rating versehen")
+    logger.info(f"📊 sync_ratings: {updated}/{len(shop_rows)} Shops mit Sheet-Rating versehen")
     return updated

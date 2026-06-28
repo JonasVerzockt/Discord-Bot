@@ -46,7 +46,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    # ── /reloadshops ───────────────────────────────────────────────────────────
+    # ── /reloadshops ──────────────────────────────────────────────────────────
     @discord.slash_command(name="reloadshops", description="Reload shop data from JSON file (Admin/Mod)")
     @admin_or_manage_messages()
     async def reloadshops(self, ctx: discord.ApplicationContext):
@@ -67,12 +67,12 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                     commit=True,
                 )
             await ctx.respond(l10n.get("reloadshops_success", lang), ephemeral=True)
-            logger.info(f"Shop-Daten neu geladen von {ctx.author.id}: {len(shop_data)} Shops")
+            logger.info(f"🏪 Shop-Daten neu geladen von {ctx.author.id}: {len(shop_data)} Shops")
         except Exception as e:
-            logger.error(f"reloadshops error: {e}")
+            logger.error(f"❌ reloadshops error: {e}")
             await ctx.respond(l10n.get("general_error", lang), ephemeral=True)
 
-    # ── /shopmapping ───────────────────────────────────────────────────────────
+    # ── /shopmapping ──────────────────────────────────────────────────────────
     shopmapping = discord.SlashCommandGroup(
         name="shopmapping",
         description="Manage shop name mappings for Google Sheets imports",
@@ -108,7 +108,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                 ephemeral=True,
             )
         except Exception as e:
-            logger.error(f"shopmapping_add error: {e}")
+            logger.error(f"❌ shopmapping_add error: {e}")
             await ctx.respond(l10n.get("shopmapping_add_error", lang), ephemeral=True)
 
     @shopmapping.command(name="show", description="Show all current shop name mappings")
@@ -147,7 +147,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         key = "shopmapping_remove_success" if rc else "shopmapping_remove_none"
         await ctx.respond(l10n.get(key, lang, external=external), ephemeral=True)
 
-    # ── /ch_delivery ───────────────────────────────────────────────────────────
+    # ── /ch_delivery ──────────────────────────────────────────────────────────
     ch_delivery = discord.SlashCommandGroup(
         name="ch_delivery",
         description="Manage shops delivering to Switzerland",
@@ -260,7 +260,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         await ctx.respond("\n".join(lines), ephemeral=True)
 
 
-    # ── /shopurl ───────────────────────────────────────────────────────────────
+    # ── /shopurl ──────────────────────────────────────────────────────────────
     shopurl = discord.SlashCommandGroup(
         name="shopurl",
         description="Shop-URL manuell überschreiben (wenn API falsche URL liefert)",
@@ -297,7 +297,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             l10n.get("shopurl_set_success", lang, shop=shop_name, id=sid, url=clean_url),
             ephemeral=True,
         )
-        logger.info(f"shopurl_set: Shop {sid} ({shop_name}) → {url.strip()} von {ctx.author.id}")
+        logger.info(f"🏪 shopurl_set: Shop {sid} ({shop_name}) → {url.strip()} von {ctx.author.id}")
 
     @shopurl.command(name="clear", description="Manuelle URL entfernen (API-URL wird wieder genutzt)")
     @admin_or_manage_messages()

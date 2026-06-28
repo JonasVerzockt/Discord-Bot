@@ -64,10 +64,10 @@ def _load_shops_json() -> dict:
         with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
             raw = json.load(f)
     except FileNotFoundError:
-        logger.error(f"shops_data.json nicht gefunden: {SHOPS_DATA_FILE}")
+        logger.error(f"❌ shops_data.json nicht gefunden: {SHOPS_DATA_FILE}")
         return {}
     except Exception as e:
-        logger.error(f"Fehler beim Laden von shops_data.json: {e}")
+        logger.error(f"❌ Fehler beim Laden von shops_data.json: {e}")
         return {}
 
     # Neues Format: Dict mit shop_id als Key und _meta-Eintrag
@@ -107,7 +107,7 @@ async def load_shop_data(bot) -> dict:
 
 
 async def expand_regions(bot, regions: list[str]) -> list[str]:
-    """Ersetzt 'eu' durch alle EU-Laendercodes aus der DB."""
+    """Ersetzt 'eu' durch alle EU-Ländercodes aus der DB."""
     from utils.db import execute_db
 
     regions = [r.strip().lower() for r in regions]
@@ -203,14 +203,14 @@ async def check_availability_for_species(
                 # Nur lagerverfuegbare, aktive Produkte beruecksichtigen
                 if not product.get("in_stock", False):
                     logger.debug(
-                        f"Produkt {product.get('id')} ({species}) bei "
-                        f"{shop_info.get('name', shop_id_str)}: not in_stock -- uebersprungen"
+                        f"🔍 Produkt {product.get('id')} ({species}) bei "
+                        f"{shop_info.get('name', shop_id_str)}: not in_stock – übersprungen"
                     )
                     continue
                 if not product.get("is_active", False):
                     logger.debug(
-                        f"Produkt {product.get('id')} ({species}) bei "
-                        f"{shop_info.get('name', shop_id_str)}: not is_active -- uebersprungen"
+                        f"🔍 Produkt {product.get('id')} ({species}) bei "
+                        f"{shop_info.get('name', shop_id_str)}: not is_active – übersprungen"
                     )
                     continue
 

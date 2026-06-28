@@ -57,7 +57,7 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         self._acc_buffer: dict[int, list[discord.Message]] = {}
         self._acc_tasks:  dict[int, asyncio.Task]          = {}
 
-    # ── Hilfsmethoden ──────────────────────────────────────────────────────────
+    # ── Hilfsmethoden ─────────────────────────────────────────────────────────
     async def _clean_react(self, msg: discord.Message, *remove: str, add: str) -> None:
         for e in remove:
             try:
@@ -199,7 +199,7 @@ class ReviewsCog(commands.Cog, name="Reviews"):
 
         return mapped_count, new_count
 
-    # ── Bot-Events ─────────────────────────────────────────────────────────────
+    # ── Bot-Events ────────────────────────────────────────────────────────────
     @commands.Cog.listener()
     async def on_ready(self):
         channel = self.bot.get_channel(REVIEW_CHANNEL_ID)

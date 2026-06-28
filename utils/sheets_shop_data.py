@@ -88,7 +88,7 @@ def get_cached_shop_names() -> frozenset[str]:
 def _parse_haendler_az(rows: list[list[str]]) -> str:
     """
     Parst den Tab 'Haendler A-Z'.
-    - Leere Zeilen (kein Shop-Name in Spalte A) werden uebersprungen.
+    - Leere Zeilen (kein Shop-Name in Spalte A) werden übersprungen.
     - Shops mit < 4 Bewertungen werden weggelassen (zu wenig Datenbasis).
     - Kompaktes Format: "shopname ⭐9.97 (63x)" statt verbose Key:Value.
     """
@@ -215,14 +215,14 @@ def load_shop_data() -> Optional[str]:
     formatierten Textblock zurueck, der in den System-Prompt eingebettet wird.
     """
     if not cfg.SPREADSHEET_ID:
-        logger.debug("[ShopData] GOOGLE_SPREADSHEET_ID nicht gesetzt – uebersprungen")
+        logger.debug("🔍 [ShopData] GOOGLE_SPREADSHEET_ID nicht gesetzt – übersprungen")
         return None
 
     try:
         from utils.sheet import _gc
         sh = _gc.open_by_key(cfg.SPREADSHEET_ID)
     except Exception as e:
-        logger.error(f"[ShopData] Google Sheets Verbindungsfehler: {e}")
+        logger.error(f"❌ [ShopData] Google Sheets Verbindungsfehler: {e}")
         return None
 
     sections: list[str] = []
@@ -230,12 +230,12 @@ def load_shop_data() -> Optional[str]:
 
     for ws in sh.worksheets():
         if ws.title not in _ALLOWED_TABS:
-            logger.debug(f"[ShopData] Tab '{ws.title}' uebersprungen")
+            logger.debug(f"🔍 [ShopData] Tab '{ws.title}' übersprungen")
             continue
         try:
             rows = ws.get_all_values()
         except Exception as e:
-            logger.warning(f"[ShopData] Tab '{ws.title}' Lesefehler: {e}")
+            logger.warning(f"⚠️ [ShopData] Tab '{ws.title}' Lesefehler: {e}")
             continue
 
         if not rows or len(rows) < 2:
@@ -256,26 +256,26 @@ def load_shop_data() -> Optional[str]:
 
             if section:
                 sections.append(section)
-                logger.debug(f"[ShopData] Tab '{ws.title}' geparst: {len(section)} Zeichen")
+                logger.debug(f"🔍 [ShopData] Tab '{ws.title}' geparst: {len(section)} Zeichen")
 
         except Exception as e:
-            logger.warning(f"[ShopData] Tab '{ws.title}' Parse-Fehler: {e}")
+            logger.warning(f"⚠️ [ShopData] Tab '{ws.title}' Parse-Fehler: {e}")
 
     if not sections:
-        logger.info("[ShopData] Sheet geladen, aber keine Daten gefunden")
+        logger.info("⚠️ [ShopData] Sheet geladen, aber keine Daten gefunden")
         return None
 
     # Shop-Namen-Cache aktualisieren (fuer dynamischen Keyword-Filter)
     global _cached_shop_names
     _cached_shop_names = frozenset(shop_names)
-    logger.debug(f"[ShopData] {len(_cached_shop_names)} Shop-Namen fuer Keyword-Filter geladen")
+    logger.debug(f"🔍 [ShopData] {len(_cached_shop_names)} Shop-Namen fuer Keyword-Filter geladen")
 
     block = (
         "### Shop-Bewertungsdaten (AAM Community, automatisch geladen)\n\n"
         + "\n\n".join(sections)
     )
     logger.info(
-        f"[ShopData] Geladen: {len(sections)} Tab(s), {len(block)} Zeichen "
+        f"📋 [ShopData] Geladen: {len(sections)} Tab(s), {len(block)} Zeichen "
         f"(~{len(block)//3.5:.0f} Tokens)"
     )
     return block

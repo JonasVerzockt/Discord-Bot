@@ -35,7 +35,7 @@ from utils.db import execute_db
 logger = logging.getLogger(__name__)
 
 
-# ── Tracking (verarbeitete Nachrichten) ────────────────────────────────────────
+# ── Tracking (verarbeitete Nachrichten) ───────────────────────────────────────
 
 async def get_tracking(bot, message_id: str) -> int | None:
     """Gibt die Sheet-Zeilennummer für eine Nachrichten-ID zurück oder None."""
@@ -69,7 +69,7 @@ async def tracking_count(bot) -> int:
     return rows[0]["c"] if rows else 0
 
 
-# ── Pending (ausstehende Nachrichten) ──────────────────────────────────────────
+# ── Pending (ausstehende Nachrichten) ─────────────────────────────────────────
 
 async def get_pending(bot, message_id: str) -> dict | None:
     """Gibt den Pending-Eintrag für eine Nachrichten-ID zurück oder None."""

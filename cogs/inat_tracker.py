@@ -7,7 +7,7 @@ cogs/inat_tracker.py – iNaturalist-Links aus Discord -> Google Sheets
 Schreibt pro erkanntem Link eine Zeile:
   Spalte A  -- Discord Username (z.B. jonasverzockt)
   Spalte B  -- Anzeigename auf dem Server (display_name)
-  Spalte C  -- (leer -- wird von der Tabelle selbst befuellt)
+  Spalte C  -- (leer -- wird von der Tabelle selbst befüllt)
   Spalte D  -- iNaturalist-Link (immer https)
   Spalte E  -- Datum (Berliner Zeit, DD.MM.YYYY)
 
@@ -21,9 +21,9 @@ Bei API-Fehler: Sanduhr-Reaktion + alle 5 Minuten erneut versuchen.
 Links werden nur im konfigurierten Zeitfenster erkannt.
 """
 
-# ==============================================================================
+# ──────────────────────────────────────────────────────────────────────────────
 #  KONFIGURATION -- nur hier anpassen
-# ==============================================================================
+# ──────────────────────────────────────────────────────────────────────────────
 
 INAT_CHANNEL_ID = 1166491005814579300
 INAT_SHEET_ID   = "1aPQKNiVBCscjM6VbBGaBtG8MOvLKVoTw_PYKMp17dtQ"
@@ -36,7 +36,7 @@ INAT_END   = "2026-10-30 20:00"
 # Nur Beobachtungen die zu dieser Ueberfamilie gehoeren werden akzeptiert
 INAT_TAXON_ID = 1269340  # Formicoidea
 
-# ==============================================================================
+# ──────────────────────────────────────────────────────────────────────────────
 
 import asyncio
 import re
@@ -72,17 +72,17 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         self._start = datetime.strptime(INAT_START, "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
         self._end   = datetime.strptime(INAT_END,   "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
 
-    # ---- Sheet-Verbindung (lazy, damit Bot-Start nicht blockiert) ------------
+    # ── Sheet-Verbindung (lazy, damit Bot-Start nicht blockiert) ──────────────
 
     def _sheet(self) -> gspread.Worksheet:
         if self._ws is None:
             creds    = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=_SCOPES)
             gc       = gspread.authorize(creds)
             self._ws = gc.open_by_key(INAT_SHEET_ID).worksheet(INAT_WORKSHEET)
-            logger.info(f"iNat-Sheet verbunden: '{INAT_WORKSHEET}'")
+            logger.info(f"🌿 iNat-Sheet verbunden: '{INAT_WORKSHEET}'")
         return self._ws
 
-    # ---- Hilfsmethoden -------------------------------------------------------
+    # ── Hilfsmethoden ─────────────────────────────────────────────────────────
 
     def _in_window(self) -> bool:
         return self._start <= datetime.now(tz=BERLIN) <= self._end
@@ -98,10 +98,10 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
     async def _is_formicoidea(self, obs_id: str) -> bool | None:
         """
         Fragt die iNaturalist API ab und prueft ob die Beobachtung
-        zur Ueberfamilie Formicoidea (taxon_id=1269340) gehoert.
+        zur Ueberfamilie Formicoidea (taxon_id=1269340) gehört.
         Rueckgabe:
-          True  -- gehoert zu Formicoidea
-          False -- gehoert nicht dazu (API hat geantwortet)
+          True  -- gehört zu Formicoidea
+          False -- gehört nicht dazu (API hat geantwortet)
           None  -- API nicht erreichbar (Retry ausloesen)
         """
         url = f"https://api.inaturalist.org/v1/observations/{obs_id}"
@@ -115,17 +115,17 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             data    = resp.json()
             results = data.get("results", [])
             if not results:
-                logger.warning(f"iNat API: keine Ergebnisse fuer obs {obs_id}")
+                logger.warning(f"⚠️ iNat API: keine Ergebnisse für obs {obs_id}")
                 return False
             taxon = results[0].get("taxon")
             if not taxon:
-                logger.warning(f"iNat obs {obs_id}: kein Taxon gesetzt (unidentifiziert)")
+                logger.warning(f"⚠️ iNat obs {obs_id}: kein Taxon gesetzt (unidentifiziert)")
                 return False
             ancestor_ids = taxon.get("ancestor_ids", [])
             taxon_id     = taxon.get("id")
             return INAT_TAXON_ID in ancestor_ids or taxon_id == INAT_TAXON_ID
         except Exception as e:
-            logger.error(f"iNat API nicht erreichbar (obs {obs_id}): {e}")
+            logger.error(f"❌ iNat API nicht erreichbar (obs {obs_id}): {e}")
             return None
 
     def _write_entry(
@@ -149,7 +149,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         )
         return row
 
-    # ---- Event ---------------------------------------------------------------
+    # ── Event ─────────────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -167,7 +167,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         try:
             ws = self._sheet()
         except Exception as e:
-            logger.error(f"iNat-Sheet Verbindungsfehler: {e}")
+            logger.error(f"❌ iNat-Sheet Verbindungsfehler: {e}")
             return
 
         username     = message.author.name
@@ -180,12 +180,12 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             # ---- Check 1: bereits im Sheet? ---------------------------------
             if self._link_exists(ws, url):
                 logger.info(
-                    f"iNat obs {obs_id} bereits im Sheet -- uebersprungen "
+                    f"ℹ️ iNat obs {obs_id} bereits im Sheet – übersprungen "
                     f"(user={username}, {display_name})"
                 )
                 continue
 
-            # ---- Check 2: gehoert zu Formicoidea? ---------------------------
+            # ---- Check 2: gehört zu Formicoidea? ---------------------------
             is_ant = await self._is_formicoidea(obs_id)
             if is_ant is None:
                 # API nicht erreichbar -- Retry-Logik startet im Hintergrund
@@ -196,8 +196,8 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 continue
             if not is_ant:
                 logger.info(
-                    f"iNat obs {obs_id} gehoert nicht zu Formicoidea "
-                    f"(taxon_id={INAT_TAXON_ID}) -- uebersprungen "
+                    f"iNat obs {obs_id} gehört nicht zu Formicoidea "
+                    f"(taxon_id={INAT_TAXON_ID}) – übersprungen "
                     f"(user={username}, {display_name})"
                 )
                 continue
@@ -206,18 +206,18 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             try:
                 row = self._write_entry(ws, username, display_name, url)
                 logger.info(
-                    f"iNat Zeile {row}: user={username} ({display_name})  {url}"
+                    f"✅ iNat Zeile {row}: user={username} ({display_name})  {url}"
                 )
                 written += 1
             except Exception as e:
-                logger.error(f"iNat Schreibfehler (obs {obs_id}): {e}")
+                logger.error(f"❌ iNat Schreibfehler (obs {obs_id}): {e}")
                 self._ws = None
 
         if written:
             try:
                 await message.add_reaction("✅")
             except discord.HTTPException as e:
-                logger.error(f"Reaktion fehlgeschlagen: {e}")
+                logger.error(f"❌ Reaktion fehlgeschlagen: {e}")
 
     async def _retry_pending(
         self,
@@ -233,11 +233,11 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         while True:
             attempt += 1
             await asyncio.sleep(300)  # 5 Minuten warten
-            logger.info(f"iNat Retry #{attempt} fuer obs {obs_id}")
+            logger.info(f"🔄 iNat Retry #{attempt} für obs {obs_id}")
             is_ant = await self._is_formicoidea(obs_id)
             if is_ant is None:
                 logger.warning(
-                    f"iNat API noch nicht erreichbar (obs {obs_id}, Versuch {attempt})"
+                    f"⚠️ iNat API noch nicht erreichbar (obs {obs_id}, Versuch {attempt})"
                 )
                 continue  # nochmal warten
             # API hat geantwortet -- Sanduhr entfernen
@@ -247,19 +247,19 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 pass
             if not is_ant:
                 logger.info(
-                    f"iNat obs {obs_id} gehoert nicht zu Formicoidea -- uebersprungen"
+                    f"🌿 iNat obs {obs_id} gehört nicht zu Formicoidea – übersprungen"
                 )
                 return
             # Nochmals pruefen ob der Link zwischenzeitlich eingetragen wurde
             if self._link_exists(ws, url):
-                logger.info(f"iNat obs {obs_id} inzwischen bereits im Sheet")
+                logger.info(f"ℹ️ iNat obs {obs_id} inzwischen bereits im Sheet")
                 return
             try:
                 row = self._write_entry(ws, username, display_name, url)
-                logger.info(f"iNat Retry OK: Zeile {row}  {url}")
+                logger.info(f"✅ iNat Retry OK: Zeile {row}  {url}")
                 await message.add_reaction("✅")
             except Exception as e:
-                logger.error(f"iNat Retry Schreibfehler (obs {obs_id}): {e}")
+                logger.error(f"❌ iNat Retry Schreibfehler (obs {obs_id}): {e}")
             return
 
 

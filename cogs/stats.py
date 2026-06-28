@@ -84,7 +84,7 @@ class StatsCog(commands.Cog, name="Stats"):
                 ),
             )
         except Exception as e:
-            logger.error(f"stats error: {e}")
+            logger.error(f"❌ stats error: {e}")
             await ctx.respond(l10n.get("stats_error", lang))
 
     @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)")
@@ -147,7 +147,7 @@ class StatsCog(commands.Cog, name="Stats"):
                 ephemeral=True,
             )
         except Exception as e:
-            logger.error(f"system error: {e}")
+            logger.error(f"❌ system error: {e}")
             await ctx.respond(l10n.get("system_error", lang), ephemeral=True)
 
     @discord.slash_command(name="help", description="Show all available commands")

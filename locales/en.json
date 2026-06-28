@@ -44,7 +44,7 @@
   "testnotification_dm": "📨 Test message successful!",
   "testnotification_forbidden": "❌ Could not send DM – please enable private messages",
   "availability_header": "🔔 **Availability Alert** for {species}!",
-  "availability_entry": "🏪 **Shop:** {shop} - [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>): {rating} \n🐜 - **{species}** \n💶 **Price range:** {min_price}-{max_price}{currency} \n🔗 [Product link](<{product_url}>) | 🏠 [Shop homepage](<{shop_url}>)",
+  "availability_entry": "🏪 **Shop:** {shop} - [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>): {rating} \n🐜 - **{species}** \n💶 **Price range:** {price} \n🔗 [Product link](<{product_url}>) | 🏠 [Shop homepage](<{shop_url}>)",
   "all_channels": "all channels",
   "notification_expired_dm": "Your search for {species} ({regions}) has expired and is no longer being monitored. You can create a new notification at any time.",
   "dm_failed": "I couldn't send you a private message. Please enable your direct messages to receive notifications!",
@@ -147,5 +147,26 @@
   "ai_prompt_file_header": "📋 **Active system prompt** (too long for chat, sent as file):",
 
   "admin_reprocess_not_found": "❌ Message `{mid}` not found in the review channel.",
-  "admin_reprocess_success": "✅ Message `{mid}` re-processed → **{shop}**"
+  "admin_reprocess_success": "✅ Message `{mid}` re-processed → **{shop}**",
+
+  "pt_no_products": "❌ No products with prices found for **{species}**.",
+  "pt_select_shop": "🏪 Select a shop:",
+  "pt_select_products": "🐜 Select the products you want to track (multiple allowed):",
+  "pt_confirm_header": "✅ The following products will be tracked:",
+  "pt_saved": "✅ **{count}** product(s) are now being tracked for you.",
+  "pt_already_tracking": "ℹ️ These products are already being tracked.",
+  "pt_timeout": "⏱️ Timed out – please run the command again.",
+  "pt_list_empty": "📭 You are not tracking any products. Use `/track_price` to get started.",
+  "pt_list_header": "📋 **Your tracked products:**",
+  "pt_list_entry": "• [{title}](<{url}>) at **{shop}** – {price} {status}",
+  "pt_status_available": "✅",
+  "pt_status_unavailable": "❌",
+  "pt_untrack_select": "🗑️ Select products you no longer want to track:",
+  "pt_untrack_done": "✅ **{count}** product(s) removed from tracking.",
+  "pt_untrack_none": "📭 You are not tracking any products.",
+  "pt_dm_cheaper": "📉 **Price drop!** at **{shop}**\n🐜 **{species}** – {title}\n\nBefore: {old_price}\nNow:    {new_price}\n\n🔗 [Product link](<{url}>)",
+  "pt_dm_dearer": "📈 **Price increase!** at **{shop}**\n🐜 **{species}** – {title}\n\nBefore: {old_price}\nNow:    {new_price}\n\n🔗 [Product link](<{url}>)",
+  "help_track_price": "`/track_price` – Track product prices and get notified by DM when they change",
+  "help_my_price_tracking": "`/my_price_tracking` – Show all products you are tracking",
+  "help_untrack_price": "`/untrack_price` – Remove products from price tracking"
 }

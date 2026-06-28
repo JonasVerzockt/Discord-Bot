@@ -37,14 +37,14 @@ from config import MAPPING_FILE, FUZZY_THRESHOLD
 from utils.sheet import sheet
 
 
-# ── Eigene Exception ────────────────────────────────────────────────────────────
+# ── Eigene Exception ──────────────────────────────────────────────────────────
 class UnresolvableShop(Exception):
     def __init__(self, identifier: str):
         self.identifier = identifier
         super().__init__(f"Unaufgelöst: '{identifier}'")
 
 
-# ── Interne Helfer ──────────────────────────────────────────────────────────────
+# ── Interne Helfer ────────────────────────────────────────────────────────────
 _CSV_COLS    = ["identifier", "shop_url", "message_id", "hinweis"]
 _URL_RE      = re.compile(r'[\w\-]+\.(de|com|net|fr|store|eu|shop|at|ch|nl|pl|es|co\.uk)', re.I)
 _MARKDOWN_RE = re.compile(r'\[([^\]]*)\]\(https?://(?:www\.)?([^/)\s]+)[^)]*\)')
@@ -109,7 +109,7 @@ def _write_csv_row(identifier: str, shop_url: str, msg_id: str, hint: str) -> bo
     return True
 
 
-# ── Öffentliche API ─────────────────────────────────────────────────────────────
+# ── Öffentliche API ───────────────────────────────────────────────────────────
 def load_mapping() -> dict:
     """Gibt {identifier: shop_url} zurück – gecacht, liest CSV nur einmal."""
     global _map_cache

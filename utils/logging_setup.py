@@ -51,14 +51,14 @@ def setup_logging(level: int = logging.INFO) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # ── Datei (rotierend) ──────────────────────────────────────────────────────
+    # ── Datei (rotierend) ─────────────────────────────────────────────────────
     fh = RotatingFileHandler(
         log_file, maxBytes=1024 * 1024, backupCount=5, encoding="utf-8"
     )
     fh.setFormatter(fmt)
     logger.addHandler(fh)
 
-    # ── Konsole ────────────────────────────────────────────────────────────────
+    # ── Konsole ───────────────────────────────────────────────────────────────
     ch = logging.StreamHandler()
     ch.setLevel(level)
     ch.setFormatter(fmt)

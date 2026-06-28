@@ -33,7 +33,7 @@ from utils.localization import l10n, get_user_lang
 logger = logging.getLogger(__name__)
 
 
-# ── Shared Decorators (importierbar von anderen Cogs) ──────────────────────────
+# ── Shared Decorators (importierbar von anderen Cogs) ─────────────────────────
 
 def admin_or_manage_messages():
     async def predicate(ctx: discord.ApplicationContext) -> bool:
@@ -64,7 +64,7 @@ def allowed_channel():
     return commands.check(predicate)
 
 
-# ── Cog ────────────────────────────────────────────────────────────────────────
+# ── Cog ───────────────────────────────────────────────────────────────────────
 
 class ServerSettingsCog(commands.Cog, name="ServerSettings"):
 
@@ -122,7 +122,7 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
             l10n.get("server_setup_success", language, channel=channel_mention),
             ephemeral=True,
         )
-        logger.info(f"Server {server_id} eingerichtet: lang={language}, channel={channel_id}")
+        logger.info(f"✅ Server {server_id} eingerichtet: lang={language}, channel={channel_id}")
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):

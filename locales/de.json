@@ -44,7 +44,7 @@
   "testnotification_dm": "📨 Testnachricht erfolgreich!",
   "testnotification_forbidden": "❌ Konnte keine PN senden – bitte Privatnachrichten aktivieren",
   "availability_header": "🔔 **Verfügbarkeitsalarm** für {species}!",
-  "availability_entry": "🏪 **Shop:** {shop} - [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>): {rating} \n🐜 - **{species}** \n💶 **Preisspanne:** {min_price}-{max_price}{currency} \n🔗 [Produktlink](<{product_url}>) | 🏠 [Shop-Startseite](<{shop_url}>)",
+  "availability_entry": "🏪 **Shop:** {shop} - [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>): {rating} \n🐜 - **{species}** \n💶 **Preisspanne:** {price} \n🔗 [Produktlink](<{product_url}>) | 🏠 [Shop-Startseite](<{shop_url}>)",
   "all_channels": "alle Kanäle",
   "notification_expired_dm": "Deine Suche nach {species} ({regions}) ist abgelaufen und wird nicht mehr überwacht. Du kannst jederzeit eine neue Benachrichtigung anlegen.",
   "dm_failed": "Ich konnte dir keine private Nachricht senden. Bitte aktiviere deine Direktnachrichten, damit du Benachrichtigungen erhalten kannst!",
@@ -147,5 +147,26 @@
   "ai_prompt_file_header": "📋 **Aktiver System-Prompt** (zu lang für Chat, als Datei):",
 
   "admin_reprocess_not_found": "❌ Nachricht `{mid}` im Review-Kanal nicht gefunden.",
-  "admin_reprocess_success": "✅ Nachricht `{mid}` neu verarbeitet → **{shop}**"
+  "admin_reprocess_success": "✅ Nachricht `{mid}` neu verarbeitet → **{shop}**",
+
+  "pt_no_products": "❌ Keine Produkte mit Preisen für **{species}** gefunden.",
+  "pt_select_shop": "🏪 Wähle einen Shop aus:",
+  "pt_select_products": "🐜 Wähle die Produkte aus, die du beobachten möchtest (mehrere möglich):",
+  "pt_confirm_header": "✅ Folgende Produkte werden beobachtet:",
+  "pt_saved": "✅ **{count}** Produkt(e) werden jetzt für dich beobachtet.",
+  "pt_already_tracking": "ℹ️ Diese Produkte werden bereits beobachtet.",
+  "pt_timeout": "⏱️ Zeitüberschreitung – bitte starte den Befehl erneut.",
+  "pt_list_empty": "📭 Du beobachtest aktuell keine Produkte. Nutze `/track_price` um loszulegen.",
+  "pt_list_header": "📋 **Deine beobachteten Produkte:**",
+  "pt_list_entry": "• [{title}](<{url}>) bei **{shop}** – {price} {status}",
+  "pt_status_available": "✅",
+  "pt_status_unavailable": "❌",
+  "pt_untrack_select": "🗑️ Wähle Produkte aus, die du nicht mehr beobachten möchtest:",
+  "pt_untrack_done": "✅ **{count}** Produkt(e) aus dem Tracking entfernt.",
+  "pt_untrack_none": "📭 Du beobachtest aktuell keine Produkte.",
+  "pt_dm_cheaper": "📉 **Preissenkung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)",
+  "pt_dm_dearer": "📈 **Preiserhöhung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)",
+  "help_track_price": "`/track_price` – Preise für Produkte beobachten und bei Änderung per PN benachrichtigt werden",
+  "help_my_price_tracking": "`/my_price_tracking` – Alle beobachteten Produkte anzeigen",
+  "help_untrack_price": "`/untrack_price` – Produkte aus dem Preis-Tracking entfernen"
 }

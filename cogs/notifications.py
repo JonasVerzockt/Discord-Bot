@@ -15,18 +15,18 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-cogs/notifications.py – Benachrichtigungs-Cog für den AAM Discord Bot.
+cogs/notifications.py - Benachrichtigungs-Cog für den AAM Discord Bot.
 
 Slash Commands:
-  /notification          – Art/Gattung + Region überwachen
-  /delete_notifications  – Eigene Benachrichtigungen löschen
-  /history               – Benachrichtigungshistorie anzeigen
-  /testnotification      – Test-PN senden
+  /notification          - Art/Gattung + Region überwachen
+  /delete_notifications  - Eigene Benachrichtigungen löschen
+  /history               - Benachrichtigungshistorie anzeigen
+  /testnotification      - Test-PN senden
 
 Interne Helfer:
-  trigger_availability_check()  – Prüft Verfügbarkeit und sendet PN
-  ask_for_feedback()            – Fragt nach Reaction-Feedback (👍 / 🔄)
-  handle_dm_failure()           – Fallback auf Server-Kanal wenn DM blockiert
+  trigger_availability_check()  - Prüft Verfügbarkeit und sendet PN
+  ask_for_feedback()            - Fragt nach Reaction-Feedback
+  handle_dm_failure()           - Fallback auf Server-Kanal wenn DM blockiert
 """
 import asyncio
 import logging
@@ -45,6 +45,7 @@ from utils.availability import (
     format_rating,
     split_availability_messages,
 )
+from utils.currency import ensure_rates, format_price
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -66,8 +67,8 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         excluded_species_list: set | None = None,
     ) -> bool | None:
         """
-        Prüft Verfügbarkeit und sendet PN.
-        Returns: True=gesendet, False=nicht verfügbar, None=Fehler
+        Prueft Verfuegbarkeit und sendet PN.
+        Returns: True=gesendet, False=nicht verfuegbar, None=Fehler
         """
         if excluded_species_list is None:
             excluded_species_list = set()
@@ -114,7 +115,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             try:
                 user = await self.bot.fetch_user(int(user_id))
             except Exception as e:
-                logger.error(f"User {user_id} nicht abrufbar: {e}")
+                logger.error(f"❌ User {user_id} nicht abrufbar: {e}")
                 return None
 
             # Nach Bewertung sortieren
@@ -123,13 +124,14 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 key=lambda p: (p.get("rating") is None, -(p.get("rating") or 0),
                                p.get("shop_name", "").lower()),
             )
+            await ensure_rates()
             header  = l10n.get("availability_header", lang, species=species)
             entries = [header] + [
                 l10n.get(
                     "availability_entry", lang,
                     species=p["species"], shop=p["shop_name"],
-                    min_price=p["min_price"], max_price=p["max_price"],
-                    currency=p["currency_iso"], product_url=p["antcheck_url"],
+                    price=format_price(p["min_price"], p["max_price"], p["currency_iso"]),
+                    product_url=p["antcheck_url"],
                     shop_url=p["shop_url"] or "N/A",
                     rating=format_rating(p.get("rating")),
                 )
@@ -169,7 +171,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             return True
 
         except Exception as e:
-            logger.error(f"trigger_availability_check error ({user_id}, {species}): {e}", exc_info=True)
+            logger.error(f"❌ trigger_availability_check error ({user_id}, {species}): {e}", exc_info=True)
             await execute_db(
                 self.bot,
                 "UPDATE notifications SET status='failed' WHERE user_id=? AND species=? AND regions=?",
@@ -207,7 +209,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                     except discord.HTTPException:
                         pass
         except Exception as e:
-            logger.error(f"handle_dm_failure error: {e}")
+            logger.error(f"❌ handle_dm_failure error: {e}")
 
     async def _ask_for_feedback(self, user: discord.User, user_id: str, species: str, regions: str):
         """Sendet Feedback-Frage nach erfolgreicher Benachrichtigung."""
@@ -220,8 +222,8 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         lang      = await get_user_lang(self.bot, user_id, server_id)
 
         question = await user.send(l10n.get("feedback_question", lang))
-        await question.add_reaction("👍")
-        await question.add_reaction("🔄")
+        await question.add_reaction("\U0001f44d")
+        await question.add_reaction("\U0001f504")
 
         pending_until = datetime.utcnow() + timedelta(hours=48)
         await execute_db(
@@ -236,11 +238,11 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             return (
                 reactor.id == int(user_id)
                 and reaction.message.id == question.id
-                and str(reaction.emoji) in ["👍", "🔄"]
+                and str(reaction.emoji) in ["\U0001f44d", "\U0001f504"]
             )
         try:
             reaction, _ = await self.bot.wait_for("reaction_add", timeout=48 * 3600, check=check)
-            if str(reaction.emoji) == "👍":
+            if str(reaction.emoji) == "\U0001f44d":
                 await execute_db(
                     self.bot,
                     "DELETE FROM user_seen_products WHERE user_id=?",
@@ -273,7 +275,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             except Exception:
                 pass
 
-    # ── Slash Commands ─────────────────────────────────────────────────────────
+    # ── Slash Commands ────────────────────────────────────────────────────────
 
     @discord.slash_command(name="notification", description="Set up availability notification for an ant species or genus")
     @allowed_channel()
@@ -281,7 +283,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         self,
         ctx: discord.ApplicationContext,
         species: discord.Option(str, "Specific species (e.g. Messor barbarus)", required=False, default=None),
-        genus: discord.Option(str, "Genus (e.g. Messor) – notifies for ALL species in this genus", required=False, default=None),
+        genus: discord.Option(str, "Genus (e.g. Messor) - notifies for ALL species in this genus", required=False, default=None),
         exclude_species: discord.Option(str, "Comma-separated species to exclude (genus only)", required=False, default=None),
         regions: discord.Option(str, "Regions comma-separated (e.g. de,at,eu)", required=False, default=None),
         swiss_only: discord.Option(bool, "Only shops delivering to Switzerland", default=False),
