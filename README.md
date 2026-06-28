@@ -250,7 +250,7 @@ Der Bot sucht alle Produkte (auch aktuell nicht verfügbare) zur angegebenen Art
    - ❌ Nicht verfügbar – aktueller (Nicht-Verfügbar-)Preis
    - ⏸️ Zuletzt gesehen – aktuell kein Preis in API, aber letzter bekannter Preis aus `price_history.db` vorhanden
    - ❓ Kein Preis bekannt – noch nie ein Preis erfasst (z. B. neues Produkt)
-3. **Bestätigen** – Schaltflächen „Bestätigen" / „Abbrechen"; nach Bestätigung wird der aktuelle Preis als Baseline gesetzt
+3. **Bestätigen** – Schaltflächen „Bestätigen" / „Abbrechen"; nach Bestätigung wird der aktuelle Preis als Baseline gesetzt und eine **öffentliche Ankündigung** im Bot-Kanal gepostet (z. B. `🎯 Jonas beobachtet jetzt den Preis für Oecophylla smaragdina bei Antstore (2 Produkt(e))!`)
 
 Die Interaktion ist ephemeral (nur für den ausführenden User sichtbar) und läuft automatisch nach 3 Minuten ohne Eingabe ab.
 
