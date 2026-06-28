@@ -4,7 +4,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
-- **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen *und* Neuerscheinungen
+- **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen (Neuerscheinungen werden stil in die Beobachtung aufgenommen, aber nicht separat gemeldet – dafür gibt es `/notification`)
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 
@@ -263,9 +263,10 @@ Beobachtet **alle** Produkte einer Art oder Gattung **shopübergreifend** – oh
 
 **Aktivieren:** Im Shop-Dropdown „🔭 Alle Shops beobachten" wählen → Bestätigung.
 
-**DMs werden ausgelöst bei:**
+**DM wird ausgelöst bei:**
 - **Preisänderung** an einem bekannten Produkt → 📉 / 📈
-- **Neuerscheinung** – neues Produkt für diese Art taucht in irgendeinem Shop auf → 🆕-DM
+
+Neue Produkte werden beim nächsten Check automatisch zur Baseline hinzugefügt und ab dann auf Preisänderungen beobachtet – ohne eigene DM (Neuerscheinungen deckt `/notification` ab).
 
 Beim Einrichten werden alle aktuell bekannten Produkte sofort als Baseline gespeichert (kein Spam).
 
@@ -376,7 +377,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 |------|-----------|-------------|
 | Verfügbarkeitsprüfung | alle 5 Minuten | Prüft alle `active`-Benachrichtigungen gegen `shops_data.json` |
 | Preis-Check Einzelprodukte | alle ~65 Minuten | Vergleicht aktuelle Preise aus `price_history.db` mit gespeicherten Baselines; sendet DM bei Preisaenderung |
-| Arten-Beobachtung alle Shops | alle ~67 Minuten | Prueft alle Arten-Beobachtungen: neue Produkte senden Neu-DM; Preisaenderungen senden Guenstiger/Teurer-DM |
+| Arten-Beobachtung alle Shops | alle ~67 Minuten | Prueft alle Arten-Beobachtungen shopuebergreifend; sendet DM bei Preisaenderung; neue Produkte werden still zur Baseline hinzugefuegt |
 | Shop-Daten-Reload | stündlich | Liest `shops_data.json` neu, schreibt Shops in DB (ohne `average_rating` und `url_override` zu überschreiben) |
 | Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` und sendet Abschluss-DM |

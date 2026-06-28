@@ -1040,10 +1040,9 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         seen_ids = set(seen.keys())
         curr_ids = set(current_products.keys())
 
-        # 1) Neue Produkte benachrichtigen + in seen aufnehmen
+        # 1) Neue Produkte still zur Baseline hinzufügen (kein DM – dafür gibt es /notification)
         for new_pid in curr_ids - seen_ids:
             p = current_products[new_pid]
-            await self._notify_new_product(user_id, p, watched_species)
             try:
                 min_p = float(p.get("min_price") or 0)
                 max_p = float(p.get("max_price") or 0)
