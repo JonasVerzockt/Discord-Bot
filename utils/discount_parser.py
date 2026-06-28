@@ -18,9 +18,9 @@
 utils/discount_parser.py – Haiku-gestützte Extraktion von Rabattcodes aus
 Discord-Nachrichten.
 
-Es gibt KEINEN Keyword-Vorfilter: Jede (nicht-leere) Nachricht wird an Haiku
-geschickt, das im Zweifel selbst entscheidet, ob ein echter Rabattcode enthalten
-ist (kein Code => leeres Array). Der Kanal enthält ohnehin nur Rabatt-Posts.
+Kein Keyword-Vorfilter: Jede (nicht-leere) Nachricht wird an Haiku geschickt,
+das im Zweifel selbst entscheidet, ob ein echter Rabattcode enthalten ist
+(kein Code => leeres Array).
 
 Verwendung:
     from utils.discount_parser import parse_codes
@@ -58,9 +58,18 @@ Regeln:
 - Datumsangaben relativ zum Nachrichtendatum aufloesen:
   "nur heute" => valid_until = Nachrichtendatum;
   "bis morgen" => Nachrichtendatum + 1 Tag;
+  "nächste Tage" / "diese Woche" / "solange der Vorrat reicht" / "kurzzeitig"
+    => valid_until = Nachrichtendatum + 7 Tage;
   Teildatum ohne Jahr (z.B. "bis 14.06.") => Jahr aus dem Nachrichtendatum, sodass das Datum in der Zukunft liegt;
   Zeitraum "vom X bis Y" => valid_from = X, valid_until = Y.
+- Saison-/Aktionsrabatte OHNE explizites Enddatum (Black Friday, Cyber Monday,
+  Ostern, Weihnachten, Sommer-Sale, Jubiläum o.ä.) => setze ein ungefähres
+  Enddatum relativ zum Nachrichtendatum (z.B. Black Friday / Cyber Monday =>
+  30.11. bzw. 02.12. des Jahres; Oster-/Weihnachts-/Sommeraktion => Ende des
+  jeweiligen Zeitraums). Solche Aktionen sind NIE permanent.
 - "dauerhaft", "immer", "Dauerrabattcode" => permanent = true und valid_until = null.
+- shop_url aus im Text genannten Links/Domains übernehmen, falls vorhanden.
+- discount möglichst angeben (z.B. "20%", "10€"); nur null, wenn wirklich nicht erkennbar.
 - Unbekanntes Datum => null.
 - Code in Originalschreibweise uebernehmen.
 - Kein echter Rabattcode in der Nachricht => leeres Array [].

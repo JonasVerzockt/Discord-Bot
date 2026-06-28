@@ -18,33 +18,30 @@
 cogs/discount_codes.py – Rabattcode-Tracker.
 
 Liest in einem konfigurierten Kanal (DISCOUNT_CHANNEL_ID) alle Nachrichten,
-extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatt, Gültigkeit) und
-speichert sie in der DB. Jede Nachricht wird – über ihre message_id – nur
-EINMAL an Haiku geschickt (Tabelle discount_scanned).
+extrahiert per Claude Haiku Rabattcodes und speichert sie in der DB. Jede
+Nachricht wird – über ihre message_id – nur EINMAL an Haiku geschickt
+(Tabelle discount_scanned). Kein Keyword-Vorfilter: Haiku entscheidet selbst.
 
-Kein Keyword-Vorfilter: Jede nicht-leere Nachricht geht an Haiku, das im
-Zweifel selbst entscheidet (kein Code => leeres Array). Reine Bild-Posts ohne
-Text werden übersprungen (nichts zu parsen).
-
-Gültigkeit:
+Gültigkeit (Zustand eines Codes):
   status_override = 'valid'   → immer gültig (manuell)
   status_override = 'invalid' → immer ungültig (manuell)
-  status_override = NULL      → automatisch über das Datum (is_permanent /
-                                valid_until >= heute)
+  status_override = NULL      → automatisch:
+      • permanent                                  → gültig
+      • valid_until gesetzt und >= heute           → gültig, sonst abgelaufen
+      • kein valid_until, aber Nachricht älter als
+        _UNDATED_MAX_AGE_DAYS Tage                 → abgelaufen (Saison-Leiche)
+      • kein valid_until, Nachricht jung           → gültig
 
-  • on_ready  → einmaliger Komplett-Backfill des Kanals (überspringt bereits
-                gescannte Nachrichten)
-  • on_message→ live: neue Posts sofort verarbeiten
-  • /codes [show_expired] → gültige (optional auch abgelaufene/deaktivierte) Codes
+  • on_ready  → einmaliger Komplett-Backfill (überspringt bereits Gescanntes)
+  • on_message→ live
+  • /codes [show_expired] → gültige (optional auch abgelaufene/deaktivierte)
   • /codes_set            → (Admin) Code gültig/ungültig/automatisch markieren
-  • /codes_rescan         → (Admin) Kanal erneut scannen
-
-Hinweis: Haiku- (anthropic) Aufrufe sind synchron/blockierend und laufen daher
-in asyncio.to_thread(), damit der Event-Loop frei bleibt.
+  • /codes_rescan [force] → (Admin) Kanal scannen (force = alles neu aufbauen)
 """
+import re
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import discord
 from discord.ext import commands
@@ -57,15 +54,42 @@ from cogs.server_settings import allowed_channel, admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
 
+# Codes ohne Enddatum und ohne "permanent"-Flag gelten nach so vielen Tagen
+# (gerechnet ab Nachrichtendatum) als wahrscheinlich abgelaufen.
+_UNDATED_MAX_AGE_DAYS = 90
+
 
 def _fmt_date(iso: str | None) -> str:
     """ISO YYYY-MM-DD → DD.MM.YYYY (sonst Originalwert)."""
     if not iso:
         return ""
     try:
-        return datetime.strptime(iso, "%Y-%m-%d").strftime("%d.%m.%Y")
+        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
     except ValueError:
         return iso
+
+
+def _domain(url: str | None) -> str:
+    """Extrahiert die nackte Domain (ohne Schema/www/Pfad), lowercase."""
+    if not url:
+        return ""
+    u = url.strip().lower()
+    u = re.sub(r"^https?://", "", u)
+    u = re.sub(r"^www\.", "", u)
+    return u.split("/")[0].strip()
+
+
+def _shop_key(shop: str | None, url: str | None) -> str:
+    """Normalisierter Dedup-Schlüssel: Domain wenn vorhanden, sonst Shop-Name."""
+    return _domain(url) or (shop or "").strip().lower()
+
+
+def _shop_display(shop: str | None, url: str | None) -> str:
+    """Anzeigename: echter Shop-Name, sonst Domain, sonst '?'."""
+    s = (shop or "").strip()
+    if s and s != "?":
+        return s
+    return _domain(url) or "?"
 
 
 def _chunks(text: str, max_len: int = 1990) -> list[str]:
@@ -83,16 +107,23 @@ def _chunks(text: str, max_len: int = 1990) -> list[str]:
     return out
 
 
-def _state(row, today: str) -> str:
-    """Gibt 'valid' | 'expired' | 'invalid' anhand Override + Datum zurück."""
+def _state(row, today: str, cutoff: str) -> str:
+    """Gibt 'valid' | 'expired' | 'invalid' anhand Override + Datum + Alter."""
     ov = row["status_override"]
     if ov == "invalid":
         return "invalid"
     if ov == "valid":
         return "valid"
-    if row["is_permanent"] or not row["valid_until"] or row["valid_until"] >= today:
+    if row["is_permanent"]:
         return "valid"
-    return "expired"
+    vu = row["valid_until"]
+    if vu:
+        return "valid" if vu >= today else "expired"
+    # Kein Enddatum: anhand Alter der Quellnachricht
+    md = (row["message_date"] or "")[:10]
+    if md and md < cutoff:
+        return "expired"
+    return "valid"
 
 
 class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
@@ -113,9 +144,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def _process_message(self, msg: discord.Message) -> int:
         """
         Schickt eine Nachricht an Haiku und speichert gefundene Codes.
-        Leere Nachrichten (nur Bild/Anhang ohne Text) werden ohne API-Call als
-        gescannt markiert. Gibt die Anzahl neuer Codes zurück.
-        Caller stellt sicher, dass die Nachricht noch nicht gescannt wurde.
+        Leere Nachrichten (nur Bild/Anhang) werden ohne API-Call als gescannt
+        markiert. Gibt die Anzahl neuer Codes zurück. Caller stellt sicher, dass
+        die Nachricht noch nicht gescannt wurde.
         """
         mid     = str(msg.id)
         content = (msg.content or "").strip()
@@ -219,13 +250,14 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         ),
     ):
         await ctx.defer()
-        lang  = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        today = date.today().isoformat()
+        lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        today  = date.today().isoformat()
+        cutoff = (date.today() - timedelta(days=_UNDATED_MAX_AGE_DAYS)).isoformat()
 
         rows = await execute_db(
             self.bot,
             """SELECT shop, shop_url, code, discount, valid_until, is_permanent,
-                      min_order, status_override
+                      min_order, status_override, message_date
                FROM discount_codes
                ORDER BY shop COLLATE NOCASE, valid_until""",
             fetch=True,
@@ -234,12 +266,12 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         # Zustand bestimmen, gültige zuerst → Dedup behält den gültigen Eintrag
         rank = {"valid": 0, "expired": 1, "invalid": 2}
         enriched = sorted(
-            ((_state(r, today), r) for r in rows),
-            key=lambda t: (rank[t[0]], (t[1]["shop"] or "").lower()),
+            ((_state(r, today, cutoff), r) for r in rows),
+            key=lambda t: (rank[t[0]], _shop_key(t[1]["shop"], t[1]["shop_url"])),
         )
         seen, items = set(), []
         for state, r in enriched:
-            key = ((r["shop"] or "").lower(), r["code"].lower())
+            key = (_shop_key(r["shop"], r["shop_url"]), r["code"].lower())
             if key in seen:
                 continue
             seen.add(key)
@@ -258,7 +290,10 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 marker, validity = "🚫 ", l10n.get("discount_invalid", lang)
             elif state == "expired":
                 marker = "⌛ "
-                validity = l10n.get("discount_expired", lang, date=_fmt_date(r["valid_until"]))
+                validity = (
+                    l10n.get("discount_expired", lang, date=_fmt_date(r["valid_until"]))
+                    if r["valid_until"] else l10n.get("discount_expired_old", lang)
+                )
             else:  # valid
                 marker = ""
                 if r["status_override"] == "valid":
@@ -276,8 +311,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             )
             entry = l10n.get(
                 "discount_entry", lang,
-                marker=marker, shop=r["shop"] or "?", code=r["code"],
-                discount=r["discount"] or "?", validity=validity, min_part=min_part,
+                marker=marker, shop=_shop_display(r["shop"], r["shop_url"]),
+                code=r["code"], discount=r["discount"] or "?",
+                validity=validity, min_part=min_part,
             )
             if r["shop_url"]:
                 entry += f"\n<{r['shop_url']}>"
@@ -337,7 +373,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         self,
         ctx: discord.ApplicationContext,
         force: discord.Option(
-            bool, "Re-parse all messages again (ignores already-scanned)", default=False
+            bool, "Full rebuild: delete all stored codes + scan history, re-parse everything",
+            default=False,
+            description_localizations={"de": "Komplett neu: alle Codes + Scan-Historie löschen und alles neu parsen"},
         ),
     ):
         await ctx.defer(ephemeral=True)
@@ -348,6 +386,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             return
 
         if force:
+            await execute_db(self.bot, "DELETE FROM discount_codes", commit=True)
             await execute_db(self.bot, "DELETE FROM discount_scanned", commit=True)
 
         await ctx.followup.send(l10n.get("discount_rescan_start", lang), ephemeral=True)

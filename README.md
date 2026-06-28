@@ -332,7 +332,8 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 - **Backfill beim Start:** Beim ersten `on_ready` wird der gesamte Kanal (älteste zuerst) durchgegangen; bereits gescannte Nachrichten werden übersprungen. Mehrfaches `on_ready` (Reconnects) löst keinen erneuten Scan aus.
 - **Live:** Neue Posts im Kanal werden sofort verarbeitet (Reaktion 🏷️ bei gefundenem Code).
 - **Kein Keyword-Vorfilter:** Jede nicht-leere Nachricht geht an Haiku, das im Zweifel selbst entscheidet (kein Code → leeres Ergebnis). Rein bildbasierte Posts ohne Text werden ohne API-Aufruf übersprungen und nur als gescannt markiert.
-- **Datumslogik:** Relative/teilweise Angaben werden anhand des Nachrichtendatums aufgelöst (`nur heute`, `bis morgen`, `bis 14.06.`, `vom X bis Y`); `dauerhaft`/`immer` ⇒ permanenter Code ohne Enddatum.
+- **Datumslogik:** Relative/teilweise Angaben werden anhand des Nachrichtendatums aufgelöst (`nur heute`, `bis morgen`, `bis 14.06.`, `vom X bis Y`); Saison-Aktionen ohne Enddatum (Black Friday, Ostern, …) erhalten ein geschätztes Enddatum; `dauerhaft`/`immer` ⇒ permanenter Code ohne Enddatum. Codes **ohne** Enddatum (und nicht permanent) gelten ab 90 Tagen nach der Quellnachricht automatisch als abgelaufen, damit alte Saison-Codes nicht ewig als „aktuell" erscheinen.
+- **Shop-Normalisierung:** Für Anzeige und Duplikat-Erkennung wird der Shop auf seine Domain reduziert (`Ant Farm Supplies`, `antfarmsupplies.com`, `AntFarmSupplies.com` ⇒ derselbe Shop).
 - **Mehrere Codes pro Nachricht** werden unterstützt (z. B. Sammel-Posts mit mehreren Shops).
 
 ### Anzeige
@@ -391,7 +392,7 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 | `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. |
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. |
-| `/codes_rescan` | `force` (optional) | Rabattcode-Kanal erneut scannen. `force=true` löscht die Scan-Historie und parst alle Nachrichten erneut (kostet Haiku-Aufrufe). |
+| `/codes_rescan` | `force` (optional) | Rabattcode-Kanal erneut scannen. `force=true` = kompletter Neuaufbau: löscht **alle gespeicherten Codes + die Scan-Historie** und parst alle Nachrichten erneut (kostet Haiku-Aufrufe). |
 
 ---
 
