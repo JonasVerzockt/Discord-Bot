@@ -36,7 +36,7 @@ Gültigkeit (Zustand eines Codes):
   • on_message→ live
   • /codes [show_expired] → gültige (optional auch abgelaufene/deaktivierte)
   • /codes_set            → (Admin) Code gültig/ungültig/automatisch markieren
-  • /codes_rescan [force] → (Admin) Kanal scannen (force = alles neu aufbauen)
+  • /codes_rescan         → (Admin) Kanal nach neuen Nachrichten scannen
 """
 import re
 import asyncio
@@ -365,29 +365,18 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
 
     @discord.slash_command(
         name="codes_rescan",
-        description="(Admin) Re-scan the discount channel",
-        description_localizations={"de": "(Admin) Rabattcode-Kanal erneut scannen"},
+        description="(Admin) Scan the discount channel for new messages",
+        description_localizations={"de": "(Admin) Rabattcode-Kanal nach neuen Nachrichten scannen"},
     )
     @admin_or_manage_messages()
-    async def codes_rescan(
-        self,
-        ctx: discord.ApplicationContext,
-        force: discord.Option(
-            bool, "Full rebuild: delete all stored codes + scan history, re-parse everything",
-            default=False,
-            description_localizations={"de": "Komplett neu: alle Codes + Scan-Historie löschen und alles neu parsen"},
-        ),
-    ):
+    async def codes_rescan(self, ctx: discord.ApplicationContext):
+        """Inkrementeller Scan: bereits gescannte Nachrichten werden übersprungen."""
         await ctx.defer(ephemeral=True)
         lang    = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         channel = self.bot.get_channel(DISCOUNT_CHANNEL_ID)
         if not channel:
             await ctx.followup.send(l10n.get("discount_channel_missing", lang), ephemeral=True)
             return
-
-        if force:
-            await execute_db(self.bot, "DELETE FROM discount_codes", commit=True)
-            await execute_db(self.bot, "DELETE FROM discount_scanned", commit=True)
 
         await ctx.followup.send(l10n.get("discount_rescan_start", lang), ephemeral=True)
         checked, found = await self._backfill(channel)

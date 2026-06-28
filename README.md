@@ -340,7 +340,7 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 
 `/codes` listet standardmäßig nur gültige Codes: permanente, solche ohne Enddatum, alle mit `valid_until` ≥ heute sowie manuell als gültig markierte. Abgelaufene werden ausgeblendet, Duplikate (gleicher Shop + Code) zusammengefasst. Mit der Option `show_expired:true` werden zusätzlich abgelaufene (⌛) und manuell deaktivierte (🚫) Codes angezeigt.
 
-**Manuelle Steuerung:** Admins können mit `/codes_set <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_rescan` lässt sich der Kanal erneut scannen (`force` parst alle Nachrichten erneut).
+**Manuelle Steuerung:** Admins können mit `/codes_set <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_rescan` lässt sich der Kanal nach noch nicht gescannten Nachrichten durchsuchen (bereits Gescanntes wird übersprungen). Ein kompletter Neuaufbau erfolgt bewusst nicht per Befehl – dafür die Tabellen `discount_codes`/`discount_scanned` manuell leeren.
 
 ---
 
@@ -392,7 +392,7 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 | `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. |
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. |
-| `/codes_rescan` | `force` (optional) | Rabattcode-Kanal erneut scannen. `force=true` = kompletter Neuaufbau: löscht **alle gespeicherten Codes + die Scan-Historie** und parst alle Nachrichten erneut (kostet Haiku-Aufrufe). |
+| `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. |
 
 ---
 
