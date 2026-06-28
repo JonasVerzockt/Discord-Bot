@@ -318,7 +318,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         falls zu lang für eine Discord-Nachricht).
         """
         try:
-            values = await asyncio.to_thread(lambda: ws_ue.get(f"A1:E{last_row}"))
+            values = await asyncio.to_thread(lambda: ws_ue.get(f"A1:C{last_row}"))
         except Exception as e:
             logger.error(f"❌ Text-Fallback: Sheet-Lesefehler: {e}")
             return
@@ -352,7 +352,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 buf = io.BytesIO(table.encode("utf-8"))
                 buf.seek(0)
                 await channel.send(caption, file=discord.File(buf, filename="ranking.txt"))
-            logger.info(f"📊 Ranking-Text-Fallback gepostet (Übersicht A1:E{last_row})")
+            logger.info(f"📊 Ranking-Text-Fallback gepostet (Übersicht A1:C{last_row})")
         except discord.HTTPException as e:
             logger.error(f"❌ Text-Fallback Sende-Fehler: {e}")
 
