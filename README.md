@@ -13,6 +13,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 
 ## Inhaltsverzeichnis
 
+0. [Inhaltsverzeichnis](#inhaltsverzeichnis)
 1. [Voraussetzungen](#voraussetzungen)
 2. [Installation](#installation)
 3. [Konfiguration](#konfiguration)
@@ -39,6 +40,8 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - Google Service Account JSON für Sheets-Zugriff (`service_account.json`)
 - Anthropic API Key für Claude Haiku (KI-Parser)
 - AntCheck API Key (für den Grabber)
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -72,6 +75,8 @@ pip install -r requirements.txt
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
 | `PyNaCl>=1.5.0` | Voice-Verschlüsselung (unterdrückt discord-Warning) |
 | `davey` | Voice-Receive (unterdrückt discord-Warning) |
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -117,6 +122,8 @@ Alle Limits (Eingabezeichenanzahl, Output-Tokens, Konversationsgedächtnis, TTL)
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
 ---
 
 ## Erster Start & Server-Einrichtung
@@ -136,6 +143,8 @@ Auf jedem Discord-Server muss einmalig `/startup` ausgeführt werden (Admin):
 ```
 
 Damit wird der Bot-Kanal festgelegt und die Serversprache gesetzt. Ohne `/startup` funktionieren alle Befehle, aber in jedem Kanal.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -187,6 +196,8 @@ Beim Start gleicht der Bot automatisch die letzten **90 Tage** Discord-History m
 - Nachrichten die noch nicht im Sheet stehen → werden neu verarbeitet
 
 Manuell auslösbar per `/rescan`.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -258,6 +269,8 @@ Der Bot fragt per DM nach (48h Wartefenster):
 
 Benachrichtigungen die länger als 365 Tage `active` sind werden täglich als `expired` markiert und der User bekommt eine Abschluss-DM.
 
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
 ---
 
 ## Preis-Tracking
@@ -305,6 +318,8 @@ Beim Einrichten werden alle aktuell bekannten Produkte sofort als Baseline gespe
 
 Falls DMs des Users blockiert sind, wird der Server-Kanal als Fallback genutzt.
 
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
 ---
 
 ## Rabattcode-Tracker
@@ -326,6 +341,8 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 `/codes` listet standardmäßig nur gültige Codes: permanente, solche ohne Enddatum, alle mit `valid_until` ≥ heute sowie manuell als gültig markierte. Abgelaufene werden ausgeblendet, Duplikate (gleicher Shop + Code) zusammengefasst. Mit der Option `show_expired:true` werden zusätzlich abgelaufene (⌛) und manuell deaktivierte (🚫) Codes angezeigt.
 
 **Manuelle Steuerung:** Admins können mit `/codes_set <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_rescan` lässt sich der Kanal nach noch nicht gescannten Nachrichten durchsuchen (bereits Gescanntes wird übersprungen). Ein kompletter Neuaufbau erfolgt bewusst nicht per Befehl – dafür die Tabellen `discount_codes`/`discount_scanned` manuell leeren.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -367,6 +384,8 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 > -# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz für Fachrat. Angaben immer selbst prüfen! · 💰 $0.00312 · Quellcode: https://github.com/JonasVerzockt/Discord-Bot
 
 **Modell:** Standard `claude-haiku-4-5-20251001`, konfigurierbar per `AI_CHAT_MODEL` – aktuell `claude-sonnet-4-6` (unterstützt Text und Vision).
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -432,6 +451,8 @@ INAT_WEBAPP_SECRET=dein-secret                                  # Muss mit BOT_T
 
 Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein und den Scope `drive.readonly` für den PNG-Export besitzen.
 
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
 ---
 
 ## Slash Commands
@@ -484,6 +505,8 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. |
 
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
 ---
 
 ## Hintergrundaufgaben
@@ -500,6 +523,8 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | Bot-Status | alle 2 Minuten | Rotierender Discord-Status mit Ameisen-Sprüchen (20 Quotes) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 | AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest Tabs „Übersicht" + „Händler A-Z" aus Google Sheet und aktualisiert den System-Prompt-Anhang |
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -519,6 +544,8 @@ Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` (Tabell
 ```cron
 0 * * * * cd /opt/discord-bot && .venv/bin/python grabber.py >> /var/log/grabber.log 2>&1
 ```
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -554,6 +581,8 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
 Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `product_price_history` mit dem Preisverlauf aller Produkte (product_id, min_price, max_price, currency_iso, recorded_at).
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
 
@@ -610,10 +639,29 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
     └── eo.json              # Esperanto
 ```
 
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
 ---
 
 ## Lokalisierung
 
-Der Bot ist vollständig dreisprachig (de / en / eo). Die Sprache gilt für **alle** User-sichtbaren Ausgaben:
+Der Bot ist vollständig dreisprachig (**de** / **en** / **eo**). Die eingestellte Sprache gilt für **alle** User-sichtbaren Ausgaben: Slash-Command-Antworten, DMs (Verfügbarkeit, Preis-Tracking, Feedback), KI-Chat-Antworten und die Rabattcode-Ausgaben.
 
-- **Bot-Texte** (Fehlermeldungen, E
+**Sprachauflösung** (in dieser Reihenfolge):
+
+1. Persönliche Einstellung des Users (`/usersetting language`)
+2. Server-Einstellung (`/startup`)
+3. Fallback `en`
+
+Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server-Sprache verwendet.
+
+**Technik:**
+
+- Alle Texte liegen als JSON in `locales/de.json`, `locales/en.json` und `locales/eo.json` – in allen Dateien dieselbe Key-Menge.
+- Geladen beim Start über die `Localization`-Klasse (`utils/localization.py`); Zugriff im Code via `l10n.get("key", lang, **platzhalter)`.
+- Fehlt ein Key in der Zielsprache, wird automatisch auf `en` zurückgegriffen, danach auf den Key-Namen selbst (`[key]`) – es fällt also nie eine Ausgabe komplett aus.
+- Platzhalter wie `{species}`, `{shop}` oder `{date}` werden zur Laufzeit eingesetzt.
+
+**Neue Sprache hinzufügen:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen. Damit die Sprache auch auswählbar ist, müssen die `choices`-Listen von `/usersetting language` und `/startup` (aktuell `
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
