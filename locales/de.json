@@ -208,5 +208,15 @@
   "inat_ranking_caption": "📊 **Aktuelles Ranking** – automatisches Update",
   "system_integrity_ok": "✅ OK",
   "system_integrity_error": "⚠️ Fehler",
-  "system_integrity_unknown": "❌ Unbekannt"
+  "system_integrity_unknown": "❌ Unbekannt",
+  "ai_err_empty": "❌ Leere Nachricht – bitte schreib etwas.",
+  "ai_err_no_prompt": "❌ Der KI-Chat ist nicht konfiguriert (System-Prompt fehlt). Bitte informiere einen Admin.",
+  "ai_err_ratelimit": "⚠️ Rate-Limit erreicht. Bitte kurz warten und erneut versuchen.",
+  "ai_err_api": "❌ API-Fehler ({status}). Bitte später erneut versuchen.",
+  "ai_err_unknown": "❌ Unbekannter Fehler. Bitte informiere einen Admin.",
+  "ai_no_answer": "(Keine Antwort erhalten)",
+  "ai_budget_global_exhausted": "⚠️ Das globale Tagesbudget ist erschöpft (${limit:.2f}/Tag, noch ${remaining:.4f} übrig – geschätzte Kosten für diese Anfrage: ~${estimated:.4f}). Reset um {reset}.",
+  "ai_budget_user_exhausted": "⚠️ Dein persönliches Tagesbudget ist erschöpft (${limit:.2f}/Tag, noch ${remaining:.4f} übrig – geschätzte Kosten für diese Anfrage: ~${estimated:.4f}). Reset um {reset}.",
+  "ai_prompt_none": "(kein System-Prompt konfiguriert – ai_chat_system_prompt_en.txt fehlt)",
+  "pt_removed_generic": "✅ Entfernt."
 }

@@ -208,5 +208,15 @@
   "inat_ranking_caption": "📊 **Aktuala Vicordo** – aŭtomata ĝisdatigo",
   "system_integrity_ok": "✅ Bone",
   "system_integrity_error": "⚠️ Eraro",
-  "system_integrity_unknown": "❌ Nekonata"
+  "system_integrity_unknown": "❌ Nekonata",
+  "ai_err_empty": "❌ Malplena mesaĝo – bonvolu skribi ion.",
+  "ai_err_no_prompt": "❌ La KI-babilo ne estas agordita (sistema instigo mankas). Bonvolu informi administranton.",
+  "ai_err_ratelimit": "⚠️ Rapideclimo atingita. Bonvolu atendi momenton kaj reprovi.",
+  "ai_err_api": "❌ API-eraro ({status}). Bonvolu reprovi poste.",
+  "ai_err_unknown": "❌ Nekonata eraro. Bonvolu informi administranton.",
+  "ai_no_answer": "(Neniu respondo ricevita)",
+  "ai_budget_global_exhausted": "⚠️ La tutmonda taga buĝeto estas elĉerpita (${limit:.2f}/tage, ${remaining:.4f} restas – taksitaj kostoj por ĉi tiu peto: ~${estimated:.4f}). Restarigo je {reset}.",
+  "ai_budget_user_exhausted": "⚠️ Via persona taga buĝeto estas elĉerpita (${limit:.2f}/tage, ${remaining:.4f} restas – taksitaj kostoj por ĉi tiu peto: ~${estimated:.4f}). Restarigo je {reset}.",
+  "ai_prompt_none": "(neniu sistema instigo agordita – ai_chat_system_prompt_en.txt mankas)",
+  "pt_removed_generic": "✅ Forigita."
 }

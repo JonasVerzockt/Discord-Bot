@@ -707,7 +707,7 @@ class UntrackView(_BaseView):
         if sw_removed:
             parts.append(l10n.get("pt_unwatch_done", self.lang, count=sw_removed))
         await interaction.response.edit_message(
-            content="\n".join(parts) or "✅ Entfernt.",
+            content="\n".join(parts) or l10n.get("pt_removed_generic", self.lang),
             view=self,
         )
         self.stop()

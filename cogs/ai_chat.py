@@ -378,7 +378,7 @@ class AiChatCog(commands.Cog):
         prompt = (
             cfg.AI_CHAT_SYSTEM_PROMPTS.get(lang)
             or cfg.AI_CHAT_SYSTEM_PROMPTS.get("en")
-            or cfg.AI_CHAT_SYSTEM_PROMPT
+            or l10n.get("ai_prompt_none", lang)
         )
         # Discord-Limit: 2000 Zeichen pro Nachricht – in Codeblock einbetten
         header  = l10n.get("ai_prompt_header", lang) + "\n"

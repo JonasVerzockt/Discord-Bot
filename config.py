@@ -19,6 +19,7 @@ config.py - Zentrale Konfiguration für den AAM Discord Bot.
 Alle Konstanten und Umgebungsvariablen werden hier geladen.
 """
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -88,14 +89,7 @@ AI_CHAT_PUBLIC = os.getenv("AI_CHAT_PUBLIC", "false").lower() == "true"
 
 # System-Prompts: eine Datei pro Sprache (de/en/eo).
 # Dateiname: ai_chat_system_prompt_{lang}.txt
-# Fallback-Reihenfolge: User-Sprache → en → eingebauter Notfall-Prompt
-_BUILTIN_PROMPT = (
-    "You are a helpful assistant for the AAM (Ameisen an die Macht) Discord community – "
-    "a community around ant keeping and myrmecology. Answer questions in the user's language, "
-    "friendly and concise. For ant-related questions, respond with expertise. "
-    "Keep answers short and clear."
-)
-
+# ai_chat_system_prompt_en.txt ist Pflicht und dient als Fallback für alle Sprachen.
 AI_CHAT_SYSTEM_PROMPTS: dict[str, str] = {}
 for _lang in ("de", "en", "eo"):
     _f = BASE_DIR / f"ai_chat_system_prompt_{_lang}.txt"
@@ -104,16 +98,10 @@ for _lang in ("de", "en", "eo"):
             _f.read_text(encoding="utf-8").strip().replace("{model}", AI_CHAT_MODEL)
         )
 
-# Legacy-Datei (ai_chat_system_prompt.txt) → wird als 'de' verwendet, falls keine de-Datei
-_legacy_file = BASE_DIR / "ai_chat_system_prompt.txt"
-if "de" not in AI_CHAT_SYSTEM_PROMPTS and _legacy_file.exists():
-    AI_CHAT_SYSTEM_PROMPTS["de"] = (
-        _legacy_file.read_text(encoding="utf-8").strip().replace("{model}", AI_CHAT_MODEL)
-    )
-
-# Env-Variable als letzter Fallback für 'en'
+# Die englische Datei ist Pflicht (Fallback für alle Sprachen). Fehlt sie, wird ein
+# klarer Fehler geloggt; der KI-Chat lehnt Anfragen dann mit Fehlermeldung ab.
 if "en" not in AI_CHAT_SYSTEM_PROMPTS:
-    AI_CHAT_SYSTEM_PROMPTS["en"] = os.getenv("AI_CHAT_SYSTEM_PROMPT", _BUILTIN_PROMPT)
-
-# Rueckwaertskompatibilitaet: AI_CHAT_SYSTEM_PROMPT zeigt auf den deutschen Prompt (oder en)
-AI_CHAT_SYSTEM_PROMPT: str = AI_CHAT_SYSTEM_PROMPTS.get("de", AI_CHAT_SYSTEM_PROMPTS["en"])
+    logging.getLogger(__name__).error(
+        "❌ ai_chat_system_prompt_en.txt fehlt – KI-Chat hat keinen "
+        "Fallback-System-Prompt und wird Anfragen mit Fehlermeldung ablehnen."
+    )

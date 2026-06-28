@@ -305,7 +305,7 @@ Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfiguri
 | Videos | – | nicht unterstützt (wird abgelehnt) |
 | Sonstige | – | nicht unterstützt (wird abgelehnt) |
 
-**System-Prompt:** Wird beim Start aus sprachspezifischen Dateien geladen – `ai_chat_system_prompt_de.txt`, `ai_chat_system_prompt_en.txt`, `ai_chat_system_prompt_eo.txt`. Der Platzhalter `{model}` wird automatisch durch das konfigurierte Modell ersetzt. Jeder Prompt ist vollständig in der jeweiligen Sprache verfasst und konfiguriert die KI als AAM-Community-Assistent für Ameisenhaltung, inkl. Quellenpflicht, Jugendschutz und Discord-Markdown-Formatierung. Die Legacy-Datei `ai_chat_system_prompt.txt` wird weiterhin als Deutsch-Fallback erkannt.
+**System-Prompt:** Wird beim Start aus sprachspezifischen Dateien geladen – `ai_chat_system_prompt_de.txt`, `ai_chat_system_prompt_en.txt`, `ai_chat_system_prompt_eo.txt`. Der Platzhalter `{model}` wird automatisch durch das konfigurierte Modell ersetzt. Jeder Prompt ist vollständig in der jeweiligen Sprache verfasst und konfiguriert die KI als AAM-Community-Assistent für Ameisenhaltung, inkl. Quellenpflicht, Jugendschutz und Discord-Markdown-Formatierung. Die `en`-Datei ist Pflicht und dient als Fallback für alle Sprachen – fehlt sie, wird beim Start ein Fehler geloggt und der KI-Chat lehnt Anfragen mit einer Fehlermeldung ab.
 
 **Shop-Wissen:** Beim Start und alle 6 Stunden werden die Tabs **„Übersicht"** und **„Händler A-Z"** aus dem AAM Google Sheet geladen. Händler A-Z wird kompakt aufbereitet (`shopname ⭐9.97 (63x)`) und auf Shops mit **mindestens 4 Bewertungen** gefiltert. Der Shop-Block wird nur bei shop-relevanten Anfragen in den System-Prompt eingebettet – per **3-stufiger Vorqualifizierung**:
 
@@ -522,7 +522,6 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
 ├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
 ├── ai_chat_system_prompt_eo.txt  # System-Prompt Esperanto
-├── ai_chat_system_prompt.txt     # Legacy-Datei (wird als de-Fallback erkannt)
 │
 ├── cogs/
 │   ├── server_settings.py   # /startup + allowed_channel/admin_or_manage_messages Decorators

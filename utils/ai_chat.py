@@ -61,6 +61,7 @@ from typing import Optional
 import anthropic
 
 import config as cfg
+from utils.localization import l10n
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +236,7 @@ def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0)
     Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
     """
     # Konservative Schaetzung: laengsten verfügbaren Prompt nehmen
-    system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=len(cfg.AI_CHAT_SYSTEM_PROMPT)) / 3.5
+    system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=0) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
     image_tokens  = num_images * 1500
     return (
@@ -317,7 +318,7 @@ def _reset_time_str() -> str:
     )
 
 
-def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
+def check_budget(user_id: int, estimated_cost: float, lang: str = "en") -> tuple[bool, str]:
     """
     Prüft ob globales und User-Budget ausreichen.
 
@@ -331,22 +332,18 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
 
     if global_used + estimated_cost > cfg.AI_CHAT_DAILY_BUDGET_USD:
         remaining = max(0.0, cfg.AI_CHAT_DAILY_BUDGET_USD - global_used)
-        return False, (
-            f"⚠️ Das globale Tagesbudget ist erschoepft "
-            f"(${cfg.AI_CHAT_DAILY_BUDGET_USD:.2f}/Tag, "
-            f"noch ${remaining:.4f} uebrig – "
-            f"geschätzte Kosten für diese Anfrage: ~${estimated_cost:.4f}). "
-            f"Reset um {reset_str}."
+        return False, l10n.get(
+            "ai_budget_global_exhausted", lang,
+            limit=cfg.AI_CHAT_DAILY_BUDGET_USD, remaining=remaining,
+            estimated=estimated_cost, reset=reset_str,
         )
 
     if user_used + estimated_cost > cfg.AI_CHAT_USER_DAILY_BUDGET_USD:
         remaining = max(0.0, cfg.AI_CHAT_USER_DAILY_BUDGET_USD - user_used)
-        return False, (
-            f"⚠️ Dein persoenliches Tagesbudget ist erschoepft "
-            f"(${cfg.AI_CHAT_USER_DAILY_BUDGET_USD:.2f}/Tag, "
-            f"noch ${remaining:.4f} uebrig – "
-            f"geschätzte Kosten für diese Anfrage: ~${estimated_cost:.4f}). "
-            f"Reset um {reset_str}."
+        return False, l10n.get(
+            "ai_budget_user_exhausted", lang,
+            limit=cfg.AI_CHAT_USER_DAILY_BUDGET_USD, remaining=remaining,
+            estimated=estimated_cost, reset=reset_str,
         )
 
     return True, ""
@@ -512,9 +509,9 @@ async def chat(
     """
 
     # 1. Eingabe validieren
-    ok, reason = validate_input(user_message)
+    ok, _reason = validate_input(user_message)
     if not ok:
-        return {"ok": False, "answer": reason, "cost": 0.0,
+        return {"ok": False, "answer": l10n.get("ai_err_empty", user_lang), "cost": 0.0,
                 "history": [], "is_error": False}
 
     user_message = user_message.strip()
@@ -534,7 +531,7 @@ async def chat(
     history_chars = sum(len(m.get("content", "") if isinstance(m.get("content"), str) else "") for m in history)
     num_images    = len(images) if images else 0
     estimated     = estimate_cost(len(user_message), history_chars, num_images)
-    budget_ok, budget_msg = check_budget(user_id, estimated)
+    budget_ok, budget_msg = check_budget(user_id, estimated, user_lang)
     if not budget_ok:
         return {"ok": False, "answer": budget_msg, "cost": 0.0,
                 "history": [], "is_error": False}
@@ -577,12 +574,20 @@ async def chat(
             f"(precheck_cost=${precheck_cost:.6f})"
         )
 
-    # Sprachspezifischen System-Prompt auswaehlen (Fallback: en → de → eingebaut)
+    # Sprachspezifischen System-Prompt auswaehlen (Fallback: User-Sprache → en)
     base_prompt = (
         cfg.AI_CHAT_SYSTEM_PROMPTS.get(user_lang)
         or cfg.AI_CHAT_SYSTEM_PROMPTS.get("en")
-        or cfg.AI_CHAT_SYSTEM_PROMPT
     )
+    if not base_prompt:
+        logger.error(
+            "[AI-Chat] Kein System-Prompt verfügbar – ai_chat_system_prompt_en.txt fehlt"
+        )
+        return {
+            "ok": False,
+            "answer": l10n.get("ai_err_no_prompt", user_lang),
+            "cost": 0.0, "history": [], "is_error": True,
+        }
     system_prompt = (
         base_prompt + "\n\n" + shop_data
         if shop_data else
@@ -604,28 +609,28 @@ async def chat(
         logger.warning("[AI-Chat] Rate-Limit erreicht")
         return {
             "ok": False,
-            "answer": "⚠️ Rate-Limit erreicht. Bitte kurz warten und erneut versuchen.",
+            "answer": l10n.get("ai_err_ratelimit", user_lang),
             "cost": 0.0, "history": [], "is_error": True,
         }
     except anthropic.APIStatusError as e:
         logger.error(f"[AI-Chat] API-Statusfehler {e.status_code}: {e.message}")
         return {
             "ok": False,
-            "answer": f"❌ API-Fehler ({e.status_code}). Bitte spaeter erneut versuchen.",
+            "answer": l10n.get("ai_err_api", user_lang, status=e.status_code),
             "cost": 0.0, "history": [], "is_error": True,
         }
     except Exception as e:
         logger.error(f"[AI-Chat] Unbekannter Fehler: {e}", exc_info=True)
         return {
             "ok": False,
-            "answer": "❌ Unbekannter Fehler. Bitte Jonas Bescheid geben.",
+            "answer": l10n.get("ai_err_unknown", user_lang),
             "cost": 0.0, "history": [], "is_error": True,
         }
 
     # 7. Antwort extrahieren
     answer = "".join(
         block.text for block in response.content if hasattr(block, "text")
-    ) or "(Keine Antwort erhalten)"
+    ) or l10n.get("ai_no_answer", user_lang)
 
     # 8. Tatsächliche Kosten tracken (Sonnet-Call + Haiku-Precheck falls vorhanden)
     actual_cost = calculate_cost(response.usage) + precheck_cost
