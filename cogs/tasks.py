@@ -188,19 +188,35 @@ class TasksCog(commands.Cog, name="Tasks"):
     async def before_optimize(self):
         await self.bot.wait_until_ready()
 
-    # ── Bot-Status jede Minute aktualisieren ──────────────────────────────────
-    @tasks.loop(minutes=1)
+    # ── Bot-Status alle 2 Minuten mit rotierenden Ameisen-Sprüchen ──────────
+    _ANT_QUOTES = [
+        "🐜 Die Königin hat immer recht.",
+        "🐜 Heute Larve, morgen Arbeiterin.",
+        "🐜 42 mg – und trotzdem unaufhaltbar.",
+        "🐜 Wir graben. Immer. Überall.",
+        "🐜 Der Pilz ist kein Haustier. Oder doch?",
+        "🐜 Kein Feromonsignal, kein Frieden.",
+        "🐜 Camponotus wartet auf niemanden.",
+        "🐜 Ausbruchsversuch Nr. 47 läuft.",
+        "🐜 Messor barbarus hätte das nicht passiert.",
+        "🐜 Gaster hoch – Angriff!",
+        "🐜 Formicidae since 130 Mio. v. Chr.",
+        "🐜 Wer braucht schon Flügel?",
+        "🐜 Tunnel Nummer 3 ist fast fertig.",
+        "🐜 Der Honig gehört uns. Allen.",
+        "🐜 Lasius niger grüßt von nebenan.",
+    ]
+    _quote_index = 0
+
+    @tasks.loop(minutes=2)
     async def update_bot_status(self):
         try:
-            uptime  = datetime.utcnow() - self._start_time
-            hours   = int(uptime.total_seconds() // 3600)
-            minutes = int((uptime.total_seconds() % 3600) // 60)
-            servers = len(self.bot.guilds)
-            users   = sum(g.member_count or 0 for g in self.bot.guilds)
+            quote = self._ANT_QUOTES[self._quote_index % len(self._ANT_QUOTES)]
+            self._quote_index += 1
             await self.bot.change_presence(
                 activity=discord.Activity(
                     type=discord.ActivityType.watching,
-                    name=f"{servers} Server | {users} User | ⏲️ {hours}h {minutes}m",
+                    name=quote,
                 )
             )
         except Exception as e:
