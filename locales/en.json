@@ -31,7 +31,7 @@
   "system_file_status": "🔄 File last updated: {modified} (ago: {age})",
   "system_file_missing": "❌ File not found",
   "system_error": "❌ Error retrieving status",
-  "help_full": "**📚 Command overview**\n\n**For all users:**\n{user_commands}\n\n**Admin / Manage Messages only:**\n{admin_commands}",
+  "help_full": "**📚 Command overview**\n\n**For all users:**\n{user_commands}\n\n**Admin / Manage Messages only:**\n{admin_commands}{ai_section}",
   "help_notification": "🔔 `/notification` – Set up an availability notification (species, genus, regions, CH-only, exclusions)",
   "help_history": "📜 `/history` – Show your notification history",
   "help_test": "📨 `/testnotification` – Send a test DM to yourself",
@@ -163,5 +163,6 @@
   "pt_untrack_done": "✅ **{count}** product(s) removed from tracking.",
   "pt_untrack_none": "📭 You are not tracking any products.",
   "pt_dm_cheaper": "📉 **Price drop!** at **{shop}**\n🐜 **{species}** – {title}\n\nBefore: {old_price}\nNow:    {new_price}\n\n🔗 [Product link](<{url}>)",
-  "pt_dm_dearer": "📈 **Price increase!** at **{shop}**\n🐜 **{species}** – {title}\n\nBefore: {old_price}\nNow:    {new_price}\n\n🔗 [Product link](<{url}>)"
+  "pt_dm_dearer": "📈 **Price increase!** at **{shop}**\n🐜 **{species}** – {title}\n\nBefore: {old_price}\nNow:    {new_price}\n\n🔗 [Product link](<{url}>)",
+  "help_ai_section": "\n\n**🤖 AI features** *(not publicly available)*\n{ai_commands}"
 }

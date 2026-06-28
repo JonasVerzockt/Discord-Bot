@@ -32,6 +32,7 @@ from discord.ext import commands
 
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from config import AI_CHAT_PUBLIC
 from utils.availability import load_shop_data
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from config import SHOPS_DATA_FILE
@@ -156,21 +157,30 @@ class StatsCog(commands.Cog, name="Stats"):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         user_keys = [
             "help_notification", "help_history", "help_test", "help_delete",
-            "help_usersetting", "help_ch_delivery", "help_ai_chat",
+            "help_usersetting", "help_ch_delivery",
             "help_track_price", "help_my_price_tracking", "help_untrack_price",
         ]
         admin_keys = [
-            "help_startup", "help_status", "help_pending", "help_test_admin",
+            "help_startup", "help_status", "help_pending",
             "help_rescan", "help_reprocess", "help_export",
             "help_stats", "help_system",
             "help_reloadshops", "help_shopmapping", "help_shopurl",
+        ]
+        ai_keys = [
+            "help_ai_chat",
+            "help_test_admin",
             "help_ai_reset",
             "help_ai_prompt",
         ]
         user_commands  = "\n".join(l10n.get(k, lang) for k in user_keys)
         admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)
+        if AI_CHAT_PUBLIC:
+            ai_commands = "\n".join(l10n.get(k, lang) for k in ai_keys)
+            ai_section  = l10n.get("help_ai_section", lang, ai_commands=ai_commands)
+        else:
+            ai_section = ""
         await ctx.respond(
-            l10n.get("help_full", lang, user_commands=user_commands, admin_commands=admin_commands),
+            l10n.get("help_full", lang, user_commands=user_commands, admin_commands=admin_commands, ai_section=ai_section),
         )
 
 

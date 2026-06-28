@@ -31,7 +31,7 @@
   "system_file_status": "🔄 Dosiero laste ĝisdatigita: {modified} (antaŭ {age})",
   "system_file_missing": "❌ Dosiero ne trovita",
   "system_error": "❌ Eraro dum ricevo de stato",
-  "help_full": "**📚 Komandotrarigardo**\n\n**Por ĉiuj uzantoj:**\n{user_commands}\n\n**Nur administrantoj / Administri mesaĝojn:**\n{admin_commands}",
+  "help_full": "**📚 Komandotrarigardo**\n\n**Por ĉiuj uzantoj:**\n{user_commands}\n\n**Nur administrantoj / Administri mesaĝojn:**\n{admin_commands}{ai_section}",
   "help_notification": "🔔 `/notification` – Agordi haveblecoscigon (specio, genro, regionoj, CH-nur, esceptoj)",
   "help_history": "📜 `/history` – Montri vian sciighistorion",
   "help_test": "📨 `/testnotification` – Sendi provan DM al vi mem",
@@ -163,5 +163,6 @@
   "pt_untrack_done": "✅ **{count}** produkto(j) forigitaj el la monitorado.",
   "pt_untrack_none": "📭 Vi ne monitoras iujn ajn produktojn.",
   "pt_dm_cheaper": "📉 **Prezmalpliiĝo!** ĉe **{shop}**\n🐜 **{species}** – {title}\n\nAnte: {old_price}\nNun:  {new_price}\n\n🔗 [Produkto-ligilo](<{url}>)",
-  "pt_dm_dearer": "📈 **Prezaltiĝo!** ĉe **{shop}**\n🐜 **{species}** – {title}\n\nAnte: {old_price}\nNun:  {new_price}\n\n🔗 [Ligilaro](<{url}>)"
+  "pt_dm_dearer": "📈 **Prezaltiĝo!** ĉe **{shop}**\n🐜 **{species}** – {title}\n\nAnte: {old_price}\nNun:  {new_price}\n\n🔗 [Ligilaro](<{url}>)",
+  "help_ai_section": "\n\n**🤖 KI-funkcioj** *(nuntempe ne publike havebla)*\n{ai_commands}"
 }

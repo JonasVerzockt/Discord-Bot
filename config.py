@@ -84,6 +84,7 @@ AI_CHAT_MAX_HISTORY_TURNS = int(os.getenv("AI_CHAT_MAX_HISTORY_TURNS", "10"))
 
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
+AI_CHAT_PUBLIC = os.getenv("AI_CHAT_PUBLIC", "false").lower() == "true"
 
 # System-Prompts: eine Datei pro Sprache (de/en/eo).
 # Dateiname: ai_chat_system_prompt_{lang}.txt

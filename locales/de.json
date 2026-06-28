@@ -31,7 +31,7 @@
   "system_file_status": "🔄 Datei zuletzt aktualisiert: {modified} (vor {age})",
   "system_file_missing": "❌ Datei nicht gefunden",
   "system_error": "❌ Fehler beim Abrufen des Status",
-  "help_full": "**📚 Befehlsübersicht**\n\n**Für alle User:**\n{user_commands}\n\n**Nur Admin / Nachrichten verwalten:**\n{admin_commands}",
+  "help_full": "**📚 Befehlsübersicht**\n\n**Für alle User:**\n{user_commands}\n\n**Nur Admin / Nachrichten verwalten:**\n{admin_commands}{ai_section}",
   "help_notification": "🔔 `/notification` – Verfügbarkeitsbenachrichtigung einrichten (Art, Gattung, Regionen, CH-only, Ausschlüsse)",
   "help_history": "📜 `/history` – Deine Benachrichtigungshistorie anzeigen",
   "help_test": "📨 `/testnotification` – Test-DM an dich selbst senden",
@@ -163,5 +163,6 @@
   "pt_untrack_done": "✅ **{count}** Produkt(e) aus dem Tracking entfernt.",
   "pt_untrack_none": "📭 Du beobachtest aktuell keine Produkte.",
   "pt_dm_cheaper": "📉 **Preissenkung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)",
-  "pt_dm_dearer": "📈 **Preiserhöhung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)"
+  "pt_dm_dearer": "📈 **Preiserhöhung!** bei **{shop}**\n🐜 **{species}** – {title}\n\nVorher: {old_price}\nJetzt:   {new_price}\n\n🔗 [Produktlink](<{url}>)",
+  "help_ai_section": "\n\n**🤖 KI-Funktionen** *(aktuell nicht öffentlich verfügbar)*\n{ai_commands}"
 }
