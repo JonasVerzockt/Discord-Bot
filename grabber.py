@@ -33,6 +33,7 @@ Umgebungsvariablen:
 import json
 import logging
 import os
+import sqlite3
 import sys
 import time
 from datetime import datetime, timezone
@@ -62,8 +63,9 @@ API_TIMEOUT     = int(os.getenv("ANTCHECK_TIMEOUT", "30"))
 API_RETRIES     = int(os.getenv("ANTCHECK_RETRIES", "3"))
 API_RETRY_DELAY = float(os.getenv("ANTCHECK_RETRY_DELAY", "5"))
 API_VERIFY_SSL  = os.getenv("ANTCHECK_VERIFY_SSL", "true").lower() not in ("0", "false", "no")
-DATA_DIRECTORY  = os.getenv("DATA_DIRECTORY", str(Path(__file__).parent))
-OUTPUT_FILE     = Path(DATA_DIRECTORY) / "shops_data.json"
+DATA_DIRECTORY    = os.getenv("DATA_DIRECTORY", str(Path(__file__).parent))
+OUTPUT_FILE       = Path(DATA_DIRECTORY) / "shops_data.json"
+PRICE_HISTORY_DB  = Path(DATA_DIRECTORY) / "price_history.db"
 
 SHOPS_URL    = f"{API_BASE}/api/v2/ecommerce/shops?online=true&crawler_active=true&page=0&limit=-1&api_key={API_KEY}"
 PRODUCTS_URL = f"{API_BASE}/api/v2/ecommerce/products?shop_id={{shop_id}}&product_type=ants&page=0&limit=-1&api_key={API_KEY}"
@@ -131,6 +133,77 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
         })
 
 
+# -- Preis-Tracking ------------------------------------------------------------
+
+_PRICE_HISTORY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS product_price_history (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id   INTEGER NOT NULL,
+    min_price    REAL    NOT NULL,
+    max_price    REAL    NOT NULL,
+    currency_iso TEXT    NOT NULL DEFAULT 'EUR',
+    recorded_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pph_product
+    ON product_price_history(product_id, recorded_at DESC);
+"""
+
+
+def _track_prices(shop_map: dict) -> tuple[int, int]:
+    """
+    Vergleicht aktuelle Preise mit dem letzten Eintrag in price_history.db.
+    Schreibt nur einen neuen Eintrag wenn sich der Preis geaendert hat.
+    Produkte mit Preis 0 werden ignoriert.
+    Gibt (neue Eintraege, gecheckte Produkte) zurueck.
+    """
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        conn.executescript(_PRICE_HISTORY_SCHEMA)
+        conn.commit()
+        cur = conn.cursor()
+
+        new_entries = 0
+        checked = 0
+
+        for shop in shop_map.values():
+            for p in shop.get("products", []):
+                pid = p.get("id")
+                if pid is None:
+                    continue
+                try:
+                    min_p = float(p.get("min_price") or 0)
+                    max_p = float(p.get("max_price") or 0)
+                except (TypeError, ValueError):
+                    continue
+                # 0€ ignorieren
+                if min_p == 0.0 and max_p == 0.0:
+                    continue
+
+                currency = p.get("currency_iso") or "EUR"
+                checked += 1
+
+                # Letzten Eintrag holen
+                cur.execute(
+                    "SELECT min_price, max_price FROM product_price_history "
+                    "WHERE product_id=? ORDER BY recorded_at DESC LIMIT 1",
+                    (pid,),
+                )
+                last = cur.fetchone()
+
+                if last is None or last[0] != min_p or last[1] != max_p:
+                    cur.execute(
+                        "INSERT INTO product_price_history "
+                        "(product_id, min_price, max_price, currency_iso) VALUES (?,?,?,?)",
+                        (pid, min_p, max_p, currency),
+                    )
+                    new_entries += 1
+
+        conn.commit()
+        return new_entries, checked
+    finally:
+        conn.close()
+
+
 # -- Hauptprogramm -------------------------------------------------------------
 
 def main():
@@ -178,6 +251,16 @@ def main():
         tmp = OUTPUT_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(OUTPUT_FILE)
+
+        # 4. Preis-History tracken
+        try:
+            new_entries, checked = _track_prices(shop_map)
+            logger.info(
+                f"Preis-Tracking: {checked} Produkte gecheckt, "
+                f"{new_entries} neue Eintraege -> {PRICE_HISTORY_DB}"
+            )
+        except Exception as e:
+            logger.warning(f"Preis-Tracking fehlgeschlagen (nicht kritisch): {e}")
 
         elapsed = time.monotonic() - start
         logger.info(
