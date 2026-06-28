@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class AdminCog(commands.Cog, name="Admin"):
-    """Verwaltungsbefehle fuer Bot-Admins."""
+    """Verwaltungsbefehle für Bot-Admins."""
 
     def __init__(self, bot: discord.Bot):
         self.bot = bot

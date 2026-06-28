@@ -41,11 +41,11 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
     Fuehrt eine SQLite-Query in einem Thread-Pool aus (non-blocking).
 
     Args:
-        bot:    discord.Bot-Instanz (fuer bot.loop)
+        bot:    discord.Bot-Instanz (für bot.loop)
         query:  SQL-Query
         params: Query-Parameter
         commit: True -> schreibende Operation
-        fetch:  True -> gibt fetchall() zurueck
+        fetch:  True -> gibt fetchall() zurück
 
     Returns:
         list[sqlite3.Row] wenn fetch=True, sonst rowcount (int)

@@ -1,4 +1,4 @@
-# Discord (py-cord – wird benoetigt fuer Slash Commands / ApplicationContext)
+# Discord (py-cord – wird benötigt für Slash Commands / ApplicationContext)
 py-cord>=2.4.0
 
 # KI-Parser (Claude Haiku)

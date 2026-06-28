@@ -67,8 +67,8 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         excluded_species_list: set | None = None,
     ) -> bool | None:
         """
-        Prueft Verfuegbarkeit und sendet PN.
-        Returns: True=gesendet, False=nicht verfuegbar, None=Fehler
+        Prüft Verfügbarkeit und sendet PN.
+        Returns: True=gesendet, False=nicht verfügbar, None=Fehler
         """
         if excluded_species_list is None:
             excluded_species_list = set()

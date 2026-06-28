@@ -11,7 +11,7 @@ Schreibt pro erkanntem Link eine Zeile:
   Spalte D  -- iNaturalist-Link (immer https)
   Spalte E  -- Datum (Berliner Zeit, DD.MM.YYYY)
 
-Vor dem Eintragen wird geprueft:
+Vor dem Eintragen wird geprüft:
   1. Ist der Link bereits in Spalte D vorhanden? -> ignorieren
   2. Gehoert die Beobachtung zur Ueberfamilie Formicoidea (taxon_id=1269340)? -> sonst ignorieren
   Beides wird im Log angezeigt.
@@ -88,7 +88,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         return self._start <= datetime.now(tz=BERLIN) <= self._end
 
     def _link_exists(self, ws: gspread.Worksheet, url: str) -> bool:
-        """Prueft ob die URL bereits in Spalte D vorhanden ist."""
+        """Prüft ob die URL bereits in Spalte D vorhanden ist."""
         return url in ws.col_values(4)
 
     def _next_free_row(self, ws: gspread.Worksheet) -> int:
@@ -97,9 +97,9 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
     async def _is_formicoidea(self, obs_id: str) -> bool | None:
         """
-        Fragt die iNaturalist API ab und prueft ob die Beobachtung
+        Fragt die iNaturalist API ab und prüft ob die Beobachtung
         zur Ueberfamilie Formicoidea (taxon_id=1269340) gehört.
-        Rueckgabe:
+        Rückgabe:
           True  -- gehört zu Formicoidea
           False -- gehört nicht dazu (API hat geantwortet)
           None  -- API nicht erreichbar (Retry ausloesen)
@@ -250,7 +250,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                     f"🌿 iNat obs {obs_id} gehört nicht zu Formicoidea – übersprungen"
                 )
                 return
-            # Nochmals pruefen ob der Link zwischenzeitlich eingetragen wurde
+            # Nochmals prüfen ob der Link zwischenzeitlich eingetragen wurde
             if self._link_exists(ws, url):
                 logger.info(f"ℹ️ iNat obs {obs_id} inzwischen bereits im Sheet")
                 return

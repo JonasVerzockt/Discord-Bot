@@ -15,18 +15,18 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-utils/ai_chat.py – Backend-Logik fuer den KI-Chat-Bot.
+utils/ai_chat.py – Backend-Logik für den KI-Chat-Bot.
 
 Verwaltet:
-  - Budget-Tracking (global + per User, taeglich um 00:00 UTC zurueckgesetzt)
-  - Konversations-Historie (fuer Thread-Antworten via Discord-Reply)
+  - Budget-Tracking (global + per User, täglich um 00:00 UTC zurückgesetzt)
+  - Konversations-Historie (für Thread-Antworten via Discord-Reply)
   - Eingabe-Validierung und Kostenabschaetzung (Pre-Check)
   - 3-stufige Shop-Daten-Vorqualifizierung (Keyword → Haiku → Sonnet)
   - Anthropic-API-Call (ohne Prompt Caching)
 
 SHOP-DATEN-VORQUALIFIZIERUNG (3 Stufen):
   Stage 1 – Keyword-Check (kostenlos, sofort):
-    Enthaelt die Nachricht shop-relevante Woerter? → Ja: Shop-Daten rein,
+    Enthält die Nachricht shop-relevante Woerter? → Ja: Shop-Daten rein,
     fertig. Nein: weiter zu Stage 2.
   Stage 2 – Haiku-Klassifikation (~$0.00025, ~200ms):
     Haiku bewertet ob die Nachricht indirekt shop-relevant ist
@@ -40,12 +40,12 @@ WARUM KEIN PROMPT CACHING:
   anzulegen. Ein typischer System-Prompt hat ~50-200 Tokens – das Minimum wird
   nie erreicht. cache_control wird von der API kommentarlos ignoriert, kostet
   aber dennoch den 1.25x Cache-Write-Preis sobald die Schwelle erreichbar waere.
-  Fuer diesen Use Case (sporadischer Chat, kurzer System-Prompt) ist kein
+  Für diesen Use Case (sporadischer Chat, kurzer System-Prompt) ist kein
   Caching die ehrlichste und guenstigste Loesung.
 
 HINWEIS zur Batch API:
   Die Anthropic Batch API bietet 50 % Rabatt, hat aber eine Latenz von bis
-  zu 24 Stunden. Sie ist damit fuer interaktive Discord-Bots NICHT geeignet.
+  zu 24 Stunden. Sie ist damit für interaktive Discord-Bots NICHT geeignet.
 
 Quellen Preise:
   https://www.anthropic.com/claude/haiku
@@ -90,7 +90,7 @@ def _get_prices() -> tuple[float, float]:
         return _MODEL_PRICES[model]
     if "opus" in model:
         # Opus 4.5+ kostet $5/$25 – aeltere Versionen $15/$75
-        # Im Zweifel neuere Preise nehmen (konservativ fuer Budget-Check)
+        # Im Zweifel neuere Preise nehmen (konservativ für Budget-Check)
         return (5.00 / 1_000_000, 25.00 / 1_000_000)
     if "sonnet" in model:
         return (3.00 / 1_000_000, 15.00 / 1_000_000)
@@ -127,7 +127,7 @@ _SHOP_KEYWORDS: frozenset[str] = frozenset({
 def _needs_shop_data(message: str) -> bool:
     """
     Stage 1: Schneller Keyword-Check ohne API-Kosten.
-    Prueft statische generische Begriffe UND dynamisch geladene Shop-Namen
+    Prüft statische generische Begriffe UND dynamisch geladene Shop-Namen
     aus dem Google Sheet (wird alle 6 Stunden aktualisiert).
     """
     from utils.sheets_shop_data import get_cached_shop_names
@@ -144,17 +144,17 @@ _HAIKU_PRICE_IN  = 1.00 / 1_000_000
 _HAIKU_PRICE_OUT = 5.00 / 1_000_000
 
 _CLASSIFY_SYSTEM = (
-    "Du klassifizierst Discord-Nachrichten fuer einen Ameisen-Community-Bot. "
+    "Du klassifizierst Discord-Nachrichten für einen Ameisen-Community-Bot. "
     "Antworte NUR mit 'JA' wenn die Nachricht eine Frage oder Aussage zu "
     "Ameisen-Shops, Haendlern, Kaufempfehlungen, Warnhinweisen, Scams oder "
-    "Online-Bestellungen enthaelt. "
+    "Online-Bestellungen enthält. "
     "Antworte NUR mit 'NEIN' in allen anderen Faellen. Kein weiterer Text."
 )
 
 
 async def _classify_shop_haiku(message: str) -> dict:
     """
-    Stage 2: Haiku klassifiziert ob Shop-Daten benoetigt werden.
+    Stage 2: Haiku klassifiziert ob Shop-Daten benötigt werden.
     Wird nur aufgerufen wenn Stage 1 (Keyword) keinen Treffer hatte.
 
     Returns:
@@ -225,7 +225,7 @@ def init_ai_chat_tables() -> None:
 # ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
 def _today() -> str:
-    """Gibt das aktuelle UTC-Datum als YYYY-MM-DD zurueck."""
+    """Gibt das aktuelle UTC-Datum als YYYY-MM-DD zurück."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
@@ -235,7 +235,7 @@ def _db() -> sqlite3.Connection:
 
 def calculate_cost(usage) -> float:
     """
-    Berechnet die tatsaechlichen Kosten aus dem Anthropic-Usage-Objekt.
+    Berechnet die tatsächlichen Kosten aus dem Anthropic-Usage-Objekt.
     Kein explizites Caching aktiv – nur regulaere Input- und Output-Tokens.
     Cache-Felder werden defensiv mitgelesen falls Anthropic intern etwas cachet.
     """
@@ -252,11 +252,11 @@ def calculate_cost(usage) -> float:
 def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0) -> float:
     """
     Grobe Kostenschaetzung VOR dem API-Call.
-    Wird fuer den Pre-Budget-Check verwendet (konservativ: 3.5 Zeichen = 1 Token).
+    Wird für den Pre-Budget-Check verwendet (konservativ: 3.5 Zeichen = 1 Token).
     Kein Caching – System-Prompt wird als normaler Input gezaehlt.
     Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
     """
-    # Konservative Schaetzung: laengsten verfuegbaren Prompt nehmen
+    # Konservative Schaetzung: laengsten verfügbaren Prompt nehmen
     system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=len(cfg.AI_CHAT_SYSTEM_PROMPT)) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
     image_tokens  = num_images * 1500
@@ -269,7 +269,7 @@ def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0)
 # ── Budget-Tracking ───────────────────────────────────────────────────────────
 
 def get_global_cost_today() -> float:
-    """Gibt die bisherigen globalen Kosten fuer heute (UTC) zurueck."""
+    """Gibt die bisherigen globalen Kosten für heute (UTC) zurück."""
     with _db() as con:
         row = con.execute(
             "SELECT cost_usd FROM ai_chat_budget WHERE date=? AND user_id=0",
@@ -279,7 +279,7 @@ def get_global_cost_today() -> float:
 
 
 def get_user_cost_today(user_id: int) -> float:
-    """Gibt die bisherigen Kosten eines Users fuer heute (UTC) zurueck."""
+    """Gibt die bisherigen Kosten eines Users für heute (UTC) zurück."""
     with _db() as con:
         row = con.execute(
             "SELECT cost_usd FROM ai_chat_budget WHERE date=? AND user_id=?",
@@ -291,7 +291,7 @@ def get_user_cost_today(user_id: int) -> float:
 def add_cost(user_id: int, cost: float) -> None:
     """
     Addiert Kosten zum globalen Budget (user_id=0) und zum User-Budget.
-    Wird NACH dem API-Call mit den tatsaechlichen Kosten aufgerufen.
+    Wird NACH dem API-Call mit den tatsächlichen Kosten aufgerufen.
     """
     today = _today()
     with _db() as con:
@@ -306,7 +306,7 @@ def add_cost(user_id: int, cost: float) -> None:
 
 
 def _reset_time_str() -> str:
-    """Gibt den naechsten Reset-Zeitpunkt als lesbaren String zurueck.
+    """Gibt den nächsten Reset-Zeitpunkt als lesbaren String zurück.
     Zeigt UTC + MEZ (UTC+1) bzw. MESZ (UTC+2) je nach Jahreszeit."""
     import datetime as _dt
     now_utc = _dt.datetime.now(_dt.timezone.utc)
@@ -341,7 +341,7 @@ def _reset_time_str() -> str:
 
 def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
     """
-    Prueft ob globales und User-Budget ausreichen.
+    Prüft ob globales und User-Budget ausreichen.
 
     Returns:
         (True, "")                falls Budget OK
@@ -357,7 +357,7 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
             f"⚠️ Das globale Tagesbudget ist erschoepft "
             f"(${cfg.AI_CHAT_DAILY_BUDGET_USD:.2f}/Tag, "
             f"noch ${remaining:.4f} uebrig – "
-            f"geschaetzte Kosten fuer diese Anfrage: ~${estimated_cost:.4f}). "
+            f"geschätzte Kosten für diese Anfrage: ~${estimated_cost:.4f}). "
             f"Reset um {reset_str}."
         )
 
@@ -367,7 +367,7 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
             f"⚠️ Dein persoenliches Tagesbudget ist erschoepft "
             f"(${cfg.AI_CHAT_USER_DAILY_BUDGET_USD:.2f}/Tag, "
             f"noch ${remaining:.4f} uebrig – "
-            f"geschaetzte Kosten fuer diese Anfrage: ~${estimated_cost:.4f}). "
+            f"geschätzte Kosten für diese Anfrage: ~${estimated_cost:.4f}). "
             f"Reset um {reset_str}."
         )
 
@@ -375,7 +375,7 @@ def check_budget(user_id: int, estimated_cost: float) -> tuple[bool, str]:
 
 
 def get_budget_status(user_id: int) -> dict:
-    """Gibt eine Zusammenfassung des aktuellen Budget-Status zurueck."""
+    """Gibt eine Zusammenfassung des aktuellen Budget-Status zurück."""
     global_used = get_global_cost_today()
     user_used   = get_user_cost_today(user_id)
     return {
@@ -399,7 +399,7 @@ def save_conversation(
     history: list,
 ) -> None:
     """
-    Speichert die Konversations-Historie fuer eine Bot-Message-ID.
+    Speichert die Konversations-Historie für eine Bot-Message-ID.
     Wird NACH dem Senden der Bot-Antwort aufgerufen (dann kennen wir die ID).
     """
     expires = (
@@ -424,8 +424,8 @@ def save_conversation(
 
 def load_conversation(bot_message_id: int) -> Optional[list]:
     """
-    Laedt die gespeicherte Konversations-Historie fuer eine Bot-Message-ID.
-    Gibt None zurueck wenn keine oder abgelaufene Historie vorhanden.
+    Lädt die gespeicherte Konversations-Historie für eine Bot-Message-ID.
+    Gibt None zurück wenn keine oder abgelaufene Historie vorhanden.
     """
     now = datetime.now(timezone.utc).isoformat()
     with _db() as con:
@@ -454,9 +454,9 @@ def cleanup_expired_conversations() -> int:
 
 def validate_input(text: str) -> tuple[bool, str]:
     """
-    Prueft den User-Input auf Inhalt.
-    Laengen-Check fuer getippte Nachrichten erfolgt bereits im Cog (vor Datei-Anhang).
-    Hier wird nur noch auf leere Eingabe geprueft.
+    Prüft den User-Input auf Inhalt.
+    Längen-Check für getippte Nachrichten erfolgt bereits im Cog (vor Datei-Anhang).
+    Hier wird nur noch auf leere Eingabe geprüft.
     """
     text = text.strip()
     if not text:
@@ -515,20 +515,20 @@ async def chat(
       2. Konversations-Historie laden (falls Reply auf Bot-Nachricht)
       3. Pre-Budget-Check (Kostenschaetzung)
       4. API-Call (einfacher String-System-Prompt, kein Caching)
-      5. Tatsaechliche Kosten tracken
-      6. Aktualisierte History zurueckgeben (zum Speichern nach bot.reply)
+      5. Tatsächliche Kosten tracken
+      6. Aktualisierte History zurückgeben (zum Speichern nach bot.reply)
 
     Args:
-        user_id:             Discord User-ID (fuer Budget-Tracking)
+        user_id:             Discord User-ID (für Budget-Tracking)
         user_message:        Nachrichtentext vom User
         prev_bot_message_id: Discord-Message-ID der vorherigen Bot-Antwort
-                             (fuer Konversations-Fortsetzung via Reply)
+                             (für Konversations-Fortsetzung via Reply)
         channel_id:          Discord-Channel-ID (wird mit History gespeichert)
 
     Returns dict:
         ok       (bool)  – True = Antwort vorhanden
         answer   (str)   – Antworttext oder Fehlermeldung
-        cost     (float) – Tatsaechliche Kosten in USD (0.0 bei Fehler)
+        cost     (float) – Tatsächliche Kosten in USD (0.0 bei Fehler)
         history  (list)  – Aktualisierte History ([] bei Fehler)
         is_error (bool)  – True bei technischem Fehler (nicht Budget-Problem)
     """
@@ -548,8 +548,8 @@ async def chat(
         if loaded:
             history = trim_history(loaded)
             logger.debug(
-                f"[AI-Chat] History geladen fuer msg_id={prev_bot_message_id} "
-                f"({len(history)} Eintraege)"
+                f"[AI-Chat] History geladen für msg_id={prev_bot_message_id} "
+                f"({len(history)} Einträge)"
             )
 
     # 3. Pre-Budget-Check
@@ -561,7 +561,7 @@ async def chat(
         return {"ok": False, "answer": budget_msg, "cost": 0.0,
                 "history": [], "is_error": False}
 
-    # 4. Nachrichten fuer API zusammenstellen
+    # 4. Nachrichten für API zusammenstellen
     import base64 as _b64
     if images:
         user_content: list = []
@@ -611,7 +611,7 @@ async def chat(
         base_prompt
     )
 
-    # 6. API-Call (kein Prompt Caching: Haiku 4.5 benoetigt min. 4.096 Tokens,
+    # 6. API-Call (kein Prompt Caching: Haiku 4.5 benötigt min. 4.096 Tokens,
     #    ein typischer System-Prompt hat ~50-200 Tokens – Minimum nie erreicht)
     try:
         client   = _get_client()
@@ -649,7 +649,7 @@ async def chat(
         block.text for block in response.content if hasattr(block, "text")
     ) or "(Keine Antwort erhalten)"
 
-    # 8. Tatsaechliche Kosten tracken (Sonnet-Call + Haiku-Precheck falls vorhanden)
+    # 8. Tatsächliche Kosten tracken (Sonnet-Call + Haiku-Precheck falls vorhanden)
     actual_cost = calculate_cost(response.usage) + precheck_cost
     add_cost(user_id, actual_cost)
 

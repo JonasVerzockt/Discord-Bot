@@ -18,7 +18,7 @@
 grabber.py - AntCheck API Datenabholer.
 
 Wird als Cron-Job oder per Hand ausgefuehrt (NICHT Teil des Bots selbst).
-Laedt Shops + Produkte von der AntCheck API und speichert das Ergebnis
+Lädt Shops + Produkte von der AntCheck API und speichert das Ergebnis
 als shops_data.json im DATA_DIRECTORY.
 
 Typischer Aufruf (crontab):
@@ -27,8 +27,8 @@ Typischer Aufruf (crontab):
 Umgebungsvariablen:
   ANTCHECK_API_KEY   - API-Key (Pflicht)
   ANTCHECK_API_URL   - Basis-URL (Standard: https://antcheck.info)
-  ANTCHECK_VERIFY_SSL- SSL-Zertifikat pruefen (Standard: true)
-  DATA_DIRECTORY     - Zielverzeichnis fuer shops_data.json
+  ANTCHECK_VERIFY_SSL- SSL-Zertifikat prüfen (Standard: true)
+  DATA_DIRECTORY     - Zielverzeichnis für shops_data.json
 """
 import json
 import logging
@@ -159,7 +159,7 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
     Vergleicht aktuelle Preise mit dem letzten Eintrag in price_history.db.
     Schreibt nur einen neuen Eintrag wenn sich der Preis geaendert hat.
     Produkte mit Preis 0 werden ignoriert.
-    Gibt (neue Eintraege, gecheckte Produkte) zurueck.
+    Gibt (neue Einträge, gecheckte Produkte) zurück.
     """
     conn = sqlite3.connect(PRICE_HISTORY_DB)
     try:
@@ -262,7 +262,7 @@ def main():
             new_entries, checked = _track_prices(shop_map)
             logger.info(
                 f"💶 Preis-Tracking: {checked} Produkte gecheckt, "
-                f"{new_entries} neue Eintraege -> {PRICE_HISTORY_DB}"
+                f"{new_entries} neue Einträge -> {PRICE_HISTORY_DB}"
             )
         except Exception as e:
             logger.warning(f"⚠️ Preis-Tracking fehlgeschlagen (nicht kritisch): {e}")

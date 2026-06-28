@@ -15,8 +15,8 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-utils/sheets_shop_data.py – Laedt Shop-Bewertungsdaten aus Google Sheets
-fuer den AI-Chat-Bot.
+utils/sheets_shop_data.py – Lädt Shop-Bewertungsdaten aus Google Sheets
+für den AI-Chat-Bot.
 
 Zwei Tabs werden eingelesen und tab-spezifisch geparst:
   - "Haendler A-Z": Kompakte Shopliste mit Bewertung + Anzahl
@@ -52,7 +52,7 @@ def _shop_name_variants(raw: str) -> set[str]:
       - Ohne TLD:          "exotic-ants"        ← der Kern
 
     Damit matcht z.B. "exotic-ants" sowohl auf "exotic-ants.de" als auch
-    auf eine Nutzernachricht die nur "exotic ants" oder "exotic-ants" enthaelt.
+    auf eine Nutzernachricht die nur "exotic ants" oder "exotic-ants" enthält.
     """
     name = raw.strip().lower().rstrip("/")
     name = re.sub(r'^https?://', '', name)   # Protokoll entfernen
@@ -69,14 +69,14 @@ _ALLOWED_TABS = {"Übersicht", "Händler A-Z"}
 # Gecachter Shop-Daten-Block (wird vom Cog aktualisiert)
 _cached_block: Optional[str] = None
 
-# Gecachte Shop-Namen (lowercase, mit + ohne TLD) fuer dynamischen Keyword-Filter
+# Gecachte Shop-Namen (lowercase, mit + ohne TLD) für dynamischen Keyword-Filter
 _cached_shop_names: frozenset[str] = frozenset()
 
 
 def get_cached_shop_names() -> frozenset[str]:
     """
-    Gibt alle bekannten Shop-Namen als lowercase frozenset zurueck.
-    Enthaelt sowohl vollstaendige Domains (z.B. 'exotic-ants.de')
+    Gibt alle bekannten Shop-Namen als lowercase frozenset zurück.
+    Enthält sowohl vollstaendige Domains (z.B. 'exotic-ants.de')
     als auch Namen ohne TLD ('exotic-ants').
     Wird bei jedem Sheet-Refresh automatisch aktualisiert.
     """
@@ -98,7 +98,7 @@ def _parse_haendler_az(rows: list[list[str]]) -> str:
     headers = [h.strip().replace("\n", " ").replace("\r", "") for h in rows[0]]
 
     def _find_col(*keywords: str) -> int | None:
-        """Gibt den Index der ersten Spalte zurueck deren Header einen der Keywords enthaelt."""
+        """Gibt den Index der ersten Spalte zurück deren Header einen der Keywords enthält."""
         for i, h in enumerate(headers):
             hl = h.lower()
             if any(kw in hl for kw in keywords):
@@ -211,8 +211,8 @@ def _parse_uebersicht(rows: list[list[str]]) -> str:
 
 def load_shop_data() -> Optional[str]:
     """
-    Laedt die konfigurierten Tabs aus dem Google Sheet und gibt einen
-    formatierten Textblock zurueck, der in den System-Prompt eingebettet wird.
+    Lädt die konfigurierten Tabs aus dem Google Sheet und gibt einen
+    formatierten Textblock zurück, der in den System-Prompt eingebettet wird.
     """
     if not cfg.SPREADSHEET_ID:
         logger.debug("🔍 [ShopData] GOOGLE_SPREADSHEET_ID nicht gesetzt – übersprungen")
@@ -244,7 +244,7 @@ def load_shop_data() -> Optional[str]:
         try:
             if ws.title == "Händler A-Z":
                 section = _parse_haendler_az(rows)
-                # Shop-Namen fuer dynamischen Keyword-Filter extrahieren
+                # Shop-Namen für dynamischen Keyword-Filter extrahieren
                 # (alle Varianten: mit/ohne TLD, www, Protokoll)
                 for row in rows[1:]:
                     if row and row[0].strip():
@@ -265,10 +265,10 @@ def load_shop_data() -> Optional[str]:
         logger.info("⚠️ [ShopData] Sheet geladen, aber keine Daten gefunden")
         return None
 
-    # Shop-Namen-Cache aktualisieren (fuer dynamischen Keyword-Filter)
+    # Shop-Namen-Cache aktualisieren (für dynamischen Keyword-Filter)
     global _cached_shop_names
     _cached_shop_names = frozenset(shop_names)
-    logger.debug(f"🔍 [ShopData] {len(_cached_shop_names)} Shop-Namen fuer Keyword-Filter geladen")
+    logger.debug(f"🔍 [ShopData] {len(_cached_shop_names)} Shop-Namen für Keyword-Filter geladen")
 
     block = (
         "### Shop-Bewertungsdaten (AAM Community, automatisch geladen)\n\n"
@@ -282,13 +282,13 @@ def load_shop_data() -> Optional[str]:
 
 
 def get_cached_block() -> Optional[str]:
-    """Gibt den zuletzt geladenen Shop-Daten-Block zurueck."""
+    """Gibt den zuletzt geladenen Shop-Daten-Block zurück."""
     return _cached_block
 
 
 def refresh() -> bool:
     """
-    Laedt die Shop-Daten neu und aktualisiert den Cache.
+    Lädt die Shop-Daten neu und aktualisiert den Cache.
     Returns True bei Erfolg, False bei Fehler.
     """
     global _cached_block

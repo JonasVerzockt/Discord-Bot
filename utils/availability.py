@@ -15,10 +15,10 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-utils/availability.py - AntCheck-Verfuegbarkeitspruefung.
+utils/availability.py - AntCheck-Verfügbarkeitspruefung.
 
-Liest shops_data.json (erzeugt von grabber.py) und prueft ob eine Art/Gattung
-verfuegbar ist. Produkte sind direkt in shops_data.json eingebettet.
+Liest shops_data.json (erzeugt von grabber.py) und prüft ob eine Art/Gattung
+verfügbar ist. Produkte sind direkt in shops_data.json eingebettet.
 """
 import re
 import json
@@ -44,7 +44,7 @@ def format_rating(rating) -> str:
 
 
 def split_availability_messages(entries: list[str], max_length: int = 2000) -> list[str]:
-    """Teilt eine Liste von Availability-Eintraegen in Discord-taugliche Chunks."""
+    """Teilt eine Liste von Availability-Einträgen in Discord-taugliche Chunks."""
     chunks, current, current_len = [], [], 0
     for entry in entries:
         entry_len = len(entry) + 2
@@ -59,7 +59,7 @@ def split_availability_messages(entries: list[str], max_length: int = 2000) -> l
 
 
 def _load_shops_json() -> dict:
-    """Laedt shops_data.json synchron und gibt {shop_id: shop_dict} zurueck (ohne _meta)."""
+    """Lädt shops_data.json synchron und gibt {shop_id: shop_dict} zurück (ohne _meta)."""
     try:
         with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
             raw = json.load(f)
@@ -84,8 +84,8 @@ def _load_shops_json() -> dict:
 
 async def load_shop_data(bot) -> dict:
     """
-    Laedt shops_data.json und ergaenzt Bewertungen aus der DB.
-    Gibt {shop_id_str: shop_dict} zurueck.
+    Lädt shops_data.json und ergaenzt Bewertungen aus der DB.
+    Gibt {shop_id_str: shop_dict} zurück.
     """
     from utils.db import execute_db
 
@@ -121,7 +121,7 @@ async def expand_regions(bot, regions: list[str]) -> list[str]:
 
 
 async def species_exists(bot, search_term: str) -> bool:
-    """Prueft ob eine Art/Gattung in shops_data.json vorkommt."""
+    """Prüft ob eine Art/Gattung in shops_data.json vorkommt."""
     shops = await bot.loop.run_in_executor(None, _load_shops_json)
     normalized = normalize_species_name(search_term)
     is_genus = " " not in normalized.strip()
@@ -148,10 +148,10 @@ async def check_availability_for_species(
     excluded_species_list: set | None = None,
 ) -> list[dict]:
     """
-    Prueft Verfuegbarkeit einer Art/Gattung in den gegebenen Regionen.
+    Prüft Verfügbarkeit einer Art/Gattung in den gegebenen Regionen.
 
     Returns:
-        Liste von verfuegbaren Produkten (dicts mit species, shop_name, etc.)
+        Liste von verfügbaren Produkten (dicts mit species, shop_name, etc.)
     """
     from utils.db import execute_db
 
@@ -200,7 +200,7 @@ async def check_availability_for_species(
                 match = norm_title == normalized_search
 
             if match:
-                # Nur lagerverfuegbare, aktive Produkte beruecksichtigen
+                # Nur lagerverfügbare, aktive Produkte beruecksichtigen
                 if not product.get("in_stock", False):
                     logger.debug(
                         f"🔍 Produkt {product.get('id')} ({species}) bei "

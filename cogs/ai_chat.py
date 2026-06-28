@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-cogs/ai_chat.py – Discord-Cog fuer den KI-Chat-Bot.
+cogs/ai_chat.py – Discord-Cog für den KI-Chat-Bot.
 
 Reagiert auf:
   - @-Erwaehnung des Bots im konfigurierten AI_CHAT_CHANNEL_IDS
@@ -27,7 +27,7 @@ Konversations-Fortsetzung:
 
 Slash-Commands:
   /ai_status  – Zeigt globales + eigenes Tagesbudget (ephemeral)
-  /ai_reset   – (Admin) Budget eines Users oder global zuruecksetzen
+  /ai_reset   – (Admin) Budget eines Users oder global zurücksetzen
 """
 
 import logging
@@ -51,7 +51,7 @@ from utils.sheets_shop_data import refresh as refresh_shop_data
 logger = logging.getLogger(__name__)
 
 
-# ── Hilfsfunktion fuer Budget-Fortschrittsbalken ──────────────────────────────
+# ── Hilfsfunktion für Budget-Fortschrittsbalken ──────────────────────────────
 
 def _bar(pct: float, width: int = 10) -> str:
     """Erzeugt einen einfachen Textfortschrittsbalken."""
@@ -80,7 +80,7 @@ class AiChatCog(commands.Cog):
         self.cleanup_loop.cancel()
         self.shop_data_loop.cancel()
 
-    # ── Hintergrundtask: abgelaufene Konversationen loeschen ──────────────────
+    # ── Hintergrundtask: abgelaufene Konversationen löschen ──────────────────
 
     @tasks.loop(hours=6)
     async def cleanup_loop(self) -> None:
@@ -125,8 +125,8 @@ class AiChatCog(commands.Cog):
 
     def _get_prev_bot_msg_id(self, message: discord.Message) -> int | None:
         """
-        Gibt die Message-ID der vorherigen Bot-AI-Antwort zurueck,
-        auf die geantwortet wird – aber NUR wenn dafuer gespeicherte
+        Gibt die Message-ID der vorherigen Bot-AI-Antwort zurück,
+        auf die geantwortet wird – aber NUR wenn dafür gespeicherte
         AI-Chat-Historie vorhanden ist.
         Verhindert, dass normale Bot-Nachrichten (z. B. Reviews) als
         Konversationskopf behandelt werden.
@@ -134,7 +134,7 @@ class AiChatCog(commands.Cog):
         if not message.reference or not message.reference.message_id:
             return None
         ref_id = message.reference.message_id
-        # Nur wenn wir tatsaechlich AI-Chat-Historie fuer diese ID haben
+        # Nur wenn wir tatsächlich AI-Chat-Historie für diese ID haben
         if load_conversation(ref_id) is not None:
             return ref_id
         return None
@@ -162,13 +162,13 @@ class AiChatCog(commands.Cog):
         # @-Erwaehnung aus dem Nachrichtentext entfernen
         user_text = self._strip_mention(message)
 
-        # Sprache des Users bestimmen (einmalig fuer alle Fehlermeldungen in on_message)
+        # Sprache des Users bestimmen (einmalig für alle Fehlermeldungen in on_message)
         lang = await get_user_lang(
             self.bot, message.author.id,
             message.guild.id if message.guild else None,
         )
 
-        # Getippte Nachricht vorab auf Laenge pruefen (vor Dateiinhalt-Anhang)
+        # Getippte Nachricht vorab auf Laenge prüfen (vor Dateiinhalt-Anhang)
         if len(user_text) > cfg.AI_CHAT_MAX_INPUT_CHARS:
             await message.reply(
                 l10n.get(
@@ -250,7 +250,7 @@ class AiChatCog(commands.Cog):
         if not user_text:
             return
 
-        # Vorherige Bot-Antwort-ID (fuer Konversations-Fortsetzung)
+        # Vorherige Bot-Antwort-ID (für Konversations-Fortsetzung)
         prev_id = self._get_prev_bot_msg_id(message)
 
         # Typing-Indikator waehrend der API-Call laeuft
@@ -264,7 +264,7 @@ class AiChatCog(commands.Cog):
                 user_lang=lang,
             )
 
-        # Disclaimer (inkl. tatsaechliche Kosten) an Antwort anhaengen
+        # Disclaimer (inkl. tatsächliche Kosten) an Antwort anhaengen
         cost_str  = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
         cost_part = f" · 💰 {cost_str}" if cost_str else ""
         disclaimer = l10n.get("ai_disclaimer", lang, cost_part=cost_part)
@@ -297,10 +297,10 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_status",
-        description="Zeigt deinen KI-Chat Budget-Status fuer heute",
+        description="Zeigt deinen KI-Chat Budget-Status für heute",
     )
     async def ai_status(self, ctx: discord.ApplicationContext) -> None:
-        """Zeigt globales und persoenliches Tagesbudget (nur fuer dich sichtbar)."""
+        """Zeigt globales und persoenliches Tagesbudget (nur für dich sichtbar)."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         s = get_budget_status(ctx.author.id)
 
@@ -336,7 +336,7 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_reset",
-        description="(Admin) Budget eines Users oder global zuruecksetzen",
+        description="(Admin) Budget eines Users oder global zurücksetzen",
     )
     @commands.has_permissions(manage_messages=True)
     async def ai_reset(
@@ -344,12 +344,12 @@ class AiChatCog(commands.Cog):
         ctx: discord.ApplicationContext,
         user: discord.Option(
             discord.Member,
-            description="User dessen Budget zurueckgesetzt wird (leer = global)",
+            description="User dessen Budget zurückgesetzt wird (leer = global)",
             required=False,
             default=None,
         ),
     ) -> None:
-        """Setzt das Tagesbudget fuer einen User oder global auf 0 zurueck."""
+        """Setzt das Tagesbudget für einen User oder global auf 0 zurück."""
         import sqlite3 as _sq
         today = __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc

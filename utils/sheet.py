@@ -107,7 +107,7 @@ from urllib.parse import urlparse as _urlparse
 
 
 def _extract_domain(url: str) -> str:
-    """Extrahiert den Domainnamen (ohne www.) aus einer URL oder gibt '' zurueck."""
+    """Extrahiert den Domainnamen (ohne www.) aus einer URL oder gibt '' zurück."""
     if not url:
         return ""
     if not url.startswith(("http://", "https://")):
@@ -121,7 +121,7 @@ def _extract_domain(url: str) -> str:
 
 def _normalize_sheet_key(raw: str) -> str:
     """
-    Normalisiert einen Sheet-Spalte-A-Eintrag fuer den Domain-Exact-Match.
+    Normalisiert einen Sheet-Spalte-A-Eintrag für den Domain-Exact-Match.
     Entfernt fuehrendes 'www.' und abschliessende Slashes,
     damit 'www.antandco.fr' dasselbe trifft wie extrahiertes 'antandco.fr'.
     """
@@ -132,7 +132,7 @@ def _normalize_sheet_key(raw: str) -> str:
 
 def _normalize_for_fuzzy(name: str) -> str:
     """
-    Normalisiert einen Namen fuer Fuzzy-Fallback-Matching.
+    Normalisiert einen Namen für Fuzzy-Fallback-Matching.
     Entfernt generische TLDs, ersetzt Sonderzeichen durch Leerzeichen.
     Laendercodes (.at, .de etc.) werden NICHT entfernt damit
     sie nicht als Fallback-Match verwechselt werden.
@@ -152,10 +152,10 @@ async def sync_ratings_from_sheet(bot) -> int:
 
     Matching-Strategie (in Reihenfolge):
       1. Exakter Domain-Match: Shop-URL aus DB gegen Sheet-Domain (z.B. antstore.at → antstore.at)
-      2. Fuzzy-Fallback: normalisierter Name gegen normalisierte Sheet-Eintraege (>=80%)
-         fuer Shops ohne Domain-Eintrag (z.B. 'asama', 'bambulab')
+      2. Fuzzy-Fallback: normalisierter Name gegen normalisierte Sheet-Einträge (>=80%)
+         für Shops ohne Domain-Eintrag (z.B. 'asama', 'bambulab')
 
-    So koennen zwei Shops mit gleicher Basis-Domain aber unterschiedlicher TLD
+    So können zwei Shops mit gleicher Basis-Domain aber unterschiedlicher TLD
     (antstore.at vs. antstore.net) korrekt getrennt bewertet werden.
     """
     import logging
@@ -169,7 +169,7 @@ async def sync_ratings_from_sheet(bot) -> int:
         rows = ws.get_all_values()
         logger.debug(f"🔍 sync_ratings: {len(rows)} Zeilen gelesen")
         # {normalisierter_sheet_eintrag: rating}
-        # Schluessel: www. und Trailing-Slash entfernt, lowercase
+        # Schlüssel: www. und Trailing-Slash entfernt, lowercase
         # Beispiel: 'www.antandco.fr' → 'antandco.fr', 'anthillshop.es/' → 'anthillshop.es'
         result = {}
         for row in rows[1:]:
@@ -179,7 +179,7 @@ async def sync_ratings_from_sheet(bot) -> int:
                     key = _normalize_sheet_key(row[0])
                     result[key] = float(rating_str)
                 except ValueError:
-                    logger.debug(f"🔍 sync_ratings: Parsing fehlgeschlagen: '{row[2]}' fuer '{row[0]}'")
+                    logger.debug(f"🔍 sync_ratings: Parsing fehlgeschlagen: '{row[2]}' für '{row[0]}'")
         return result
 
     try:
@@ -196,7 +196,7 @@ async def sync_ratings_from_sheet(bot) -> int:
         bot, "SELECT id, name, url, url_override FROM shops WHERE name IS NOT NULL", fetch=True
     )
 
-    # Fuzzy-Fallback: normalisierte Sheet-Eintraege
+    # Fuzzy-Fallback: normalisierte Sheet-Einträge
     sheet_fuzzy = {_normalize_for_fuzzy(k): (k, v) for k, v in sheet_ratings.items()}
     sheet_fuzzy_keys = list(sheet_fuzzy.keys())
 
