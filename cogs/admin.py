@@ -23,7 +23,9 @@ Slash Commands (nur Admins / Manage-Messages):
   /test     - KI-Parser testen ohne Sheet-Eintrag
   /rescan   - Letzte N Tage manuell neu abgleichen
   /export   - Sheet-Rohdaten als JSON exportieren (ephemeral)
+  /export user:<id> - Alle gespeicherten Daten zu einem User als JSON per DM
 """
+import io
 import json
 import logging
 from datetime import datetime
@@ -144,9 +146,77 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(name="export", description="Export raw sheet data as JSON (Admin/Mod)", description_localizations={"de": "Sheet-Rohdaten als JSON exportieren (Admin/Mod)"})
     @admin_or_manage_messages()
-    async def cmd_export(self, ctx: discord.ApplicationContext):
-        """Exportiert Sheet-Rohdaten (erste 50 Zeilen) als JSON."""
+    async def cmd_export(
+        self,
+        ctx: discord.ApplicationContext,
+        user_id: discord.Option(str, "Discord-ID des Users (leer = Sheet-Export)", required=False, default=None),
+    ):
+        """Sheet-Export ODER User-Daten-Export per DM."""
+        await ctx.defer(ephemeral=True)
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        # ── User-Daten-Export ─────────────────────────────────────────────────
+        if user_id:
+            try:
+                uid = str(int(user_id))
+            except ValueError:
+                await ctx.followup.send(l10n.get("invalid_ids", lang), ephemeral=True)
+                return
+            try:
+                from utils.db import execute_db
+                data: dict = {"user_id": uid, "exported_at": datetime.utcnow().isoformat() + "Z"}
+
+                data["settings"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_settings WHERE user_id=?", (uid,), fetch=True)]
+
+                data["notifications"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM notifications WHERE user_id=?", (uid,), fetch=True)]
+
+                data["seen_products"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_seen_products WHERE user_id=?", (uid,), fetch=True)]
+
+                data["shop_blacklist"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_shop_blacklist WHERE user_id=?", (uid,), fetch=True)]
+
+                data["price_tracking"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_price_tracking WHERE user_id=?", (uid,), fetch=True)]
+
+                data["server_mappings"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM server_user_mappings WHERE user_id=?", (uid,), fetch=True)]
+
+                data["ch_delivery_added"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM ch_delivery_shops WHERE added_by=?", (uid,), fetch=True)]
+
+                try:
+                    ai_rows = await execute_db(
+                        self.bot,
+                        "SELECT date, cost_usd FROM ai_chat_budget WHERE user_id=? ORDER BY date DESC LIMIT 30",
+                        (int(uid),), fetch=True,
+                    )
+                    data["ai_budget_last30"] = [dict(r) for r in ai_rows]
+                except Exception:
+                    data["ai_budget_last30"] = []
+
+                payload = json.dumps(data, ensure_ascii=False, indent=2, default=str)
+                buf = io.BytesIO(payload.encode("utf-8"))
+                buf.seek(0)
+                file = discord.File(buf, filename=f"user_data_{uid}.json")
+
+                try:
+                    admin_user = await self.bot.fetch_user(ctx.author.id)
+                    await admin_user.send(
+                        l10n.get("data_export_success", lang),
+                        file=file,
+                    )
+                    await ctx.followup.send("✅ Daten per DM gesendet.", ephemeral=True)
+                except discord.Forbidden:
+                    await ctx.followup.send(l10n.get("data_export_error", lang), ephemeral=True)
+            except Exception as e:
+                logger.error(f"❌ user data export error: {e}")
+                await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
+            return
+
+        # ── Sheet-Export (Standard) ───────────────────────────────────────────
         try:
             rows  = sheet.rows[:51]
             lines = json.dumps(rows, ensure_ascii=False, indent=2)
@@ -156,10 +226,10 @@ class AdminCog(commands.Cog, name="Admin"):
                 msg = f"{header}\n```json\n{lines}\n```"
             else:
                 msg = l10n.get("admin_export_too_long", lang, rows=row_count)
-            await ctx.respond(msg, ephemeral=True)
+            await ctx.followup.send(msg, ephemeral=True)
         except Exception as e:
             logger.error(f"❌ export error: {e}")
-            await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
+            await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
 
     @discord.slash_command(
