@@ -23,3 +23,6 @@ python-dotenv>=1.0.0
 # Voice (optional, unterdrückt discord voice-warning / behebt Voice-Fehlermeldungen)
 PyNaCl>=1.5.0
 davey
+
+# Ranking-Bild (iNat-Treppchen, lokal gerendert)
+matplotlib>=3.7.0

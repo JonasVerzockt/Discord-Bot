@@ -75,6 +75,7 @@ pip install -r requirements.txt
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
 | `PyNaCl>=1.5.0` | Voice-Verschlüsselung (unterdrückt discord-Warning) |
 | `davey` | Voice-Receive (unterdrückt discord-Warning) |
+| `matplotlib>=3.7.0` | Ranking-Bild (iNat-Treppchen, lokal gerendert) |
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -406,14 +407,14 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 
 **Ranking-Snapshot:**
 
-Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 5) neu eingetragenen Beobachtungen exportiert der Bot automatisch den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten A–E bis zur letzten befüllten Zeile) als PNG und postet es im Channel.
+Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 5) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler.
 
 Ablauf:
 1. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
 2. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
 3. 10 Sekunden warten damit das Script Z2 auf `block` setzen kann
 4. Warten bis Z2 wieder leer ist – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600)
-5. PNG-Export via Google Sheets Export-API (OAuth Bearer Token) und Post im Channel – mit bis zu 4 Wiederholversuchen (Backoff), da der Export-Endpoint sporadisch transiente 500er liefert. Schlagen alle Versuche fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) gepostet – die Rangliste geht also nie verloren.
+5. Daten `A1:C` lesen, lokal als Treppchen-PNG (matplotlib) rendern und im Channel posten. Schlägt das Rendern fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) gepostet – die Rangliste geht also nie verloren.
 
 Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
 

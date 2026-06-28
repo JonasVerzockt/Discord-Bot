@@ -15,10 +15,10 @@ Vor dem Eintragen wird geprüft:
   1. Ist der Link bereits in Spalte D vorhanden? -> ignorieren
   2. Gehört die Beobachtung zur Überfamilie Formicoidea (taxon_id=1269340)? -> sonst ignorieren
 
-Alle 5 eingetragenen Beobachtungen wird ein Ranking-Snapshot aus dem
-"Übersicht"-Tab (A1:E{letzte Zeile}) als PNG in den Channel gepostet.
-Dabei wird gewartet bis Spalte Z2 im Übersicht-Tab leer ist
-(Apps Script setzt Z2 als Sperr-Flag während es rechnet).
+Alle 5 eingetragenen Beobachtungen wird ein Ranking-Bild aus dem "Übersicht"-Tab
+(Spalten A=Rang, B=Name, C=Anzahl Arten) als Treppchen-Grafik (lokal mit
+matplotlib gerendert) im Channel gepostet. Dabei wird gewartet bis Spalte Z2 im
+Übersicht-Tab leer ist (Apps Script setzt Z2 als Sperr-Flag während es rechnet).
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -65,7 +65,6 @@ import gspread
 import requests
 from discord.ext import commands
 from google.oauth2.service_account import Credentials
-import google.auth.transport.requests as _ga_req
 
 from config import BASE_DIR
 from utils.localization import l10n, get_guild_lang
@@ -83,6 +82,124 @@ _SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.readonly",
 ]
+
+
+# ── Ranking-Daten + Bild-Rendering ────────────────────────────────────────────
+
+def _parse_ranking(rows: list) -> list:
+    """
+    rows = A1:C inkl. Kopfzeile (A=Rang, B=Name, C=Anzahl Arten).
+    Gibt [(rang, name, anzahl), ...] zurück, sortiert nach Anzahl absteigend.
+    """
+    out = []
+    for r in rows[1:]:                       # Kopfzeile überspringen
+        name = (str(r[1]).strip() if len(r) > 1 else "")
+        if not name:
+            continue
+        try:
+            anzahl = int(str(r[2]).strip()) if len(r) > 2 and str(r[2]).strip() else 0
+        except ValueError:
+            anzahl = 0
+        try:
+            rang = int(str(r[0]).strip()) if len(r) > 0 and str(r[0]).strip() else None
+        except ValueError:
+            rang = None
+        out.append((rang, name, anzahl))
+    out.sort(key=lambda t: t[2], reverse=True)
+    return out
+
+
+def _render_ranking_png(entries: list) -> bytes:
+    """
+    Rendert die Rangliste lokal als PNG: Top 3 als farbiges Treppchen
+    (Gold/Silber/Bronze), Platz 4+ als Tabelle. Gibt PNG-Bytes zurück.
+    Läuft blockierend → vom Aufrufer in asyncio.to_thread() aufrufen.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    BG      = "#0d1117"
+    FG      = "#e6edf3"
+    GOLD, SILVER, BRONZE = "#FFD700", "#C0C0C0", "#CD7F32"
+
+    def _clip(s, n):
+        s = str(s)
+        return s if len(s) <= n else s[: n - 1] + "…"
+
+    top  = entries[:3]
+    rest = entries[3:]
+    n_rest = len(rest)
+
+    fig_h = 5.4 + 0.42 * n_rest
+    fig = plt.figure(figsize=(8, fig_h), dpi=150)
+    fig.patch.set_facecolor(BG)
+
+    if n_rest > 0:
+        gs = fig.add_gridspec(2, 1, height_ratios=[3.4, 0.8 + 0.42 * n_rest], hspace=0.18)
+        ax  = fig.add_subplot(gs[0])
+        axt = fig.add_subplot(gs[1])
+    else:
+        ax  = fig.add_subplot(111)
+        axt = None
+
+    ax.set_facecolor(BG)
+    fig.suptitle("Arten-Rangliste", color=FG, fontsize=22, fontweight="bold", y=0.97)
+
+    # ── Treppchen (Top 3) ──────────────────────────────────────────────────────
+    # Anzeige-Reihenfolge: 2. links, 1. Mitte, 3. rechts
+    layout = [(0, 1, SILVER), (1, 0, GOLD), (2, 2, BRONZE)]
+    maxv = max((e[2] for e in top), default=1) or 1
+
+    for xpos, ti, col in layout:
+        if ti >= len(top):
+            continue
+        _rang, name, anz = top[ti]
+        ax.bar(xpos, anz, width=0.72, color=col, edgecolor="white",
+               linewidth=1.4, zorder=3)
+        # Platznummer in den Balken
+        ax.text(xpos, anz / 2 if anz else maxv * 0.05, str(ti + 1),
+                ha="center", va="center", color=BG, fontsize=30, fontweight="bold", zorder=4)
+        # Anzahl über dem Balken
+        ax.text(xpos, anz + maxv * 0.04, f"{anz}", ha="center", va="bottom",
+                color=FG, fontsize=14, fontweight="bold")
+        # Name unter dem Balken
+        ax.text(xpos, -maxv * 0.07, _clip(name, 18), ha="center", va="top",
+                color=col, fontsize=12, fontweight="bold")
+
+    ax.set_xlim(-0.7, 2.7)
+    ax.set_ylim(-maxv * 0.22, maxv * 1.2)
+    ax.axis("off")
+
+    # ── Tabelle (Platz 4+) ─────────────────────────────────────────────────────
+    if axt is not None:
+        axt.axis("off")
+        cell_text = []
+        for i, (rang, name, anz) in enumerate(rest, start=4):
+            platz = rang if rang is not None else i
+            cell_text.append([str(platz), _clip(name, 30), str(anz)])
+        tbl = axt.table(
+            cellText=cell_text,
+            colLabels=["Platz", "Name", "Arten"],
+            cellLoc="center", loc="center",
+            colWidths=[0.18, 0.62, 0.20],
+        )
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(11)
+        tbl.scale(1, 1.45)
+        for (row, col), cell in tbl.get_celld().items():
+            cell.set_edgecolor("#30363d")
+            if row == 0:
+                cell.set_facecolor("#1f6feb")
+                cell.set_text_props(color="white", fontweight="bold")
+            else:
+                cell.set_facecolor("#161b22" if row % 2 else "#0d1117")
+                cell.set_text_props(color=FG)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue()
 
 
 class InatTrackerCog(commands.Cog, name="InatTracker"):
@@ -184,8 +301,8 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
     async def _post_ranking_snapshot(self) -> None:
         """
-        Triggert optional das Apps Script, wartet bis Z2 im Übersicht-Tab leer
-        ist, exportiert dann A1:E{letzte_Zeile} als PNG und postet es im Channel.
+        Triggert optional das Apps Script, wartet bis Z2 im Übersicht-Tab leer ist,
+        liest dann A=Rang/B=Name/C=Anzahl und rendert daraus lokal ein Treppchen-PNG.
         """
         try:
             ws_ue = await asyncio.to_thread(self._sheet_uebersicht)
@@ -246,74 +363,47 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             # 2. Letzte Zeile mit Inhalt in Spalte A ermitteln
             col_a    = await asyncio.to_thread(lambda: ws_ue.col_values(1))
             last_row = len([v for v in col_a if str(v).strip()])
-            if last_row < 1:
-                logger.warning("⚠️ Ranking-Snapshot: Übersicht Spalte A leer – abgebrochen")
+            if last_row < 2:
+                logger.warning("⚠️ Ranking-Snapshot: Übersicht (A) leer – abgebrochen")
                 return
 
-            # 3. OAuth-Token holen und PNG exportieren
-            creds = Credentials.from_service_account_file(
-                GOOGLE_CREDS_FILE, scopes=_SCOPES
-            )
-            auth_req = _ga_req.Request()
-            await asyncio.to_thread(creds.refresh, auth_req)
-
-            gid        = ws_ue.id  # numerische Sheet-GID
-            export_url = (
-                f"https://docs.google.com/spreadsheets/d/{INAT_SHEET_ID}/export"
-                f"?format=png&gid={gid}&range=A1:E{last_row}"
-            )
-            # Der Google-Sheets-PNG-Export ist sporadisch flaky (transiente 500er /
-            # Timeouts) → mehrere Versuche mit Backoff, bevor wir aufgeben.
-            resp = None
-            for attempt in range(1, 5):
-                try:
-                    r = await asyncio.to_thread(
-                        requests.get,
-                        export_url,
-                        headers={"Authorization": f"Bearer {creds.token}"},
-                        timeout=30,
-                    )
-                except Exception as e:
-                    logger.warning(f"⚠️ PNG-Export Versuch {attempt}/4 (Netzwerk): {e}")
-                    await asyncio.sleep(5 * attempt)
-                    continue
-                if r.status_code == 200 and "image" in r.headers.get("Content-Type", ""):
-                    resp = r
-                    break
-                logger.warning(
-                    f"⚠️ PNG-Export Versuch {attempt}/4: HTTP {r.status_code}, "
-                    f"Content-Type '{r.headers.get('Content-Type', '')}' – neuer Versuch"
-                )
-                await asyncio.sleep(5 * attempt)
-
-            if resp is None:
-                logger.error("❌ Ranking-Snapshot: PNG-Export nach 4 Versuchen fehlgeschlagen – Text-Fallback")
+            # 3. Ranking-Daten lesen (A=Rang, B=Name, C=Anzahl; Zeile 1 = Kopf)
+            data    = await asyncio.to_thread(lambda: ws_ue.get(f"A1:C{last_row}"))
+            entries = _parse_ranking(data)
+            if not entries:
+                logger.warning("⚠️ Ranking-Snapshot: keine Einträge – Text-Fallback")
                 await self._post_ranking_text_fallback(ws_ue, last_row)
                 return
 
-            # 4. Bild im Channel posten
             channel = self.bot.get_channel(INAT_CHANNEL_ID)
             if channel is None:
                 logger.warning("⚠️ Ranking-Snapshot: Channel nicht gefunden")
                 return
-
             guild_id = channel.guild.id if hasattr(channel, "guild") and channel.guild else None
             lang = await get_guild_lang(self.bot, guild_id) if guild_id else "en"
 
-            buf = io.BytesIO(resp.content)
+            # 4. PNG lokal rendern (kein flaky Google-Export) und posten
+            try:
+                png = await asyncio.to_thread(_render_ranking_png, entries)
+            except Exception as e:
+                logger.error(f"❌ PNG-Render fehlgeschlagen: {e} – Text-Fallback", exc_info=True)
+                await self._post_ranking_text_fallback(ws_ue, last_row)
+                return
+
+            buf = io.BytesIO(png)
             buf.seek(0)
             await channel.send(
                 l10n.get("inat_ranking_caption", lang),
                 file=discord.File(buf, filename="ranking.png"),
             )
-            logger.info(f"📊 Ranking-Snapshot gepostet (Übersicht A1:E{last_row})")
+            logger.info(f"📊 Ranking-Snapshot gepostet ({len(entries)} Einträge, lokal gerendert)")
 
         except Exception as e:
             logger.error(f"❌ Ranking-Snapshot fehlgeschlagen: {e}", exc_info=True)
 
     async def _post_ranking_text_fallback(self, ws_ue, last_row: int) -> None:
         """
-        Fallback wenn der PNG-Export scheitert: liest A1:E{last_row} aus dem
+        Fallback wenn das PNG-Rendering scheitert: liest A1:C{last_row} aus dem
         Übersicht-Tab und postet das Ranking als Text-Tabelle (bzw. als .txt,
         falls zu lang für eine Discord-Nachricht).
         """
@@ -330,7 +420,6 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         guild_id = channel.guild.id if hasattr(channel, "guild") and channel.guild else None
         lang = await get_guild_lang(self.bot, guild_id) if guild_id else "en"
 
-        # Monospace-Tabelle mit ausgerichteten Spalten bauen
         ncols = max((len(r) for r in values), default=0)
         widths = [0] * ncols
         for r in values:
@@ -400,7 +489,6 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         for obs_id in obs_ids:
             url = f"https://www.inaturalist.org/observations/{obs_id}"
 
-            # ---- Check 1: bereits im Sheet? ---------------------------------
             exists = await asyncio.to_thread(self._link_exists, ws, url)
             if exists:
                 logger.info(
@@ -409,7 +497,6 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 )
                 continue
 
-            # ---- Check 2: gehört zu Formicoidea? ---------------------------
             is_ant = await self._is_formicoidea(obs_id)
             if is_ant is None:
                 await message.add_reaction("⏳")
@@ -425,7 +512,6 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 )
                 continue
 
-            # ---- Eintragen --------------------------------------------------
             try:
                 row = await asyncio.to_thread(
                     self._write_entry, ws, username, display_name, url
@@ -494,7 +580,6 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 )
                 logger.info(f"✅ iNat Retry OK: Zeile {row}  {url}")
                 await message.add_reaction("✅")
-                # Snapshot-Check auch beim Retry
                 data_count = row - 1
                 if data_count > 0 and data_count % INAT_SNAPSHOT_EVERY == 0:
                     asyncio.create_task(self._post_ranking_snapshot())
