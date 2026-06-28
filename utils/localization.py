@@ -103,3 +103,26 @@ async def get_user_lang(bot, user_id: int | str, server_id: int | str | None) ->
         logger.error(f"❌ get_user_lang error (user={user_id}): {e}")
 
     return "en"
+
+
+async def get_guild_lang(bot, guild_id: int | str) -> str:
+    """
+    Ermittelt die Standard-Sprache eines Servers.
+    Verwendet für Bot-initiierte Channel-Nachrichten ohne User-Kontext.
+    """
+    from utils.db import execute_db
+
+    try:
+        guild_id = int(guild_id)
+        rows = await execute_db(
+            bot,
+            "SELECT language FROM server_settings WHERE server_id=?",
+            (guild_id,),
+            fetch=True,
+        )
+        if rows:
+            return rows[0]["language"]
+    except Exception as e:
+        logger.error(f"❌ get_guild_lang error (guild={guild_id}): {e}")
+
+    return "en"

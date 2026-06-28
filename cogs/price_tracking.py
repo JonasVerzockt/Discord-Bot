@@ -211,14 +211,15 @@ def _make_product_label(p: dict) -> str:
 class _BaseView(discord.ui.View):
     """Basisklasse mit Owner-Check und Timeout-Handling."""
 
-    def __init__(self, owner_id: int, timeout: int = 180):
+    def __init__(self, owner_id: int, lang: str = "en", timeout: int = 180):
         super().__init__(timeout=timeout)
         self.owner_id = owner_id
+        self.lang = lang
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
             await interaction.response.send_message(
-                "❌ Das ist nicht dein Menü.", ephemeral=True
+                l10n.get("pt_not_your_menu", self.lang), ephemeral=True
             )
             return False
         return True
@@ -246,10 +247,10 @@ class _ShopSelectItem(discord.ui.Select):
             options.append(discord.SelectOption(
                 label=name[:100],
                 value=shop_id,
-                description=f"{count} Produkt(e) gefunden"[:100],
+                description=l10n.get("pt_products_found", lang, count=count)[:100],
             ))
         super().__init__(
-            placeholder="Shop auswählen …",
+            placeholder=l10n.get("pt_shop_placeholder", lang),
             min_values=1,
             max_values=1,
             options=options,
@@ -268,7 +269,7 @@ class ShopSelectView(_BaseView):
         owner_id: int,
         lang: str,
     ):
-        super().__init__(owner_id)
+        super().__init__(owner_id, lang)
         self.shops_with_products = shops_with_products
         self.species = species
         self.bot = bot
@@ -311,13 +312,19 @@ class SpeciesWatchConfirmView(_BaseView):
     """Bestätigung für Arten-weite Beobachtung (alle Shops)."""
 
     def __init__(self, species_raw: str, species_normalized: str, bot, owner_id: int, lang: str):
-        super().__init__(owner_id)
+        super().__init__(owner_id, lang)
         self.species_raw        = species_raw
         self.species_normalized = species_normalized
         self.bot  = bot
         self.lang = lang
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "sw_watch":
+                    child.label = l10n.get("pt_button_watch", lang)
+                elif child.custom_id == "sw_cancel":
+                    child.label = l10n.get("pt_button_cancel", lang)
 
-    @discord.ui.button(label="🔭 Beobachten", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🔭 Beobachten", style=discord.ButtonStyle.success, custom_id="sw_watch")
     async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
         normalized = self.species_normalized
         is_genus   = 1 if " " not in normalized.strip() else 0
@@ -386,10 +393,10 @@ class SpeciesWatchConfirmView(_BaseView):
         except Exception as e:
             logger.error("❌ _init_seen_products error: %s", e)
 
-    @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger, custom_id="sw_cancel")
     async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
         self.disable_all_items()
-        await interaction.response.edit_message(content="❌ Abgebrochen.", view=self)
+        await interaction.response.edit_message(content=l10n.get("pt_cancelled", self.lang), view=self)
         self.stop()
 
     def disable_all_items(self):
@@ -408,11 +415,11 @@ class _ProductSelectItem(discord.ui.Select):
 
             if p.get("_no_price"):
                 stock_icon = "❓"
-                price_str  = "kein Preis bekannt"
+                price_str  = l10n.get("pt_no_price", lang)
             elif p.get("_from_history"):
                 min_p      = p.get("min_price", "0")
                 max_p      = p.get("max_price", "0")
-                price_str  = "zul. " + format_price(min_p, max_p, currency)
+                price_str  = l10n.get("pt_last_price_prefix", lang) + " " + format_price(min_p, max_p, currency)
                 stock_icon = "⏸️"
             elif p.get("in_stock"):
                 min_p      = p.get("min_price", "0")
@@ -432,7 +439,7 @@ class _ProductSelectItem(discord.ui.Select):
                 emoji=stock_icon,
             ))
         super().__init__(
-            placeholder="Produkt(e) auswählen …",
+            placeholder=l10n.get("pt_product_placeholder", lang),
             min_values=1,
             max_values=min(len(options), 25),
             options=options,
@@ -453,7 +460,7 @@ class ProductSelectView(_BaseView):
         owner_id: int,
         lang: str,
     ):
-        super().__init__(owner_id)
+        super().__init__(owner_id, lang)
         self.products_by_id = {str(p.get("id", "")): p for p in products}
         self.shop_id   = shop_id
         self.shop_info = shop_info
@@ -468,10 +475,10 @@ class ProductSelectView(_BaseView):
         lines = []
         for p in selected:
             if p.get("_no_price"):
-                price_str = "kein Preis bekannt"
+                price_str = l10n.get("pt_no_price", self.lang)
                 stock = "❓"
             elif p.get("_from_history"):
-                price_str = "zul. " + format_price(
+                price_str = l10n.get("pt_last_price_prefix", self.lang) + " " + format_price(
                     p.get("min_price", 0), p.get("max_price", 0), p.get("currency_iso", "EUR")
                 )
                 stock = "⏸️"
@@ -513,15 +520,21 @@ class ConfirmView(_BaseView):
         owner_id: int,
         lang: str,
     ):
-        super().__init__(owner_id)
+        super().__init__(owner_id, lang)
         self.selected   = selected_products
         self.shop_id    = shop_id
         self.shop_info  = shop_info
         self.species    = species
         self.bot        = bot
         self.lang       = lang
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "cv_confirm":
+                    child.label = l10n.get("pt_button_confirm", lang)
+                elif child.custom_id == "cv_cancel":
+                    child.label = l10n.get("pt_button_cancel", lang)
 
-    @discord.ui.button(label="✅ Bestätigen", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="✅ Bestätigen", style=discord.ButtonStyle.success, custom_id="cv_confirm")
     async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
         user_id    = str(self.owner_id)
         shop_name  = self.shop_info.get("name", self.shop_id)
@@ -584,10 +597,10 @@ class ConfirmView(_BaseView):
             )
         self.stop()
 
-    @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger, custom_id="cv_cancel")
     async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
         self.disable_all_items()
-        await interaction.response.edit_message(content="❌ Abgebrochen.", view=self)
+        await interaction.response.edit_message(content=l10n.get("pt_cancelled", self.lang), view=self)
         self.stop()
 
     def disable_all_items(self):
@@ -612,7 +625,7 @@ class _UntrackSelectItem(discord.ui.Select):
             title    = (row["product_title"] or row["species"] or f"Produkt {pid}")[:80]
             shop     = (row["shop_name"] or "?")[:15]
             current  = current_prices.get(pid)
-            price_str = format_price(current[0], current[1], current[2]) if current else "kein Preis"
+            price_str = format_price(current[0], current[1], current[2]) if current else l10n.get("pt_no_price_short", lang)
             options.append(discord.SelectOption(
                 label=f"{title}"[:97],
                 value=str(pid),
@@ -626,11 +639,11 @@ class _UntrackSelectItem(discord.ui.Select):
             options.append(discord.SelectOption(
                 label=label,
                 value=f"{_SW_PREFIX}{species}",
-                description="Arten-Beobachtung (alle Shops)",
+                description=l10n.get("pt_species_watch_type", lang),
                 emoji="🔭",
             ))
         super().__init__(
-            placeholder="Produkt(e) / Arten-Beobachtung auswählen …",
+            placeholder=l10n.get("pt_untrack_placeholder", lang),
             min_values=1,
             max_values=min(len(options), 25),
             options=options,
@@ -650,7 +663,7 @@ class UntrackView(_BaseView):
         owner_id: int,
         lang: str,
     ):
-        super().__init__(owner_id)
+        super().__init__(owner_id, lang)
         self.bot       = bot
         self.lang      = lang
         self.add_item(_UntrackSelectItem(tracked_rows, current_prices, species_watches, lang))

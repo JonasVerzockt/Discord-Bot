@@ -208,7 +208,7 @@ class AdminCog(commands.Cog, name="Admin"):
                         l10n.get("data_export_success", lang),
                         file=file,
                     )
-                    await ctx.followup.send("✅ Daten per DM gesendet.", ephemeral=True)
+                    await ctx.followup.send(l10n.get("admin_dm_sent", lang), ephemeral=True)
                 except discord.Forbidden:
                     await ctx.followup.send(l10n.get("data_export_error", lang), ephemeral=True)
             except Exception as e:

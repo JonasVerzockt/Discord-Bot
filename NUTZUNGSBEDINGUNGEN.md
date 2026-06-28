@@ -155,6 +155,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 Du hast jederzeit das Recht auf **Auskunft, Berichtigung oder Löschung** deiner Daten.
 
 - Benachrichtigungen und zugehörige Einstellungen kannst du selbst per `/delete_notifications` löschen.
+- Eine Übersicht deiner aktiven Benachrichtigungen und Preis-Tracking-Einträge erhältst du per `/history`.
 - Preis-Tracking-Einträge kannst du selbst per `/untrack_price` entfernen.
 - Für alle weiteren Anfragen (Auskunft, manuelle Löschung) wende dich an:  
   📧 aam-bot@proton.me

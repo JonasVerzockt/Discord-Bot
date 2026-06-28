@@ -68,6 +68,7 @@ from google.oauth2.service_account import Credentials
 import google.auth.transport.requests as _ga_req
 
 from config import BASE_DIR
+from utils.localization import l10n, get_guild_lang
 
 GOOGLE_CREDS_FILE = str(BASE_DIR / "service_account.json")
 
@@ -282,10 +283,13 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 logger.warning("⚠️ Ranking-Snapshot: Channel nicht gefunden")
                 return
 
+            guild_id = channel.guild.id if hasattr(channel, "guild") and channel.guild else None
+            lang = await get_guild_lang(self.bot, guild_id) if guild_id else "en"
+
             buf = io.BytesIO(resp.content)
             buf.seek(0)
             await channel.send(
-                "📊 **Aktuelles Ranking** – automatisches Update",
+                l10n.get("inat_ranking_caption", lang),
                 file=discord.File(buf, filename="ranking.png"),
             )
             logger.info(f"📊 Ranking-Snapshot gepostet (Übersicht A1:E{last_row})")

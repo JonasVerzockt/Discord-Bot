@@ -105,9 +105,9 @@ class StatsCog(commands.Cog, name="Stats"):
             # DB-Integrität
             try:
                 check = await execute_db(self.bot, "PRAGMA integrity_check", fetch=True)
-                integrity = "✅ OK" if check and check[0][0] == "ok" else "⚠️ Fehler"
+                integrity = l10n.get("system_integrity_ok", lang) if check and check[0][0] == "ok" else l10n.get("system_integrity_error", lang)
             except Exception:
-                integrity = "❌ Unbekannt"
+                integrity = l10n.get("system_integrity_unknown", lang)
 
             total_rows = await execute_db(
                 self.bot, "SELECT COUNT(*) AS c FROM notifications", fetch=True
