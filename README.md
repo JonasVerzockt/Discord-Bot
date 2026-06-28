@@ -152,7 +152,7 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 **Shop-Auflösung** (in dieser Reihenfolge):
 1. `shop_mapping.csv` – manuell oder automatisch gelernte Mappings
 2. Discord-Mention (`@User`) → Display-Name wenn URL-artig
-3. Fuzzy-Match gegen bekannte Sheet-Shopnamen (≥80 % Ähnlichkeit)
+3. Fuzzy-Match gegen bekannte Sheet-Shopnamen (≥81 % Ähnlichkeit)
 4. → 🟡 Reaktion: Shop konnte nicht aufgelöst werden
 
 **KI-Parsing:** Claude Haiku extrahiert aus dem Freitext strukturierte Felder:
@@ -417,7 +417,7 @@ INAT_CHANNEL_ID      = 123456789012345678       # zu überwachender Kanal
 INAT_SHEET_ID        = "DEINE_GOOGLE_SHEET_ID"  # separates Sheet (nicht das Review-Sheet)
 INAT_WORKSHEET       = "Rohdaten"               # Tab mit den Rohdaten
 INAT_UEBERSICHT      = "Übersicht"              # Tab mit dem Ranking (für Snapshot)
-INAT_START           = "2026-05-01 00:00"       # Zeitfenster Beginn (Berliner Zeit)
+INAT_START           = "2026-06-05 00:00"       # Zeitfenster Beginn (Berliner Zeit)
 INAT_END             = "2026-10-30 20:00"       # Zeitfenster Ende (Berliner Zeit)
 INAT_SNAPSHOT_EVERY  = 5                        # Snapshot nach jeweils N Einträgen
 INAT_Z2_TIMEOUT      = 600                      # Max. Wartezeit auf Z2-Freigabe (Sekunden)
@@ -463,14 +463,14 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | Befehl | Parameter | Beschreibung |
 |--------|-----------|-------------|
 | `/startup` | `language` (`de`/`en`/`eo`), `channel` | Bot-Kanal und Sprache für diesen Server festlegen. Muss einmalig pro Server aufgerufen werden. |
-| `/status` | – | Zeigt Anzahl verarbeiteter Bewertungen, ausstehende (🟡) und fehlgeschlagene (🔴) Nachrichten. |
+| `/status` | – | Zeigt die Anzahl der Bewertungen im Google Sheet, die Zahl der verarbeiteten Reviews und die ausstehenden (🟡) Nachrichten. |
 | `/pending` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. |
-| `/test` | `message_id` | KI-Parser testen ohne Sheet-Eintrag. Zeigt was die KI aus der Nachricht extrahieren würde. |
+| `/test` | `text` | KI-Parser mit einem frei eingegebenen Bewertungstext testen (ohne Sheet-Eintrag). Zeigt das von der KI extrahierte JSON. |
 | `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. |
 | `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). |
 | `/export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). |
-| `/stats` | – | Benachrichtigungsstatistiken: Gesamtanzahl, aktive, abgelaufene, Top-10-gesuchte Arten. |
-| `/system` | – | Systemstatus: Uptime, CPU-Auslastung, RAM-Verbrauch, DB-Größe, Alter der `shops_data.json`, Bot-Version. |
+| `/stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. |
+| `/system` | – | Systemstatus: Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. |
 | `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). |
 | `/shopmapping add` | `external_name`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. |
 | `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. |
