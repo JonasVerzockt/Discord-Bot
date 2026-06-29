@@ -413,7 +413,7 @@ Ablauf:
 1. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
 2. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
 3. 10 Sekunden warten damit das Script Z2 auf `block` setzen kann
-4. Warten bis Z2 wieder leer ist – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600)
+4. Warten bis Z2 **stabil leer** ist (mehrfach hintereinander leer, nicht nur einmal) – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600). Damit wird **nie** während einer laufenden Validierung gerendert.
 5. Daten `A1:C` lesen, lokal als Treppchen-PNG (matplotlib) rendern und im Channel posten. Schlägt das Rendern fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) gepostet – die Rangliste geht also nie verloren.
 
 Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.

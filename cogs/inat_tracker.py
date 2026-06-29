@@ -46,7 +46,7 @@ INAT_END   = "2026-10-30 20:00"
 INAT_TAXON_ID = 1269340  # Formicoidea
 
 # Ranking-Snapshot: nach wie vielen neuen Einträgen posten?
-INAT_SNAPSHOT_EVERY = 5
+INAT_SNAPSHOT_EVERY = 15
 
 # Wie lange maximal auf Z2-Freigabe warten (Sekunden)?
 INAT_Z2_TIMEOUT = 600  # 10 Minuten
@@ -309,6 +309,31 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
     # ── Ranking-Snapshot ──────────────────────────────────────────────────────
 
+    async def _wait_unlocked(self, ws_ue, settle: int = 2, interval: int = 5) -> bool:
+        """
+        Wartet bis das Sperr-Flag Z2 STABIL leer ist (mehrmals hintereinander
+        leer). Verhindert, dass mitten in einer laufenden Validierung
+        (Apps Script setzt Z2='block') gelesen oder gerendert wird.
+        Gibt True zurück wenn frei, False bei Timeout.
+        """
+        elapsed = 0
+        empty_streak = 0
+        while elapsed < INAT_Z2_TIMEOUT:
+            z2 = await asyncio.to_thread(lambda: ws_ue.acell("Z2").value)
+            if z2:
+                empty_streak = 0
+                logger.info(f"⏳ Z2='{z2}' (Validierung läuft) – warte {interval}s …")
+            else:
+                empty_streak += 1
+                if empty_streak >= settle:
+                    return True
+            await asyncio.sleep(interval)
+            elapsed += interval
+        logger.warning(
+            f"⚠️ Ranking-Snapshot: Z2 nach {INAT_Z2_TIMEOUT}s nicht stabil frei – abgebrochen"
+        )
+        return False
+
     async def _post_ranking_snapshot(self) -> None:
         """
         Triggert optional das Apps Script, wartet bis Z2 im Übersicht-Tab leer ist,
@@ -317,24 +342,11 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         try:
             ws_ue = await asyncio.to_thread(self._sheet_uebersicht)
 
-            # 0. Warten bis Z2 leer ist (evtl. läuft noch ein anderer Job)
-            elapsed = 0
-            while elapsed < INAT_Z2_TIMEOUT:
-                z2 = await asyncio.to_thread(lambda: ws_ue.acell("Z2").value)
-                if not z2:
-                    break
-                logger.info(
-                    f"⏳ Z2='{z2}' (anderer Job aktiv) – warte 10s (bisher {elapsed}s) …"
-                )
-                await asyncio.sleep(10)
-                elapsed += 10
-            else:
-                logger.warning(
-                    f"⚠️ Ranking-Snapshot: Z2 nach {INAT_Z2_TIMEOUT}s noch belegt – abgebrochen"
-                )
+            # 0. Sicherstellen, dass gerade KEINE Validierung läuft (Z2 stabil leer)
+            if not await self._wait_unlocked(ws_ue):
                 return
 
-            # 1. Apps Script triggern (Z2 ist jetzt frei)
+            # 1. Apps Script triggern (führt die Validierung aus, setzt/leert Z2 selbst)
             if INAT_WEBAPP_URL and INAT_WEBAPP_SECRET:
                 try:
                     logger.info("🔁 Triggere Apps Script via Web App …")
@@ -349,25 +361,12 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                     )
                 except Exception as e:
                     logger.warning(f"⚠️ Apps Script Trigger fehlgeschlagen: {e}")
-                # 10s warten damit das Script Z2 setzen kann
-                await asyncio.sleep(10)
 
-                # 1b. Warten bis der getriggerte Job fertig ist (Z2 wieder leer)
-                elapsed = 0
-                while elapsed < INAT_Z2_TIMEOUT:
-                    z2 = await asyncio.to_thread(lambda: ws_ue.acell("Z2").value)
-                    if not z2:
-                        break
-                    logger.info(
-                        f"⏳ Z2='{z2}' (Apps Script aktiv) – "
-                        f"warte 10s (bisher {elapsed}s) …"
-                    )
-                    await asyncio.sleep(10)
-                    elapsed += 10
-                else:
-                    logger.warning(
-                        f"⚠️ Ranking-Snapshot: Z2 nach {INAT_Z2_TIMEOUT}s noch belegt – abgebrochen"
-                    )
+                # Kurz warten, damit das Script Z2 sicher gesetzt hat, dann warten bis
+                # die Validierung KOMPLETT fertig ist (Z2 stabil leer). So wird
+                # garantiert nie während der laufenden Prüfung gerendert.
+                await asyncio.sleep(5)
+                if not await self._wait_unlocked(ws_ue):
                     return
 
             # 2. Letzte Zeile mit Inhalt in Spalte A ermitteln
