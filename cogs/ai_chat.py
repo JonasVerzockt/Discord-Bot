@@ -297,6 +297,7 @@ class AiChatCog(commands.Cog):
         name="ai_status",
         description="Zeigt deinen KI-Chat Budget-Status für heute",
     )
+    @commands.guild_only()
     async def ai_status(self, ctx: discord.ApplicationContext) -> None:
         """Zeigt globales und persoenliches Tagesbudget (nur für dich sichtbar)."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)

@@ -737,6 +737,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         description="Track prices for an ant species and get notified on changes.",
         description_localizations={"de": "Preise für eine Art beobachten und bei Änderung per PN informiert werden."},
     )
+    @commands.guild_only()
     async def track_price(
         self,
         ctx: discord.ApplicationContext,
@@ -770,6 +771,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         description="Show all tracked products with current prices.",
         description_localizations={"de": "Alle beobachteten Produkte mit aktuellen Preisen anzeigen."},
     )
+    @commands.guild_only()
     async def my_price_tracking(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
 
@@ -854,6 +856,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         description="Remove products or species watches from price tracking.",
         description_localizations={"de": "Produkte oder Arten-Beobachtungen aus dem Preis-Tracking entfernen."},
     )
+    @commands.guild_only()
     async def untrack_price(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
 

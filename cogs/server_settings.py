@@ -48,7 +48,7 @@ def allowed_channel():
     """Prüft ob der Befehl im konfigurierten Server-Kanal ausgeführt wird."""
     async def predicate(ctx: discord.ApplicationContext) -> bool:
         if ctx.guild is None:
-            return True
+            return False   # Befehle nur auf dem Server, nicht in DMs
         rows = await execute_db(
             ctx.bot,
             "SELECT channel_id FROM server_settings WHERE server_id=?",
