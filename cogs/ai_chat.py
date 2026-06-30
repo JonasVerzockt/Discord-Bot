@@ -338,6 +338,7 @@ class AiChatCog(commands.Cog):
         description="(Admin) Budget eines Users oder global zurücksetzen",
     )
     @commands.has_permissions(manage_messages=True)
+    @commands.guild_only()
     async def ai_reset(
         self,
         ctx: discord.ApplicationContext,
@@ -373,6 +374,7 @@ class AiChatCog(commands.Cog):
         description="(Admin) Aktuellen System-Prompt des KI-Chats anzeigen",
     )
     @commands.has_permissions(manage_messages=True)
+    @commands.guild_only()
     async def ai_prompt(self, ctx: discord.ApplicationContext) -> None:
         """Gibt den aktiven System-Prompt in der Sprache des Users aus (ephemeral)."""
         lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
