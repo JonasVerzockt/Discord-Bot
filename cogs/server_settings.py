@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 def admin_or_manage_messages():
     async def predicate(ctx: discord.ApplicationContext) -> bool:
         if ctx.guild is None:
-            return True
+            return False   # Admin-Befehle nie in DMs zulassen
         perms = ctx.author.guild_permissions
         return perms.administrator or perms.manage_messages
     return commands.check(predicate)

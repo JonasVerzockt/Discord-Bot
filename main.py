@@ -73,6 +73,13 @@ async def main():
             except Exception as e:
                 logger.error(f"❌ Fehler beim Laden von {cog}: {e}", exc_info=True)
 
+        # Alle Slash-Befehle nur auf Servern erlauben (nicht in DMs/PNs).
+        # Discord blendet sie damit in der Bot-PN aus und lehnt sie ab.
+        # Betrifft NUR Befehle – DMs senden/empfangen (Benachrichtigungen,
+        # Preis-DMs, Feedback-Reaktionen) läuft über Events und bleibt aktiv.
+        for _cmd in bot.walk_application_commands():
+            _cmd.guild_only = True
+
         logger.info("🚀 Bot verbindet sich mit Discord…")
         await bot.start(DISCORD_TOKEN)
 

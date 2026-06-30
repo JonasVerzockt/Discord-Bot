@@ -458,6 +458,8 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 
 ## Slash Commands
 
+> Alle Slash-Befehle sind **guild-only** – sie funktionieren nur auf einem Server, nicht in der Bot-DM (in `main.py` zentral via `walk_application_commands().guild_only = True`). Das Senden/Empfangen von DMs durch den Bot (Benachrichtigungen, Preis-DMs, Feedback-Reaktionen) läuft über Events und ist davon unberührt.
+
 ### Für alle User (nur im Bot-Kanal)
 
 | Befehl | Parameter | Beschreibung |
