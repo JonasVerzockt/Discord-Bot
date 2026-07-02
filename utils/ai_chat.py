@@ -75,6 +75,7 @@ _MODEL_PRICES: dict[str, tuple[float, float]] = {
     # Sonnet
     "claude-sonnet-4-5":         (3.00 / 1_000_000, 15.00 / 1_000_000),
     "claude-sonnet-4-6":         (3.00 / 1_000_000, 15.00 / 1_000_000),
+    "claude-sonnet-5":           (3.00 / 1_000_000, 15.00 / 1_000_000),
     # Opus 4.5+ (neue Preisstruktur: $5/$25)
     "claude-opus-4-5":           (5.00 / 1_000_000, 25.00 / 1_000_000),
     "claude-opus-4-6":           (5.00 / 1_000_000, 25.00 / 1_000_000),
@@ -140,7 +141,7 @@ def _needs_shop_data(message: str) -> bool:
 
 
 # Stage 2: Haiku-Klassifikation
-_HAIKU_CLASSIFY_MODEL = "claude-haiku-4-5-20251001"
+_HAIKU_CLASSIFY_MODEL = cfg.AI_CHAT_CLASSIFY_MODEL
 _HAIKU_PRICE_IN  = 1.00 / 1_000_000
 _HAIKU_PRICE_OUT = 5.00 / 1_000_000
 

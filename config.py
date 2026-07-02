@@ -62,6 +62,8 @@ ACCUMULATION_DELAY = int(os.getenv("ACCUMULATION_DELAY", "8"))
 
 # Anthropic (Review-Bot + KI-Chat)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# Modell für die KI-Extraktion der Reviews (günstiges Haiku für strukturierte Parserei).
+REVIEW_PARSER_MODEL = os.getenv("REVIEW_PARSER_MODEL", "claude-haiku-4-5-20251001")
 
 # ── Rabattcode-Tracker ────────────────────────────────────────────────────────
 # Kanal, in dem Rabattcodes gepostet werden (0 = Feature inaktiv).
@@ -72,6 +74,8 @@ DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-4-5-202
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)
 AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-4-5-20251001")
+# Modell für die Stufe-2-Shop-Relevanz-Klassifikation (günstiges Haiku).
+AI_CHAT_CLASSIFY_MODEL = os.getenv("AI_CHAT_CLASSIFY_MODEL", "claude-haiku-4-5-20251001")
 
 # Kanal-ID in dem der Bot auf ALLE Nachrichten reagiert (eine ID).
 # Zusaetzlich reagiert der Bot immer auf @-Erwaehnung in jedem Kanal.

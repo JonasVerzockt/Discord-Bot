@@ -29,6 +29,8 @@ import json
 import anthropic
 from dotenv import load_dotenv
 
+from config import REVIEW_PARSER_MODEL
+
 load_dotenv()
 
 _ai = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -60,7 +62,7 @@ def parse_with_ai(content: str, shop: str, date: str) -> dict:
     Wirft json.JSONDecodeError wenn die KI kein valides JSON liefert.
     """
     resp = _ai.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=REVIEW_PARSER_MODEL,
         max_tokens=400,
         messages=[{"role": "user", "content": _PROMPT.format(
             shop_name=shop, date=date, message=content

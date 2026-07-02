@@ -94,6 +94,7 @@ SERVER_IDS=123456789012345678             # Kommagetrennte Server-IDs
 
 # ── Anthropic (KI-Parser) ─────────────────────────────────────
 ANTHROPIC_API_KEY=sk-ant-...
+# REVIEW_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Review-Extraktion
 
 # ── Google Sheets ─────────────────────────────────────────────
 GOOGLE_SPREADSHEET_ID=deine_spreadsheet_id_hier
@@ -107,6 +108,8 @@ ANTCHECK_VERIFY_SSL=false                 # false bei self-signed Zertifikat
 AI_CHAT_CHANNEL_IDS=123456789012345678   # Kanal-ID, in dem der Bot antwortet
 AI_CHAT_DAILY_BUDGET_USD=0.50            # Gesamtes Tagesbudget (alle User)
 AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
+# AI_CHAT_MODEL=claude-haiku-4-5-20251001          # Chat-Modell
+# AI_CHAT_CLASSIFY_MODEL=claude-haiku-4-5-20251001 # Modell für die Shop-Relevanz-Klassifikation
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
@@ -384,7 +387,9 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 **Disclaimer:** Jede Antwort wird automatisch im Code um einen Disclaimer ergänzt (nicht durch die KI selbst), inkl. der tatsächlichen Anforderungskosten und einem Link zum Quellcode:
 > -# 🤖 KI-Antwort – nur zur Orientierung, kein Ersatz für Fachrat. Angaben immer selbst prüfen! · 💰 $0.00312 · Quellcode: https://github.com/JonasVerzockt/Discord-Bot
 
-**Modell:** Standard `claude-haiku-4-5-20251001`, konfigurierbar per `AI_CHAT_MODEL` – aktuell `claude-sonnet-4-6` (unterstützt Text und Vision).
+**Modell:** Standard `claude-haiku-4-5-20251001`, konfigurierbar per `AI_CHAT_MODEL` – aktuell `claude-sonnet-4-6` (unterstützt Text und Vision). Die Stufe-2-Klassifikation (Shop-Relevanz) läuft separat über `AI_CHAT_CLASSIFY_MODEL` (Standard Haiku), der Review-Parser über `REVIEW_PARSER_MODEL`.
+
+**Kosten:** Die Preistabelle kennt u. a. `claude-sonnet-5` zum Standardtarif ($3/Mio. Input, $15/Mio. Output, ohne Einführungsrabatt). Adaptives Denken muss nicht separat berechnet werden – Denk-Tokens werden als Output-Tokens abgerechnet und sind über `response.usage.output_tokens` bereits in den Kosten enthalten.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
