@@ -197,7 +197,7 @@ class StatsCog(commands.Cog, name="Stats"):
         """Reagiert zusätzlich auf `!help` als Textbefehl (nur im Bot-Kanal)."""
         if message.author.bot or message.guild is None:
             return
-        if message.content.strip().lower() != "!help":
+        if message.content.strip().lower() not in ("!help", "!hilfe"):
             return
         # Kanal-Check analog zu allowed_channel(): ohne /startup überall erlaubt,
         # sonst nur im konfigurierten Bot-Kanal (falscher Kanal → stilles Ignorieren).
