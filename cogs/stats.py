@@ -151,10 +151,8 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ system error: {e}")
             await ctx.respond(l10n.get("system_error", lang), ephemeral=True)
 
-    @discord.slash_command(name="help", description="Show all available commands", description_localizations={"de": "Alle verfügbaren Befehle anzeigen"})
-    @allowed_channel()
-    async def help_cmd(self, ctx: discord.ApplicationContext):
-        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+    def _build_help_text(self, lang: str) -> str:
+        """Baut den vollständigen Hilfetext (genutzt von /help und !help)."""
         user_keys = [
             "help_notification", "help_history", "help_test", "help_delete",
             "help_usersetting", "help_ch_delivery",
@@ -181,9 +179,41 @@ class StatsCog(commands.Cog, name="Stats"):
             ai_section  = l10n.get("help_ai_section", lang, ai_commands=ai_commands)
         else:
             ai_section = ""
-        await ctx.respond(
-            l10n.get("help_full", lang, user_commands=user_commands, admin_commands=admin_commands, ai_section=ai_section),
+        return l10n.get(
+            "help_full", lang,
+            user_commands=user_commands,
+            admin_commands=admin_commands,
+            ai_section=ai_section,
         )
+
+    @discord.slash_command(name="help", description="Show all available commands", description_localizations={"de": "Alle verfügbaren Befehle anzeigen"})
+    @allowed_channel()
+    async def help_cmd(self, ctx: discord.ApplicationContext):
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        await ctx.respond(self._build_help_text(lang))
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Reagiert zusätzlich auf `!help` als Textbefehl (nur im Bot-Kanal)."""
+        if message.author.bot or message.guild is None:
+            return
+        if message.content.strip().lower() != "!help":
+            return
+        # Kanal-Check analog zu allowed_channel(): ohne /startup überall erlaubt,
+        # sonst nur im konfigurierten Bot-Kanal (falscher Kanal → stilles Ignorieren).
+        rows = await execute_db(
+            self.bot,
+            "SELECT channel_id FROM server_settings WHERE server_id=?",
+            (message.guild.id,),
+            fetch=True,
+        )
+        if rows and rows[0]["channel_id"] is not None and message.channel.id != rows[0]["channel_id"]:
+            return
+        lang = await get_user_lang(self.bot, message.author.id, message.guild.id)
+        try:
+            await message.reply(self._build_help_text(lang), mention_author=False)
+        except discord.Forbidden:
+            logger.warning("❌ !help: Keine Berechtigung zum Antworten in Kanal %s", message.channel.id)
 
 
 def setup(bot: discord.Bot):
