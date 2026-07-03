@@ -1,0 +1,10 @@
+[Unit]
+Description=AAM Discord Bot Auto-Deploy (git pull + restart)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=aam
+WorkingDirectory=/opt/discord-bot
+ExecStart=/opt/discord-bot/update.sh

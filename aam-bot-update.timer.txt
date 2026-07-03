@@ -1,0 +1,10 @@
+[Unit]
+Description=AAM Discord Bot Auto-Deploy alle 5 Minuten
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target
