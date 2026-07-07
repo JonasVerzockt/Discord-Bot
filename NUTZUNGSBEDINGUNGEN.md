@@ -79,6 +79,7 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 | Währungskürzel (ISO) | Darstellung und Umrechnung der Preise | Lokale SQLite-Datenbank auf dem Server |
 | Zuletzt gemeldeter Preis (min/max) | Erkennung von Preisänderungen (Vergleichswert) | Lokale SQLite-Datenbank auf dem Server |
 | Datum des Tracking-Starts | Transparenz für den Nutzer | Lokale SQLite-Datenbank auf dem Server |
+| Zielpreis + Modus (optional) | Benachrichtigung bei Erreichen eines Wunschpreises | Lokale SQLite-Datenbank auf dem Server |
 | Beobachtete Art/Gattung (normalisierter Name) | Arten-Beobachtung shopübergreifend | Lokale SQLite-Datenbank auf dem Server |
 | Bekannte Produkt-IDs je Art-Beobachtung + letzter Preis | Erkennung von Neuerscheinungen und Preisänderungen | Lokale SQLite-Datenbank auf dem Server |
 
@@ -120,6 +121,14 @@ Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten we
 | Datum der Quellnachricht | Berechnung von Gültigkeit/Alter eines Codes | Lokale SQLite-Datenbank auf dem Server |
 
 > **Hinweis:** **Alle** Textnachrichten im Rabattcode-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Teile dort daher keine sensiblen personenbezogenen Daten. Anders als bei Bewertungen wird hier der Discord-Username des Verfassers gespeichert (zur Quellenangabe der Codes).
+
+#### Wochen-Digest
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID (nur bei Anmeldung) | Versand des wöchentlichen Digests per Direktnachricht | Lokale SQLite-Datenbank auf dem Server |
+
+Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest action:deaktivieren` widerrufbar. Der Digest-Inhalt (Preisstürze, neue Arten/Shops) enthält keine personenbezogenen Daten.
 
 ### Drittanbieter
 
@@ -163,6 +172,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **AI-Chat-Konversationsverläufe** werden automatisch nach **24 Stunden** gelöscht (oder sofort wenn du nicht auf eine Bot-Antwort antwortest).
 - **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
 - **Rabattcodes** (extrahierte Codes inkl. Quell-Username und Scan-Historie) werden gespeichert, solange sie für die Community relevant sind; eine Bereinigung erfolgt bei Bedarf manuell.
+- **Digest-Anmeldung** (nur User-ID) wird gespeichert, bis du dich per `/digest action:deaktivieren` abmeldest.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte

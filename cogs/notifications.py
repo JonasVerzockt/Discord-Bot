@@ -51,6 +51,38 @@ from cogs.server_settings import allowed_channel
 logger = logging.getLogger(__name__)
 
 
+class TrackFromAlertView(discord.ui.View):
+    """Button unter einer Verfügbarkeits-DM: öffnet die /track_price-Auswahl für
+    die gemeldete Art (frische Produktsuche erst beim Klick)."""
+
+    def __init__(self, bot, species: str, owner_id: int, lang: str, timeout: float = 86400):
+        super().__init__(timeout=timeout)
+        self.bot      = bot
+        self.species  = species
+        self.owner_id = owner_id
+        self.lang     = lang
+        for child in self.children:
+            if isinstance(child, discord.ui.Button) and child.custom_id == "track_from_alert":
+                child.label = l10n.get("pt_alert_track_button", lang)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.owner_id
+
+    @discord.ui.button(label="Track prices", style=discord.ButtonStyle.primary, custom_id="track_from_alert")
+    async def track(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Lazy-Import vermeidet Ladereihenfolge-Probleme zwischen den Cogs.
+        from cogs.price_tracking import _find_products_for_tracking, ShopSelectView
+        await interaction.response.defer()
+        shops_data = await _find_products_for_tracking(self.bot, self.species)
+        if not shops_data:
+            await interaction.followup.send(
+                l10n.get("pt_no_products", self.lang, species=self.species)
+            )
+            return
+        view = ShopSelectView(shops_data, self.species, self.bot, self.owner_id, self.lang)
+        await interaction.followup.send(l10n.get("pt_select_shop", self.lang), view=view)
+
+
 class NotificationsCog(commands.Cog, name="Notifications"):
 
     def __init__(self, bot: discord.Bot):
@@ -140,8 +172,13 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             chunks = split_availability_messages(entries)
 
             try:
-                for chunk in chunks:
-                    await user.send(chunk)
+                last_idx = len(chunks) - 1
+                for i, chunk in enumerate(chunks):
+                    view = (
+                        TrackFromAlertView(self.bot, species, int(user_id), lang)
+                        if i == last_idx else None
+                    )
+                    await user.send(chunk, view=view)
             except discord.Forbidden:
                 await self._handle_dm_failure(user_id, species, regions, lang)
                 return None

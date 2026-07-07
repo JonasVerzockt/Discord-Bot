@@ -187,6 +187,8 @@ CREATE TABLE IF NOT EXISTS user_price_tracking (
     currency_iso      TEXT    NOT NULL DEFAULT 'EUR',
     last_notified_min REAL,
     last_notified_max REAL,
+    target_price      REAL,
+    target_mode       TEXT,
     added_at          TEXT    NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, product_id)
 );
@@ -260,6 +262,25 @@ CREATE TABLE IF NOT EXISTS discount_codes (
 
 CREATE INDEX IF NOT EXISTS idx_discount_until
     ON discount_codes (valid_until);
+
+-- Wochen-Digest: Opt-in-Abonnenten (nur diese bekommen die DM)
+CREATE TABLE IF NOT EXISTS digest_subscribers (
+    user_id       TEXT    PRIMARY KEY,
+    subscribed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Baseline für "neue Arten" im Wochen-Digest (Diff gegen aktuelles shops_data)
+CREATE TABLE IF NOT EXISTS known_species (
+    species    TEXT    PRIMARY KEY,
+    first_seen TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Baseline für "neue Shops" im Wochen-Digest
+CREATE TABLE IF NOT EXISTS known_shops (
+    shop_id    TEXT    PRIMARY KEY,
+    name       TEXT,
+    first_seen TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 # Standard EU-Länder (falls DB noch leer)
@@ -274,6 +295,8 @@ _EU_COUNTRIES = [
 _MIGRATIONS = [
     ("shops",          "url_override",    "ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL"),
     ("discount_codes", "status_override", "ALTER TABLE discount_codes ADD COLUMN status_override TEXT"),
+    ("user_price_tracking", "target_price", "ALTER TABLE user_price_tracking ADD COLUMN target_price REAL"),
+    ("user_price_tracking", "target_mode",  "ALTER TABLE user_price_tracking ADD COLUMN target_mode TEXT"),
 ]
 
 

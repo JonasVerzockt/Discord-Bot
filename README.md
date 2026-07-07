@@ -259,7 +259,7 @@ Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten).
 59.99EUR
 ```
 
-Bei mehr als ~2000 Zeichen werden mehrere DMs gesendet. Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal.
+Bei mehr als ~2000 Zeichen werden mehrere DMs gesendet. Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal. Unter der DM erscheint ein Button **„📉 Preise beobachten"** – ein Klick öffnet direkt die `/track_price`-Auswahl (Shop → Produkte) für die gemeldete Art, ohne den Befehl tippen zu müssen.
 
 **5. Feedback nach DM**
 
@@ -319,6 +319,10 @@ Beim Einrichten werden alle aktuell bekannten Produkte sofort als Baseline gespe
 
 `/my_price_tracking` zeigt Arten-Beobachtungen (🔭) oben getrennt von Einzelprodukten (🏷️).  
 `/untrack_price` zeigt beides gemeinsam im Dropdown – in einer Interaktion entfernbar.
+
+`/price_history` rendert für ein beobachtetes Produkt den Preisverlauf lokal als Diagramm (matplotlib, Step-Chart aus `price_history.db`) und markiert das historische Tief („Bestpreis seit Beobachtungsstart").
+
+Mit `/set_target` legst du pro beobachtetem Produkt einen **Zielpreis** fest – Modus `zusätzlich` (weiter Änderungs-DMs plus 🎯-DM beim Erreichen), `ersetzt` (nur noch die 🎯-DM) oder `aus` (entfernen). Der Zielpreis gilt in der Shop-Währung und wird im stündlichen Preis-Check ausgewertet.
 
 ### DM-Fallback
 
@@ -480,6 +484,8 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Aktueller Preis als Baseline. | `/track_price species:Camponotus` |
 | `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte mit aktuellem Preis. | `/my_price_tracking` |
 | `/untrack_price` | – | Zeigt Einzelprodukte und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten. | `/untrack_price` |
+| `/price_history` | – | Zeigt für eines deiner beobachteten Produkte den Preisverlauf als Diagramm (Step-Chart min/max, lokal mit matplotlib) mit markiertem historischem Tief („Bestpreis"). Produktauswahl per Dropdown. | `/price_history` |
+| `/set_target` | `mode` (`zusätzlich`/`ersetzt`/`aus`), `target_price` (optional, Shop-Währung) | Setzt für ein beobachtetes Produkt (Auswahl per Dropdown) einen Zielpreis. `zusätzlich` = weiter Änderungs-DMs + 🎯-DM bei Erreichen; `ersetzt` = nur die 🎯-DM; `aus` = Zielpreis entfernen. | `/set_target mode:ersetzt target_price:12.50` |
 | `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. | `/usersetting language language:de` |
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
 | `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. | `/usersetting blacklist_remove shop:Antstore` |
@@ -489,6 +495,7 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
 | `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. | `/ai_status` |
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
+| `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -622,6 +629,7 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 | Bot-Status | alle 2 Minuten | Rotierender Discord-Status mit Ameisen-Sprüchen (20 Quotes) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 | AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest Tabs „Übersicht" + „Händler A-Z" aus Google Sheet und aktualisiert den System-Prompt-Anhang |
+| Wochen-Digest | montags 09:00 (Berliner Zeit) | DM an Opt-in-Abonnenten: Preisstürze (7 Tage), neue Arten & neue Shops |
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -677,6 +685,9 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `ai_chat_history` | KI-Gesprächshistorie pro Bot-Nachricht-ID (TTL: 24h) |
 | `discount_scanned` | Bereits an Haiku geschickte Nachrichten-IDs (Rabattcode-Tracker, nur einmal parsen) |
 | `discount_codes` | Extrahierte Rabattcodes (Shop, Code, Rabatt, Gültigkeit, Mindestbestellwert, `status_override` für manuell gültig/ungültig) |
+| `digest_subscribers` | Opt-in-Abonnenten des Wochen-Digests (nur User-ID) |
+| `known_species` | Baseline bekannter Arten (Diff für „neue Arten" im Digest) |
+| `known_shops` | Baseline bekannter Shops (Diff für „neue Shops" im Digest) |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -712,12 +723,15 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
 │   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task
+│   ├── price_history.py     # /price_history: Preisverlauf-Chart (matplotlib) + Bestpreis-Marker
+│   ├── price_targets.py     # /set_target: Zielpreis-Alerts (pro Tracking wählbar)
 │   ├── stats.py             # /stats /system /help
 │   ├── shop_admin.py        # /reloadshops /shopmapping /shopurl /ch_delivery
 │   ├── tasks.py             # Alle Hintergrundaufgaben
 │   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset, /ai_prompt
 │   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
-│   └── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
+│   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
+│   └── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)

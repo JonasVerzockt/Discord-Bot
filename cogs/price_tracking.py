@@ -905,7 +905,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             rows = await execute_db(
                 self.bot,
                 """SELECT user_id, product_id, species, product_title, product_url,
-                          shop_name, currency_iso, last_notified_min, last_notified_max
+                          shop_name, currency_iso, last_notified_min, last_notified_max,
+                          target_price, target_mode
                    FROM user_price_tracking""",
                 fetch=True,
             )
@@ -936,18 +937,32 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     )
                     continue
 
-                if curr_min == last_min and curr_max == last_max:
-                    continue
+                changed = not (curr_min == last_min and curr_max == last_max)
 
-                await self._notify_user(row, curr_min, curr_max, curr_currency, last_min, last_max)
+                target = row["target_price"]
+                mode   = (row["target_mode"] or "").lower()
+                reached_now    = target is not None and curr_min <= target
+                reached_before = target is not None and last_min <= target
+                newly_reached  = reached_now and not reached_before
 
-                await execute_db(
-                    self.bot,
-                    "UPDATE user_price_tracking SET last_notified_min=?, last_notified_max=?, currency_iso=? "
-                    "WHERE user_id=? AND product_id=?",
-                    (curr_min, curr_max, curr_currency, row["user_id"], pid),
-                    commit=True,
-                )
+                if target is not None and mode == "replace":
+                    # 'ersetzt': keine Änderungs-DMs, nur die Zielpreis-DM beim Erreichen
+                    if newly_reached:
+                        await self._notify_target(row, curr_min, curr_max, curr_currency, target)
+                else:
+                    if changed:
+                        await self._notify_user(row, curr_min, curr_max, curr_currency, last_min, last_max)
+                    if newly_reached:
+                        await self._notify_target(row, curr_min, curr_max, curr_currency, target)
+
+                if changed:
+                    await execute_db(
+                        self.bot,
+                        "UPDATE user_price_tracking SET last_notified_min=?, last_notified_max=?, currency_iso=? "
+                        "WHERE user_id=? AND product_id=?",
+                        (curr_min, curr_max, curr_currency, row["user_id"], pid),
+                        commit=True,
+                    )
 
         except Exception as e:
             logger.error("❌ check_price_changes error: %s", e, exc_info=True)
@@ -1188,6 +1203,47 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             await self._fallback_server_message(user_id_str, msg)
         except Exception as e:
             logger.error("❌ Fehler beim Senden der Preis-DM an %s: %s", user_id_str, e)
+
+    async def _notify_target(
+        self,
+        row,
+        curr_min: float,
+        curr_max: float,
+        currency: str,
+        target: float,
+    ):
+        """Sendet eine DM, wenn der gesetzte Zielpreis erreicht/unterschritten wurde."""
+        user_id_str = row["user_id"]
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            return
+        try:
+            user = await self.bot.fetch_user(user_id)
+        except Exception as e:
+            logger.warning("⚠️ User %s nicht abrufbar: %s", user_id_str, e)
+            return
+
+        lang = await get_user_lang(self.bot, user_id_str, None)
+        msg = l10n.get(
+            "pt_dm_target", lang,
+            shop=row["shop_name"] or "?",
+            species=row["species"] or "?",
+            title=row["product_title"] or row["species"] or "?",
+            new_price=format_price(curr_min, curr_max, currency),
+            target=f"{target:.2f} {currency}",
+            url=row["product_url"] or "",
+        )
+        try:
+            await user.send(msg)
+            logger.info(
+                "🎯 Zielpreis-DM: user=%s product=%s ziel=%s",
+                user_id_str, row["product_id"], target,
+            )
+        except discord.Forbidden:
+            await self._fallback_server_message(user_id_str, msg)
+        except Exception as e:
+            logger.error("❌ Fehler beim Senden der Zielpreis-DM an %s: %s", user_id_str, e)
 
     async def _fallback_server_message(self, user_id: str, msg: str):
         """Postet Preis-Benachrichtigung im Server-Kanal wenn DM blockiert."""
