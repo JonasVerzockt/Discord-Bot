@@ -110,6 +110,7 @@ AI_CHAT_DAILY_BUDGET_USD=0.50            # Gesamtes Tagesbudget (alle User)
 AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
 # AI_CHAT_MODEL=claude-haiku-4-5-20251001          # Chat-Modell
 # AI_CHAT_CLASSIFY_MODEL=claude-haiku-4-5-20251001 # Modell für die Shop-Relevanz-Klassifikation
+AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + KI öffentlich zugänglich
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
@@ -117,6 +118,7 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
+# SHOPS_DATA_FILE=/pfad/zu/shops_data.json  # Voller Pfad-Override (statt DATA_DIRECTORY)
 
 # ── Python ────────────────────────────────────────────────────
 PYTHONUNBUFFERED=1
@@ -444,7 +446,7 @@ INAT_WORKSHEET       = "Rohdaten"               # Tab mit den Rohdaten
 INAT_UEBERSICHT      = "Übersicht"              # Tab mit dem Ranking (für Snapshot)
 INAT_START           = "2026-06-05 00:00"       # Zeitfenster Beginn (Berliner Zeit)
 INAT_END             = "2026-10-30 20:00"       # Zeitfenster Ende (Berliner Zeit)
-INAT_SNAPSHOT_EVERY  = 5                        # Snapshot nach jeweils N Einträgen
+INAT_SNAPSHOT_EVERY  = 15                       # Snapshot nach jeweils N Einträgen
 INAT_Z2_TIMEOUT      = 600                      # Max. Wartezeit auf Z2-Freigabe (Sekunden)
 ```
 
@@ -463,55 +465,142 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 
 ## Slash Commands
 
-> Alle Slash-Befehle sind **guild-only** – sie funktionieren nur auf einem Server, nicht in der Bot-DM (in `main.py` zentral via `walk_application_commands().guild_only = True`). Das Senden/Empfangen von DMs durch den Bot (Benachrichtigungen, Preis-DMs, Feedback-Reaktionen) läuft über Events und ist davon unberührt.
+> Alle Slash-Befehle sind **guild-only** – sie funktionieren nur auf einem Server, nicht in der Bot-DM. Durchgesetzt wird das auf zwei Ebenen: (1) `main.py` setzt zentral `walk_application_commands().guild_only = True`, (2) die Laufzeit-Checks `allowed_channel()` und `admin_or_manage_messages()` (in `cogs/server_settings.py`) geben in DMs zusätzlich `False` zurück – das ist die eigentlich zuverlässige Sperre. Das Senden/Empfangen von DMs durch den Bot (Benachrichtigungen, Preis-DMs, Feedback-Reaktionen) läuft über Events und ist davon unberührt.
 
 ### Für alle User (nur im Bot-Kanal)
 
-| Befehl | Parameter | Beschreibung |
-|--------|-----------|-------------|
-| `/notification` | `species` oder `genus` (Pflicht, nicht beides), `regions` (z.B. `de,at` oder `eu`), `swiss_only`, `exclude_species`, `force` | Verfügbarkeitsbenachrichtigung einrichten. `regions: eu` wird automatisch auf alle EU-Ländercodes aufgelöst. `exclude_species` schließt bestimmte Arten innerhalb einer Gattungs-Suche aus. `force: True` überspringt die Prüfung ob die Art in der DB vorkommt. |
-| `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. |
-| `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). |
-| `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. |
-| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Aktueller Preis als Baseline. |
-| `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte mit aktuellem Preis. |
-| `/untrack_price` | – | Zeigt Einzelprodukte und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten. |
-| `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. |
-| `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. |
-| `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. |
-| `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). |
-| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen, optional nach Länderkürzel gefiltert. Zeigt Name, URL und AAM-Rating. |
-| `/ch_delivery add` | `shop` | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. |
-| `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. |
-| `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. |
-| `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. |
-| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. |
+| Befehl | Parameter | Beschreibung | Beispiel |
+|--------|-----------|--------------|----------|
+| `/notification` | `species` oder `genus` (Pflicht, nicht beides), `regions` (z.B. `de,at` oder `eu`), `swiss_only`, `exclude_species`, `force` | Verfügbarkeitsbenachrichtigung einrichten. `regions: eu` wird automatisch auf alle EU-Ländercodes aufgelöst. `exclude_species` schließt bestimmte Arten innerhalb einer Gattungs-Suche aus. `force: True` überspringt die Prüfung ob die Art in der DB vorkommt. | `/notification species:Messor barbarus regions:de,at swiss_only:true` |
+| `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. | `/delete_notifications ids:12 15` |
+| `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). | `/history` |
+| `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. | `/testnotification` |
+| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Aktueller Preis als Baseline. | `/track_price species:Camponotus` |
+| `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte mit aktuellem Preis. | `/my_price_tracking` |
+| `/untrack_price` | – | Zeigt Einzelprodukte und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten. | `/untrack_price` |
+| `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. | `/usersetting language language:de` |
+| `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
+| `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. | `/usersetting blacklist_remove shop:Antstore` |
+| `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). | `/usersetting blacklist_list` |
+| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen, optional nach Länderkürzel gefiltert. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
+| `/ch_delivery add` | `shop` (Name, Fuzzy-Match) | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. | `/ch_delivery add shop:Antstore` |
+| `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
+| `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. | `/ai_status` |
+| `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
+| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
 
-| Befehl | Parameter | Beschreibung |
-|--------|-----------|-------------|
-| `/startup` | `language` (`de`/`en`/`eo`), `channel` | Bot-Kanal und Sprache für diesen Server festlegen. Muss einmalig pro Server aufgerufen werden. |
-| `/status` | – | Zeigt die Anzahl der Bewertungen im Google Sheet, die Zahl der verarbeiteten Reviews und die ausstehenden (🟡) Nachrichten. |
-| `/pending` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. |
-| `/test` | `text` | KI-Parser mit einem frei eingegebenen Bewertungstext testen (ohne Sheet-Eintrag). Zeigt das von der KI extrahierte JSON. |
-| `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. |
-| `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). |
-| `/export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). |
-| `/stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. |
-| `/system` | – | Systemstatus: Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. |
-| `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). |
-| `/shopmapping add` | `external_name`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. |
-| `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. |
-| `/shopmapping remove` | `external_name` | Mapping löschen. |
-| `/shopurl set` | `shop_id`, `url` | Manuelle URL für einen Shop setzen. Überschreibt die API-URL dauerhaft und überlebt stündliche Shop-Reloads. Nützlich wenn die API eine falsche Domain liefert. |
-| `/shopurl clear` | `shop_id` | Manuelle URL-Override entfernen – API-URL wird wieder genutzt. |
-| `/shopurl list` | – | Alle aktiven URL-Overrides anzeigen. |
-| `/ch_delivery remove` | `shop_id` | Shop aus CH-Lieferliste entfernen. Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. |
-| `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. |
-| `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. |
-| `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. |
-| `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. |
+| Befehl | Parameter | Beschreibung | Beispiel |
+|--------|-----------|--------------|----------|
+| `/startup` | `language` (`de`/`en`/`eo`), `channel` (optional) | Bot-Kanal und Sprache für diesen Server festlegen. Muss einmalig pro Server aufgerufen werden. Ohne `channel` sind Befehle in allen Kanälen erlaubt. | `/startup language:de channel:#ameisen-bot` |
+| `/status` | – | Zeigt die Anzahl der Bewertungen im Google Sheet, die Zahl der verarbeiteten Reviews und die ausstehenden (🟡) Nachrichten. | `/status` |
+| `/pending` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. | `/pending` |
+| `/test` | `text` | KI-Parser mit einem frei eingegebenen Bewertungstext testen (ohne Sheet-Eintrag). Zeigt das von der KI extrahierte JSON. | `/test text:🛒 Shop: Antstore, Messor barbarus, 9/10` |
+| `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. | `/rescan` |
+| `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). | `/reprocess ids:1176542880 1176542995` |
+| `/export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). | `/export user_id:123456789012345678` |
+| `/stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/stats` |
+| `/system` | – | Systemstatus: Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/system` |
+| `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). | `/reloadshops` |
+| `/shopmapping add` | `external`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. | `/shopmapping add external:Antstore.de shop_id:2` |
+| `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. | `/shopmapping show` |
+| `/shopmapping remove` | `external` | Mapping löschen. | `/shopmapping remove external:Antstore.de` |
+| `/shopurl set` | `shop_id`, `url` | Manuelle URL für einen Shop setzen. Überschreibt die API-URL dauerhaft und überlebt stündliche Shop-Reloads. Nützlich wenn die API eine falsche Domain liefert. | `/shopurl set shop_id:2 url:https://antstore.net` |
+| `/shopurl clear` | `shop_id` | Manuelle URL-Override entfernen – API-URL wird wieder genutzt. | `/shopurl clear shop_id:2` |
+| `/shopurl list` | – | Alle aktiven URL-Overrides anzeigen. | `/shopurl list` |
+| `/ch_delivery remove` | `shop` (Name, Fuzzy-Match) | Shop aus CH-Lieferliste entfernen. Angegeben wird der Shop-**Name** (nicht die ID). Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. | `/ch_delivery remove shop:Antstore` |
+| `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. | `/ai_reset user:@Mitglied` |
+| `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
+| `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
+| `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
+
+### Beispiele für umfangreiche Befehle
+
+Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jeweiligen Wirkung.
+
+**`/notification` – Verfügbarkeitsbenachrichtigung**
+
+```text
+/notification species:Messor barbarus
+→ Meldet per DM, sobald Messor barbarus irgendwo lieferbar ist.
+
+/notification species:Messor barbarus regions:de,at
+→ Wie oben, aber nur Shops aus Deutschland und Österreich.
+
+/notification genus:Camponotus regions:eu
+→ ALLE Camponotus-Arten; regions:eu wird automatisch auf alle EU-Ländercodes aufgelöst.
+
+/notification genus:Camponotus exclude_species:Camponotus ligniperda
+→ Ganze Gattung beobachten, aber C. ligniperda ausnehmen (exclude_species wirkt nur bei genus).
+
+/notification species:Lasius niger swiss_only:true
+→ Nur Shops, die in die Schweiz liefern (automatische CH-Shops + manuelle CH-Liste).
+
+/notification species:Atta sexdens force:true
+→ Legt die Benachrichtigung auch an, wenn die Art aktuell in keiner Shop-Liste vorkommt.
+```
+
+**`/track_price` – Preisbeobachtung** *(interaktiv über Dropdowns)*
+
+```text
+/track_price species:Oecophylla smaragdina
+→ Öffnet das Shop-Dropdown. Erste Option „Alle Shops beobachten" = shopübergreifende
+  Arten-Beobachtung (Preisänderungen + Neuerscheinungen). Alternativ ein einzelner Shop
+  mit Mehrfach-Produktauswahl. Der aktuelle Preis wird als Baseline gespeichert.
+
+/track_price species:Camponotus
+→ Gattung statt Einzelart: Beobachtung greift für alle Camponotus-Produkte.
+```
+
+**`/codes` & `/codes_set` – Rabattcodes**
+
+```text
+/codes
+→ Zeigt nur aktuell gültige Codes (ein Eintrag pro Shop+Code).
+
+/codes show_expired:true
+→ Zusätzlich abgelaufene (⌛) und manuell deaktivierte (🚫) Codes.
+
+/codes_set code:ANT10 status:valid
+→ Markiert ANT10 in ALLEN Shops als dauerhaft gültig (ohne shop = alle Einträge).
+
+/codes_set code:ANT10 status:invalid shop:Antstore
+→ Nur den Eintrag bei Antstore ungültig setzen.
+
+/codes_set code:ANT10 status:auto
+→ Zurück auf automatische Datumslogik (Gültigkeit nach Enddatum).
+```
+
+**`/export` – Daten-Export**
+
+```text
+/export
+→ Alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen pro Tabelle).
+
+/export user_id:123456789012345678
+→ DSGVO-Auskunft: alle zu diesem User gespeicherten Daten als JSON per DM.
+```
+
+**`/startup` – Server-Einrichtung**
+
+```text
+/startup language:de
+→ Sprache Deutsch; Befehle sind in allen Kanälen erlaubt.
+
+/startup language:en channel:#ant-bot
+→ Sprache Englisch; Befehle nur noch im Kanal #ant-bot nutzbar.
+```
+
+**`/shopurl` – URL-Overrides**
+
+```text
+/shopurl set shop_id:2 url:https://antstore.net
+→ Setzt eine feste URL für Shop 2; überlebt die stündlichen Shop-Reloads.
+
+/shopurl clear shop_id:2
+→ Entfernt den Override – die API-URL wird wieder verwendet.
+```
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -670,6 +759,6 @@ Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server
 - Fehlt ein Key in der Zielsprache, wird automatisch auf `en` zurückgegriffen, danach auf den Key-Namen selbst (`[key]`) – es fällt also nie eine Ausgabe komplett aus.
 - Platzhalter wie `{species}`, `{shop}` oder `{date}` werden zur Laufzeit eingesetzt.
 
-**Neue Sprache hinzufügen:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen. Damit die Sprache auch auswählbar ist, müssen die `choices`-Listen von `/usersetting language` und `/startup` (aktuell `
+**Neue Sprache hinzufügen:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen. Damit die Sprache auch auswählbar ist, müssen die `choices`-Listen von `/usersetting language` (in `cogs/user_settings.py`) und `/startup` (in `cogs/server_settings.py`) um den neuen Sprachcode ergänzt werden – aktuell stehen dort `de`, `en` und `eo`.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)

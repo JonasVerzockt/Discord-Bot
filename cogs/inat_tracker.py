@@ -31,7 +31,7 @@ INAT_WORKSHEET    = "Rohdaten"
 INAT_UEBERSICHT   = "Übersicht"   # Tab mit dem Ranking (Snapshot-Quelle)
 
 # Apps Script Web App (optional) – wenn gesetzt, wird das Script nach jedem
-# 5. Eintrag manuell getriggert bevor der Snapshot gemacht wird.
+# 15. Eintrag manuell getriggert bevor der Snapshot gemacht wird.
 # URL aus Apps Script: Bereitstellen → Als Web App → URL kopieren
 # Secret muss mit BOT_TRIGGER_SECRET im Apps Script übereinstimmen.
 import os as _os
