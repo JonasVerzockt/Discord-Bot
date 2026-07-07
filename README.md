@@ -414,7 +414,7 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 
 **Ranking-Snapshot:**
 
-Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 5) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …).
+Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 15) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …).
 
 Ablauf:
 1. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
@@ -457,7 +457,7 @@ INAT_WEBAPP_URL=https://script.google.com/macros/s/.../exec   # Apps Script Web 
 INAT_WEBAPP_SECRET=dein-secret                                  # Muss mit BOT_TRIGGER_SECRET im Script übereinstimmen
 ```
 
-Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein und den Scope `drive.readonly` für den PNG-Export besitzen.
+Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein (der Bot schreibt in den Rohdaten-Tab und liest den Übersicht-Tab). Die benötigten Scopes (`spreadsheets` und `drive.readonly`) sind in `cogs/inat_tracker.py` hinterlegt.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -658,6 +658,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `notifications` | Benachrichtigungen mit Status (active / completed / expired / failed / pending_feedback) |
 | `user_settings` | Sprache pro User |
 | `server_settings` | Bot-Kanal + Sprache pro Server |
+| `server_info` | Server-Metadaten: Name, Mitgliederzahl, Erstelldatum, Icon-/Splash-/Banner-URL, Beschreibung (beim Join/Update aktualisiert) |
 | `user_shop_blacklist` | Blacklisted Shops pro User |
 | `shop_name_mappings` | Externer Shopname → interne Shop-ID (für Review-Bot) |
 | `ch_delivery_shops` | Shops die nach CH liefern (manuell hinzugefügt) |
