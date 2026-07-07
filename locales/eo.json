@@ -205,7 +205,7 @@
   "pt_species_watch_type": "Specioj-observado (ĉiuj butikoj)",
   "pt_untrack_placeholder": "Elekti produkt(o)jn / specioj-observadon …",
   "admin_dm_sent": "✅ Datumoj senditaj per MP.",
-  "inat_ranking_caption": "📊 **Aktuala Vicordo** – aŭtomata ĝisdatigo",
+  "inat_ranking_caption": "📊 **Aktuala Vicordo** – aŭtomata ĝisdatigo\n-# 🕒 Stato je {time} · ligiloj afiŝitaj poste ankoraŭ ne estas inkluzivitaj.",
   "system_integrity_ok": "✅ Bone",
   "system_integrity_error": "⚠️ Eraro",
   "system_integrity_unknown": "❌ Nekonata",
@@ -241,5 +241,5 @@
   "discount_set_state_auto": "aŭtomata (laŭ dato)",
   "help_codes_set": "🏷️ `/codes_set <code> <status> [shop]` – Marki kodon valida/nevalida/aŭtomata (Admin)",
   "discount_expired_old": "verŝajne eksvalida",
-  "inat_ranking_fallback": "📊 **Ranglisto** (bild-eksporto nuntempe ne disponebla – kiel teksto):"
+  "inat_ranking_fallback": "📊 **Ranglisto** (bild-eksporto nuntempe ne disponebla – kiel teksto):\n-# 🕒 Stato je {time} · ligiloj afiŝitaj poste ankoraŭ ne estas inkluzivitaj."
 }

@@ -48,6 +48,12 @@ INAT_TAXON_ID = 1269340  # Formicoidea
 # Ranking-Snapshot: nach wie vielen neuen Einträgen posten?
 INAT_SNAPSHOT_EVERY = 15
 
+# Debounce: Ist die Schwelle erreicht, wird noch so viele Sekunden auf weitere
+# Links gewartet – jeder neue Link setzt den Timer zurück. Erst nach dieser
+# Ruhezeit ohne neuen Link wird der Snapshot gepostet (der davor zusätzlich prüft,
+# dass gerade kein Validierungs-Job auf der Tabelle läuft).
+INAT_SNAPSHOT_DEBOUNCE = 300  # 5 Minuten
+
 # Wie lange maximal auf Z2-Freigabe warten (Sekunden)?
 INAT_Z2_TIMEOUT = 600  # 10 Minuten
 
@@ -221,6 +227,9 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         self._start = datetime.strptime(INAT_START, "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
         self._end   = datetime.strptime(INAT_END,   "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
         self._last_manual_snapshot: datetime | None = None  # Cooldown für "Rangliste"-Trigger
+        self._snapshot_task: asyncio.Task | None = None      # Debounce-Task für Auto-Snapshot
+        self._snapshot_running: bool = False                 # True während ein Post läuft (nicht abbrechen)
+        self._snapshot_followup: bool = False                # Link kam während eines laufenden Posts
 
     # ── Sheet-Verbindungen (lazy) ─────────────────────────────────────────────
 
@@ -309,6 +318,67 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
     # ── Ranking-Snapshot ──────────────────────────────────────────────────────
 
+    def _maybe_arm_snapshot(self, data_count: int) -> None:
+        """
+        Entscheidet nach einem neuen Eintrag über den Debounce-Puffer für den
+        Ranking-Snapshot:
+          • Läuft bereits ein Post → NICHT unterbrechen, nur einen Follow-up merken.
+          • data_count ist ein Vielfaches von INAT_SNAPSHOT_EVERY  → Snapshot fällig.
+          • es läuft bereits ein Puffer und es kam ein weiterer Link → Timer zurücksetzen.
+        Gepostet wird erst nach INAT_SNAPSHOT_DEBOUNCE Sekunden ohne neuen Link.
+        """
+        if self._snapshot_running:
+            # Ein Post läuft bereits – nicht abbrechen. Nach Abschluss wird ein
+            # Follow-up-Snapshot gestartet, damit dieser Link nicht verloren geht.
+            self._snapshot_followup = True
+            logger.info("⏲️ Link während laufendem Post – Follow-up nach Abschluss geplant")
+            return
+        due     = data_count > 0 and data_count % INAT_SNAPSHOT_EVERY == 0
+        pending = self._snapshot_task is not None and not self._snapshot_task.done()
+        if due:
+            logger.info(
+                f"📊 Ranking-Snapshot fällig nach {data_count} Einträgen – "
+                f"warte {INAT_SNAPSHOT_DEBOUNCE}s auf weitere Links (Debounce)"
+            )
+            self._arm_snapshot()
+        elif pending:
+            logger.info("⏲️ Weiterer iNat-Link während Snapshot-Puffer – Timer zurückgesetzt")
+            self._arm_snapshot()
+
+    def _arm_snapshot(self) -> None:
+        """(Re)startet den Debounce-Timer. Betrifft nur die Wartephase – ein
+        bereits laufender Post wird nie abgebrochen (siehe _maybe_arm_snapshot)."""
+        if self._snapshot_task is not None and not self._snapshot_task.done():
+            self._snapshot_task.cancel()
+        self._snapshot_task = asyncio.create_task(self._debounced_snapshot())
+
+    async def _debounced_snapshot(self) -> None:
+        """Wartet die Ruhezeit ab und postet dann. Kommt in der Wartezeit ein
+        weiterer Link, wird dieser Task abgebrochen und neu gestartet."""
+        try:
+            await asyncio.sleep(INAT_SNAPSHOT_DEBOUNCE)
+        except asyncio.CancelledError:
+            return
+        await self._run_snapshot()
+
+    async def _run_snapshot(self) -> None:
+        """Führt den Post aus und schützt ihn vor Unterbrechung: Während er läuft
+        (`_snapshot_running`), brechen neue Links ihn nicht ab, sondern lösen
+        danach einen Follow-up-Snapshot aus."""
+        self._snapshot_running  = True
+        self._snapshot_followup = False
+        try:
+            await self._post_ranking_snapshot()
+        finally:
+            self._snapshot_running = False
+        if self._snapshot_followup:
+            self._snapshot_followup = False
+            logger.info(
+                f"📊 Link während des Posts eingegangen – Follow-up-Snapshot in "
+                f"{INAT_SNAPSHOT_DEBOUNCE}s"
+            )
+            self._snapshot_task = asyncio.create_task(self._debounced_snapshot())
+
     async def _wait_unlocked(self, ws_ue, settle: int = 2, interval: int = 5) -> bool:
         """
         Wartet bis das Sperr-Flag Z2 STABIL leer ist (mehrmals hintereinander
@@ -378,6 +448,9 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
 
             # 3. Ranking-Daten lesen (A=Rang, B=Name, C=Anzahl; Zeile 1 = Kopf)
             data    = await asyncio.to_thread(lambda: ws_ue.get(f"A1:C{last_row}"))
+            # Datenschnitt-Zeit: Links, die NACH diesem Zeitpunkt gepostet werden,
+            # sind in diesem Ranking noch nicht enthalten.
+            snapshot_ts = datetime.now(tz=BERLIN).strftime("%d.%m.%Y %H:%M:%S")
             entries = _parse_ranking(data)
             if not entries:
                 logger.warning("⚠️ Ranking-Snapshot: keine Einträge – Text-Fallback")
@@ -403,7 +476,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             buf.seek(0)
             try:
                 await channel.send(
-                    l10n.get("inat_ranking_caption", lang),
+                    l10n.get("inat_ranking_caption", lang, time=snapshot_ts),
                     file=discord.File(buf, filename="ranking.png"),
                 )
                 logger.info(f"📊 Ranking-Snapshot gepostet ({len(entries)} Einträge, lokal gerendert)")
@@ -429,6 +502,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         except Exception as e:
             logger.error(f"❌ Text-Fallback: Sheet-Lesefehler: {e}")
             return
+        snapshot_ts = datetime.now(tz=BERLIN).strftime("%d.%m.%Y %H:%M:%S")
 
         channel = self.bot.get_channel(INAT_CHANNEL_ID)
         if channel is None:
@@ -448,7 +522,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             return " | ".join(c.ljust(widths[i]) for i, c in enumerate(cells))
 
         table   = "\n".join(_row(r) for r in values)
-        caption = l10n.get("inat_ranking_fallback", lang)
+        caption = l10n.get("inat_ranking_fallback", lang, time=snapshot_ts)
 
         body = f"{caption}\n```\n{table}\n```"
         try:
@@ -490,7 +564,14 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 await message.add_reaction("⏱️")
             else:
                 self._last_manual_snapshot = now
-                asyncio.create_task(self._post_ranking_snapshot())
+                if self._snapshot_running:
+                    # Es läuft bereits ein Post – nicht unterbrechen, keinen zweiten starten
+                    logger.info("📊 Manueller Trigger ignoriert – es läuft bereits ein Post")
+                else:
+                    # Laufenden Debounce-Puffer abbrechen und sofort posten
+                    if self._snapshot_task is not None and not self._snapshot_task.done():
+                        self._snapshot_task.cancel()
+                    self._snapshot_task = asyncio.create_task(self._run_snapshot())
                 await message.add_reaction("📊")
             return
 
@@ -553,15 +634,10 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             except discord.HTTPException as e:
                 logger.error(f"❌ Reaktion fehlgeschlagen: {e}")
 
-            # Ranking-Snapshot alle INAT_SNAPSHOT_EVERY Einträge
+            # Ranking-Snapshot alle INAT_SNAPSHOT_EVERY Einträge (mit Debounce-Puffer)
             # last_row - 1 = Daten-Zeilennummer (Zeile 1 = Header)
             if last_row is not None:
-                data_count = last_row - 1
-                if data_count > 0 and data_count % INAT_SNAPSHOT_EVERY == 0:
-                    logger.info(
-                        f"📊 Ranking-Snapshot ausgelöst nach {data_count} Einträgen"
-                    )
-                    asyncio.create_task(self._post_ranking_snapshot())
+                self._maybe_arm_snapshot(last_row - 1)
 
     async def _retry_pending(
         self,
@@ -602,9 +678,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
                 )
                 logger.info(f"✅ iNat Retry OK: Zeile {row}  {url}")
                 await message.add_reaction("✅")
-                data_count = row - 1
-                if data_count > 0 and data_count % INAT_SNAPSHOT_EVERY == 0:
-                    asyncio.create_task(self._post_ranking_snapshot())
+                self._maybe_arm_snapshot(row - 1)
             except Exception as e:
                 logger.error(f"❌ iNat Retry Schreibfehler (obs {obs_id}): {e}")
             return

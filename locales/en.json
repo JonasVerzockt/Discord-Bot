@@ -205,7 +205,7 @@
   "pt_species_watch_type": "Species watch (all shops)",
   "pt_untrack_placeholder": "Select product(s) / species watch …",
   "admin_dm_sent": "✅ Data sent via DM.",
-  "inat_ranking_caption": "📊 **Current Ranking** – automatic update",
+  "inat_ranking_caption": "📊 **Current Ranking** – automatic update\n-# 🕒 As of {time} · links posted after this time are not yet included.",
   "system_integrity_ok": "✅ OK",
   "system_integrity_error": "⚠️ Error",
   "system_integrity_unknown": "❌ Unknown",
@@ -241,5 +241,5 @@
   "discount_set_state_auto": "automatic (by date)",
   "help_codes_set": "🏷️ `/codes_set <code> <status> [shop]` – Mark code valid/invalid/auto (Admin)",
   "discount_expired_old": "likely expired",
-  "inat_ranking_fallback": "📊 **Ranking** (image export currently unavailable – shown as text):"
+  "inat_ranking_fallback": "📊 **Ranking** (image export currently unavailable – shown as text):\n-# 🕒 As of {time} · links posted after this time are not yet included."
 }

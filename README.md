@@ -414,18 +414,19 @@ Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in
 
 **Ranking-Snapshot:**
 
-Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 15) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …).
+Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 15) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …). Nach dem Erreichen der Schwelle wartet der Bot zunächst `INAT_SNAPSHOT_DEBOUNCE` Sekunden (Standard: 300 = 5 Min) auf weitere Links – **jeder** weitere Link setzt diesen Timer zurück, sodass kurz aufeinanderfolgende Einträge gebündelt werden und kein Link mitten im Prozess verloren geht. **Sobald der Post tatsächlich startet, wird er nicht mehr abgebrochen** – Links, die genau während des Postens eingehen, lösen stattdessen direkt danach einen weiteren (Follow-up-)Snapshot aus.
 
 Ablauf:
-1. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
-2. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
-3. 10 Sekunden warten damit das Script Z2 auf `block` setzen kann
-4. Warten bis Z2 **stabil leer** ist (mehrfach hintereinander leer, nicht nur einmal) – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600). Damit wird **nie** während einer laufenden Validierung gerendert.
-5. Daten `A1:C` lesen, lokal als Treppchen-PNG (matplotlib) rendern und im Channel posten. Schlägt das Rendern fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) gepostet – die Rangliste geht also nie verloren.
+1. **Debounce:** Ab Erreichen der Schwelle `INAT_SNAPSHOT_DEBOUNCE` Sekunden (Standard: 300) auf weitere Links warten; jeder neue Link setzt den Timer zurück. Erst nach dieser Ruhezeit geht es weiter. (Ein manueller `Rangliste`-Trigger überspringt diesen Schritt.)
+2. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
+3. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
+4. 5 Sekunden warten damit das Script Z2 auf `block` setzen kann
+5. Warten bis Z2 **stabil leer** ist (mehrfach hintereinander leer, nicht nur einmal) – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600). Damit wird **nie** während einer laufenden Validierung gerendert.
+6. Daten `A1:C` lesen, lokal als Treppchen-PNG (matplotlib) rendern und im Channel posten. Die Bild-Caption enthält den **Datenschnitt-Zeitstempel** (`🕒 Stand: TT.MM.JJJJ HH:MM:SS`) – so ist erkennbar, dass Links, die **nach** diesem Zeitpunkt gepostet wurden, in diesem Bild noch nicht enthalten sind. Schlägt das Rendern fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) mit demselben Zeitstempel gepostet – die Rangliste geht also nie verloren.
 
 Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
 
-**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 1 Minute (⏱️-Reaktion wenn zu früh).
+**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 1 Minute (⏱️-Reaktion wenn zu früh). Ein laufender Debounce-Puffer wird dabei abgebrochen und sofort gepostet; läuft bereits ein Post, wird der manuelle Trigger ignoriert (kein doppelter Post).
 
 **Sheet-Struktur (Rohdaten-Tab):**
 
@@ -447,6 +448,7 @@ INAT_UEBERSICHT      = "Übersicht"              # Tab mit dem Ranking (für Sna
 INAT_START           = "2026-06-05 00:00"       # Zeitfenster Beginn (Berliner Zeit)
 INAT_END             = "2026-10-30 20:00"       # Zeitfenster Ende (Berliner Zeit)
 INAT_SNAPSHOT_EVERY  = 15                       # Snapshot nach jeweils N Einträgen
+INAT_SNAPSHOT_DEBOUNCE = 300                    # Nach Schwelle N Sek. auf weitere Links warten (Debounce)
 INAT_Z2_TIMEOUT      = 600                      # Max. Wartezeit auf Z2-Freigabe (Sekunden)
 ```
 

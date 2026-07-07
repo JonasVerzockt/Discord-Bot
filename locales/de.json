@@ -205,7 +205,7 @@
   "pt_species_watch_type": "Arten-Beobachtung (alle Shops)",
   "pt_untrack_placeholder": "Produkt(e) / Arten-Beobachtung auswählen …",
   "admin_dm_sent": "✅ Daten per DM gesendet.",
-  "inat_ranking_caption": "📊 **Aktuelles Ranking** – automatisches Update",
+  "inat_ranking_caption": "📊 **Aktuelles Ranking** – automatisches Update\n-# 🕒 Stand: {time} · Links, die danach gepostet wurden, sind noch nicht enthalten.",
   "system_integrity_ok": "✅ OK",
   "system_integrity_error": "⚠️ Fehler",
   "system_integrity_unknown": "❌ Unbekannt",
@@ -241,5 +241,5 @@
   "discount_set_state_auto": "automatisch (nach Datum)",
   "help_codes_set": "🏷️ `/codes_set <code> <status> [shop]` – Code gültig/ungültig/automatisch markieren (Admin)",
   "discount_expired_old": "wahrscheinlich abgelaufen",
-  "inat_ranking_fallback": "📊 **Rangliste** (Bild-Export gerade nicht verfügbar – hier als Text):"
+  "inat_ranking_fallback": "📊 **Rangliste** (Bild-Export gerade nicht verfügbar – hier als Text):\n-# 🕒 Stand: {time} · Links, die danach gepostet wurden, sind noch nicht enthalten."
 }
