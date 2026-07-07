@@ -760,6 +760,12 @@ Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server
 - Fehlt ein Key in der Zielsprache, wird automatisch auf `en` zurückgegriffen, danach auf den Key-Namen selbst (`[key]`) – es fällt also nie eine Ausgabe komplett aus.
 - Platzhalter wie `{species}`, `{shop}` oder `{date}` werden zur Laufzeit eingesetzt.
 
-**Neue Sprache hinzufügen:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen. Damit die Sprache auch auswählbar ist, müssen die `choices`-Listen von `/usersetting language` (in `cogs/user_settings.py`) und `/startup` (in `cogs/server_settings.py`) um den neuen Sprachcode ergänzt werden – aktuell stehen dort `de`, `en` und `eo`.
+**Neue Sprache hinzufügen** (drei Schritte):
+
+1. **Texte:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen.
+2. **Auswählbar machen:** die `choices`-Listen von `/usersetting language` (in `cogs/user_settings.py`) und `/startup` (in `cogs/server_settings.py`) um den neuen Sprachcode ergänzen – aktuell stehen dort `de`, `en` und `eo`.
+3. **KI-Chat:** einen System-Prompt in der neuen Sprache als `ai_chat_system_prompt_<code>.txt` anlegen **und** den Sprachcode in `config.py` in die Lade-Schleife von `AI_CHAT_SYSTEM_PROMPTS` (aktuell `for _lang in ("de", "en", "eo")`) aufnehmen. Fehlt einer der beiden Schritte, wird der Prompt nicht geladen und die KI antwortet in dieser Sprache über den englischen Fallback-Prompt (`ai_chat_system_prompt_en.txt`). Der Platzhalter `{model}` im Prompt wird automatisch durch das konfigurierte Modell ersetzt.
+
+Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dagegen sofort über die neue `locales/<code>.json` – nur der KI-Chat braucht zusätzlich die eigene Prompt-Datei.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
