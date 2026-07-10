@@ -559,7 +559,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             now = datetime.now(tz=BERLIN)
             if (
                 self._last_manual_snapshot is not None
-                and (now - self._last_manual_snapshot).total_seconds() < 60
+                and (now - self._last_manual_snapshot).total_seconds() < 10800
             ):
                 await message.add_reaction("⏱️")
             else:
