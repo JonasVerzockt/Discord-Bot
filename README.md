@@ -22,15 +22,17 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 5. [Review-Bot](#review-bot)
 6. [AntCheck-Bot](#antcheck-bot)
 7. [Preis-Tracking](#preis-tracking)
-8. [Rabattcode-Tracker](#rabattcode-tracker)
-9. [AI-Chat-Bot](#ai-chat-bot)
-10. [iNat-Tracker](#inat-tracker)
-11. [Slash Commands](#slash-commands)
-12. [Hintergrundaufgaben](#hintergrundaufgaben)
-13. [Grabber](#grabber)
-14. [Datenbank](#datenbank)
-15. [Projektstruktur](#projektstruktur)
-16. [Lokalisierung](#lokalisierung)
+8. [Wochen-Digest](#wochen-digest)
+9. [Rabattcode-Tracker](#rabattcode-tracker)
+10. [AI-Chat-Bot](#ai-chat-bot)
+11. [iNat-Tracker](#inat-tracker)
+12. [Erfolge](#erfolge)
+13. [Slash Commands](#slash-commands)
+14. [Hintergrundaufgaben](#hintergrundaufgaben)
+15. [Grabber](#grabber)
+16. [Datenbank](#datenbank)
+17. [Projektstruktur](#projektstruktur)
+18. [Lokalisierung](#lokalisierung)
 
 ---
 
@@ -325,11 +327,28 @@ Beim Einrichten werden alle aktuell bekannten Produkte sofort als Baseline gespe
 
 `/price_history` rendert für ein beobachtetes Produkt den Preisverlauf lokal als Diagramm (matplotlib, Step-Chart aus `price_history.db`) und markiert das historische Tief („Bestpreis seit Beobachtungsstart").
 
-Mit `/set_target` legst du pro beobachtetem Produkt einen **Zielpreis** fest – Modus `zusätzlich` (weiter Änderungs-DMs plus 🎯-DM beim Erreichen), `ersetzt` (nur noch die 🎯-DM) oder `aus` (entfernen). Der Zielpreis gilt in der Shop-Währung und wird im stündlichen Preis-Check ausgewertet.
+Mit `/set_target` legst du pro beobachtetem Produkt einen **Zielpreis** fest – Modus `zusätzlich` (weiter Änderungs-DMs plus 🎯-DM beim Erreichen), `ersetzt` (nur noch die 🎯-DM) oder `aus` (entfernen). Der Zielpreis gilt in der Shop-Währung und wird im laufenden Preis-Check (~65/67 Min.) ausgewertet.
 
 ### DM-Fallback
 
 Falls DMs des Users blockiert sind, wird der Server-Kanal als Fallback genutzt.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Wochen-Digest
+
+Optionaler wöchentlicher Überblick **per DM** – nur für User, die sich per **Opt-in** angemeldet haben (`/digest action:aktivieren`). Versand **montags 09:00 (Berliner Zeit)**; der Task feuert täglich, handelt aber nur montags.
+
+**Inhalt:**
+- **Größte Preisstürze der letzten 7 Tage** – aus `price_history.db` (Top 10, mit altem/neuem Preis und prozentualem Rückgang)
+- **Neue Arten im Angebot** – Diff gegen die Baseline-Tabelle `known_species`
+- **Neue Shops** – Diff gegen die Baseline-Tabelle `known_shops`
+
+Die Baseline-Tabellen (`known_species`, `known_shops`) werden beim **ersten Lauf** befüllt – in diesem Lauf gibt es daher noch keine „neu"-Meldung; echte Neuzugänge werden erst ab dem zweiten Lauf erkannt. Gibt es in einer Woche nichts Neues, bekommen Abonnenten trotzdem eine kurze „nichts Neues"-DM.
+
+An-/Abmelden und Status prüfen über `/digest` (`aktivieren` / `deaktivieren` / `status`).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -472,6 +491,38 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 
 ---
 
+## Erfolge
+
+Sammelbare Achievements – **rein persönlich, ohne Rollen**. Abrufbar per `/achievements`: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und die **Existenz** versteckter Erfolge (🔒 `???`). Pro neu freigeschaltetem Erfolg schickt der Bot eine dezente DM (sind DMs gesperrt, bleibt die Freischaltung trotzdem erhalten).
+
+**Prüfung:** event-getrieben, kein periodischer Job. Ausgewertet wird nach jedem Slash-Command (Completion-Listener in `cogs/achievements.py`), beim Öffnen von `/achievements` sowie an gezielten Stellen (u. a. Zielpreis gesetzt/getroffen, Rabattcode gepostet, KI-Chat genutzt, Tracking/Beobachtung bestätigt). Alle Kennzahlen werden bei der Abfrage frisch aus den vorhandenen Tabellen + `user_events` berechnet; Freischaltungen werden in der Tabelle `achievements` persistiert.
+
+### Sichtbare Erfolge
+
+| Emoji | Titel | Bedingung |
+|-------|-------|-----------|
+| 🔔 | Erste Suche | Erste Verfügbarkeitsbenachrichtigung eingerichtet |
+| 📋 | Sammler | 10 Benachrichtigungen eingerichtet |
+| 🛒 | Endlich! | Erste Benachrichtigung als gekauft markiert |
+| 🌈 | Artenvielfalt | 10 verschiedene Arten gesucht |
+| 📉 | Preisfuchs | Erstes Produkt im Preis-Tracking |
+| 📊 | Beobachter | 10 Produkte im Preis-Tracking |
+| 🎯 | Zielsicher | Ersten Zielpreis gesetzt |
+| 🔭 | Weitblick | Erste Arten-Beobachtung (alle Shops) |
+| 📬 | Immer informiert | Wochen-Digest abonniert |
+| 🏷️ | Code-Bringer | Ersten Rabattcode gepostet |
+| 🏷️ | Code-Sammler | 5 Rabattcodes gepostet |
+| 🏷️ | Code-Meister | 15 Rabattcodes gepostet |
+| 🤖 | KI-Neugier | Den KI-Chat einmal genutzt |
+
+Die Reihe **Code-Bringer / Code-Sammler / Code-Meister** ist derselbe Erfolg in drei Stufen (1 / 5 / 15 gepostete Rabattcodes).
+
+Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achievements` sichtbar werden – bis dahin erscheinen sie nur als 🔒 `???`. Titel und Bedingungen werden hier bewusst nicht verraten.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
 ## Slash Commands
 
 > Alle Slash-Befehle sind **guild-only** – sie funktionieren nur auf einem Server, nicht in der Bot-DM. Durchgesetzt wird das auf zwei Ebenen: (1) `main.py` setzt zentral `walk_application_commands().guild_only = True`, (2) die Laufzeit-Checks `allowed_channel()` und `admin_or_manage_messages()` (in `cogs/server_settings.py`) geben in DMs zusätzlich `False` zurück – das ist die eigentlich zuverlässige Sperre. Das Senden/Empfangen von DMs durch den Bot (Benachrichtigungen, Preis-DMs, Feedback-Reaktionen) läuft über Events und ist davon unberührt.
@@ -495,6 +546,7 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). | `/usersetting blacklist_list` |
 | `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen, optional nach Länderkürzel gefiltert. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
 | `/ch_delivery add` | `shop` (Name, Fuzzy-Match) | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. | `/ch_delivery add shop:Antstore` |
+| `/ch_delivery remove` | `shop` (Name, Fuzzy-Match) | Shop aus der CH-Lieferliste entfernen. Angegeben wird der Shop-**Name** (nicht die ID). Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. | `/ch_delivery remove shop:Antstore` |
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
 | `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. | `/ai_status` |
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
@@ -522,7 +574,6 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/shopurl set` | `shop_id`, `url` | Manuelle URL für einen Shop setzen. Überschreibt die API-URL dauerhaft und überlebt stündliche Shop-Reloads. Nützlich wenn die API eine falsche Domain liefert. | `/shopurl set shop_id:2 url:https://antstore.net` |
 | `/shopurl clear` | `shop_id` | Manuelle URL-Override entfernen – API-URL wird wieder genutzt. | `/shopurl clear shop_id:2` |
 | `/shopurl list` | – | Alle aktiven URL-Overrides anzeigen. | `/shopurl list` |
-| `/ch_delivery remove` | `shop` (Name, Fuzzy-Match) | Shop aus CH-Lieferliste entfernen. Angegeben wird der Shop-**Name** (nicht die ID). Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. | `/ch_delivery remove shop:Antstore` |
 | `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. | `/ai_reset user:@Mitglied` |
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
@@ -755,47 +806,4 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
-│   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
-│   ├── localization.py      # Lokalisierungssystem (de/en/eo)
-│   └── logging_setup.py     # Rotating File Handler
-│
-└── locales/
-    ├── de.json              # Deutsch
-    ├── en.json              # English
-    └── eo.json              # Esperanto
-```
-
-[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
-
----
-
-## Lokalisierung
-
-Der Bot ist vollständig dreisprachig (**de** / **en** / **eo**). Die eingestellte Sprache gilt für **alle** User-sichtbaren Ausgaben: Slash-Command-Antworten, DMs (Verfügbarkeit, Preis-Tracking, Feedback), KI-Chat-Antworten und die Rabattcode-Ausgaben.
-
-Zusätzlich sind die **Slash-Command-Parameterbeschreibungen** und die wichtigsten **Auswahl-Optionen** (Choices, z. B. bei `/set_target`, `/digest`, `/codes_set`) für **de/en** lokalisiert. Diese Texte im Discord-Befehlsmenü richten sich nach der **Discord-App-Sprache** des Users – nicht nach `/usersetting language`, da Discord sie selbst rendert. Esperanto ist als Discord-Client-Sprache nicht verfügbar; die eigentlichen Bot-Ausgaben bleiben aber vollständig auch auf eo.
-
-**Sprachauflösung** (in dieser Reihenfolge):
-
-1. Persönliche Einstellung des Users (`/usersetting language`)
-2. Server-Einstellung (`/startup`)
-3. Fallback `en`
-
-Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server-Sprache verwendet.
-
-**Technik:**
-
-- Alle Texte liegen als JSON in `locales/de.json`, `locales/en.json` und `locales/eo.json` – in allen Dateien dieselbe Key-Menge.
-- Geladen beim Start über die `Localization`-Klasse (`utils/localization.py`); Zugriff im Code via `l10n.get("key", lang, **platzhalter)`.
-- Fehlt ein Key in der Zielsprache, wird automatisch auf `en` zurückgegriffen, danach auf den Key-Namen selbst (`[key]`) – es fällt also nie eine Ausgabe komplett aus.
-- Platzhalter wie `{species}`, `{shop}` oder `{date}` werden zur Laufzeit eingesetzt.
-
-**Neue Sprache hinzufügen** (drei Schritte):
-
-1. **Texte:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen.
-2. **Auswählbar machen:** die `choices`-Listen von `/usersetting language` (in `cogs/user_settings.py`) und `/startup` (in `cogs/server_settings.py`) um den neuen Sprachcode ergänzen – aktuell stehen dort `de`, `en` und `eo`.
-3. **KI-Chat:** einen System-Prompt in der neuen Sprache als `ai_chat_system_prompt_<code>.txt` anlegen **und** den Sprachcode in `config.py` in die Lade-Schleife von `AI_CHAT_SYSTEM_PROMPTS` (aktuell `for _lang in ("de", "en", "eo")`) aufnehmen. Fehlt einer der beiden Schritte, wird der Prompt nicht geladen und die KI antwortet in dieser Sprache über den englischen Fallback-Prompt (`ai_chat_system_prompt_en.txt`). Der Platzhalter `{model}` im Prompt wird automatisch durch das konfigurierte Modell ersetzt.
-
-Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dagegen sofort über die neue `locales/<code>.json` – nur der KI-Chat braucht zusätzlich die eigene Prompt-Datei.
-
-[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+│   ├── achievements.py  
