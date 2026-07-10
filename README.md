@@ -8,6 +8,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku) und stellt die aktuell gültigen Codes per `/codes` bereit
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
+- **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
 
 ---
 
@@ -498,6 +499,7 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. | `/ai_status` |
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
+| `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -693,6 +695,8 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `digest_subscribers` | Opt-in-Abonnenten des Wochen-Digests (nur User-ID) |
 | `known_species` | Baseline bekannter Arten (Diff für „neue Arten" im Digest) |
 | `known_shops` | Baseline bekannter Shops (Diff für „neue Shops" im Digest) |
+| `achievements` | Freigeschaltete Erfolge pro User (user_id, achievement_id, Datum) |
+| `user_events` | Leichtes Event-Log (Befehlsnutzung, Zielpreis-Treffer) für Aktions-/Versteckt-Erfolge |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -737,7 +741,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset, /ai_prompt
 │   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
-│   └── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
+│   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
+│   └── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
@@ -750,6 +755,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
+│   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │

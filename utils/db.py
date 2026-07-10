@@ -281,6 +281,23 @@ CREATE TABLE IF NOT EXISTS known_shops (
     name       TEXT,
     first_seen TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Erfolge (Achievements): freigeschaltete Erfolge pro User
+CREATE TABLE IF NOT EXISTS achievements (
+    user_id        TEXT    NOT NULL,
+    achievement_id TEXT    NOT NULL,
+    unlocked_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, achievement_id)
+);
+
+-- Leichtes Event-Log für Aktions-/Versteckt-Erfolge (z.B. Befehlsnutzung, Zielpreis-Treffer)
+CREATE TABLE IF NOT EXISTS user_events (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT    NOT NULL,
+    event   TEXT    NOT NULL,
+    ts      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events (user_id);
 """
 
 # Standard EU-Länder (falls DB noch leer)

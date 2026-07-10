@@ -130,6 +130,15 @@ Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten we
 
 Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest action:deaktivieren` widerrufbar. Der Digest-Inhalt (Preisstürze, neue Arten/Shops) enthält keine personenbezogenen Daten.
 
+#### Erfolge (Achievements)
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID + freigeschaltete Erfolge | Persönliche Erfolgsübersicht (`/achievements`) | Lokale SQLite-Datenbank auf dem Server |
+| Leichtes Event-Log (genutzte Befehle, Zielpreis-Treffer, Zeitpunkt) | Auswertung von Aktions- und versteckten Erfolgen | Lokale SQLite-Datenbank auf dem Server |
+
+Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar), es werden **keine Rollen** vergeben und nichts öffentlich angezeigt. Es werden keine Nachrichteninhalte gespeichert, nur Befehlsnamen und Zeitstempel.
+
 ### Drittanbieter
 
 #### Anthropic (KI-Verarbeitung)

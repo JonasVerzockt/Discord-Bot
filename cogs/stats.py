@@ -159,6 +159,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_track_price", "help_my_price_tracking", "help_untrack_price",
             "help_price_history",
             "help_set_target",
+            "help_achievements",
             "help_codes",
             "help_digest",
         ]

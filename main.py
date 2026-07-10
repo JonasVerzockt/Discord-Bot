@@ -60,6 +60,7 @@ INITIAL_COGS = [
     "cogs.price_targets",     # /set_target (Zielpreis-Alerts)
     "cogs.discount_codes",    # /codes /codes_rescan + Haiku-Rabattcode-Tracker
     "cogs.digest",            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
+    "cogs.achievements",      # /achievements + Erfolge-Freischaltung/DM-Ping
 ]
 
 

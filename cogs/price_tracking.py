@@ -40,6 +40,7 @@ from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, normalize_species_name, format_rating
 from utils.currency import ensure_rates, format_price
+from utils.achievements import log_event, check_and_grant
 
 logger = logging.getLogger(__name__)
 
@@ -1225,6 +1226,14 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             return
 
         lang = await get_user_lang(self.bot, user_id_str, None)
+
+        # Erfolg-Event: Zielpreis erreicht ("Schnäppchen!")
+        await log_event(self.bot, user_id_str, "target_hit")
+        try:
+            await check_and_grant(self.bot, user, lang)
+        except Exception:
+            pass
+
         msg = l10n.get(
             "pt_dm_target", lang,
             shop=row["shop_name"] or "?",
