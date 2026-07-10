@@ -37,6 +37,7 @@ from discord.ext import commands
 
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.achievements import check_and_grant
 from utils.availability import (
     check_availability_for_species,
     species_exists,
@@ -292,6 +293,10 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                     (user_id, species, regions), commit=True,
                 )
                 await user.send(l10n.get("feedback_positive_ack", lang))
+                try:
+                    await check_and_grant(self.bot, user, lang)
+                except Exception:
+                    pass
             else:
                 await execute_db(
                     self.bot,

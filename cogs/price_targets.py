@@ -36,6 +36,7 @@ from discord.ext import commands
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.achievements import check_and_grant
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,10 @@ class _TargetProductSelect(discord.ui.Select):
             (self.target, self.mode, str(interaction.user.id), pid),
             commit=True,
         )
+        try:
+            await check_and_grant(interaction.client, interaction.user, lang)
+        except Exception:
+            pass
 
         latest   = await asyncio.to_thread(_latest_min_sync, pid)
         currency = latest[1] if latest else (row["currency_iso"] or "EUR")

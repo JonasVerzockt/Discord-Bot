@@ -343,6 +343,10 @@ class SpeciesWatchConfirmView(_BaseView):
         await self._init_seen_products(normalized, is_genus)
 
         self.disable_all_items()
+        try:
+            await check_and_grant(self.bot, interaction.user, self.lang)
+        except Exception:
+            pass
         await interaction.response.edit_message(
             content=l10n.get("pt_species_watch_saved", self.lang, species=self.species_raw),
             view=self,
@@ -596,6 +600,10 @@ class ConfirmView(_BaseView):
                     count=saved,
                 )
             )
+        try:
+            await check_and_grant(self.bot, interaction.user, self.lang)
+        except Exception:
+            pass
         self.stop()
 
     @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger, custom_id="cv_cancel")

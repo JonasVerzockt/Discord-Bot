@@ -49,6 +49,7 @@ from discord.ext import commands
 from config import DISCOUNT_CHANNEL_ID
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
 from cogs.server_settings import allowed_channel, admin_or_manage_messages
 
@@ -231,6 +232,11 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             try:
                 await message.add_reaction("🏷️")
             except discord.HTTPException:
+                pass
+            try:
+                lang = await get_user_lang(self.bot, message.author.id, message.guild.id if message.guild else None)
+                await check_and_grant(self.bot, message.author, lang)
+            except Exception:
                 pass
 
     # ── Slash Commands ─────────────────────────────────────────────────────────
