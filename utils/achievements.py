@@ -54,6 +54,7 @@ ACHIEVEMENTS = [
     Ach("code_bringer_1","🏷️", False, "community", lambda s: (min(s["codes"], 1), 1)),
     Ach("code_bringer_2","🏷️", False, "community", lambda s: (s["codes"], 5)),
     Ach("code_bringer_3","🏷️", False, "community", lambda s: (s["codes"], 15)),
+    Ach("ai_first",    "🤖", False, "community", lambda s: (min(s["ai_used"], 1), 1)),
     # Versteckte
     Ach("night_owl",   "🦉", True,  "hidden",    lambda s: (1 if s["night"] else 0, 1)),
     Ach("explorer",    "🧭", True,  "hidden",    lambda s: (s["distinct_cmds"], 8)),
@@ -87,6 +88,7 @@ async def gather_stats(bot, user_id: str, username: str | None = None) -> dict:
     s["watch_genus"]     = await _count(bot, "SELECT COUNT(*) FROM user_species_watch WHERE user_id=? AND is_genus=1", (uid,))
     s["digest"]          = await _count(bot, "SELECT COUNT(*) FROM digest_subscribers WHERE user_id=?", (uid,))
     s["codes"]           = (await _count(bot, "SELECT COUNT(*) FROM discount_codes WHERE author=?", (username,))) if username else 0
+    s["ai_used"]         = await _count(bot, "SELECT COUNT(*) FROM ai_chat_budget WHERE user_id=?", (uid,))
 
     ev_rows = await execute_db(bot, "SELECT event, ts FROM user_events WHERE user_id=?", (uid,), fetch=True) or []
     cmds, night, target_hit = set(), False, False
