@@ -806,4 +806,47 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
-│   ├── achievements.py  
+│   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
+│   ├── localization.py      # Lokalisierungssystem (de/en/eo)
+│   └── logging_setup.py     # Rotating File Handler
+│
+└── locales/
+    ├── de.json              # Deutsch
+    ├── en.json              # English
+    └── eo.json              # Esperanto
+```
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Lokalisierung
+
+Der Bot ist vollständig dreisprachig (**de** / **en** / **eo**). Die eingestellte Sprache gilt für **alle** User-sichtbaren Ausgaben: Slash-Command-Antworten, DMs (Verfügbarkeit, Preis-Tracking, Feedback), KI-Chat-Antworten und die Rabattcode-Ausgaben.
+
+Zusätzlich sind im Discord-Befehlsmenü für **de/en** lokalisiert: die **Befehls- und Gruppenbeschreibungen** selbst (Basistext Englisch als Fallback für andere Client-Sprachen, `de` als deutsche Anzeige), die **Parameterbeschreibungen** sowie die wichtigsten **Auswahl-Optionen** (Choices, z. B. bei `/set_target`, `/digest`, `/codes_set`). Diese Texte richten sich nach der **Discord-App-Sprache** des Users – nicht nach `/usersetting language`, da Discord sie selbst rendert. Esperanto ist als Discord-Client-Sprache nicht verfügbar; die eigentlichen Bot-Ausgaben bleiben aber vollständig auch auf eo.
+
+**Sprachauflösung** (in dieser Reihenfolge):
+
+1. Persönliche Einstellung des Users (`/usersetting language`)
+2. Server-Einstellung (`/startup`)
+3. Fallback `en`
+
+Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server-Sprache verwendet.
+
+**Technik:**
+
+- Alle Texte liegen als JSON in `locales/de.json`, `locales/en.json` und `locales/eo.json` – in allen Dateien dieselbe Key-Menge.
+- Geladen beim Start über die `Localization`-Klasse (`utils/localization.py`); Zugriff im Code via `l10n.get("key", lang, **platzhalter)`.
+- Fehlt ein Key in der Zielsprache, wird automatisch auf `en` zurückgegriffen, danach auf den Key-Namen selbst (`[key]`) – es fällt also nie eine Ausgabe komplett aus.
+- Platzhalter wie `{species}`, `{shop}` oder `{date}` werden zur Laufzeit eingesetzt.
+
+**Neue Sprache hinzufügen** (drei Schritte):
+
+1. **Texte:** eine weitere `locales/<code>.json` mit denselben Keys anlegen – sie wird beim Start automatisch eingelesen.
+2. **Auswählbar machen:** die `choices`-Listen von `/usersetting language` (in `cogs/user_settings.py`) und `/startup` (in `cogs/server_settings.py`) um den neuen Sprachcode ergänzen – aktuell stehen dort `de`, `en` und `eo`.
+3. **KI-Chat:** einen System-Prompt in der neuen Sprache als `ai_chat_system_prompt_<code>.txt` anlegen **und** den Sprachcode in `config.py` in die Lade-Schleife von `AI_CHAT_SYSTEM_PROMPTS` (aktuell `for _lang in ("de", "en", "eo")`) aufnehmen. Fehlt einer der beiden Schritte, wird der Prompt nicht geladen und die KI antwortet in dieser Sprache über den englischen Fallback-Prompt (`ai_chat_system_prompt_en.txt`). Der Platzhalter `{model}` im Prompt wird automatisch durch das konfigurierte Modell ersetzt.
+
+Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dagegen sofort über die neue `locales/<code>.json` – nur der KI-Chat braucht zusätzlich die eigene Prompt-Datei.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
