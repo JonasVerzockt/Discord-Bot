@@ -301,7 +301,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(
         name="reprocess",
-        description="Re-process one or more review messages by ID (Admin/Mod) – separate multiple IDs with spaces",
+        description="Re-process one or more review messages by ID (Admin/Mod) – separate multiple IDs with spaces", description_localizations={"de": "Bewertungsnachricht(en) per ID neu verarbeiten (mehrere durch Leerzeichen trennen, Admin/Mod)"},
     )
     @admin_or_manage_messages()
     async def cmd_reprocess(
