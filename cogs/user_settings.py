@@ -69,7 +69,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
         ctx: discord.ApplicationContext,
         language: discord.Option(
             str,
-            "Language (de = Deutsch, en = English, eo = Esperanto)",
+            "Language (de = Deutsch, en = English, eo = Esperanto)", description_localizations={"de": 'Sprache (de = Deutsch, en = English, eo = Esperanto)', "en-US": 'Language (de = German, en = English, eo = Esperanto)'},
             choices=["de", "en", "eo"],
             default="en",
         ),
@@ -88,7 +88,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
     async def blacklist_add(
         self,
         ctx: discord.ApplicationContext,
-        shop: discord.Option(str, "Shop name", required=True),
+        shop: discord.Option(str, "Shop name", description_localizations={"de": 'Shop-Name', "en-US": 'Shop name'}, required=True),
     ):
         lang      = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         shop_data = await load_shop_data(self.bot)
@@ -119,7 +119,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
     async def blacklist_remove(
         self,
         ctx: discord.ApplicationContext,
-        shop: discord.Option(str, "Shop name", required=True),
+        shop: discord.Option(str, "Shop name", description_localizations={"de": 'Shop-Name', "en-US": 'Shop name'}, required=True),
     ):
         lang      = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         shop_data = await load_shop_data(self.bot)
@@ -177,7 +177,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
         ctx: discord.ApplicationContext,
         country: discord.Option(
             str,
-            "Filter by country code (de, at, ch for Swiss delivery, ...)",
+            "Filter by country code (de, at, ch for Swiss delivery, ...)", description_localizations={"de": 'Nach Ländercode filtern (de, at, ch für CH-Lieferung, ...)', "en-US": 'Filter by country code (de, at, ch for Swiss delivery, ...)'},
             required=False,
             default=None,
         ),

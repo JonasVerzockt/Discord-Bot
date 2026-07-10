@@ -204,8 +204,12 @@ class DigestCog(commands.Cog, name="Digest"):
         ctx: discord.ApplicationContext,
         action: discord.Option(  # type: ignore[valid-type]
             str,
-            "aktivieren = anmelden, deaktivieren = abmelden, status = Status prüfen",
-            choices=["aktivieren", "deaktivieren", "status"],
+            "aktivieren = anmelden, deaktivieren = abmelden, status = Status prüfen", description_localizations={"de": 'aktivieren = anmelden, deaktivieren = abmelden, status = Status prüfen', "en-US": 'aktivieren = subscribe, deaktivieren = unsubscribe, status = check status'},
+            choices=[
+                discord.OptionChoice(name="aktivieren", value="aktivieren", name_localizations={"de": "aktivieren", "en-US": "subscribe"}),
+                discord.OptionChoice(name="deaktivieren", value="deaktivieren", name_localizations={"de": "deaktivieren", "en-US": "unsubscribe"}),
+                discord.OptionChoice(name="status", value="status", name_localizations={"de": "Status", "en-US": "status"}),
+            ],
         ),
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)

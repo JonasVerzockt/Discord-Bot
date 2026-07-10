@@ -51,6 +51,7 @@ INITIAL_COGS = [
     "cogs.notifications",     # /notification / /delete_notifications / /history / /testnotification
     "cogs.stats",             # /stats / /system / /help
     "cogs.shop_admin",        # /reloadshops / /shopmapping / /ch_delivery
+    "cogs.shop_mapping",      # /shopmap set|list|remove (Review-CSV: Shop-Text → URL)
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
     "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
     "cogs.inat_tracker",      # iNaturalist-Links → Google Sheets

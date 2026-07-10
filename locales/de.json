@@ -277,5 +277,12 @@
   "digest_unsubscribed": "👋 Abgemeldet – du bekommst keinen Digest mehr.",
   "digest_status_on": "📬 Du bist für den Wochen-Digest angemeldet.",
   "digest_status_off": "📭 Du bist aktuell nicht für den Wochen-Digest angemeldet.",
-  "help_digest": "📰 `/digest` – Wöchentlichen Digest (Preisstürze, neue Arten/Shops) per DM an-/abmelden"
+  "help_digest": "📰 `/digest` – Wöchentlichen Digest (Preisstürze, neue Arten/Shops) per DM an-/abmelden",
+  "shopmap_set_ok": "✅ Zuordnung gesetzt: `{identifier}` → `{url}`.\nKlicke jetzt auf die 🟡-Reaktion der Bewertung oder nutze `/reprocess`, um sie zu verarbeiten.",
+  "shopmap_removed": "🗑️ Zuordnung für `{identifier}` entfernt.",
+  "shopmap_not_found": "Keine Zuordnung für `{identifier}` gefunden.",
+  "shopmap_list_empty": "Noch keine Shop-Zuordnungen vorhanden.",
+  "shopmap_list_header": "🗂️ **Shop-Zuordnungen (Review-Bot)**",
+  "shopmap_pending_line": "• `{identifier}` → ⚠️ *(noch offen – URL mit /shopmap set setzen)*",
+  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Shop-Text aus Bewertungen einer URL zuordnen (löst 🟡 auf)"
 }

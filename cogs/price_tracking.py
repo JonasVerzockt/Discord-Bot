@@ -741,7 +741,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
     async def track_price(
         self,
         ctx: discord.ApplicationContext,
-        species: discord.Option(str, "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')"),  # type: ignore[valid-type]
+        species: discord.Option(str, "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')", description_localizations={"de": "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')", "en-US": "Species or genus (e.g. 'Oecophylla smaragdina' or 'Camponotus')"}),  # type: ignore[valid-type]
     ):
         await ctx.defer(ephemeral=True)
 

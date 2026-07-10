@@ -193,7 +193,9 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 | 🟡 | Shop nicht erkannt oder Parse-Fehler |
 | 🔴 | Retry fehlgeschlagen |
 
-**Retry-Mechanismus:** Wenn eine Bewertung 🟡 bekommt, wird der unbekannte Shop-Identifier in `shop_mapping.csv` eingetragen (leer). Der Admin füllt die korrekte Shop-URL ein. Sobald ein User auf die 🟡-Reaktion klickt, liest der Bot die CSV neu und versucht die Verarbeitung erneut.
+**Retry-Mechanismus:** Wenn eine Bewertung 🟡 bekommt, wird der unbekannte Shop-Identifier in `shop_mapping.csv` eingetragen (leer). Der Admin ordnet die korrekte URL per **`/shopmap set identifier:<Shop-Text> url:<domain>`** zu – das aktualisiert die CSV **und** den Live-Cache. Danach die 🟡-Reaktion anklicken (oder `/reprocess`), und die Bewertung wird verarbeitet. *(Alternativ die CSV direkt bearbeiten – das erfordert aber einen Bot-Neustart, da sie sonst nur beim Start bzw. über `/shopmap` neu eingelesen wird.)*
+
+> **Hinweis:** `/shopmap` (Review-Auflösung, Shop-Text → URL, CSV) ist etwas anderes als `/shopmapping` (externer Name → interne AntCheck-Shop-ID, DB). Für ein 🟡 ist **`/shopmap`** das richtige.
 
 ### Reconcile-Scan
 
@@ -523,6 +525,9 @@ Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als B
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
+| `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
+| `/shopmap list` | – | Alle Shop-Zuordnungen anzeigen (inkl. noch offener). | `/shopmap list` |
+| `/shopmap remove` | `identifier` | Eine Shop-Zuordnung entfernen. | `/shopmap remove identifier:Home of Insects` |
 
 ### Beispiele für umfangreiche Befehle
 
@@ -727,6 +732,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── price_targets.py     # /set_target: Zielpreis-Alerts (pro Tracking wählbar)
 │   ├── stats.py             # /stats /system /help
 │   ├── shop_admin.py        # /reloadshops /shopmapping /shopurl /ch_delivery
+│   ├── shop_mapping.py      # /shopmap: Review-CSV Shop-Text → URL (löst 🟡)
 │   ├── tasks.py             # Alle Hintergrundaufgaben
 │   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset, /ai_prompt
 │   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
@@ -760,6 +766,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 ## Lokalisierung
 
 Der Bot ist vollständig dreisprachig (**de** / **en** / **eo**). Die eingestellte Sprache gilt für **alle** User-sichtbaren Ausgaben: Slash-Command-Antworten, DMs (Verfügbarkeit, Preis-Tracking, Feedback), KI-Chat-Antworten und die Rabattcode-Ausgaben.
+
+Zusätzlich sind die **Slash-Command-Parameterbeschreibungen** und die wichtigsten **Auswahl-Optionen** (Choices, z. B. bei `/set_target`, `/digest`, `/codes_set`) für **de/en** lokalisiert. Diese Texte im Discord-Befehlsmenü richten sich nach der **Discord-App-Sprache** des Users – nicht nach `/usersetting language`, da Discord sie selbst rendert. Esperanto ist als Discord-Client-Sprache nicht verfügbar; die eigentlichen Bot-Ausgaben bleiben aber vollständig auch auf eo.
 
 **Sprachauflösung** (in dieser Reihenfolge):
 

@@ -277,5 +277,12 @@
   "digest_unsubscribed": "👋 Unsubscribed – no more digests.",
   "digest_status_on": "📬 You're subscribed to the weekly digest.",
   "digest_status_off": "📭 You're not subscribed to the weekly digest.",
-  "help_digest": "📰 `/digest` – Subscribe/unsubscribe to the weekly digest (price drops, new species/shops) via DM"
+  "help_digest": "📰 `/digest` – Subscribe/unsubscribe to the weekly digest (price drops, new species/shops) via DM",
+  "shopmap_set_ok": "✅ Mapping set: `{identifier}` → `{url}`.\nNow click the 🟡 reaction on the review or use `/reprocess` to process it.",
+  "shopmap_removed": "🗑️ Mapping for `{identifier}` removed.",
+  "shopmap_not_found": "No mapping found for `{identifier}`.",
+  "shopmap_list_empty": "No shop mappings yet.",
+  "shopmap_list_header": "🗂️ **Shop mappings (review bot)**",
+  "shopmap_pending_line": "• `{identifier}` → ⚠️ *(pending – set URL with /shopmap set)*",
+  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Map a review shop text to a URL (resolves the 🟡)"
 }

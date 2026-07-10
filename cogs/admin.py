@@ -100,7 +100,7 @@ class AdminCog(commands.Cog, name="Admin"):
     async def cmd_test(
         self,
         ctx: discord.ApplicationContext,
-        text: discord.Option(str, "Message text to parse", required=True),
+        text: discord.Option(str, "Message text to parse", description_localizations={"de": 'Zu parsender Bewertungstext', "en-US": 'Message text to parse'}, required=True),
     ):
         """Testet den KI-Parser ohne Sheet-Eintrag."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -149,7 +149,7 @@ class AdminCog(commands.Cog, name="Admin"):
     async def cmd_export(
         self,
         ctx: discord.ApplicationContext,
-        user_id: discord.Option(str, "Discord-ID des Users (leer = Alle-User-Export)", required=False, default=None),
+        user_id: discord.Option(str, "Discord-ID des Users (leer = Alle-User-Export)", description_localizations={"de": 'Discord-ID des Users (leer = Alle-User-Export)', "en-US": 'Discord user ID (empty = export all users)'}, required=False, default=None),
     ):
         """DB-Export aller User ODER einzelner User-Daten per DM."""
         await ctx.defer(ephemeral=True)
@@ -269,7 +269,7 @@ class AdminCog(commands.Cog, name="Admin"):
         ctx: discord.ApplicationContext,
         message_ids: discord.Option(
             str,
-            "Eine oder mehrere Message-IDs (leerzeichen- oder kommagetrennt)",
+            "Eine oder mehrere Message-IDs (leerzeichen- oder kommagetrennt)", description_localizations={"de": 'Eine oder mehrere Message-IDs (leerzeichen- oder kommagetrennt)', "en-US": 'One or more message IDs (space- or comma-separated)'},
             required=True,
         ),
     ):

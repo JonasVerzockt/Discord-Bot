@@ -319,12 +319,12 @@ class NotificationsCog(commands.Cog, name="Notifications"):
     async def notification(
         self,
         ctx: discord.ApplicationContext,
-        species: discord.Option(str, "Specific species (e.g. Messor barbarus)", required=False, default=None),
-        genus: discord.Option(str, "Genus (e.g. Messor) - notifies for ALL species in this genus", required=False, default=None),
-        exclude_species: discord.Option(str, "Comma-separated species to exclude (genus only)", required=False, default=None),
-        regions: discord.Option(str, "Regions comma-separated (e.g. de,at,eu)", required=False, default=None),
-        swiss_only: discord.Option(bool, "Only shops delivering to Switzerland", default=False),
-        force: discord.Option(bool, "Force notification even if already active", default=False),
+        species: discord.Option(str, "Specific species (e.g. Messor barbarus)", description_localizations={"de": 'Bestimmte Art (z.B. Messor barbarus)', "en-US": 'Specific species (e.g. Messor barbarus)'}, required=False, default=None),
+        genus: discord.Option(str, "Genus (e.g. Messor) - notifies for ALL species in this genus", description_localizations={"de": 'Gattung (z.B. Messor) - benachrichtigt für ALLE Arten dieser Gattung', "en-US": 'Genus (e.g. Messor) - notifies for ALL species in this genus'}, required=False, default=None),
+        exclude_species: discord.Option(str, "Comma-separated species to exclude (genus only)", description_localizations={"de": 'Kommagetrennte Arten zum Ausschließen (nur bei Gattung)', "en-US": 'Comma-separated species to exclude (genus only)'}, required=False, default=None),
+        regions: discord.Option(str, "Regions comma-separated (e.g. de,at,eu)", description_localizations={"de": 'Regionen kommagetrennt (z.B. de,at,eu)', "en-US": 'Regions comma-separated (e.g. de,at,eu)'}, required=False, default=None),
+        swiss_only: discord.Option(bool, "Only shops delivering to Switzerland", description_localizations={"de": 'Nur Shops, die in die Schweiz liefern', "en-US": 'Only shops delivering to Switzerland'}, default=False),
+        force: discord.Option(bool, "Force notification even if already active", description_localizations={"de": 'Benachrichtigung erzwingen, auch wenn bereits aktiv', "en-US": 'Force notification even if already active'}, default=False),
     ):
         server_id = ctx.guild_id
         lang      = await get_user_lang(self.bot, ctx.author.id, server_id)
@@ -410,7 +410,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
     async def delete_notifications(
         self,
         ctx: discord.ApplicationContext,
-        ids: discord.Option(str, "Comma-separated notification IDs", required=True),
+        ids: discord.Option(str, "Comma-separated notification IDs", description_localizations={"de": 'Kommagetrennte Benachrichtigungs-IDs', "en-US": 'Comma-separated notification IDs'}, required=True),
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:

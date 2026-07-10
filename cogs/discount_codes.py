@@ -333,13 +333,17 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def codes_set(
         self,
         ctx: discord.ApplicationContext,
-        code: discord.Option(str, "The discount code", required=True),
+        code: discord.Option(str, "The discount code", description_localizations={"de": 'Der Rabattcode', "en-US": 'The discount code'}, required=True),
         status: discord.Option(
             str, "valid = always valid, invalid = always invalid, auto = by date",
-            choices=["valid", "invalid", "auto"], required=True,
+            choices=[
+                discord.OptionChoice(name="valid", value="valid", name_localizations={"de": "gültig", "en-US": "valid"}),
+                discord.OptionChoice(name="invalid", value="invalid", name_localizations={"de": "ungültig", "en-US": "invalid"}),
+                discord.OptionChoice(name="auto", value="auto", name_localizations={"de": "automatisch", "en-US": "auto"}),
+            ], required=True,
             description_localizations={"de": "valid = immer gültig, invalid = immer ungültig, auto = nach Datum"},
         ),
-        shop: discord.Option(str, "Limit to this shop (optional)", required=False, default=None),
+        shop: discord.Option(str, "Limit to this shop (optional)", description_localizations={"de": 'Auf diesen Shop begrenzen (optional)', "en-US": 'Limit to this shop (optional)'}, required=False, default=None),
     ):
         await ctx.defer(ephemeral=True)
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)

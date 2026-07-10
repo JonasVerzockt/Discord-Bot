@@ -158,12 +158,16 @@ class PriceTargetsCog(commands.Cog, name="PriceTargets"):
         ctx: discord.ApplicationContext,
         mode: discord.Option(  # type: ignore[valid-type]
             str,
-            "zusätzlich = extra DM, ersetzt = nur Ziel-DM, aus = entfernen",
-            choices=["zusätzlich", "ersetzt", "aus"],
+            "zusätzlich = extra DM, ersetzt = nur Ziel-DM, aus = entfernen", description_localizations={"de": 'zusätzlich = extra DM, ersetzt = nur Ziel-DM, aus = entfernen', "en-US": 'zusätzlich = extra DM, ersetzt = only target DM, aus = remove'},
+            choices=[
+                discord.OptionChoice(name="zusätzlich", value="zusätzlich", name_localizations={"de": "zusätzlich", "en-US": "additional"}),
+                discord.OptionChoice(name="ersetzt", value="ersetzt", name_localizations={"de": "ersetzt", "en-US": "replace"}),
+                discord.OptionChoice(name="aus", value="aus", name_localizations={"de": "aus", "en-US": "off"}),
+            ],
         ),
         target_price: discord.Option(  # type: ignore[valid-type]
             float,
-            "Zielpreis in Shop-Währung (nicht nötig bei 'aus')",
+            "Zielpreis in Shop-Währung (nicht nötig bei 'aus')", description_localizations={"de": "Zielpreis in Shop-Währung (nicht nötig bei 'aus')", "en-US": "Target price in shop currency (not needed for 'aus')"},
             required=False,
             default=None,
         ),

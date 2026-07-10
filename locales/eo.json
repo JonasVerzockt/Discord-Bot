@@ -277,5 +277,12 @@
   "digest_unsubscribed": "👋 Malabonita – neniuj pliaj resumoj.",
   "digest_status_on": "📬 Vi estas abonita al la semajna resumo.",
   "digest_status_off": "📭 Vi ne estas abonita al la semajna resumo.",
-  "help_digest": "📰 `/digest` – Abonu/malabonu la semajnan resumon (prezfaloj, novaj specioj/vendejoj) per privata mesaĝo"
+  "help_digest": "📰 `/digest` – Abonu/malabonu la semajnan resumon (prezfaloj, novaj specioj/vendejoj) per privata mesaĝo",
+  "shopmap_set_ok": "✅ Mapado agordita: `{identifier}` → `{url}`.\nNun klaku la 🟡-reagon sur la recenzo aŭ uzu `/reprocess` por prilabori ĝin.",
+  "shopmap_removed": "🗑️ Mapado por `{identifier}` forigita.",
+  "shopmap_not_found": "Neniu mapado trovita por `{identifier}`.",
+  "shopmap_list_empty": "Ankoraŭ neniuj vendejaj mapadoj.",
+  "shopmap_list_header": "🗂️ **Vendejaj mapadoj (recenzo-boto)**",
+  "shopmap_pending_line": "• `{identifier}` → ⚠️ *(ankoraŭ malfermita – agordu URL per /shopmap set)*",
+  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Mapu vendejan tekston al URL (solvas la 🟡)"
 }

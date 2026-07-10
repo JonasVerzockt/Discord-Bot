@@ -83,8 +83,8 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     async def shopmapping_add(
         self,
         ctx: discord.ApplicationContext,
-        external: discord.Option(str, "External shop name (as it appears in Google Sheets)", required=True),
-        shop_id: discord.Option(str, "Internal shop ID", required=True),
+        external: discord.Option(str, "External shop name (as it appears in Google Sheets)", description_localizations={"de": 'Externer Shop-Name (wie im Google Sheet)', "en-US": 'External shop name (as it appears in Google Sheets)'}, required=True),
+        shop_id: discord.Option(str, "Internal shop ID", description_localizations={"de": 'Interne Shop-ID', "en-US": 'Internal shop ID'}, required=True),
     ):
         lang      = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         shop_data = await load_shop_data(self.bot)
@@ -136,7 +136,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     async def shopmapping_remove(
         self,
         ctx: discord.ApplicationContext,
-        external: discord.Option(str, "External shop name to remove", required=True),
+        external: discord.Option(str, "External shop name to remove", description_localizations={"de": 'Zu entfernender externer Shop-Name', "en-US": 'External shop name to remove'}, required=True),
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         rc   = await execute_db(
@@ -158,7 +158,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     async def ch_delivery_add(
         self,
         ctx: discord.ApplicationContext,
-        shop: discord.Option(str, "Shop name", required=True),
+        shop: discord.Option(str, "Shop name", description_localizations={"de": 'Shop-Name', "en-US": 'Shop name'}, required=True),
     ):
         lang      = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         shop_data = await load_shop_data(self.bot)
@@ -185,7 +185,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     async def ch_delivery_remove(
         self,
         ctx: discord.ApplicationContext,
-        shop: discord.Option(str, "Shop name", required=True),
+        shop: discord.Option(str, "Shop name", description_localizations={"de": 'Shop-Name', "en-US": 'Shop name'}, required=True),
     ):
         lang      = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         shop_data = await load_shop_data(self.bot)
@@ -262,8 +262,8 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     async def shopurl_set(
         self,
         ctx: discord.ApplicationContext,
-        shop_id: discord.Option(str, "Interne Shop-ID (z.B. 2 für ANTSTORE)", required=True),
-        url: discord.Option(str, "Korrekte Shop-URL (z.B. https://antstore.net)", required=True),
+        shop_id: discord.Option(str, "Interne Shop-ID (z.B. 2 für ANTSTORE)", description_localizations={"de": 'Interne Shop-ID (z.B. 2 für ANTSTORE)', "en-US": 'Internal shop ID (e.g. 2 for ANTSTORE)'}, required=True),
+        url: discord.Option(str, "Korrekte Shop-URL (z.B. https://antstore.net)", description_localizations={"de": 'Korrekte Shop-URL (z.B. https://antstore.net)', "en-US": 'Correct shop URL (e.g. https://antstore.net)'}, required=True),
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:
@@ -295,7 +295,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     async def shopurl_clear(
         self,
         ctx: discord.ApplicationContext,
-        shop_id: discord.Option(str, "Interne Shop-ID", required=True),
+        shop_id: discord.Option(str, "Interne Shop-ID", description_localizations={"de": 'Interne Shop-ID', "en-US": 'Internal shop ID'}, required=True),
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:
