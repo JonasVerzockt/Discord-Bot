@@ -302,7 +302,7 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_status",
-        description="Zeigt deinen KI-Chat Budget-Status für heute",
+        description="Show your AI chat budget status for today", description_localizations={"de": "Deinen KI-Chat Budget-Status für heute anzeigen"},
     )
     @commands.guild_only()
     async def ai_status(self, ctx: discord.ApplicationContext) -> None:
@@ -342,7 +342,7 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_reset",
-        description="(Admin) Budget eines Users oder global zurücksetzen",
+        description="(Admin) Reset a user or the global budget", description_localizations={"de": "(Admin) Budget eines Users oder global zurücksetzen"},
     )
     @commands.has_permissions(manage_messages=True)
     @commands.guild_only()
@@ -351,7 +351,7 @@ class AiChatCog(commands.Cog):
         ctx: discord.ApplicationContext,
         user: discord.Option(
             discord.Member,
-            description="User dessen Budget zurückgesetzt wird (leer = global)",
+            description="User whose budget is reset (empty = global)", description_localizations={"de": "User dessen Budget zurückgesetzt wird (leer = global)", "en-US": "User whose budget is reset (empty = global)"},
             required=False,
             default=None,
         ),
@@ -378,7 +378,7 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_prompt",
-        description="(Admin) Aktuellen System-Prompt des KI-Chats anzeigen",
+        description="(Admin) Show the current AI chat system prompt", description_localizations={"de": "(Admin) Aktuellen System-Prompt des KI-Chats anzeigen"},
     )
     @commands.has_permissions(manage_messages=True)
     @commands.guild_only()

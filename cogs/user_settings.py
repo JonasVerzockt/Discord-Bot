@@ -59,10 +59,10 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
 
     settings = discord.SlashCommandGroup(
         name="usersetting",
-        description="Manage your personal settings",
+        description="Manage your personal settings", description_localizations={"de": "Deine persönlichen Einstellungen verwalten"},
     )
 
-    @settings.command(description="Set your language")
+    @settings.command(description="Set your language", description_localizations={"de": "Deine Sprache festlegen"})
     @allowed_channel()
     async def language(
         self,
@@ -83,7 +83,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
         )
         await ctx.respond(l10n.get("user_setting_success", language), ephemeral=True)
 
-    @settings.command(description="Add a shop to your blacklist")
+    @settings.command(description="Add a shop to your blacklist", description_localizations={"de": "Einen Shop auf deine Blacklist setzen"})
     @allowed_channel()
     async def blacklist_add(
         self,
@@ -114,7 +114,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
         )
         await ctx.respond(l10n.get("blacklist_add_success", lang, shop=shop_name), ephemeral=True)
 
-    @settings.command(description="Remove a shop from your blacklist")
+    @settings.command(description="Remove a shop from your blacklist", description_localizations={"de": "Einen Shop von deiner Blacklist entfernen"})
     @allowed_channel()
     async def blacklist_remove(
         self,
@@ -149,7 +149,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             ephemeral=True,
         )
 
-    @settings.command(description="Show your blacklisted shops")
+    @settings.command(description="Show your blacklisted shops", description_localizations={"de": "Deine Blacklist anzeigen"})
     @allowed_channel()
     async def blacklist_list(self, ctx: discord.ApplicationContext):
         lang      = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -170,7 +170,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             ephemeral=True,
         )
 
-    @settings.command(description="List all available shops")
+    @settings.command(description="List all available shops", description_localizations={"de": "Alle verfügbaren Shops anzeigen"})
     @allowed_channel()
     async def shop_list(
         self,

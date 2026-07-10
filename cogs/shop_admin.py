@@ -75,10 +75,10 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     # ── /shopmapping ──────────────────────────────────────────────────────────
     shopmapping = discord.SlashCommandGroup(
         name="shopmapping",
-        description="Manage shop name mappings for Google Sheets imports",
+        description="Manage shop name mappings for Google Sheets imports", description_localizations={"de": "Shopnamen-Zuordnungen für Google-Sheets-Importe verwalten"},
     )
 
-    @shopmapping.command(name="add", description="Add an external shop name → shop ID mapping")
+    @shopmapping.command(name="add", description="Add an external shop name → shop ID mapping", description_localizations={"de": "Externen Shopnamen einer internen Shop-ID zuordnen"})
     @admin_or_manage_messages()
     async def shopmapping_add(
         self,
@@ -111,7 +111,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             logger.error(f"❌ shopmapping_add error: {e}")
             await ctx.respond(l10n.get("shopmapping_add_error", lang), ephemeral=True)
 
-    @shopmapping.command(name="show", description="Show all current shop name mappings")
+    @shopmapping.command(name="show", description="Show all current shop name mappings", description_localizations={"de": "Alle aktuellen Shopnamen-Zuordnungen anzeigen"})
     @admin_or_manage_messages()
     async def shopmapping_show(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -131,7 +131,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                                    external=r["external_name"], id=r["shop_id"], shop=shop_name))
         await ctx.respond("\n".join(lines), ephemeral=True)
 
-    @shopmapping.command(name="remove", description="Remove an external shop name mapping")
+    @shopmapping.command(name="remove", description="Remove an external shop name mapping", description_localizations={"de": "Eine Shopnamen-Zuordnung entfernen"})
     @admin_or_manage_messages()
     async def shopmapping_remove(
         self,
@@ -150,10 +150,10 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     # ── /ch_delivery ──────────────────────────────────────────────────────────
     ch_delivery = discord.SlashCommandGroup(
         name="ch_delivery",
-        description="Manage shops delivering to Switzerland",
+        description="Manage shops delivering to Switzerland", description_localizations={"de": "Shops verwalten, die in die Schweiz liefern"},
     )
 
-    @ch_delivery.command(name="add", description="Add a shop to the CH delivery list")
+    @ch_delivery.command(name="add", description="Add a shop to the CH delivery list", description_localizations={"de": "Shop zur CH-Lieferliste hinzufügen"})
     @allowed_channel()
     async def ch_delivery_add(
         self,
@@ -180,7 +180,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         key = "ch_delivery_add_success" if rc else "ch_delivery_exists"
         await ctx.respond(l10n.get(key, lang, shop=shop_name), ephemeral=True)
 
-    @ch_delivery.command(name="remove", description="Remove a shop from the CH delivery list")
+    @ch_delivery.command(name="remove", description="Remove a shop from the CH delivery list", description_localizations={"de": "Shop aus der CH-Lieferliste entfernen"})
     @allowed_channel()
     async def ch_delivery_remove(
         self,
@@ -225,7 +225,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         )
         await ctx.respond(l10n.get("ch_delivery_remove_success", lang, shop=shop_name), ephemeral=True)
 
-    @ch_delivery.command(name="list", description="Show all shops delivering to Switzerland")
+    @ch_delivery.command(name="list", description="Show all shops delivering to Switzerland", description_localizations={"de": "Alle Shops anzeigen, die in die Schweiz liefern"})
     @allowed_channel()
     async def ch_delivery_list(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -254,10 +254,10 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     # ── /shopurl ──────────────────────────────────────────────────────────────
     shopurl = discord.SlashCommandGroup(
         name="shopurl",
-        description="Shop-URL manuell überschreiben (wenn API falsche URL liefert)",
+        description="Manually override a shop URL (when the API returns a wrong URL)", description_localizations={"de": "Shop-URL manuell überschreiben (wenn die API eine falsche URL liefert)"},
     )
 
-    @shopurl.command(name="set", description="Manuelle URL für einen Shop setzen")
+    @shopurl.command(name="set", description="Set a manual URL for a shop", description_localizations={"de": "Manuelle URL für einen Shop setzen"})
     @admin_or_manage_messages()
     async def shopurl_set(
         self,
@@ -290,7 +290,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         )
         logger.info(f"🏪 shopurl_set: Shop {sid} ({shop_name}) → {url.strip()} von {ctx.author.id}")
 
-    @shopurl.command(name="clear", description="Manuelle URL entfernen (API-URL wird wieder genutzt)")
+    @shopurl.command(name="clear", description="Remove the manual URL (the API URL is used again)", description_localizations={"de": "Manuelle URL entfernen (API-URL wird wieder genutzt)"})
     @admin_or_manage_messages()
     async def shopurl_clear(
         self,
@@ -313,7 +313,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         key = "shopurl_clear_success" if rc else "shopurl_clear_none"
         await ctx.respond(l10n.get(key, lang, shop=shop_name, id=sid), ephemeral=True)
 
-    @shopurl.command(name="list", description="Alle manuellen URL-Overrides anzeigen")
+    @shopurl.command(name="list", description="Show all manual URL overrides", description_localizations={"de": "Alle manuellen URL-Overrides anzeigen"})
     @admin_or_manage_messages()
     async def shopurl_list(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
