@@ -37,6 +37,7 @@ from discord.ext import commands
 
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.achievements import check_and_grant
 from utils.availability import (
     check_availability_for_species,
     species_exists,
@@ -49,6 +50,38 @@ from utils.currency import ensure_rates, format_price
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
+
+
+class TrackFromAlertView(discord.ui.View):
+    """Button unter einer Verfügbarkeits-DM: öffnet die /track_price-Auswahl für
+    die gemeldete Art (frische Produktsuche erst beim Klick)."""
+
+    def __init__(self, bot, species: str, owner_id: int, lang: str, timeout: float = 86400):
+        super().__init__(timeout=timeout)
+        self.bot      = bot
+        self.species  = species
+        self.owner_id = owner_id
+        self.lang     = lang
+        for child in self.children:
+            if isinstance(child, discord.ui.Button) and child.custom_id == "track_from_alert":
+                child.label = l10n.get("pt_alert_track_button", lang)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.owner_id
+
+    @discord.ui.button(label="Track prices", style=discord.ButtonStyle.primary, custom_id="track_from_alert")
+    async def track(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Lazy-Import vermeidet Ladereihenfolge-Probleme zwischen den Cogs.
+        from cogs.price_tracking import _find_products_for_tracking, ShopSelectView
+        await interaction.response.defer()
+        shops_data = await _find_products_for_tracking(self.bot, self.species)
+        if not shops_data:
+            await interaction.followup.send(
+                l10n.get("pt_no_products", self.lang, species=self.species)
+            )
+            return
+        view = ShopSelectView(shops_data, self.species, self.bot, self.owner_id, self.lang)
+        await interaction.followup.send(l10n.get("pt_select_shop", self.lang), view=view)
 
 
 class NotificationsCog(commands.Cog, name="Notifications"):
@@ -140,8 +173,13 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             chunks = split_availability_messages(entries)
 
             try:
-                for chunk in chunks:
-                    await user.send(chunk)
+                last_idx = len(chunks) - 1
+                for i, chunk in enumerate(chunks):
+                    view = (
+                        TrackFromAlertView(self.bot, species, int(user_id), lang)
+                        if i == last_idx else None
+                    )
+                    await user.send(chunk, view=view)
             except discord.Forbidden:
                 await self._handle_dm_failure(user_id, species, regions, lang)
                 return None
@@ -255,6 +293,10 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                     (user_id, species, regions), commit=True,
                 )
                 await user.send(l10n.get("feedback_positive_ack", lang))
+                try:
+                    await check_and_grant(self.bot, user, lang)
+                except Exception:
+                    pass
             else:
                 await execute_db(
                     self.bot,
@@ -282,12 +324,12 @@ class NotificationsCog(commands.Cog, name="Notifications"):
     async def notification(
         self,
         ctx: discord.ApplicationContext,
-        species: discord.Option(str, "Specific species (e.g. Messor barbarus)", required=False, default=None),
-        genus: discord.Option(str, "Genus (e.g. Messor) - notifies for ALL species in this genus", required=False, default=None),
-        exclude_species: discord.Option(str, "Comma-separated species to exclude (genus only)", required=False, default=None),
-        regions: discord.Option(str, "Regions comma-separated (e.g. de,at,eu)", required=False, default=None),
-        swiss_only: discord.Option(bool, "Only shops delivering to Switzerland", default=False),
-        force: discord.Option(bool, "Force notification even if already active", default=False),
+        species: discord.Option(str, "Specific species (e.g. Messor barbarus)", description_localizations={"de": 'Bestimmte Art (z.B. Messor barbarus)', "en-US": 'Specific species (e.g. Messor barbarus)'}, required=False, default=None),
+        genus: discord.Option(str, "Genus (e.g. Messor) - notifies for ALL species in this genus", description_localizations={"de": 'Gattung (z.B. Messor) - benachrichtigt für ALLE Arten dieser Gattung', "en-US": 'Genus (e.g. Messor) - notifies for ALL species in this genus'}, required=False, default=None),
+        exclude_species: discord.Option(str, "Comma-separated species to exclude (genus only)", description_localizations={"de": 'Kommagetrennte Arten zum Ausschließen (nur bei Gattung)', "en-US": 'Comma-separated species to exclude (genus only)'}, required=False, default=None),
+        regions: discord.Option(str, "Regions comma-separated (e.g. de,at,eu)", description_localizations={"de": 'Regionen kommagetrennt (z.B. de,at,eu)', "en-US": 'Regions comma-separated (e.g. de,at,eu)'}, required=False, default=None),
+        swiss_only: discord.Option(bool, "Only shops delivering to Switzerland", description_localizations={"de": 'Nur Shops, die in die Schweiz liefern', "en-US": 'Only shops delivering to Switzerland'}, default=False),
+        force: discord.Option(bool, "Force notification even if already active", description_localizations={"de": 'Benachrichtigung erzwingen, auch wenn bereits aktiv', "en-US": 'Force notification even if already active'}, default=False),
     ):
         server_id = ctx.guild_id
         lang      = await get_user_lang(self.bot, ctx.author.id, server_id)
@@ -373,7 +415,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
     async def delete_notifications(
         self,
         ctx: discord.ApplicationContext,
-        ids: discord.Option(str, "Comma-separated notification IDs", required=True),
+        ids: discord.Option(str, "Comma-separated notification IDs", description_localizations={"de": 'Kommagetrennte Benachrichtigungs-IDs', "en-US": 'Comma-separated notification IDs'}, required=True),
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:

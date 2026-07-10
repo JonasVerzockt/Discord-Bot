@@ -37,6 +37,7 @@ from discord.ext import commands, tasks
 
 import config as cfg
 from utils.localization import l10n, get_user_lang
+from utils.achievements import check_and_grant
 from utils.ai_chat import (
     chat,
     chunk_discord,
@@ -281,6 +282,12 @@ class AiChatCog(commands.Cog):
             except discord.HTTPException as e:
                 logger.error(f"❌ [AI-Chat] Sendefehler: {e}")
                 break
+
+        # Erfolg: KI-Chat genutzt ("KI-Neugier")
+        try:
+            await check_and_grant(self.bot, message.author, lang)
+        except Exception:
+            pass
 
         # Konversations-Historie speichern (nur bei Erfolg und bekannter Msg-ID)
         if result["ok"] and sent_msg and result["history"]:

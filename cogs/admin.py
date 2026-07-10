@@ -100,7 +100,7 @@ class AdminCog(commands.Cog, name="Admin"):
     async def cmd_test(
         self,
         ctx: discord.ApplicationContext,
-        text: discord.Option(str, "Message text to parse", required=True),
+        text: discord.Option(str, "Message text to parse", description_localizations={"de": 'Zu parsender Bewertungstext', "en-US": 'Message text to parse'}, required=True),
     ):
         """Testet den KI-Parser ohne Sheet-Eintrag."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -149,7 +149,7 @@ class AdminCog(commands.Cog, name="Admin"):
     async def cmd_export(
         self,
         ctx: discord.ApplicationContext,
-        user_id: discord.Option(str, "Discord-ID des Users (leer = Alle-User-Export)", required=False, default=None),
+        user_id: discord.Option(str, "Discord-ID des Users (leer = Alle-User-Export)", description_localizations={"de": 'Discord-ID des Users (leer = Alle-User-Export)', "en-US": 'Discord user ID (empty = export all users)'}, required=False, default=None),
     ):
         """DB-Export aller User ODER einzelner User-Daten per DM."""
         await ctx.defer(ephemeral=True)
@@ -197,6 +197,41 @@ class AdminCog(commands.Cog, name="Admin"):
                 except Exception:
                     data["ai_budget_last30"] = []
 
+                data["species_watch"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_species_watch WHERE user_id=?", (uid,), fetch=True)]
+
+                data["species_watch_seen"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_species_watch_seen WHERE user_id=?", (uid,), fetch=True)]
+
+                data["digest_subscription"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM digest_subscribers WHERE user_id=?", (uid,), fetch=True)]
+
+                data["achievements"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM achievements WHERE user_id=?", (uid,), fetch=True)]
+
+                data["events"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_events WHERE user_id=?", (uid,), fetch=True)]
+
+                try:
+                    ai_hist = await execute_db(
+                        self.bot,
+                        "SELECT message_id, channel_id, created_at, expires_at, history_json "
+                        "FROM ai_chat_history WHERE user_id=?",
+                        (int(uid),), fetch=True,
+                    )
+                    data["ai_chat_history"] = [dict(r) for r in ai_hist]
+                except Exception:
+                    data["ai_chat_history"] = []
+
+                # Geposteten Rabattcodes (nach aktuellem Discord-Username des Users)
+                try:
+                    _u     = await self.bot.fetch_user(int(uid))
+                    _uname = getattr(_u, "name", None)
+                    data["discount_codes_posted"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM discount_codes WHERE author=?", (_uname,), fetch=True)] if _uname else []
+                except Exception:
+                    data["discount_codes_posted"] = []
+
                 payload = json.dumps(data, ensure_ascii=False, indent=2, default=str)
                 buf = io.BytesIO(payload.encode("utf-8"))
                 buf.seek(0)
@@ -230,6 +265,11 @@ class AdminCog(commands.Cog, name="Admin"):
                 "server_user_mappings",
                 "ch_delivery_shops",
                 "ai_chat_budget",
+                "ai_chat_history",
+                "digest_subscribers",
+                "achievements",
+                "user_events",
+                "discount_codes",
                 "review_tracking",
                 "review_pending",
                 "server_settings",
@@ -269,7 +309,7 @@ class AdminCog(commands.Cog, name="Admin"):
         ctx: discord.ApplicationContext,
         message_ids: discord.Option(
             str,
-            "Eine oder mehrere Message-IDs (leerzeichen- oder kommagetrennt)",
+            "Eine oder mehrere Message-IDs (leerzeichen- oder kommagetrennt)", description_localizations={"de": 'Eine oder mehrere Message-IDs (leerzeichen- oder kommagetrennt)', "en-US": 'One or more message IDs (space- or comma-separated)'},
             required=True,
         ),
     ):

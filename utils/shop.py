@@ -131,6 +131,62 @@ def add_to_csv(identifier: str, msg_id: str, hint: str = "") -> None:
         print(f"📋 CSV: '{identifier}' zum Ausfüllen hinzugefügt")
 
 
+def _read_all_rows() -> list:
+    """Liest ALLE CSV-Zeilen (auch mit leerem shop_url) als Liste von Dicts."""
+    if not Path(MAPPING_FILE).exists():
+        return []
+    with open(MAPPING_FILE, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def _write_all_rows(rows: list) -> None:
+    """Schreibt die komplette CSV neu (Header + alle Zeilen)."""
+    with open(MAPPING_FILE, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=_CSV_COLS)
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: (r.get(c, "") or "") for c in _CSV_COLS})
+
+
+def set_mapping(identifier: str, shop_url: str,
+                msg_id: str = "manual", hint: str = "manuell gesetzt") -> None:
+    """
+    Setzt/aktualisiert die Zuordnung identifier → shop_url (Upsert) und lädt
+    den In-Memory-Cache neu, damit die Änderung sofort greift (ohne Neustart).
+    """
+    identifier = _strip_markdown_url(identifier.strip())
+    shop_url   = _strip_markdown_url(shop_url.strip())
+    rows = _read_all_rows()
+    for r in rows:
+        if r.get("identifier", "").strip() == identifier:
+            r["shop_url"] = shop_url
+            r["hinweis"]  = hint or r.get("hinweis", "")
+            break
+    else:
+        rows.append({"identifier": identifier, "shop_url": shop_url,
+                     "message_id": msg_id, "hinweis": hint})
+    _write_all_rows(rows)
+    reload_mapping()
+
+
+def remove_mapping(identifier: str) -> bool:
+    """Entfernt eine Zuordnung. True wenn etwas entfernt wurde. Lädt Cache neu."""
+    identifier = _strip_markdown_url(identifier.strip())
+    rows = _read_all_rows()
+    kept = [r for r in rows if r.get("identifier", "").strip() != identifier]
+    if len(kept) == len(rows):
+        return False
+    _write_all_rows(kept)
+    reload_mapping()
+    return True
+
+
+def all_mappings() -> list:
+    """Alle Zeilen als [(identifier, shop_url), …] (auch leere shop_url)."""
+    return [(r.get("identifier", "").strip(), (r.get("shop_url", "") or "").strip())
+            for r in _read_all_rows()]
+
+
 def learn_shop(identifier: str, shop_url: str) -> None:
     """Aus Reconcile gelernt: Identifier → Shop dauerhaft speichern."""
     global _map_cache

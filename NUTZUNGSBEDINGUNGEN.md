@@ -14,7 +14,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist. Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung.
 - **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird. Alternativ kann über "Alle Shops beobachten" eine gesamte Art oder Gattung shopübergreifend beobachtet werden – der Bot benachrichtigt dann bei Preisänderungen. Neue Produkte werden automatisch in die Beobachtung aufgenommen, lösen aber keine separate DM aus (dafür gibt es die Verfügbarkeitsbenachrichtigung via `/notification`).
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
-- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht. Nach jeweils 15 eingetragenen Beobachtungen postet der Bot – nach einer kurzen Wartezeit von 5 Minuten, um kurz aufeinanderfolgende Einträge zu bündeln – automatisch ein aktuelles Ranking-Bild (aus dem Übersicht-Tab des Sheets) im Channel; das Bild trägt einen Zeitstempel des Datenstands, damit erkennbar ist, welche danach geposteten Links noch nicht enthalten sind. Durch das Schreiben von `Rangliste` im Channel kann das Ranking-Bild jederzeit manuell abgerufen werden (maximal einmal pro Minute).
+- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht. Nach jeweils 15 eingetragenen Beobachtungen postet der Bot – nach einer kurzen Wartezeit von 5 Minuten, um kurz aufeinanderfolgende Einträge zu bündeln – automatisch ein aktuelles Ranking-Bild (aus dem Übersicht-Tab des Sheets) im Channel; das Bild trägt einen Zeitstempel des Datenstands, damit erkennbar ist, welche danach geposteten Links noch nicht enthalten sind. Durch das Schreiben von `Rangliste` im Channel kann das Ranking-Bild jederzeit manuell abgerufen werden (maximal einmal alle 3 Stunden).
 - **Rabattcode-Tracker** – liest im dafür vorgesehenen Kanal alle Nachrichten und extrahiert per KI (Claude Haiku) Rabattcodes inkl. Shop, Rabatthöhe und Gültigkeitszeitraum. Jede Nachricht wird dabei nur einmal an die KI übermittelt; beim Start wird der gesamte Kanalverlauf einmalig verarbeitet. Über `/codes` rufen Mitglieder die aktuell gültigen Codes ab. Abgelaufene Codes werden automatisch ausgeblendet. **Alle** Textnachrichten dieses Kanals werden zur Auswertung an die Anthropic API übermittelt.
 
 ### Nutzung
@@ -79,6 +79,7 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 | Währungskürzel (ISO) | Darstellung und Umrechnung der Preise | Lokale SQLite-Datenbank auf dem Server |
 | Zuletzt gemeldeter Preis (min/max) | Erkennung von Preisänderungen (Vergleichswert) | Lokale SQLite-Datenbank auf dem Server |
 | Datum des Tracking-Starts | Transparenz für den Nutzer | Lokale SQLite-Datenbank auf dem Server |
+| Zielpreis + Modus (optional) | Benachrichtigung bei Erreichen eines Wunschpreises | Lokale SQLite-Datenbank auf dem Server |
 | Beobachtete Art/Gattung (normalisierter Name) | Arten-Beobachtung shopübergreifend | Lokale SQLite-Datenbank auf dem Server |
 | Bekannte Produkt-IDs je Art-Beobachtung + letzter Preis | Erkennung von Neuerscheinungen und Preisänderungen | Lokale SQLite-Datenbank auf dem Server |
 
@@ -120,6 +121,23 @@ Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten we
 | Datum der Quellnachricht | Berechnung von Gültigkeit/Alter eines Codes | Lokale SQLite-Datenbank auf dem Server |
 
 > **Hinweis:** **Alle** Textnachrichten im Rabattcode-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Teile dort daher keine sensiblen personenbezogenen Daten. Anders als bei Bewertungen wird hier der Discord-Username des Verfassers gespeichert (zur Quellenangabe der Codes).
+
+#### Wochen-Digest
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID (nur bei Anmeldung) | Versand des wöchentlichen Digests per Direktnachricht | Lokale SQLite-Datenbank auf dem Server |
+
+Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest action:deaktivieren` widerrufbar. Der Digest-Inhalt (Preisstürze, neue Arten/Shops) enthält keine personenbezogenen Daten.
+
+#### Erfolge (Achievements)
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID + freigeschaltete Erfolge | Persönliche Erfolgsübersicht (`/achievements`) | Lokale SQLite-Datenbank auf dem Server |
+| Leichtes Event-Log (genutzte Befehle, Zielpreis-Treffer, Zeitpunkt) | Auswertung von Aktions- und versteckten Erfolgen | Lokale SQLite-Datenbank auf dem Server |
+
+Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar), es werden **keine Rollen** vergeben und nichts öffentlich angezeigt. Es werden keine Nachrichteninhalte gespeichert, nur Befehlsnamen und Zeitstempel.
 
 ### Drittanbieter
 
@@ -163,6 +181,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **AI-Chat-Konversationsverläufe** werden automatisch nach **24 Stunden** gelöscht (oder sofort wenn du nicht auf eine Bot-Antwort antwortest).
 - **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
 - **Rabattcodes** (extrahierte Codes inkl. Quell-Username und Scan-Historie) werden gespeichert, solange sie für die Community relevant sind; eine Bereinigung erfolgt bei Bedarf manuell.
+- **Digest-Anmeldung** (nur User-ID) wird gespeichert, bis du dich per `/digest action:deaktivieren` abmeldest.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte

@@ -49,6 +49,7 @@ from discord.ext import commands
 from config import DISCOUNT_CHANNEL_ID
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
 from cogs.server_settings import allowed_channel, admin_or_manage_messages
 
@@ -232,6 +233,11 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 await message.add_reaction("🏷️")
             except discord.HTTPException:
                 pass
+            try:
+                lang = await get_user_lang(self.bot, message.author.id, message.guild.id if message.guild else None)
+                await check_and_grant(self.bot, message.author, lang)
+            except Exception:
+                pass
 
     # ── Slash Commands ─────────────────────────────────────────────────────────
     @discord.slash_command(
@@ -333,13 +339,17 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def codes_set(
         self,
         ctx: discord.ApplicationContext,
-        code: discord.Option(str, "The discount code", required=True),
+        code: discord.Option(str, "The discount code", description_localizations={"de": 'Der Rabattcode', "en-US": 'The discount code'}, required=True),
         status: discord.Option(
             str, "valid = always valid, invalid = always invalid, auto = by date",
-            choices=["valid", "invalid", "auto"], required=True,
+            choices=[
+                discord.OptionChoice(name="valid", value="valid", name_localizations={"de": "gültig", "en-US": "valid"}),
+                discord.OptionChoice(name="invalid", value="invalid", name_localizations={"de": "ungültig", "en-US": "invalid"}),
+                discord.OptionChoice(name="auto", value="auto", name_localizations={"de": "automatisch", "en-US": "auto"}),
+            ], required=True,
             description_localizations={"de": "valid = immer gültig, invalid = immer ungültig, auto = nach Datum"},
         ),
-        shop: discord.Option(str, "Limit to this shop (optional)", required=False, default=None),
+        shop: discord.Option(str, "Limit to this shop (optional)", description_localizations={"de": 'Auf diesen Shop begrenzen (optional)', "en-US": 'Limit to this shop (optional)'}, required=False, default=None),
     ):
         await ctx.defer(ephemeral=True)
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)

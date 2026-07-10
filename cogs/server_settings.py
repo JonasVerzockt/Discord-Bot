@@ -81,13 +81,13 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
         ctx: discord.ApplicationContext,
         language: discord.Option(
             str,
-            "Bot language (de = Deutsch, en = English, eo = Esperanto)",
+            "Bot language (de = Deutsch, en = English, eo = Esperanto)", description_localizations={"de": 'Bot-Sprache (de = Deutsch, en = English, eo = Esperanto)', "en-US": 'Bot language (de = German, en = English, eo = Esperanto)'},
             choices=["de", "en", "eo"],
             default="en",
         ),
         channel: discord.Option(
             discord.TextChannel,
-            "Channel where bot commands are allowed (optional)",
+            "Channel where bot commands are allowed (optional)", description_localizations={"de": 'Kanal, in dem Bot-Befehle erlaubt sind (optional)', "en-US": 'Channel where bot commands are allowed (optional)'},
             required=False,
             default=None,
         ),
