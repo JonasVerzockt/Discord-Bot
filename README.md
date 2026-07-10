@@ -433,7 +433,7 @@ Ablauf:
 
 Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
 
-**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 1 Minute (⏱️-Reaktion wenn zu früh). Ein laufender Debounce-Puffer wird dabei abgebrochen und sofort gepostet; läuft bereits ein Post, wird der manuelle Trigger ignoriert (kein doppelter Post).
+**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 3 Stunden (⏱️-Reaktion wenn zu früh). Ein laufender Debounce-Puffer wird dabei abgebrochen und sofort gepostet; läuft bereits ein Post, wird der manuelle Trigger ignoriert (kein doppelter Post).
 
 **Sheet-Struktur (Rohdaten-Tab):**
 
