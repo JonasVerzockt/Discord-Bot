@@ -193,11 +193,35 @@ class StatsCog(commands.Cog, name="Stats"):
             ai_section=ai_section,
         )
 
+    @staticmethod
+    def _help_chunks(text: str, limit: int = 4000) -> list[str]:
+        """Teilt den Hilfetext an Zeilenumbrüchen in Stücke <= limit Zeichen."""
+        chunks, cur = [], ""
+        for line in text.split("\n"):
+            if len(cur) + len(line) + 1 > limit and cur:
+                chunks.append(cur.rstrip("\n"))
+                cur = ""
+            cur += line + "\n"
+        if cur.strip():
+            chunks.append(cur.rstrip("\n"))
+        return chunks or [text]
+
+    def _build_help_embeds(self, lang: str) -> list:
+        """Baut die Hilfe als eine oder mehrere Embeds (umgeht das 2000-Zeichen-Limit)."""
+        text = self._build_help_text(lang)
+        return [
+            discord.Embed(description=chunk, color=discord.Color.blurple())
+            for chunk in self._help_chunks(text)
+        ]
+
     @discord.slash_command(name="help", description="Show all available commands", description_localizations={"de": "Alle verfügbaren Befehle anzeigen"})
     @allowed_channel()
     async def help_cmd(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        await ctx.respond(self._build_help_text(lang))
+        embeds = self._build_help_embeds(lang)
+        await ctx.respond(embed=embeds[0])
+        for embed in embeds[1:]:
+            await ctx.followup.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -218,11 +242,13 @@ class StatsCog(commands.Cog, name="Stats"):
             if rows and rows[0]["channel_id"] is not None and message.channel.id != rows[0]["channel_id"]:
                 return
             lang = await get_user_lang(self.bot, message.author.id, message.guild.id)
-            text = self._build_help_text(lang)
+            embeds = self._build_help_embeds(lang)
             try:
-                await message.reply(text, mention_author=False)
+                await message.reply(embed=embeds[0], mention_author=False)
             except discord.HTTPException:
-                await message.channel.send(text)
+                await message.channel.send(embed=embeds[0])
+            for embed in embeds[1:]:
+                await message.channel.send(embed=embed)
             logger.info(
                 "help-Textbefehl beantwortet (Kanal %s, Server %s)",
                 message.channel.id, message.guild.id,
