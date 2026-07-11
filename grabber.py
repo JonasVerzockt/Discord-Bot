@@ -129,6 +129,23 @@ def _variant_entry(v: dict, product_currency: str) -> dict:
     }
 
 
+def _variant_span(variants: list, fb_min: float, fb_max: float):
+    """min/max aus lagernden, aktiven Varianten mit Preis>0; sonst Fallback (AntCheck)."""
+    prices = []
+    for v in variants:
+        if not (v.get("in_stock") and v.get("is_active")):
+            continue
+        try:
+            p = float(str(v.get("price")).replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        if p > 0:
+            prices.append(p)
+    if prices:
+        return min(prices), max(prices)
+    return fb_min, fb_max
+
+
 def fetch_variants_by_product() -> dict:
     """
     Holt alle Produkt-Varianten global (/ecommerce/variants?limit=-1) und
@@ -170,14 +187,24 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list,
         currency = p.get("currency_iso") or p.get("currency") or "EUR"
         pid = p.get("id")
         variants = [_variant_entry(v, currency) for v in variants_by_pid.get(pid, [])]
+        try:
+            _fb_min = float(p.get("min_price") or p.get("price") or 0)
+        except (TypeError, ValueError):
+            _fb_min = 0.0
+        try:
+            _fb_max = float(p.get("max_price") or p.get("price") or 0)
+        except (TypeError, ValueError):
+            _fb_max = 0.0
+        # Preisspanne bevorzugt aus lagernden Varianten (schließt 0€/ausverkauft aus)
+        _span_min, _span_max = _variant_span(variants, _fb_min, _fb_max)
         shop_map[shop_id]["products"].append({
             "id":            pid,
             "species":       species_name,
             "title":         product_title,
             "description":   description,
             "genus":         genus,
-            "min_price":     str(p.get("min_price") or p.get("price") or "0"),
-            "max_price":     str(p.get("max_price") or p.get("price") or "0"),
+            "min_price":     str(_span_min),
+            "max_price":     str(_span_max),
             "currency_iso":  currency,
             "antcheck_url":  p.get("antcheck_url") or p.get("url") or "",
             "shop_url":      p.get("product_url") or p.get("shop_url") or "",
@@ -211,7 +238,106 @@ CREATE TABLE IF NOT EXISTS variant_price_history (
 );
 CREATE INDEX IF NOT EXISTS idx_vph_variant
     ON variant_price_history(variant_id, recorded_at DESC);
+
+CREATE TABLE IF NOT EXISTS variant_snapshot (
+    product_id INTEGER NOT NULL,
+    variant_id INTEGER NOT NULL,
+    title      TEXT,
+    price      REAL,
+    PRIMARY KEY (product_id, variant_id)
+);
+
+CREATE TABLE IF NOT EXISTS product_price_reason (
+    product_id    INTEGER PRIMARY KEY,
+    recorded_at   TEXT,
+    direction     TEXT,
+    code          TEXT,
+    variant_title TEXT,
+    old_price     REAL,
+    new_price     REAL,
+    currency_iso  TEXT
+);
 """
+
+def _instock_variants(product: dict) -> dict:
+    """{variant_id: (title, price)} nur lagernde, aktive Varianten mit Preis>0."""
+    out = {}
+    for v in product.get("variants", []):
+        if not (v.get("in_stock") and v.get("is_active")):
+            continue
+        vid = v.get("id")
+        if vid is None:
+            continue
+        try:
+            price = float(str(v.get("price")).replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        if price > 0:
+            out[vid] = ((v.get("title") or v.get("description") or "").strip(), price)
+    return out
+
+
+def _write_snapshot(cur, pid, product) -> None:
+    cur.execute("DELETE FROM variant_snapshot WHERE product_id=?", (pid,))
+    rows = [(pid, vid, t, pr) for vid, (t, pr) in _instock_variants(product).items()]
+    if rows:
+        cur.executemany(
+            "INSERT INTO variant_snapshot (product_id, variant_id, title, price) VALUES (?,?,?,?)",
+            rows,
+        )
+
+
+def _classify_reason(cur, pid, product, old_min, old_max, new_min, new_max):
+    """
+    Bestimmt den Grund einer Spannen-Aenderung durch Diff des lagernden
+    Varianten-Satzes (alt=Snapshot, neu=aktuell). Rueckgabe (code, title, old, new) oder None.
+    """
+    cur.execute("SELECT variant_id, title, price FROM variant_snapshot WHERE product_id=?", (pid,))
+    old = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+    if not old:
+        return None
+    new = _instock_variants(product)
+    if not new:
+        return None
+    common = set(old) & set(new)
+    up = (new_min + new_max) > (old_min + old_max)
+    if up:
+        inc = [(vid, new[vid][0], old[vid][1], new[vid][1]) for vid in common if new[vid][1] > old[vid][1] + 1e-6]
+        if inc:
+            vid, title, op, np = max(inc, key=lambda x: x[3] - x[2])
+            return ("price_up", title, op, np)
+        cheapest = min(old.items(), key=lambda kv: kv[1][1])
+        if cheapest[0] not in new:
+            return ("cheapest_gone", cheapest[1][0], None, None)
+        newcomers = [vid for vid in new if vid not in old]
+        if newcomers:
+            vid = max(newcomers, key=lambda v: new[v][1])
+            return ("new_expensive", new[vid][0], None, None)
+        return None
+    else:
+        dec = [(vid, new[vid][0], old[vid][1], new[vid][1]) for vid in common if new[vid][1] < old[vid][1] - 1e-6]
+        if dec:
+            vid, title, op, np = min(dec, key=lambda x: x[3] - x[2])
+            return ("price_down", title, op, np)
+        newcomers = [vid for vid in new if vid not in old]
+        if newcomers:
+            vid = min(newcomers, key=lambda v: new[v][1])
+            return ("new_cheaper", new[vid][0], None, None)
+        dearest = max(old.items(), key=lambda kv: kv[1][1])
+        if dearest[0] not in new:
+            return ("expensive_gone", dearest[1][0], None, None)
+        return None
+
+
+def _store_reason(cur, pid, reason, currency) -> None:
+    code, title, op, np = reason
+    direction = "down" if code in ("price_down", "new_cheaper", "expensive_gone") else "up"
+    cur.execute(
+        "INSERT OR REPLACE INTO product_price_reason "
+        "(product_id, recorded_at, direction, code, variant_title, old_price, new_price, currency_iso) "
+        "VALUES (?, datetime('now'), ?, ?, ?, ?, ?, ?)",
+        (pid, direction, code, title, op, np, currency),
+    )
 
 
 def _track_prices(shop_map: dict) -> tuple[int, int]:
@@ -257,12 +383,24 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
                 )
                 last = cur.fetchone()
 
-                if last is None or last[0] != min_p or last[1] != max_p:
+                if last is None:
                     cur.execute(
                         "INSERT INTO product_price_history "
                         "(product_id, min_price, max_price, currency_iso) VALUES (?,?,?,?)",
                         (pid, min_p, max_p, currency),
                     )
+                    _write_snapshot(cur, pid, p)
+                    new_entries += 1
+                elif last[0] != min_p or last[1] != max_p:
+                    cur.execute(
+                        "INSERT INTO product_price_history "
+                        "(product_id, min_price, max_price, currency_iso) VALUES (?,?,?,?)",
+                        (pid, min_p, max_p, currency),
+                    )
+                    reason = _classify_reason(cur, pid, p, last[0], last[1], min_p, max_p)
+                    if reason:
+                        _store_reason(cur, pid, reason, currency)
+                    _write_snapshot(cur, pid, p)
                     new_entries += 1
 
                 # Varianten-Historie (Einzelpreise) – nur bei Preisaenderung

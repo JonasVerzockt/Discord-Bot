@@ -135,6 +135,39 @@ def _get_latest_variant_prices_sync(variant_ids: list[int]) -> dict:
         conn.close()
 
 
+def _get_price_reason_sync(product_id: int):
+    """Letzter erkannter Grund einer Spannen-Aenderung (product_price_reason), oder None."""
+    if not PRICE_HISTORY_DB.exists():
+        return None
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT direction, code, variant_title, old_price, new_price, currency_iso "
+            "FROM product_price_reason WHERE product_id=?",
+            (product_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"direction": row[0], "code": row[1], "variant": row[2] or "?",
+                "old": row[3], "new": row[4], "currency": row[5] or "EUR"}
+    except Exception:
+        return None  # Tabelle existiert evtl. noch nicht (alter Grabber-Stand)
+    finally:
+        conn.close()
+
+
+_REASON_KEYS = {
+    "price_up":       "pt_reason_price_up",
+    "price_down":     "pt_reason_price_down",
+    "cheapest_gone":  "pt_reason_cheapest_gone",
+    "new_expensive":  "pt_reason_new_expensive",
+    "new_cheaper":    "pt_reason_new_cheaper",
+    "expensive_gone": "pt_reason_expensive_gone",
+}
+
+
 def _display_title(row) -> str:
     """Anzeigetitel inkl. Variantenname (falls variant_id>0)."""
     base = row["product_title"] or row["species"] or "?"
@@ -1373,6 +1406,20 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             new_price=format_price(curr_min, curr_max, currency),
             url=row["product_url"] or "",
         )
+
+        # Grund-Erkennung nur bei Produkt-Tracking (variant_id=0)
+        if (row["variant_id"] or 0) == 0:
+            reason = await asyncio.to_thread(_get_price_reason_sync, row["product_id"])
+            if reason and (
+                (key == "pt_dm_dearer" and reason["direction"] == "up")
+                or (key == "pt_dm_cheaper" and reason["direction"] == "down")
+            ):
+                rkey = _REASON_KEYS.get(reason["code"])
+                if rkey:
+                    rcur = reason["currency"]
+                    op = f"{reason['old']:.2f} {rcur}" if reason["old"] is not None else ""
+                    np = f"{reason['new']:.2f} {rcur}" if reason["new"] is not None else ""
+                    msg += "\n" + l10n.get(rkey, lang, variant=reason["variant"], old=op, new=np)
 
         try:
             await user.send(msg)

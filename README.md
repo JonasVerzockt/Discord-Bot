@@ -310,7 +310,7 @@ Beobachtet gezielt konkrete Produkte und benachrichtigt per DM bei jeder Preisä
 3. **Variante wählen (optional)** – wird **genau ein** Produkt gewählt, das Varianten hat, erscheint ein zusätzlicher Auswahlschritt: „🔭 Ganzes Produkt (alle Varianten)" oder eine/mehrere konkrete Varianten. Bei Auswahl einer Variante wird deren Einzelpreis beobachtet (`variant_id`), sonst das ganze Produkt (Produkt-min/max, wie bisher). Bei Mehrfachauswahl von Produkten wird immer das ganze Produkt beobachtet.
 4. **Bestätigen** – aktueller Preis als Baseline, öffentliche Ankündigung im Kanal
 
-**Hintergrund-Check alle ~65 Minuten:** Preis gesunken → 📉-DM, gestiegen → 📈-DM.
+**Hintergrund-Check alle ~65 Minuten:** Preis gesunken → 📉-DM, gestiegen → 📈-DM. Bei Produkt-Tracking (ganzes Produkt) nennt die DM zusätzlich den **Grund** der Änderung, sofern erkennbar – z. B. „günstigste Variante ausverkauft“ (nur Spannen-Verschiebung, keine echte Erhöhung), „neue teurere/günstigere Variante hinzugekommen“ oder eine echte Preisänderung derselben Variante. Die Preisspanne wird nur aus **lagernden** Varianten gebildet (0 €/ausverkauft fließen nicht ein).
 
 ### Modus 2: Arten-Beobachtung (alle Shops)
 
@@ -779,7 +779,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
-Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_history` (Produkt-Preisverlauf: product_id, min_price, max_price, currency_iso, recorded_at) und `variant_price_history` (Varianten-Preisverlauf: variant_id, product_id, price, currency_iso, recorded_at).
+Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_history` (Produkt-Preisverlauf), `variant_price_history` (Varianten-Preisverlauf), `variant_snapshot` (letzter lagernder Varianten-Stand je Produkt – Basis für die Grund-Erkennung) und `product_price_reason` (erkannter Grund der letzten Spannen-Änderung je Produkt).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
