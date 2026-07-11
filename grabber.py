@@ -200,6 +200,17 @@ CREATE TABLE IF NOT EXISTS product_price_history (
 );
 CREATE INDEX IF NOT EXISTS idx_pph_product
     ON product_price_history(product_id, recorded_at DESC);
+
+CREATE TABLE IF NOT EXISTS variant_price_history (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    variant_id   INTEGER NOT NULL,
+    product_id   INTEGER NOT NULL,
+    price        REAL    NOT NULL,
+    currency_iso TEXT    NOT NULL DEFAULT 'EUR',
+    recorded_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_vph_variant
+    ON variant_price_history(variant_id, recorded_at DESC);
 """
 
 
@@ -218,6 +229,8 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
 
         new_entries = 0
         checked = 0
+        new_variant_entries = 0
+        checked_variants = 0
 
         for shop in shop_map.values():
             for p in shop.get("products", []):
@@ -252,8 +265,35 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
                     )
                     new_entries += 1
 
+                # Varianten-Historie (Einzelpreise) – nur bei Preisaenderung
+                for v in p.get("variants", []):
+                    vid = v.get("id")
+                    if vid is None:
+                        continue
+                    try:
+                        vprice = float(v.get("price") or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if vprice == 0.0:
+                        continue
+                    vcur = v.get("currency_iso") or currency
+                    checked_variants += 1
+                    cur.execute(
+                        "SELECT price FROM variant_price_history "
+                        "WHERE variant_id=? ORDER BY recorded_at DESC LIMIT 1",
+                        (vid,),
+                    )
+                    vlast = cur.fetchone()
+                    if vlast is None or vlast[0] != vprice:
+                        cur.execute(
+                            "INSERT INTO variant_price_history "
+                            "(variant_id, product_id, price, currency_iso) VALUES (?,?,?,?)",
+                            (vid, pid, vprice, vcur),
+                        )
+                        new_variant_entries += 1
+
         conn.commit()
-        return new_entries, checked
+        return new_entries, checked, new_variant_entries, checked_variants
     finally:
         conn.close()
 
@@ -315,10 +355,10 @@ def main():
 
         # 4. Preis-History tracken
         try:
-            new_entries, checked = _track_prices(shop_map)
+            new_entries, checked, v_new, v_checked = _track_prices(shop_map)
             logger.info(
-                f"💶 Preis-Tracking: {checked} Produkte gecheckt, "
-                f"{new_entries} neue Einträge -> {PRICE_HISTORY_DB}"
+                f"💶 Preis-Tracking: {checked} Produkte ({new_entries} neu), "
+                f"{v_checked} Varianten ({v_new} neu) -> {PRICE_HISTORY_DB}"
             )
         except Exception as e:
             logger.warning(f"⚠️ Preis-Tracking fehlgeschlagen (nicht kritisch): {e}")

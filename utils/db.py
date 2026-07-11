@@ -179,6 +179,8 @@ CREATE TABLE IF NOT EXISTS ch_delivery_shops (
 CREATE TABLE IF NOT EXISTS user_price_tracking (
     user_id           TEXT    NOT NULL,
     product_id        INTEGER NOT NULL,
+    variant_id        INTEGER NOT NULL DEFAULT 0,
+    variant_title     TEXT    NOT NULL DEFAULT '',
     species           TEXT    NOT NULL DEFAULT '',
     product_title     TEXT    NOT NULL DEFAULT '',
     product_url       TEXT    NOT NULL DEFAULT '',
@@ -190,7 +192,7 @@ CREATE TABLE IF NOT EXISTS user_price_tracking (
     target_price      REAL,
     target_mode       TEXT,
     added_at          TEXT    NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (user_id, product_id)
+    PRIMARY KEY (user_id, product_id, variant_id)
 );
 
 -- Arten-Beobachtung (alle Shops) – vormals in price_tracking.py erzeugt
@@ -317,6 +319,52 @@ _MIGRATIONS = [
 ]
 
 
+def _migrate_upt_variant_id(conn) -> None:
+    """
+    Rebuild von user_price_tracking: fuegt variant_id/variant_title hinzu und
+    setzt PK auf (user_id, product_id, variant_id). Idempotent: laeuft nur, wenn
+    die Spalte variant_id noch fehlt. Bestehende Zeilen -> variant_id=0.
+    Laeuft NACH den Spalten-Migrationen, damit target_price/target_mode existieren.
+    """
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(user_price_tracking)").fetchall()]
+    if not cols or "variant_id" in cols:
+        return
+    logger.info("🔄 DB-Migration: user_price_tracking -> variant_id (PK-Rebuild)")
+    conn.execute("ALTER TABLE user_price_tracking RENAME TO _upt_old")
+    conn.execute("""
+        CREATE TABLE user_price_tracking (
+            user_id           TEXT    NOT NULL,
+            product_id        INTEGER NOT NULL,
+            variant_id        INTEGER NOT NULL DEFAULT 0,
+            variant_title     TEXT    NOT NULL DEFAULT '',
+            species           TEXT    NOT NULL DEFAULT '',
+            product_title     TEXT    NOT NULL DEFAULT '',
+            product_url       TEXT    NOT NULL DEFAULT '',
+            shop_name         TEXT    NOT NULL DEFAULT '',
+            shop_id           TEXT    NOT NULL DEFAULT '',
+            currency_iso      TEXT    NOT NULL DEFAULT 'EUR',
+            last_notified_min REAL,
+            last_notified_max REAL,
+            target_price      REAL,
+            target_mode       TEXT,
+            added_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (user_id, product_id, variant_id)
+        )
+    """)
+    conn.execute("""
+        INSERT INTO user_price_tracking
+            (user_id, product_id, variant_id, variant_title, species, product_title,
+             product_url, shop_name, shop_id, currency_iso, last_notified_min,
+             last_notified_max, target_price, target_mode, added_at)
+        SELECT user_id, product_id, 0, '', species, product_title,
+               product_url, shop_name, shop_id, currency_iso, last_notified_min,
+               last_notified_max, target_price, target_mode, added_at
+        FROM _upt_old
+    """)
+    conn.execute("DROP TABLE _upt_old")
+    conn.commit()
+
+
 async def init_db(bot) -> None:
     """Legt alle Tabellen an (idempotent). Befüllt EU-Länderliste wenn leer."""
     def _sync():
@@ -335,6 +383,12 @@ async def init_db(bot) -> None:
                     logger.info(f"🔄 DB-Migration: {_table}.{_col} Spalte hinzugefügt")
                 except Exception:
                     pass  # Spalte bereits vorhanden
+            # PK-Rebuild-Migration: user_price_tracking um variant_id erweitern
+            # (bestehende Zeilen -> variant_id=0 = "ganzes Produkt", Verhalten unveraendert)
+            try:
+                _migrate_upt_variant_id(conn)
+            except Exception as e:
+                logger.error(f"❌ variant_id-Migration fehlgeschlagen: {e}")
             # EU-Länder nur einmalig befüllen
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM eu_countries")

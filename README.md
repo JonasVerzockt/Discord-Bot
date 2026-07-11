@@ -727,7 +727,7 @@ Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Läd
 
 Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter.
 
-Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` (Tabelle `product_price_history`) – diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
+Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` – Tabelle `product_price_history` (Produkt-min/max) und `variant_price_history` (Einzelpreis pro Variante). Diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
 
 **Empfohlener Cron-Job (stündlich):**
 
@@ -757,7 +757,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `ch_delivery_shops` | Shops die nach CH liefern (manuell hinzugefügt) |
 | `server_user_mappings` | User → Server-Zuordnung (für DM-Fallback) |
 | `user_seen_products` | Bereits gemeldete Produkt-IDs (Deduplizierung) |
-| `user_price_tracking` | Preis-Tracking: User → beobachtete Produkte mit Baseline-Preis und letzter Benachrichtigung |
+| `user_price_tracking` | Preis-Tracking: User → beobachtete Produkte/**Varianten** mit Baseline-Preis und letzter Benachrichtigung. `variant_id=0` = ganzes Produkt (Default, abwärtskompatibel), `variant_id>0` = konkrete Variante; PK `(user_id, product_id, variant_id)` |
 | `user_species_watch` | Arten-Beobachtung: User → beobachtete Arten/Gattungen shopübergreifend |
 | `user_species_watch_seen` | Bekannte Produkt-IDs + letzter Preis je Arten-Beobachtung (Baseline) |
 | `review_tracking` | Discord-Nachrichten-ID → Sheet-Zeilennummer |
@@ -776,7 +776,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
-Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `product_price_history` mit dem Preisverlauf aller Produkte (product_id, min_price, max_price, currency_iso, recorded_at).
+Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_history` (Produkt-Preisverlauf: product_id, min_price, max_price, currency_iso, recorded_at) und `variant_price_history` (Varianten-Preisverlauf: variant_id, product_id, price, currency_iso, recorded_at).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
