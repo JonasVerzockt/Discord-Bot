@@ -43,6 +43,18 @@ def format_rating(rating) -> str:
         return "❌"
 
 
+def available_variants(product: dict) -> list:
+    """
+    Nur lagernde, aktive Varianten eines Produkts (aus shops_data.json).
+    Steht allen Consumern zur Verfuegung (z.B. /sells fuer Einzelpreise).
+    Leere Liste, wenn das Produkt (noch) keine Varianten hat.
+    """
+    return [
+        v for v in (product.get("variants") or [])
+        if v.get("in_stock") and v.get("is_active")
+    ]
+
+
 def split_availability_messages(entries: list[str], max_length: int = 2000) -> list[str]:
     """Teilt eine Liste von Availability-Einträgen in Discord-taugliche Chunks."""
     chunks, current, current_len = [], [], 0

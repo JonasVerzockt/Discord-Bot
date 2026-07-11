@@ -556,7 +556,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
-| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, Preis in Originalwährung + EUR-Umrechnung. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. | `/sells species:aethiops` |
+| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen). Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -719,12 +719,13 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 
 ## Grabber
 
-Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Lädt Shops und Produkte von der AntCheck API v2 in zwei Schritten:
+Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Lädt Shops, Produkte und Varianten von der AntCheck API v2 in drei Schritten:
 
 1. `GET /api/v2/ecommerce/shops?online=true&crawler_active=true` → alle aktiven Shops
 2. `GET /api/v2/ecommerce/products?shop_id={id}&product_type=ants` → Produkte pro Shop
+3. `GET /api/v2/ecommerce/variants?limit=-1` → **alle Varianten global**, nach `product_id` gruppiert und dem jeweiligen Produkt zugeordnet
 
-Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename).
+Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter.
 
 Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` (Tabelle `product_price_history`) – diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
 

@@ -69,6 +69,8 @@ PRICE_HISTORY_DB  = Path(DATA_DIRECTORY) / "price_history.db"
 
 SHOPS_URL    = f"{API_BASE}/api/v2/ecommerce/shops?online=true&crawler_active=true&page=0&limit=-1&api_key={API_KEY}"
 PRODUCTS_URL = f"{API_BASE}/api/v2/ecommerce/products?shop_id={{shop_id}}&product_type=ants&page=0&limit=-1&api_key={API_KEY}"
+# Varianten werden global (nicht pro Shop) geladen und nach product_id gruppiert.
+VARIANTS_URL = f"{API_BASE}/api/v2/ecommerce/variants?page=0&limit=-1&api_key={API_KEY}"
 
 if not API_VERIFY_SSL:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -110,10 +112,53 @@ def build_shop_map(shops_raw: list) -> dict:
     return result
 
 
-def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
-    """Fuegt Produkte zu einem Shop in der Map hinzu."""
+def _variant_entry(v: dict, product_currency: str) -> dict:
+    """Normalisiert einen Varianten-Datensatz aus /ecommerce/variants."""
+    price = v.get("price")
+    if price is None:
+        price = v.get("min_price") or v.get("amount") or "0"
+    return {
+        "id":           v.get("id"),
+        "title":        (v.get("title") or "").strip(),
+        "description":  (v.get("description") or "").strip(),
+        "price":        str(price),
+        "currency_iso": v.get("currency_iso") or v.get("currency") or product_currency,
+        "url":          v.get("url") or v.get("antcheck_url") or "",
+        "in_stock":     bool(v.get("in_stock", False)),
+        "is_active":    bool(v.get("is_active", False)),
+    }
+
+
+def fetch_variants_by_product() -> dict:
+    """
+    Holt alle Produkt-Varianten global (/ecommerce/variants?limit=-1) und
+    gruppiert sie nach product_id. Faellt der Endpoint aus, wird eine leere Map
+    zurueckgegeben (Produkte werden trotzdem geschrieben – abwaertskompatibel).
+    """
+    try:
+        raw = _fetch_json(VARIANTS_URL)
+    except Exception as e:
+        logger.warning(f"⚠️ Varianten-Abruf fehlgeschlagen (nicht kritisch): {e}")
+        return {}
+    if not isinstance(raw, list):
+        raw = raw.get("data", raw.get("variants", []))
+    by_pid: dict = {}
+    for v in raw:
+        if not isinstance(v, dict):
+            continue
+        pid = v.get("product_id")
+        if pid is None:
+            continue
+        by_pid.setdefault(pid, []).append(v)
+    return by_pid
+
+
+def add_products(shop_map: dict, shop_id: str, products_raw: list,
+                 variants_by_pid: dict | None = None) -> None:
+    """Fuegt Produkte (inkl. Varianten) zu einem Shop in der Map hinzu."""
     if shop_id not in shop_map:
         return
+    variants_by_pid = variants_by_pid or {}
     for p in products_raw:
         species_name = (
             p.get("species_name") or p.get("name") or p.get("title") or ""
@@ -122,19 +167,23 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list) -> None:
         description = (p.get("description") or p.get("comment") or "").strip()
         product_title = (p.get("name") or p.get("title") or species_name).strip()
         genus = species_name.split()[0] if " " in species_name else species_name
+        currency = p.get("currency_iso") or p.get("currency") or "EUR"
+        pid = p.get("id")
+        variants = [_variant_entry(v, currency) for v in variants_by_pid.get(pid, [])]
         shop_map[shop_id]["products"].append({
-            "id":            p.get("id"),
+            "id":            pid,
             "species":       species_name,
             "title":         product_title,
             "description":   description,
             "genus":         genus,
             "min_price":     str(p.get("min_price") or p.get("price") or "0"),
             "max_price":     str(p.get("max_price") or p.get("price") or "0"),
-            "currency_iso":  p.get("currency_iso") or p.get("currency") or "EUR",
+            "currency_iso":  currency,
             "antcheck_url":  p.get("antcheck_url") or p.get("url") or "",
             "shop_url":      p.get("product_url") or p.get("shop_url") or "",
             "in_stock":      bool(p.get("in_stock", False)),
             "is_active":     bool(p.get("is_active", False)),
+            "variants":      variants,
         })
 
 
@@ -228,6 +277,12 @@ def main():
         shop_map = build_shop_map(shops_raw)
         logger.info(f"✅ {len(shop_map)} Shops gefunden")
 
+        # 1b. Varianten global laden (nach product_id gruppiert)
+        logger.info("🔖 Lade Produkt-Varianten...")
+        variants_by_pid = fetch_variants_by_product()
+        total_variants  = sum(len(v) for v in variants_by_pid.values())
+        logger.info(f"✅ {total_variants} Varianten für {len(variants_by_pid)} Produkte")
+
         # 2. Produkte pro Shop laden
         total_products = 0
         for i, (shop_id, shop) in enumerate(shop_map.items(), 1):
@@ -236,7 +291,7 @@ def main():
                 products_raw = _fetch_json(url)
                 if not isinstance(products_raw, list):
                     products_raw = products_raw.get("data", products_raw.get("products", []))
-                add_products(shop_map, shop_id, products_raw)
+                add_products(shop_map, shop_id, products_raw, variants_by_pid)
                 count = len(shop_map[shop_id]["products"])
                 total_products += count
                 logger.info(f"  📦 [{i}/{len(shop_map)}] Shop {shop['name']}: {count} Produkte")
@@ -249,6 +304,7 @@ def main():
                 "fetched_at":    datetime.now(timezone.utc).isoformat(),
                 "shop_count":    len(shop_map),
                 "product_count": total_products,
+                "variant_count": total_variants,
             },
             **shop_map,
         }

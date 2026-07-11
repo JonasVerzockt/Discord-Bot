@@ -160,6 +160,7 @@ class SellsCog(commands.Cog, name="Sells"):
                     "min":         p.get("min_price"),
                     "max":         p.get("max_price"),
                     "cur":         p.get("currency_iso") or "EUR",
+                    "variants":    p.get("variants") or [],
                 })
 
         if not found_species:
@@ -192,11 +193,20 @@ class SellsCog(commands.Cog, name="Sells"):
                 parts.append(f"{flag_emoji(o['country'])} **{o['shop_name']}**")
                 if o["title"]:
                     parts.append(o["title"])
-                price = _price_md(o["min"], o["max"], o["cur"])
-                if o["description"] and o["description"].lower() != o["title"].lower():
-                    parts.append(f"{o['description']}: {price}")
+                vs = [v for v in o["variants"] if v.get("in_stock") and v.get("is_active")]
+                if vs:
+                    # Varianten-Ebene: pro Variante Einzelpreis
+                    for i, v in enumerate(vs, 1):
+                        label  = v.get("title") or v.get("description") or f"Variante {i}"
+                        vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or o["cur"])
+                        parts.append(f"{label}: {vprice}")
                 else:
-                    parts.append(price)
+                    # Fallback: Produkt-Ebene (min/max), falls (noch) keine Varianten
+                    price = _price_md(o["min"], o["max"], o["cur"])
+                    if o["description"] and o["description"].lower() != o["title"].lower():
+                        parts.append(f"{o['description']}: {price}")
+                    else:
+                        parts.append(price)
             parts.append("")
 
         parts.append(l10n.get("sells_footer", lang, ts=_read_fetched_at() or "?"))
