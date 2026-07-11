@@ -402,6 +402,13 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
                         _store_reason(cur, pid, reason, currency)
                     _write_snapshot(cur, pid, p)
                     new_entries += 1
+                else:
+                    # Unveraenderte Produkte: Snapshot einmalig seeden (Erststart
+                    # nach Deploy), damit schon die ERSTE kuenftige Aenderung einen
+                    # Grund liefern kann. Existiert bereits einer -> Baseline behalten.
+                    cur.execute("SELECT 1 FROM variant_snapshot WHERE product_id=? LIMIT 1", (pid,))
+                    if cur.fetchone() is None:
+                        _write_snapshot(cur, pid, p)
 
                 # Varianten-Historie (Einzelpreise) – nur bei Preisaenderung
                 for v in p.get("variants", []):
