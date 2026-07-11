@@ -259,7 +259,7 @@ Für alle `active`-Benachrichtigungen:
 
 **4. DM bei Fund**
 
-Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache):
+Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache). Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet – die Produkt-Preisspanne bleibt als Übersicht erhalten:
 
 ```
 34.49CAD (ca. 23.50€)
@@ -548,7 +548,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
 | `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. | `/usersetting blacklist_remove shop:Antstore` |
 | `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). | `/usersetting blacklist_list` |
-| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen, optional nach Länderkürzel gefiltert. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
+| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen. **Ohne** `country`-Filter nach Ländern gruppiert (Überschrift `🇦🇹 Austria (AT)`, Gruppen alphabetisch nach Ländername, Shop-Reihenfolge innerhalb wie im Ranking). **Mit** Filter flache Liste. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
 | `/ch_delivery add` | `shop` (Name, Fuzzy-Match) | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. | `/ch_delivery add shop:Antstore` |
 | `/ch_delivery remove` | `shop` (Name, Fuzzy-Match) | Shop aus der CH-Lieferliste entfernen. Angegeben wird der Shop-**Name** (nicht die ID). Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. | `/ch_delivery remove shop:Antstore` |
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
@@ -556,6 +556,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
+| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen). Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -673,6 +674,25 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 → Entfernt den Override – die API-URL wird wieder verwendet.
 ```
 
+**`/sells` – Angebote einer Art/Gattung vergleichen**
+
+```text
+/sells species:aethiops
+→ Findet alle Arten, deren Name „aethiops" enthält. Gibt es Treffer für mehrere
+  Arten, aber nur für manche Angebote, wird das genannt. Pro Art: Quelle
+  (antcheck.info), Versand-Disclaimer, dann je Shop (mit Länderflagge) Produkttitel
+  + Preis in Originalwährung, bei Nicht-EUR zusätzlich die EUR-Umrechnung.
+
+/sells species:Lasius flavus
+→ Konkrete Art statt Teilname.
+
+/sells species:Camponotus
+→ Ganze Gattung: alle lagernden Camponotus-Angebote über alle Shops.
+
+/sells species:Messor barbarus country:de
+→ Nur Angebote aus Shops mit Ländercode „de".
+```
+
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
@@ -699,14 +719,15 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 
 ## Grabber
 
-Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Lädt Shops und Produkte von der AntCheck API v2 in zwei Schritten:
+Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Lädt Shops, Produkte und Varianten von der AntCheck API v2 in drei Schritten:
 
 1. `GET /api/v2/ecommerce/shops?online=true&crawler_active=true` → alle aktiven Shops
 2. `GET /api/v2/ecommerce/products?shop_id={id}&product_type=ants` → Produkte pro Shop
+3. `GET /api/v2/ecommerce/variants?limit=-1` → **alle Varianten global**, nach `product_id` gruppiert und dem jeweiligen Produkt zugeordnet
 
-Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename).
+Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter.
 
-Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` (Tabelle `product_price_history`) – diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
+Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` – Tabelle `product_price_history` (Produkt-min/max) und `variant_price_history` (Einzelpreis pro Variante). Diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
 
 **Empfohlener Cron-Job (stündlich):**
 
@@ -736,7 +757,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `ch_delivery_shops` | Shops die nach CH liefern (manuell hinzugefügt) |
 | `server_user_mappings` | User → Server-Zuordnung (für DM-Fallback) |
 | `user_seen_products` | Bereits gemeldete Produkt-IDs (Deduplizierung) |
-| `user_price_tracking` | Preis-Tracking: User → beobachtete Produkte mit Baseline-Preis und letzter Benachrichtigung |
+| `user_price_tracking` | Preis-Tracking: User → beobachtete Produkte/**Varianten** mit Baseline-Preis und letzter Benachrichtigung. `variant_id=0` = ganzes Produkt (Default, abwärtskompatibel), `variant_id>0` = konkrete Variante; PK `(user_id, product_id, variant_id)` |
 | `user_species_watch` | Arten-Beobachtung: User → beobachtete Arten/Gattungen shopübergreifend |
 | `user_species_watch_seen` | Bekannte Produkt-IDs + letzter Preis je Arten-Beobachtung (Baseline) |
 | `review_tracking` | Discord-Nachrichten-ID → Sheet-Zeilennummer |
@@ -755,7 +776,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
-Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `product_price_history` mit dem Preisverlauf aller Produkte (product_id, min_price, max_price, currency_iso, recorded_at).
+Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_history` (Produkt-Preisverlauf: product_id, min_price, max_price, currency_iso, recorded_at) und `variant_price_history` (Varianten-Preisverlauf: variant_id, product_id, price, currency_iso, recorded_at).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -797,7 +818,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
-│   └── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   └── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
@@ -811,6 +833,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
+│   ├── countries.py         # Ländercode → Flaggen-Emoji + englischer Name
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │
