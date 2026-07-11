@@ -55,16 +55,37 @@ def available_variants(product: dict) -> list:
     ]
 
 
+def _hard_split_entry(entry: str, max_length: int) -> list[str]:
+    """Zerlegt EINEN (evtl. überlangen) Eintrag an Zeilenumbrüchen in Stücke <= max_length.
+    Notfalls wird eine einzelne, zu lange Zeile hart geschnitten – so ist NIE ein Stück
+    länger als max_length (verhindert Discord-HTTP-400 'content > 2000')."""
+    if len(entry) <= max_length:
+        return [entry]
+    pieces, cur = [], ""
+    for line in entry.split("\n"):
+        while len(line) > max_length:
+            if cur:
+                pieces.append(cur.rstrip("\n")); cur = ""
+            pieces.append(line[:max_length]); line = line[max_length:]
+        if cur and len(cur) + len(line) + 1 > max_length:
+            pieces.append(cur.rstrip("\n")); cur = ""
+        cur += line + "\n"
+    if cur.strip():
+        pieces.append(cur.rstrip("\n"))
+    return pieces
+
+
 def split_availability_messages(entries: list[str], max_length: int = 2000) -> list[str]:
-    """Teilt eine Liste von Availability-Einträgen in Discord-taugliche Chunks."""
+    """Teilt eine Liste von Availability-Einträgen in Discord-taugliche Chunks (jeder <= max_length)."""
     chunks, current, current_len = [], [], 0
     for entry in entries:
-        entry_len = len(entry) + 2
-        if current_len + entry_len > max_length:
-            chunks.append("\n\n".join(current))
-            current, current_len = [], 0
-        current.append(entry)
-        current_len += entry_len
+        for part in _hard_split_entry(entry, max_length):
+            part_len = len(part) + 2
+            if current and current_len + part_len > max_length:
+                chunks.append("\n\n".join(current))
+                current, current_len = [], 0
+            current.append(part)
+            current_len += part_len
     if current:
         chunks.append("\n\n".join(current))
     return chunks

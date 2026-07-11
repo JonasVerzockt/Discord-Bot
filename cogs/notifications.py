@@ -52,6 +52,9 @@ from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
 
+# Max. Varianten pro Produkt in der Verfügbarkeits-DM (Rest wird gezählt)
+_MAX_VARIANTS_PER_PRODUCT = 8
+
 
 class TrackFromAlertView(discord.ui.View):
     """Button unter einer Verfügbarkeits-DM: öffnet die /track_price-Auswahl für
@@ -172,11 +175,15 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 )
                 vs = available_variants(p)
                 if vs:
+                    shown = vs[:_MAX_VARIANTS_PER_PRODUCT]
                     vlines = "\n".join(
                         f"• {(v.get('title') or v.get('description') or f'Variante {i}')}: "
                         f"{format_price(v.get('price'), v.get('price'), v.get('currency_iso') or p['currency_iso'])}"
-                        for i, v in enumerate(vs, 1)
+                        for i, v in enumerate(shown, 1)
                     )
+                    extra = len(vs) - len(shown)
+                    if extra > 0:
+                        vlines += "\n" + l10n.get("availability_variants_more", lang, count=extra)
                     entry += "\n" + l10n.get("availability_variants", lang, variants=vlines)
                 entries.append(entry)
             chunks = split_availability_messages(entries)
@@ -191,6 +198,9 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                     await user.send(chunk, view=view)
             except discord.Forbidden:
                 await self._handle_dm_failure(user_id, species, regions, lang)
+                return None
+            except discord.HTTPException as e:
+                logger.error("❌ Verfügbarkeits-DM (%s) fehlgeschlagen: %s", species, e)
                 return None
 
             # Gesehene Produkte aktualisieren
@@ -383,6 +393,13 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         regions_str  = ",".join(valid_regions)
         user_id_str  = str(ctx.author.id)
 
+        existing = await execute_db(
+            self.bot,
+            "SELECT 1 FROM notifications WHERE user_id=? AND species=? AND regions=?",
+            (user_id_str, search_term, regions_str), fetch=True,
+        )
+        already_active = bool(existing)
+
         await execute_db(
             self.bot,
             """INSERT INTO notifications (user_id, species, regions, status, excluded_species, server_id)
@@ -400,11 +417,15 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 (user_id_str, server_id), commit=True,
             )
 
-        key    = "notification_set_with_exclude" if excluded_str else "notification_set"
-        params = {"species": search_term, "regions": regions_str}
-        if excluded_str:
-            params["excluded"] = excluded_str
-        await ctx.respond(l10n.get(key, lang, **params))
+        if already_active:
+            await ctx.respond(l10n.get("notification_already_active", lang,
+                                       species=search_term, regions=regions_str))
+        else:
+            key    = "notification_set_with_exclude" if excluded_str else "notification_set"
+            params = {"species": search_term, "regions": regions_str}
+            if excluded_str:
+                params["excluded"] = excluded_str
+            await ctx.respond(l10n.get(key, lang, **params))
         await ctx.followup.send(l10n.get("checking_availability", lang, species=search_term))
 
         excluded_set = {s.strip().lower() for s in excluded_str.split(",")} if excluded_str else set()
