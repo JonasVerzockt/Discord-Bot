@@ -170,7 +170,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_startup", "help_status", "help_pending",
             "help_rescan", "help_reprocess", "help_export",
             "help_stats", "help_system",
-            "help_reloadshops", "help_shopmapping", "help_shopurl",
+            "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
             "help_codes_set", "help_codes_rescan",
         ]
         ai_keys = [
@@ -201,26 +201,34 @@ class StatsCog(commands.Cog, name="Stats"):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Reagiert zusätzlich auf `!help` als Textbefehl (nur im Bot-Kanal)."""
+        """Reagiert zusätzlich auf `!help`/`!hilfe` als Textbefehl (nur im Bot-Kanal)."""
         if message.author.bot or message.guild is None:
             return
         if message.content.strip().lower() not in ("!help", "!hilfe"):
             return
-        # Kanal-Check analog zu allowed_channel(): ohne /startup überall erlaubt,
-        # sonst nur im konfigurierten Bot-Kanal (falscher Kanal → stilles Ignorieren).
-        rows = await execute_db(
-            self.bot,
-            "SELECT channel_id FROM server_settings WHERE server_id=?",
-            (message.guild.id,),
-            fetch=True,
-        )
-        if rows and rows[0]["channel_id"] is not None and message.channel.id != rows[0]["channel_id"]:
-            return
-        lang = await get_user_lang(self.bot, message.author.id, message.guild.id)
         try:
-            await message.reply(self._build_help_text(lang), mention_author=False)
-        except discord.Forbidden:
-            logger.warning("❌ !help: Keine Berechtigung zum Antworten in Kanal %s", message.channel.id)
+            # Kanal-Check analog zu allowed_channel(): ohne /startup ueberall erlaubt,
+            # sonst nur im konfigurierten Bot-Kanal (falscher Kanal -> stilles Ignorieren).
+            rows = await execute_db(
+                self.bot,
+                "SELECT channel_id FROM server_settings WHERE server_id=?",
+                (message.guild.id,),
+                fetch=True,
+            )
+            if rows and rows[0]["channel_id"] is not None and message.channel.id != rows[0]["channel_id"]:
+                return
+            lang = await get_user_lang(self.bot, message.author.id, message.guild.id)
+            text = self._build_help_text(lang)
+            try:
+                await message.reply(text, mention_author=False)
+            except discord.HTTPException:
+                await message.channel.send(text)
+            logger.info(
+                "help-Textbefehl beantwortet (Kanal %s, Server %s)",
+                message.channel.id, message.guild.id,
+            )
+        except Exception as e:
+            logger.error("help-Textbefehl fehlgeschlagen: %s", e, exc_info=True)
 
 
 def setup(bot: discord.Bot):

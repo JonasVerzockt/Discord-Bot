@@ -80,6 +80,7 @@
   "shopmapping_remove_none": "ℹ️ Neniu mapado trovita.",
   "help_reloadshops": "🔄 `/reloadshops` – Reŝargi butikdatumojn",
   "help_shopmapping": "🗂️ `/shopmapping` – Administri butiknomnomigojn",
+  "help_shopmap": "🟡 `/shopmap` – Recenz-butiktekston al URL mapi (solvas la 🟡)",
   "ch_delivery_exists": "⚠️ Butiko {shop} jam estas en la listo!",
   "ch_delivery_add_success": "✅ {shop} aldoniĝis al la CH-livera listo",
   "ch_delivery_remove_success": "❌ {shop} foriĝis el la CH-livera listo",

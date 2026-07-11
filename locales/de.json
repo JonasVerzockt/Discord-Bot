@@ -80,6 +80,7 @@
   "shopmapping_remove_none": "ℹ️ Keine Zuordnung gefunden.",
   "help_reloadshops": "🔄 `/reloadshops` – Shop-Daten neu laden",
   "help_shopmapping": "🗂️ `/shopmapping` – Shopnamen-Zuordnungen verwalten",
+  "help_shopmap": "🟡 `/shopmap` – Review-Shop-Text einer URL zuordnen (löst 🟡 auf)",
   "ch_delivery_exists": "⚠️ Shop {shop} steht bereits auf der Liste!",
   "ch_delivery_add_success": "✅ {shop} wurde zur CH-Lieferliste hinzugefügt",
   "ch_delivery_remove_success": "❌ {shop} wurde von der CH-Lieferliste entfernt",
