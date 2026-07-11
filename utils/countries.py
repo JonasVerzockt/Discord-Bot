@@ -19,8 +19,8 @@ utils/countries.py – Ländercode-Helfer (Flaggen-Emoji + englischer Name).
 
 Genutzt von /sells und der gruppierten /usersetting shop_list-Ausgabe.
 Ländercodes sind ISO-3166-1-alpha-2 (klein), wie in shops_data.json (Feld
-"country") gespeichert. Namen sind bewusst Englisch (wie beim Vorbild-Bot);
-unbekannte Codes fallen auf den Großbuchstaben-Code zurück.
+"country") gespeichert. Namen sind bewusst Englisch; unbekannte Codes fallen auf den
+Großbuchstaben-Code zurück.
 """
 
 # ISO-2 (klein) → englischer Ländername. Fokus: EU + gängige Shop-Länder.

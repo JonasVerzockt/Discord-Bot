@@ -17,8 +17,8 @@
 """
 cogs/sells.py – /sells: Preisvergleich einer Art/Gattung über alle Shops.
 
-Vorbild: der !sells-Befehl des Antony-Bots. Datenquelle ist – wie beim
-restlichen Preis-Tracking – shops_data.json (vom Grabber aus antcheck.info).
+Datenquelle ist – wie beim restlichen Preis-Tracking – shops_data.json
+(vom Grabber aus antcheck.info).
 Zeigt nur lagernde (in_stock + is_active) Angebote, öffentlich im Kanal,
 gruppiert nach Art → Shop. Optionaler Länderfilter.
 """
