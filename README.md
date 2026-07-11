@@ -306,7 +306,8 @@ Beobachtet gezielt konkrete Produkte und benachrichtigt per DM bei jeder Preisä
    
    Wenn mehrere Produkte dieselbe Art haben, wird die ID als Fallback angehängt (`Messor galla (#42)`). Sobald die API Varianteninfo in `description` liefert, wird diese stattdessen genutzt.
 
-3. **Bestätigen** – aktueller Preis als Baseline, öffentliche Ankündigung im Kanal
+3. **Variante wählen (optional)** – wird **genau ein** Produkt gewählt, das Varianten hat, erscheint ein zusätzlicher Auswahlschritt: „🔭 Ganzes Produkt (alle Varianten)" oder eine/mehrere konkrete Varianten. Bei Auswahl einer Variante wird deren Einzelpreis beobachtet (`variant_id`), sonst das ganze Produkt (Produkt-min/max, wie bisher). Bei Mehrfachauswahl von Produkten wird immer das ganze Produkt beobachtet.
+4. **Bestätigen** – aktueller Preis als Baseline, öffentliche Ankündigung im Kanal
 
 **Hintergrund-Check alle ~65 Minuten:** Preis gesunken → 📉-DM, gestiegen → 📈-DM.
 
@@ -539,11 +540,11 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. | `/delete_notifications ids:12 15` |
 | `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). | `/history` |
 | `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. | `/testnotification` |
-| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Aktueller Preis als Baseline. | `/track_price species:Camponotus` |
-| `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte mit aktuellem Preis. | `/my_price_tracking` |
-| `/untrack_price` | – | Zeigt Einzelprodukte und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten. | `/untrack_price` |
+| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Bei genau einem gewählten Produkt mit **Varianten** folgt ein optionaler Varianten-Auswahlschritt (ganzes Produkt oder konkrete Variante). Aktueller Preis als Baseline. | `/track_price species:Camponotus` |
+| `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte/**Varianten** mit aktuellem Preis (Variantenname wird mit angezeigt). | `/my_price_tracking` |
+| `/untrack_price` | – | Zeigt Einzelprodukte/Varianten und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten (Produkt und einzelne Variante getrennt entfernbar). | `/untrack_price` |
 | `/price_history` | – | Zeigt für eines deiner beobachteten Produkte den Preisverlauf als Diagramm (Step-Chart min/max, lokal mit matplotlib) mit markiertem historischem Tief („Bestpreis"). Produktauswahl per Dropdown. | `/price_history` |
-| `/set_target` | `mode` (`zusätzlich`/`ersetzt`/`aus`), `target_price` (optional, Shop-Währung) | Setzt für ein beobachtetes Produkt (Auswahl per Dropdown) einen Zielpreis. `zusätzlich` = weiter Änderungs-DMs + 🎯-DM bei Erreichen; `ersetzt` = nur die 🎯-DM; `aus` = Zielpreis entfernen. | `/set_target mode:ersetzt target_price:12.50` |
+| `/set_target` | `mode` (`zusätzlich`/`ersetzt`/`aus`), `target_price` (optional, Shop-Währung) | Setzt für ein beobachtetes Produkt **oder eine beobachtete Variante** (Auswahl per Dropdown) einen Zielpreis. `zusätzlich` = weiter Änderungs-DMs + 🎯-DM bei Erreichen; `ersetzt` = nur die 🎯-DM; `aus` = Zielpreis entfernen. | `/set_target mode:ersetzt target_price:12.50` |
 | `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. | `/usersetting language language:de` |
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
 | `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. | `/usersetting blacklist_remove shop:Antstore` |
