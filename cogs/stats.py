@@ -35,7 +35,7 @@ from utils.localization import l10n, get_user_lang
 from config import AI_CHAT_PUBLIC
 from utils.availability import load_shop_data
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
-from config import SHOPS_DATA_FILE
+from config import SHOPS_DATA_FILE, VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +132,7 @@ class StatsCog(commands.Cog, name="Stats"):
             await ctx.respond(
                 l10n.get(
                     "system_status", lang,
+                    version=VERSION,
                     uptime=uptime_str, servers=servers, users=users,
                     integrity=integrity, total=total, file_status=file_status,
                 ),
