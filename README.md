@@ -120,7 +120,7 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # DISCOUNT_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Code-Extraktion
 # DISCOUNT_VISION_ENABLED=true             # Bilder (Screenshots/Flyer) auf Codes prüfen
 # DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
-# DISCOUNT_VISION_MAX_BYTES=1000000        # Max. Bildgröße in Bytes (1 MB)
+# DISCOUNT_VISION_MAX_BYTES=4000000        # Max. Bildgröße in Bytes (4 MB)
 
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
@@ -367,7 +367,7 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 - **Backfill beim Start:** Beim ersten `on_ready` wird der gesamte Kanal (älteste zuerst) durchgegangen; bereits gescannte Nachrichten werden übersprungen. Mehrfaches `on_ready` (Reconnects) löst keinen erneuten Scan aus.
 - **Live:** Neue Posts im Kanal werden sofort verarbeitet (Reaktion 🏷️ bei gefundenem Code).
 - **Kein Keyword-Vorfilter:** Jede Nachricht mit Text und/oder Bild-Anhang geht an Haiku, das im Zweifel selbst entscheidet (kein Code → leeres Ergebnis). Nur Nachrichten ganz ohne Text und ohne verwertbares Bild werden ohne API-Aufruf übersprungen und nur als gescannt markiert.
-- **Bild-Analyse (`DISCOUNT_VISION_ENABLED`, Standard an):** Datei-Anhänge (jpg, jpeg, png, gif, webp) werden per Vision mitgeschickt – so werden auch Codes erkannt, die nur im Bild stehen. Max. `DISCOUNT_VISION_MAX_IMAGES` Bilder pro Nachricht (Standard 4), jeweils ≤ `DISCOUNT_VISION_MAX_BYTES` (Standard 1 MB); größere/andere Anhänge werden übersprungen. Text und Bilder einer Nachricht gehen gemeinsam in **einen** Haiku-Aufruf. Nur Datei-Anhänge, keine verlinkten Bilder/Embeds.
+- **Bild-Analyse (`DISCOUNT_VISION_ENABLED`, Standard an):** Datei-Anhänge (jpg, jpeg, png, gif, webp) werden per Vision mitgeschickt – so werden auch Codes erkannt, die nur im Bild stehen. Max. `DISCOUNT_VISION_MAX_IMAGES` Bilder pro Nachricht (Standard 4), jeweils ≤ `DISCOUNT_VISION_MAX_BYTES` (Standard 4 MB); größere/andere Anhänge werden übersprungen. Text und Bilder einer Nachricht gehen gemeinsam in **einen** Haiku-Aufruf. Nur Datei-Anhänge, keine verlinkten Bilder/Embeds.
 - **Datumslogik:** Relative/teilweise Angaben werden anhand des Nachrichtendatums aufgelöst (`nur heute`, `bis morgen`, `bis 14.06.`, `vom X bis Y`); Saison-Aktionen ohne Enddatum (Black Friday, Ostern, …) erhalten ein geschätztes Enddatum; `dauerhaft`/`immer` ⇒ permanenter Code ohne Enddatum. Codes **ohne** Enddatum (und nicht permanent) gelten ab 90 Tagen nach der Quellnachricht automatisch als abgelaufen, damit alte Saison-Codes nicht ewig als „aktuell" erscheinen.
 - **Shop-Normalisierung:** Für Anzeige und Duplikat-Erkennung wird der Shop auf seine Domain reduziert (`Ant Farm Supplies`, `antfarmsupplies.com`, `AntFarmSupplies.com` ⇒ derselbe Shop).
 - **Mehrere Codes pro Nachricht** werden unterstützt (z. B. Sammel-Posts mit mehreren Shops).
@@ -401,7 +401,7 @@ Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfiguri
 
 | Typ | Formate | Max. Größe |
 |-----|---------|-----------|
-| Bilder (Vision) | jpg, jpeg, png, gif, webp | 1 MB |
+| Bilder (Vision) | jpg, jpeg, png, gif, webp | 4 MB |
 | Textdateien | txt, md, csv, log | 10 KB |
 | Videos | – | nicht unterstützt (wird abgelehnt) |
 | Sonstige | – | nicht unterstützt (wird abgelehnt) |

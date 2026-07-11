@@ -91,7 +91,7 @@ Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Da
 |-------|-------|-------------|
 | Discord User-ID | Budget-Tracking (Tagesbudget pro User) | Lokale SQLite-Datenbank auf dem Server |
 | Gesprächsverlauf (Nachrichten und KI-Antworten) | Konversationsgedächtnis für Anschlussfragen (per Discord-Reply) | Lokale SQLite-Datenbank auf dem Server, automatisch gelöscht nach 24 Stunden |
-| Bildanhänge (jpg, png, gif, webp, max. 1 MB) | Bildanalyse durch die KI | Werden einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
+| Bildanhänge (jpg, png, gif, webp, max. 4 MB) | Bildanalyse durch die KI | Werden einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
 | Textdateianhänge (txt, md, csv, log, max. 10 KB) | Analyse durch die KI | Inhalt wird einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
 | Shop-Bewertungsdaten aus Google Sheets (Tabs „Übersicht" + „Händler A-Z") | Als Kontextwissen im System-Prompt – ermöglicht Shop-Fragen | Werden alle 6 Stunden geladen; nur bei shop-relevanten Anfragen an die API übermittelt (3-stufige Vorqualifizierung); enthalten keine personenbezogenen Daten |
 
@@ -115,7 +115,7 @@ Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten we
 | Daten | Zweck | Speicherort |
 |-------|-------|-------------|
 | Nachrichteninhalte des Rabattcode-Kanals | KI-Extraktion von Rabattcodes | Einmalig an Anthropic API übermittelt, dort nicht dauerhaft gespeichert |
-| Bild-Anhänge des Rabattcode-Kanals (jpg, png, gif, webp, max. 1 MB, bis 4 pro Nachricht) | Erkennung von Codes in Screenshots/Flyern per Vision | Einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
+| Bild-Anhänge des Rabattcode-Kanals (jpg, png, gif, webp, max. 4 MB, bis 4 pro Nachricht) | Erkennung von Codes in Screenshots/Flyern per Vision | Einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
 | Discord Message-IDs | Vermeidung doppelter KI-Auswertung (jede Nachricht nur einmal) | Lokale SQLite-Datenbank auf dem Server |
 | Extrahierte Codes (Shop, Code, Rabatthöhe, Gültigkeit, ggf. Mindestbestellwert) | Bereitstellung über `/codes` | Lokale SQLite-Datenbank auf dem Server |
 | Discord-Username des Verfassers der Code-Nachricht | Nachvollziehbarkeit der Quelle | Lokale SQLite-Datenbank auf dem Server |

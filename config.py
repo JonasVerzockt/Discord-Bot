@@ -75,8 +75,8 @@ DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-4-5-202
 DISCOUNT_VISION_ENABLED = os.getenv("DISCOUNT_VISION_ENABLED", "true").lower() == "true"
 # Max. Anzahl Bilder pro Nachricht, die an die Vision-API gehen.
 DISCOUNT_VISION_MAX_IMAGES = int(os.getenv("DISCOUNT_VISION_MAX_IMAGES", "4"))
-# Max. Bildgröße in Bytes (wie beim KI-Chat: 1 MB). Größere werden übersprungen.
-DISCOUNT_VISION_MAX_BYTES = int(os.getenv("DISCOUNT_VISION_MAX_BYTES", "1000000"))
+# Max. Bildgröße in Bytes (wie beim KI-Chat: 4 MB). Größere werden übersprungen.
+DISCOUNT_VISION_MAX_BYTES = int(os.getenv("DISCOUNT_VISION_MAX_BYTES", "4000000"))
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)

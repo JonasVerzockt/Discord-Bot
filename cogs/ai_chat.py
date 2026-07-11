@@ -231,7 +231,7 @@ class AiChatCog(commands.Cog):
 
             # Bilder
             elif ext in image_exts:
-                if attachment.size > 1_000_000:  # max 1 MB
+                if attachment.size > 4_000_000:  # max 4 MB
                     await message.reply(
                         l10n.get(
                             "ai_image_too_large", lang,
