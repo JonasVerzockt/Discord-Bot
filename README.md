@@ -259,7 +259,7 @@ Für alle `active`-Benachrichtigungen:
 
 **4. DM bei Fund**
 
-Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache):
+Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache). Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet – die Produkt-Preisspanne bleibt als Übersicht erhalten:
 
 ```
 34.49CAD (ca. 23.50€)

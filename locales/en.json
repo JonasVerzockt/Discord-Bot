@@ -45,6 +45,7 @@
   "testnotification_forbidden": "❌ Could not send DM – please enable private messages",
   "availability_header": "🔔 **Availability Alert** for {species}!",
   "availability_entry": "🏪 **Shop:** {shop} - [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>): {rating} \n🐜 - **{species}** \n💶 **Price range:** {price} \n🔗 [Product link](<{product_url}>) | 🏠 [Shop homepage](<{shop_url}>)",
+  "availability_variants": "🔖 **Variants:**\n{variants}",
   "all_channels": "all channels",
   "notification_expired_dm": "⏳ Your search for {species} ({regions}) has expired and is no longer being monitored. You can create a new notification at any time.",
   "dm_failed": "❌ I couldn't send you a private message. Please enable your direct messages to receive notifications!",

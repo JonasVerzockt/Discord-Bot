@@ -45,6 +45,7 @@ from utils.availability import (
     load_shop_data,
     format_rating,
     split_availability_messages,
+    available_variants,
 )
 from utils.currency import ensure_rates, format_price
 from cogs.server_settings import allowed_channel
@@ -159,8 +160,9 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             )
             await ensure_rates()
             header  = l10n.get("availability_header", lang, species=species)
-            entries = [header] + [
-                l10n.get(
+            entries = [header]
+            for p in sorted_products:
+                entry = l10n.get(
                     "availability_entry", lang,
                     species=p["species"], shop=p["shop_name"],
                     price=format_price(p["min_price"], p["max_price"], p["currency_iso"]),
@@ -168,8 +170,15 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                     shop_url=p["shop_url"] or "N/A",
                     rating=format_rating(p.get("rating")),
                 )
-                for p in sorted_products
-            ]
+                vs = available_variants(p)
+                if vs:
+                    vlines = "\n".join(
+                        f"• {(v.get('title') or v.get('description') or f'Variante {i}')}: "
+                        f"{format_price(v.get('price'), v.get('price'), v.get('currency_iso') or p['currency_iso'])}"
+                        for i, v in enumerate(vs, 1)
+                    )
+                    entry += "\n" + l10n.get("availability_variants", lang, variants=vlines)
+                entries.append(entry)
             chunks = split_availability_messages(entries)
 
             try:

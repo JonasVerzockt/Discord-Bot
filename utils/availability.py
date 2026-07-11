@@ -237,6 +237,7 @@ async def check_availability_for_species(
                     "shop_url":     shop_info.get("url"),
                     "shop_id":      shop_id_str,
                     "rating":       shop_info.get("average_rating"),
+                    "variants":     product.get("variants") or [],
                 })
 
     return results

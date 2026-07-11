@@ -45,6 +45,7 @@
   "testnotification_forbidden": "❌ Konnte keine PN senden – bitte Privatnachrichten aktivieren",
   "availability_header": "🔔 **Verfügbarkeitsalarm** für {species}!",
   "availability_entry": "🏪 **Shop:** {shop} - [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>): {rating} \n🐜 - **{species}** \n💶 **Preisspanne:** {price} \n🔗 [Produktlink](<{product_url}>) | 🏠 [Shop-Startseite](<{shop_url}>)",
+  "availability_variants": "🔖 **Varianten:**\n{variants}",
   "all_channels": "alle Kanäle",
   "notification_expired_dm": "⏳ Deine Suche nach {species} ({regions}) ist abgelaufen und wird nicht mehr überwacht. Du kannst jederzeit eine neue Benachrichtigung anlegen.",
   "dm_failed": "❌ Ich konnte dir keine private Nachricht senden. Bitte aktiviere deine Direktnachrichten, damit du Benachrichtigungen erhalten kannst!",
