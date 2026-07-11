@@ -81,6 +81,42 @@ def _get_history_sync(product_id: int):
     return (points, currency) if points else None
 
 
+def _get_variant_history_sync(variant_id: int):
+    """Preisverlauf einer Variante aus variant_price_history (price als min=max)."""
+    if not PRICE_HISTORY_DB.exists():
+        return None
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT recorded_at, price, currency_iso FROM variant_price_history "
+            "WHERE variant_id=? ORDER BY recorded_at ASC",
+            (variant_id,),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    points = []
+    currency = "EUR"
+    for recorded_at, pr, cur_iso in rows:
+        try:
+            ts = datetime.fromisoformat(str(recorded_at))
+        except ValueError:
+            continue
+        points.append((ts, float(pr), float(pr)))
+        currency = cur_iso or currency
+    return (points, currency) if points else None
+
+
+def _ph_title(row) -> str:
+    base = row["product_title"] or row["species"] or f"#{row['product_id']}"
+    try:
+        vt = row["variant_title"]
+    except (IndexError, KeyError):
+        vt = ""
+    return f"{base} – {vt}" if vt else base
+
+
 # ── Rendering ───────────────────────────────────────────────────────────────────
 
 def _render_history_png(title: str, points: list, currency: str, labels: dict):
@@ -139,14 +175,14 @@ def _render_history_png(title: str, points: list, currency: str, labels: dict):
 class _HistoryProductSelect(discord.ui.Select):
     def __init__(self, rows: list, lang: str):
         self.lang  = lang
-        self._rows = {str(r["product_id"]): r for r in rows}
+        self._rows = {f"{r['product_id']}:{r['variant_id'] or 0}": r for r in rows}
         options = []
         for r in rows[:25]:
-            title = (r["product_title"] or r["species"] or f"#{r['product_id']}").strip()
+            title = _ph_title(r).strip()
             desc  = (r["shop_name"] or "").strip()
             options.append(discord.SelectOption(
                 label=(title[:95] or f"#{r['product_id']}"),
-                value=str(r["product_id"]),
+                value=f"{r['product_id']}:{r['variant_id'] or 0}",
                 description=(desc[:95] or None),
             ))
         super().__init__(
@@ -158,15 +194,20 @@ class _HistoryProductSelect(discord.ui.Select):
         await interaction.response.defer(ephemeral=True)
         lang = self.lang
         row  = self._rows[self.values[0]]
-        pid  = int(self.values[0])
+        pid_str, _, vid_str = self.values[0].partition(":")
+        pid  = int(pid_str)
+        vid  = int(vid_str or 0)
 
-        data = await asyncio.to_thread(_get_history_sync, pid)
+        if vid > 0:
+            data = await asyncio.to_thread(_get_variant_history_sync, vid)
+        else:
+            data = await asyncio.to_thread(_get_history_sync, pid)
         if not data:
             await interaction.followup.send(l10n.get("ph_no_data", lang), ephemeral=True)
             return
         points, currency = data
 
-        title = (row["product_title"] or row["species"] or f"#{pid}")
+        title = _ph_title(row)
         if row["shop_name"]:
             title = f"{title} · {row['shop_name']}"
 
@@ -235,7 +276,7 @@ class PriceHistoryCog(commands.Cog, name="PriceHistory"):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         rows = await execute_db(
             self.bot,
-            "SELECT product_id, product_title, species, shop_name, currency_iso "
+            "SELECT product_id, variant_id, variant_title, product_title, species, shop_name, currency_iso "
             "FROM user_price_tracking WHERE user_id=? ORDER BY added_at DESC",
             (str(ctx.author.id),),
             fetch=True,

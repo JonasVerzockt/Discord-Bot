@@ -329,7 +329,7 @@ Beim Einrichten werden alle aktuell bekannten Produkte sofort als Baseline gespe
 `/my_price_tracking` zeigt Arten-Beobachtungen (🔭) oben getrennt von Einzelprodukten (🏷️).  
 `/untrack_price` zeigt beides gemeinsam im Dropdown – in einer Interaktion entfernbar.
 
-`/price_history` rendert für ein beobachtetes Produkt den Preisverlauf lokal als Diagramm (matplotlib, Step-Chart aus `price_history.db`) und markiert das historische Tief („Bestpreis seit Beobachtungsstart").
+`/price_history` rendert für ein beobachtetes Produkt **oder eine beobachtete Variante** den Preisverlauf lokal als Diagramm (matplotlib, Step-Chart aus `price_history.db` bzw. `variant_price_history`) und markiert das historische Tief („Bestpreis seit Beobachtungsstart").
 
 Mit `/set_target` legst du pro beobachtetem Produkt einen **Zielpreis** fest – Modus `zusätzlich` (weiter Änderungs-DMs plus 🎯-DM beim Erreichen), `ersetzt` (nur noch die 🎯-DM) oder `aus` (entfernen). Der Zielpreis gilt in der Shop-Währung und wird im laufenden Preis-Check (~65/67 Min.) ausgewertet.
 
@@ -543,7 +543,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Bei genau einem gewählten Produkt mit **Varianten** folgt ein optionaler Varianten-Auswahlschritt (ganzes Produkt oder konkrete Variante). Aktueller Preis als Baseline. | `/track_price species:Camponotus` |
 | `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte/**Varianten** mit aktuellem Preis (Variantenname wird mit angezeigt). | `/my_price_tracking` |
 | `/untrack_price` | – | Zeigt Einzelprodukte/Varianten und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten (Produkt und einzelne Variante getrennt entfernbar). | `/untrack_price` |
-| `/price_history` | – | Zeigt für eines deiner beobachteten Produkte den Preisverlauf als Diagramm (Step-Chart min/max, lokal mit matplotlib) mit markiertem historischem Tief („Bestpreis"). Produktauswahl per Dropdown. | `/price_history` |
+| `/price_history` | – | Zeigt für eines deiner beobachteten Produkte/**Varianten** den Preisverlauf als Diagramm (Step-Chart; bei Varianten der Einzelpreis) mit markiertem historischem Tief („Bestpreis"). Auswahl per Dropdown. | `/price_history` |
 | `/set_target` | `mode` (`zusätzlich`/`ersetzt`/`aus`), `target_price` (optional, Shop-Währung) | Setzt für ein beobachtetes Produkt **oder eine beobachtete Variante** (Auswahl per Dropdown) einen Zielpreis. `zusätzlich` = weiter Änderungs-DMs + 🎯-DM bei Erreichen; `ersetzt` = nur die 🎯-DM; `aus` = Zielpreis entfernen. | `/set_target mode:ersetzt target_price:12.50` |
 | `/usersetting language` | `language` (`de` / `en` / `eo`) | Eigene Sprache setzen. Wirkt auf alle Bot-Antworten – Slash-Command-Ausgaben, DMs und KI-Antworten. | `/usersetting language language:de` |
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
