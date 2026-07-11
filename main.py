@@ -62,6 +62,7 @@ INITIAL_COGS = [
     "cogs.digest",            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
     "cogs.achievements",      # /achievements + Erfolge-Freischaltung/DM-Ping
     "cogs.sells",             # /sells – Preisvergleich einer Art/Gattung über alle Shops
+    "cogs.offers",            # /offers – alle lagernden Angebote eines Shops
 ]
 
 
