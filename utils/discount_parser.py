@@ -43,6 +43,8 @@ _ai = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 _PROMPT = """\
 Du extrahierst Rabattcodes aus einer Discord-Nachricht einer Ameisen-Community.
+Die Nachricht kann Text UND/ODER Bilder (Screenshots, Flyer, Shop-Werbung) enthalten.
+Erkenne Rabattcodes auch dann, wenn sie NUR im Bild stehen (z.B. auf einem Werbebanner).
 Nachrichtendatum (Referenz für relative Datumsangaben): {date}
 
 Gib AUSSCHLIESSLICH ein JSON-Array zurück (kein weiterer Text, kein Markdown).
@@ -86,17 +88,41 @@ def _norm_date(v) -> str | None:
     return v if re.match(r"^\d{4}-\d{2}-\d{2}$", v) else None
 
 
-def parse_codes(content: str, message_date: str) -> list[dict]:
+def parse_codes(
+    content: str,
+    message_date: str,
+    images: list[tuple[bytes, str]] | None = None,
+) -> list[dict]:
     """
-    Schickt den Nachrichtentext an Claude Haiku und gibt eine Liste von
-    Code-Dicts zurück. Wirft bei ungültigem JSON json.JSONDecodeError.
+    Schickt Nachrichtentext (und optional Bilder) an Claude Haiku und gibt eine
+    Liste von Code-Dicts zurück. Wirft bei ungültigem JSON json.JSONDecodeError.
+
+    images: Liste von (rohe Bytes, media_type) – z.B. (b"...", "image/png").
+            Wird per Vision mitgeschickt; erkennt Codes auch nur im Bild.
     """
+    prompt_text = _PROMPT.format(date=message_date, message=content or "")
+
+    if images:
+        import base64 as _b64
+        user_content: list = []
+        for img_bytes, media_type in images:
+            user_content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": _b64.b64encode(img_bytes).decode(),
+                },
+            })
+        user_content.append({"type": "text", "text": prompt_text})
+        api_messages = [{"role": "user", "content": user_content}]
+    else:
+        api_messages = [{"role": "user", "content": prompt_text}]
+
     resp = _ai.messages.create(
         model=DISCOUNT_PARSER_MODEL,
         max_tokens=700,
-        messages=[{"role": "user", "content": _PROMPT.format(
-            date=message_date, message=content,
-        )}],
+        messages=api_messages,
     )
     text = resp.content[0].text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
