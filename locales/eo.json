@@ -26,7 +26,7 @@
   "history_more_entries": "...kaj {count} pliaj",
   "history_entry": "{species} en {regions} (Kreita: {created}) - [ID: {id}]",
   "history_entry_completed": "{species} en {regions} (Kreita: {created} | Sciigita: {notified}) - [ID: {id}]",
-  "system_status": "**🤖 Bot-stato**\n⏲️ Uptime: {uptime}\n📡 Serviloj: `{servers}` | 👥 Uzantoj: `{users}` \n\n**🔍 Datumbaza stato:** {integrity} \nTotalaj sciigoj: {total} \n\n**📂 Butikaj datumoj:**\n {file_status}",
+  "system_status": "**🤖 Bot-stato**\n🏷️ Versio: {version}\n⏲️ Uptime: {uptime}\n📡 Serviloj: `{servers}` | 👥 Uzantoj: `{users}` \n\n**🔍 Datumbaza stato:** {integrity} \nTotalaj sciigoj: {total} \n\n**📂 Butikaj datumoj:**\n {file_status}",
   "system_performance": "**🚀 Prezentado**\n• ⏳ Latenco: `{latency} ms`\n• 🖥️ CPU-uzado: `{cpu}%`\n• 💾 RAM-uzado: `{ram}%`\n• ℹ️ Sistemo: `{system}`",
   "system_file_status": "🔄 Dosiero laste ĝisdatigita: {modified} (antaŭ {age})",
   "system_file_missing": "❌ Dosiero ne trovita",
