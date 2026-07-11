@@ -80,6 +80,7 @@
   "shopmapping_remove_none": "ℹ️ No mapping found.",
   "help_reloadshops": "🔄 `/reloadshops` – Reload shop data",
   "help_shopmapping": "🗂️ `/shopmapping` – Manage shop name mappings",
+  "help_shopmap": "🟡 `/shopmap` – Map a review shop text to a URL (resolves the 🟡)",
   "ch_delivery_exists": "⚠️ Shop {shop} is already on the list!",
   "ch_delivery_add_success": "✅ {shop} has been added to the CH delivery list",
   "ch_delivery_remove_success": "❌ {shop} has been removed from the CH delivery list",

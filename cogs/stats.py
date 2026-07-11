@@ -170,7 +170,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_startup", "help_status", "help_pending",
             "help_rescan", "help_reprocess", "help_export",
             "help_stats", "help_system",
-            "help_reloadshops", "help_shopmapping", "help_shopurl",
+            "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
             "help_codes_set", "help_codes_rescan",
         ]
         ai_keys = [
