@@ -5,7 +5,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
 - **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen (Neuerscheinungen werden still in die Beobachtung aufgenommen, aber nicht separat gemeldet – dafür gibt es `/notification`)
-- **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku) und stellt die aktuell gültigen Codes per `/codes` bereit
+- **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku), erkennt sie auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision und stellt die aktuell gültigen Codes per `/codes` bereit
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 - **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
@@ -118,6 +118,9 @@ AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + K
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
 # DISCOUNT_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Code-Extraktion
+# DISCOUNT_VISION_ENABLED=true             # Bilder (Screenshots/Flyer) auf Codes prüfen
+# DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
+# DISCOUNT_VISION_MAX_BYTES=4000000        # Max. Bildgröße in Bytes (4 MB)
 
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
@@ -356,14 +359,15 @@ An-/Abmelden und Status prüfen über `/digest` (`aktivieren` / `deaktivieren` /
 
 ## Rabattcode-Tracker
 
-Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatthöhe, Gültigkeitszeitraum, ggf. Mindestbestellwert) und speichert sie in der Datenbank. Ist kein Kanal gesetzt, bleibt das Feature inaktiv.
+Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatthöhe, Gültigkeitszeitraum, ggf. Mindestbestellwert) und speichert sie in der Datenbank. Codes werden dabei sowohl aus dem Text als auch – sofern `DISCOUNT_VISION_ENABLED` (Standard an) – aus geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision erkannt. Ist kein Kanal gesetzt, bleibt das Feature inaktiv.
 
 ### Funktionsweise
 
 - **Einmal pro Nachricht:** Jede verarbeitete `message_id` wird in `discount_scanned` festgehalten, damit dieselbe Nachricht nie zweimal an Haiku geschickt wird.
 - **Backfill beim Start:** Beim ersten `on_ready` wird der gesamte Kanal (älteste zuerst) durchgegangen; bereits gescannte Nachrichten werden übersprungen. Mehrfaches `on_ready` (Reconnects) löst keinen erneuten Scan aus.
 - **Live:** Neue Posts im Kanal werden sofort verarbeitet (Reaktion 🏷️ bei gefundenem Code).
-- **Kein Keyword-Vorfilter:** Jede nicht-leere Nachricht geht an Haiku, das im Zweifel selbst entscheidet (kein Code → leeres Ergebnis). Rein bildbasierte Posts ohne Text werden ohne API-Aufruf übersprungen und nur als gescannt markiert.
+- **Kein Keyword-Vorfilter:** Jede Nachricht mit Text und/oder Bild-Anhang geht an Haiku, das im Zweifel selbst entscheidet (kein Code → leeres Ergebnis). Nur Nachrichten ganz ohne Text und ohne verwertbares Bild werden ohne API-Aufruf übersprungen und nur als gescannt markiert.
+- **Bild-Analyse (`DISCOUNT_VISION_ENABLED`, Standard an):** Datei-Anhänge (jpg, jpeg, png, gif, webp) werden per Vision mitgeschickt – so werden auch Codes erkannt, die nur im Bild stehen. Max. `DISCOUNT_VISION_MAX_IMAGES` Bilder pro Nachricht (Standard 4), jeweils ≤ `DISCOUNT_VISION_MAX_BYTES` (Standard 4 MB); größere/andere Anhänge werden übersprungen. Text und Bilder einer Nachricht gehen gemeinsam in **einen** Haiku-Aufruf. Nur Datei-Anhänge, keine verlinkten Bilder/Embeds.
 - **Datumslogik:** Relative/teilweise Angaben werden anhand des Nachrichtendatums aufgelöst (`nur heute`, `bis morgen`, `bis 14.06.`, `vom X bis Y`); Saison-Aktionen ohne Enddatum (Black Friday, Ostern, …) erhalten ein geschätztes Enddatum; `dauerhaft`/`immer` ⇒ permanenter Code ohne Enddatum. Codes **ohne** Enddatum (und nicht permanent) gelten ab 90 Tagen nach der Quellnachricht automatisch als abgelaufen, damit alte Saison-Codes nicht ewig als „aktuell" erscheinen.
 - **Shop-Normalisierung:** Für Anzeige und Duplikat-Erkennung wird der Shop auf seine Domain reduziert (`Ant Farm Supplies`, `antfarmsupplies.com`, `AntFarmSupplies.com` ⇒ derselbe Shop).
 - **Mehrere Codes pro Nachricht** werden unterstützt (z. B. Sammel-Posts mit mehreren Shops).
@@ -397,7 +401,7 @@ Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfiguri
 
 | Typ | Formate | Max. Größe |
 |-----|---------|-----------|
-| Bilder (Vision) | jpg, jpeg, png, gif, webp | 1 MB |
+| Bilder (Vision) | jpg, jpeg, png, gif, webp | 4 MB |
 | Textdateien | txt, md, csv, log | 10 KB |
 | Videos | – | nicht unterstützt (wird abgelehnt) |
 | Sonstige | – | nicht unterstützt (wird abgelehnt) |

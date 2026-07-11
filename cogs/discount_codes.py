@@ -22,6 +22,13 @@ extrahiert per Claude Haiku Rabattcodes und speichert sie in der DB. Jede
 Nachricht wird – über ihre message_id – nur EINMAL an Haiku geschickt
 (Tabelle discount_scanned). Kein Keyword-Vorfilter: Haiku entscheidet selbst.
 
+Bild-Analyse (DISCOUNT_VISION_ENABLED, Standard an): Datei-Anhänge (Screenshots,
+Flyer, Shop-Werbung) werden per Vision mitgeschickt, sodass auch Codes erkannt
+werden, die nur im Bild stehen. Max. DISCOUNT_VISION_MAX_IMAGES Bilder pro
+Nachricht, jeweils ≤ DISCOUNT_VISION_MAX_BYTES. Nur Datei-Anhänge, keine
+verlinkten Bilder/Embeds. Nachrichten ganz ohne Text und ohne verwertbares Bild
+lösen keinen API-Call aus.
+
 Gültigkeit (Zustand eines Codes):
   status_override = 'valid'   → immer gültig (manuell)
   status_override = 'invalid' → immer ungültig (manuell)
@@ -46,7 +53,10 @@ from datetime import date, datetime, timedelta
 import discord
 from discord.ext import commands
 
-from config import DISCOUNT_CHANNEL_ID
+from config import (
+    DISCOUNT_CHANNEL_ID, DISCOUNT_VISION_ENABLED,
+    DISCOUNT_VISION_MAX_IMAGES, DISCOUNT_VISION_MAX_BYTES,
+)
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.achievements import check_and_grant
@@ -58,6 +68,12 @@ logger = logging.getLogger(__name__)
 # Codes ohne Enddatum und ohne "permanent"-Flag gelten nach so vielen Tagen
 # (gerechnet ab Nachrichtendatum) als wahrscheinlich abgelaufen.
 _UNDATED_MAX_AGE_DAYS = 90
+
+# Unterstützte Bild-Formate für die Vision-Analyse (Datei-Endung → media_type).
+_IMAGE_MIME = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+}
 
 
 def _fmt_date(iso: str | None) -> str:
@@ -142,21 +158,50 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         )
         return bool(rows)
 
-    async def _process_message(self, msg: discord.Message) -> int:
+    async def _collect_images(self, msg: discord.Message) -> list[tuple[bytes, str]]:
         """
-        Schickt eine Nachricht an Haiku und speichert gefundene Codes.
-        Leere Nachrichten (nur Bild/Anhang) werden ohne API-Call als gescannt
-        markiert. Gibt die Anzahl neuer Codes zurück. Caller stellt sicher, dass
-        die Nachricht noch nicht gescannt wurde.
+        Lädt bis zu DISCOUNT_VISION_MAX_IMAGES Bild-Anhänge (≤ Größenlimit) als
+        (rohe Bytes, media_type). Nur Datei-Anhänge, keine verlinkten Bilder.
+        Bei deaktiviertem Feature oder Fehlern → leere Liste.
+        """
+        if not DISCOUNT_VISION_ENABLED:
+            return []
+        images: list[tuple[bytes, str]] = []
+        for att in msg.attachments:
+            if len(images) >= DISCOUNT_VISION_MAX_IMAGES:
+                break
+            fn  = att.filename.lower()
+            ext = ("." + fn.rsplit(".", 1)[-1]) if "." in fn else ""
+            media = _IMAGE_MIME.get(ext)
+            if not media:
+                continue
+            if att.size and att.size > DISCOUNT_VISION_MAX_BYTES:
+                logger.info(f"🏷️ Bild übersprungen (zu groß, {att.size} B): {att.filename}")
+                continue
+            try:
+                images.append((await att.read(), media))
+            except Exception as e:
+                logger.warning(f"🏷️ Bild-Download fehlgeschlagen ({att.filename}): {e}")
+        return images
+
+    async def _process_message(self, msg: discord.Message) -> tuple[int, bool]:
+        """
+        Schickt Text und/oder Bild-Anhänge einer Nachricht an Haiku und speichert
+        gefundene Codes. Nachrichten ganz ohne Text und ohne verwertbare Bilder
+        lösen keinen API-Call aus (werden nur als gescannt markiert).
+        Gibt (neue_codes, api_aufgerufen) zurück. Caller stellt sicher, dass die
+        Nachricht noch nicht gescannt wurde.
         """
         mid     = str(msg.id)
         content = (msg.content or "").strip()
+        images  = await self._collect_images(msg)
         found   = 0
+        api_called = bool(content) or bool(images)
 
-        if content:
+        if api_called:
             date_str = msg.created_at.strftime("%Y-%m-%d")
             try:
-                codes = await asyncio.to_thread(parse_codes, content, date_str)
+                codes = await asyncio.to_thread(parse_codes, content, date_str, images)
             except Exception as e:
                 logger.error(f"❌ Haiku-Parse-Fehler (msg {mid}): {e}")
                 codes = []
@@ -182,7 +227,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             self.bot, "INSERT OR IGNORE INTO discount_scanned (message_id) VALUES (?)",
             (mid,), commit=True,
         )
-        return found
+        return found, api_called
 
     async def _backfill(self, channel: discord.TextChannel) -> tuple[int, int]:
         """Geht den ganzen Kanal durch, überspringt bereits gescannte Nachrichten."""
@@ -196,10 +241,10 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             async for msg in channel.history(limit=None, oldest_first=True):
                 if msg.author.bot or str(msg.id) in scanned:
                     continue
-                has_text = bool((msg.content or "").strip())
-                found  += await self._process_message(msg)
+                f, api_called = await self._process_message(msg)
+                found  += f
                 checked += 1
-                if has_text:
+                if api_called:
                     await asyncio.sleep(1.0)   # nur nach echten Haiku-Calls bremsen
         return checked, found
 
@@ -227,7 +272,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         if await self._is_scanned(str(message.id)):
             return
         async with self._lock:
-            found = await self._process_message(message)
+            found, _ = await self._process_message(message)
         if found:
             try:
                 await message.add_reaction("🏷️")
