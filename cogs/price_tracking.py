@@ -38,7 +38,7 @@ from discord.ext import commands, tasks
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, format_rating
+from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants
 from utils.currency import ensure_rates, format_price
 from utils.achievements import log_event, check_and_grant
 
@@ -93,6 +93,56 @@ def _get_latest_prices_sync(product_ids: list[int]) -> dict[int, tuple[float, fl
         return result
     finally:
         conn.close()
+
+
+def _get_latest_variant_price_sync(variant_id: int):
+    """Gibt (price, currency_iso) des letzten Varianten-Eintrags zurück, oder None."""
+    if not PRICE_HISTORY_DB.exists():
+        return None
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT price, currency_iso FROM variant_price_history "
+            "WHERE variant_id=? ORDER BY recorded_at DESC LIMIT 1",
+            (variant_id,),
+        )
+        row = cur.fetchone()
+        return (row[0], row[1]) if row else None
+    finally:
+        conn.close()
+
+
+def _get_latest_variant_prices_sync(variant_ids: list[int]) -> dict:
+    """Batch: {variant_id: (price, currency)} fuer alle IDs."""
+    if not variant_ids or not PRICE_HISTORY_DB.exists():
+        return {}
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        cur = conn.cursor()
+        result: dict = {}
+        for vid in variant_ids:
+            cur.execute(
+                "SELECT price, currency_iso FROM variant_price_history "
+                "WHERE variant_id=? ORDER BY recorded_at DESC LIMIT 1",
+                (vid,),
+            )
+            row = cur.fetchone()
+            if row:
+                result[vid] = (row[0], row[1])
+        return result
+    finally:
+        conn.close()
+
+
+def _display_title(row) -> str:
+    """Anzeigetitel inkl. Variantenname (falls variant_id>0)."""
+    base = row["product_title"] or row["species"] or "?"
+    try:
+        vt = row["variant_title"]
+    except (IndexError, KeyError):
+        vt = ""
+    return f"{base} – {vt}" if vt else base
 
 
 # ── Produktsuche ──────────────────────────────────────────────────────────────
@@ -477,6 +527,17 @@ class ProductSelectView(_BaseView):
     async def on_products_selected(self, product_ids: list[str], interaction: discord.Interaction):
         selected = [self.products_by_id[pid] for pid in product_ids if pid in self.products_by_id]
 
+        # Genau EIN Produkt mit Varianten -> optionaler Varianten-Auswahlschritt
+        if len(selected) == 1 and available_variants(selected[0]):
+            vview = VariantSelectView(
+                selected[0], self.shop_id, self.shop_info, self.species,
+                self.bot, self.owner_id, self.lang,
+            )
+            await interaction.response.edit_message(
+                content=l10n.get("pt_select_variant", self.lang), view=vview,
+            )
+            return
+
         lines = []
         for p in selected:
             if p.get("_no_price"):
@@ -510,6 +571,79 @@ class ProductSelectView(_BaseView):
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
+
+
+# ── Varianten-Auswahl (optional, bei genau einem Produkt mit Varianten) ───────
+
+class _VariantSelectItem(discord.ui.Select):
+    def __init__(self, product: dict, lang: str):
+        self.lang = lang
+        opts = [discord.SelectOption(
+            label=l10n.get("pt_whole_product", lang)[:97],
+            value="0", emoji="🔭",
+        )]
+        for v in available_variants(product)[:24]:
+            vid   = v.get("id")
+            if vid is None:
+                continue
+            label = (v.get("title") or v.get("description") or f"Variante {vid}")[:97]
+            cur   = v.get("currency_iso") or product.get("currency_iso") or "EUR"
+            price = format_price(v.get("price"), v.get("price"), cur)
+            opts.append(discord.SelectOption(
+                label=label, value=str(vid), description=price[:100], emoji="🔖",
+            ))
+        super().__init__(
+            placeholder=l10n.get("pt_variant_placeholder", lang),
+            min_values=1, max_values=len(opts), options=opts,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.view.on_variant_selected(self.values, interaction)
+
+
+class VariantSelectView(_BaseView):
+    def __init__(self, product, shop_id, shop_info, species, bot, owner_id, lang):
+        super().__init__(owner_id, lang)
+        self.product   = product
+        self.shop_id   = shop_id
+        self.shop_info = shop_info
+        self.species   = species
+        self.bot       = bot
+        self.lang      = lang
+        self.add_item(_VariantSelectItem(product, lang))
+
+    async def on_variant_selected(self, values, interaction):
+        vmap = {str(v.get("id")): v for v in available_variants(self.product)}
+        entries = []
+        for val in values:
+            e = dict(self.product)
+            if val == "0":
+                e["_variant_id"] = 0
+                e["_variant_title"] = ""
+            else:
+                v = vmap.get(val)
+                if not v:
+                    continue
+                e["_variant_id"]       = int(val)
+                e["_variant_title"]    = v.get("title") or v.get("description") or f"Variante {val}"
+                e["_variant_price"]    = v.get("price")
+                e["_variant_currency"] = v.get("currency_iso") or self.product.get("currency_iso") or "EUR"
+            entries.append(e)
+
+        lines = []
+        for e in entries:
+            vt = e.get("_variant_title")
+            title = _make_product_label(e) + (f" – {vt}" if vt else "")
+            if e.get("_variant_id"):
+                price_str = format_price(e.get("_variant_price"), e.get("_variant_price"), e.get("_variant_currency"))
+            else:
+                price_str = format_price(e.get("min_price", 0), e.get("max_price", 0), e.get("currency_iso", "EUR"))
+            lines.append(f"• {title} – {price_str}")
+
+        content = l10n.get("pt_confirm_header", self.lang) + "\n" + "\n".join(lines)
+        view = ConfirmView(entries, self.shop_id, self.shop_info, self.species,
+                           self.bot, self.owner_id, self.lang)
+        await interaction.response.edit_message(content=content, view=view)
 
 
 # ── Bestätigung ───────────────────────────────────────────────────────────────
@@ -549,29 +683,45 @@ class ConfirmView(_BaseView):
             pid = p.get("id")
             if pid is None:
                 continue
+            vid    = int(p.get("_variant_id", 0) or 0)
+            vtitle = p.get("_variant_title", "") or ""
             try:
                 min_p = float(p.get("min_price") or 0)
                 max_p = float(p.get("max_price") or 0)
             except (ValueError, TypeError):
                 min_p = max_p = 0.0
 
-            current = await asyncio.to_thread(_get_latest_price_sync, int(pid))
-            if current:
-                baseline_min, baseline_max, currency = current
+            if vid > 0:
+                hist = await asyncio.to_thread(_get_latest_variant_price_sync, vid)
+                if hist:
+                    baseline_min = baseline_max = hist[0]
+                    currency = hist[1]
+                else:
+                    try:
+                        vp = float(p.get("_variant_price") or 0)
+                    except (ValueError, TypeError):
+                        vp = 0.0
+                    baseline_min = baseline_max = vp
+                    currency = p.get("_variant_currency") or p.get("currency_iso") or "EUR"
             else:
-                baseline_min = min_p
-                baseline_max = max_p
-                currency = p.get("currency_iso") or "EUR"
+                current = await asyncio.to_thread(_get_latest_price_sync, int(pid))
+                if current:
+                    baseline_min, baseline_max, currency = current
+                else:
+                    baseline_min = min_p
+                    baseline_max = max_p
+                    currency = p.get("currency_iso") or "EUR"
 
             await execute_db(
                 self.bot,
                 """INSERT INTO user_price_tracking
-                   (user_id, product_id, species, product_title, product_url,
-                    shop_name, shop_id, currency_iso, last_notified_min, last_notified_max)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(user_id, product_id) DO NOTHING""",
+                   (user_id, product_id, variant_id, variant_title, species,
+                    product_title, product_url, shop_name, shop_id, currency_iso,
+                    last_notified_min, last_notified_max)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(user_id, product_id, variant_id) DO NOTHING""",
                 (
-                    user_id, pid,
+                    user_id, pid, vid, vtitle,
                     p.get("species") or "",
                     p.get("title") or p.get("species") or "",
                     p.get("antcheck_url") or "",
@@ -624,20 +774,26 @@ class _UntrackSelectItem(discord.ui.Select):
         self,
         tracked_rows: list,
         current_prices: dict,
+        variant_prices: dict,
         species_watches: list,
         lang: str,
     ):
         options = []
-        # Einzelne Produkte
+        # Einzelne Produkte / Varianten
         for row in tracked_rows[:20]:
             pid      = row["product_id"]
-            title    = (row["product_title"] or row["species"] or f"Produkt {pid}")[:80]
+            vid      = row["variant_id"] or 0
+            title    = _display_title(row)[:80]
             shop     = (row["shop_name"] or "?")[:15]
-            current  = current_prices.get(pid)
-            price_str = format_price(current[0], current[1], current[2]) if current else l10n.get("pt_no_price_short", lang)
+            if vid > 0:
+                vc = variant_prices.get(vid)
+                price_str = format_price(vc[0], vc[0], vc[1]) if vc else l10n.get("pt_no_price_short", lang)
+            else:
+                current  = current_prices.get(pid)
+                price_str = format_price(current[0], current[1], current[2]) if current else l10n.get("pt_no_price_short", lang)
             options.append(discord.SelectOption(
                 label=f"{title}"[:97],
-                value=str(pid),
+                value=f"{pid}:{vid}",
                 description=f"{shop} – {price_str}"[:100],
                 emoji="🏷️",
             ))
@@ -667,6 +823,7 @@ class UntrackView(_BaseView):
         self,
         tracked_rows: list,
         current_prices: dict,
+        variant_prices: dict,
         species_watches: list,
         bot,
         owner_id: int,
@@ -675,7 +832,7 @@ class UntrackView(_BaseView):
         super().__init__(owner_id, lang)
         self.bot       = bot
         self.lang      = lang
-        self.add_item(_UntrackSelectItem(tracked_rows, current_prices, species_watches, lang))
+        self.add_item(_UntrackSelectItem(tracked_rows, current_prices, variant_prices, species_watches, lang))
 
     async def on_products_selected(self, values: list[str], interaction: discord.Interaction):
         user_id  = str(self.owner_id)
@@ -700,11 +857,12 @@ class UntrackView(_BaseView):
                 )
                 sw_removed += 1
             else:
-                # Einzelprodukt entfernen
+                # Einzelprodukt/Variante entfernen (Wert: "pid:vid")
+                pid_str, _, vid_str = val.partition(":")
                 await execute_db(
                     self.bot,
-                    "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=?",
-                    (user_id, int(val)),
+                    "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=? AND variant_id=?",
+                    (user_id, int(pid_str), int(vid_str or 0)),
                     commit=True,
                 )
                 removed += 1
@@ -789,7 +947,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
         rows = await execute_db(
             self.bot,
-            "SELECT product_id, species, product_title, product_url, "
+            "SELECT product_id, variant_id, variant_title, species, product_title, product_url, "
             "shop_name, currency_iso, last_notified_min, last_notified_max "
             "FROM user_price_tracking WHERE user_id=? ORDER BY shop_name, species",
             (user_id,),
@@ -825,25 +983,29 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
         # Einzelprodukte
         if rows:
-            pids    = [r["product_id"] for r in rows]
-            current = await asyncio.to_thread(_get_latest_prices_sync, pids)
+            pids     = [r["product_id"] for r in rows if (r["variant_id"] or 0) == 0]
+            vids     = [r["variant_id"] for r in rows if (r["variant_id"] or 0) > 0]
+            current  = await asyncio.to_thread(_get_latest_prices_sync, pids)
+            vcurrent = await asyncio.to_thread(_get_latest_variant_prices_sync, vids)
 
             lines = [l10n.get("pt_list_header", lang)]
             for row in rows:
                 pid   = row["product_id"]
-                title = row["product_title"] or row["species"] or f"ID {pid}"
+                vid   = row["variant_id"] or 0
+                title = _display_title(row)
                 url   = row["product_url"] or ""
                 shop  = row["shop_name"] or "?"
 
-                curr = current.get(pid)
-                if curr:
-                    price_str = format_price(curr[0], curr[1], curr[2])
+                if vid > 0:
+                    vc = vcurrent.get(vid)
+                    price_str = format_price(vc[0], vc[0], vc[1]) if vc else format_price(
+                        row["last_notified_min"] or 0, row["last_notified_max"] or 0,
+                        row["currency_iso"] or "EUR")
                 else:
-                    price_str = format_price(
-                        row["last_notified_min"] or 0,
-                        row["last_notified_max"] or 0,
-                        row["currency_iso"] or "EUR",
-                    )
+                    curr = current.get(pid)
+                    price_str = format_price(curr[0], curr[1], curr[2]) if curr else format_price(
+                        row["last_notified_min"] or 0, row["last_notified_max"] or 0,
+                        row["currency_iso"] or "EUR")
 
                 lines.append(l10n.get(
                     "pt_list_entry", lang,
@@ -874,7 +1036,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
         rows = await execute_db(
             self.bot,
-            "SELECT product_id, species, product_title, product_url, "
+            "SELECT product_id, variant_id, variant_title, species, product_title, product_url, "
             "shop_name, currency_iso, last_notified_min, last_notified_max "
             "FROM user_price_tracking WHERE user_id=? ORDER BY shop_name, species",
             (user_id,),
@@ -895,10 +1057,12 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             return
 
         await ensure_rates()
-        pids    = [r["product_id"] for r in rows]
-        current = await asyncio.to_thread(_get_latest_prices_sync, pids) if pids else {}
+        pids     = [r["product_id"] for r in rows if (r["variant_id"] or 0) == 0]
+        vids     = [r["variant_id"] for r in rows if (r["variant_id"] or 0) > 0]
+        current  = await asyncio.to_thread(_get_latest_prices_sync, pids) if pids else {}
+        vcurrent = await asyncio.to_thread(_get_latest_variant_prices_sync, vids) if vids else {}
 
-        view = UntrackView(list(rows), current, list(sw_rows), self.bot, ctx.author.id, lang)
+        view = UntrackView(list(rows), current, vcurrent, list(sw_rows), self.bot, ctx.author.id, lang)
         await ctx.followup.send(
             l10n.get("pt_untrack_select", lang),
             view=view,
@@ -913,26 +1077,36 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         try:
             rows = await execute_db(
                 self.bot,
-                """SELECT user_id, product_id, species, product_title, product_url,
-                          shop_name, currency_iso, last_notified_min, last_notified_max,
-                          target_price, target_mode
+                """SELECT user_id, product_id, variant_id, variant_title, species,
+                          product_title, product_url, shop_name, currency_iso,
+                          last_notified_min, last_notified_max, target_price, target_mode
                    FROM user_price_tracking""",
                 fetch=True,
             )
             if not rows:
                 return
 
-            pids    = list({r["product_id"] for r in rows})
-            current = await asyncio.to_thread(_get_latest_prices_sync, pids)
+            prod_ids = list({r["product_id"] for r in rows if (r["variant_id"] or 0) == 0})
+            var_ids  = list({r["variant_id"] for r in rows if (r["variant_id"] or 0) > 0})
+            current  = await asyncio.to_thread(_get_latest_prices_sync, prod_ids)
+            vcurrent = await asyncio.to_thread(_get_latest_variant_prices_sync, var_ids)
             await ensure_rates()
 
             for row in rows:
-                pid      = row["product_id"]
-                curr_row = current.get(pid)
-                if not curr_row:
-                    continue
+                pid = row["product_id"]
+                vid = row["variant_id"] or 0
+                if vid > 0:
+                    vc = vcurrent.get(vid)
+                    if not vc:
+                        continue
+                    curr_min = curr_max = vc[0]
+                    curr_currency = vc[1]
+                else:
+                    curr_row = current.get(pid)
+                    if not curr_row:
+                        continue
+                    curr_min, curr_max, curr_currency = curr_row
 
-                curr_min, curr_max, curr_currency = curr_row
                 last_min = row["last_notified_min"]
                 last_max = row["last_notified_max"]
 
@@ -940,8 +1114,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     await execute_db(
                         self.bot,
                         "UPDATE user_price_tracking SET last_notified_min=?, last_notified_max=?, currency_iso=? "
-                        "WHERE user_id=? AND product_id=?",
-                        (curr_min, curr_max, curr_currency, row["user_id"], pid),
+                        "WHERE user_id=? AND product_id=? AND variant_id=?",
+                        (curr_min, curr_max, curr_currency, row["user_id"], pid, vid),
                         commit=True,
                     )
                     continue
@@ -968,8 +1142,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     await execute_db(
                         self.bot,
                         "UPDATE user_price_tracking SET last_notified_min=?, last_notified_max=?, currency_iso=? "
-                        "WHERE user_id=? AND product_id=?",
-                        (curr_min, curr_max, curr_currency, row["user_id"], pid),
+                        "WHERE user_id=? AND product_id=? AND variant_id=?",
+                        (curr_min, curr_max, curr_currency, row["user_id"], pid, vid),
                         commit=True,
                     )
 
@@ -1194,7 +1368,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             key, lang,
             shop=row["shop_name"] or "?",
             species=row["species"] or "?",
-            title=row["product_title"] or row["species"] or "?",
+            title=_display_title(row),
             old_price=format_price(last_min, last_max, currency),
             new_price=format_price(curr_min, curr_max, currency),
             url=row["product_url"] or "",
@@ -1246,7 +1420,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             "pt_dm_target", lang,
             shop=row["shop_name"] or "?",
             species=row["species"] or "?",
-            title=row["product_title"] or row["species"] or "?",
+            title=_display_title(row),
             new_price=format_price(curr_min, curr_max, currency),
             target=f"{target:.2f} {currency}",
             url=row["product_url"] or "",

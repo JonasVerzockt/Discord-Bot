@@ -63,19 +63,47 @@ def _latest_min_sync(product_id: int):
         conn.close()
 
 
+def _latest_variant_min_sync(variant_id: int):
+    """Letzter bekannter Einzelpreis + Währung einer Variante, oder None."""
+    if not PRICE_HISTORY_DB.exists():
+        return None
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT price, currency_iso FROM variant_price_history "
+            "WHERE variant_id=? ORDER BY recorded_at DESC LIMIT 1",
+            (variant_id,),
+        )
+        row = cur.fetchone()
+        return (float(row[0]), row[1] or "EUR") if row else None
+    finally:
+        conn.close()
+
+
+def _row_title(row) -> str:
+    """Anzeigetitel inkl. Variantenname."""
+    base = row["product_title"] or row["species"] or f"#{row['product_id']}"
+    try:
+        vt = row["variant_title"]
+    except (IndexError, KeyError):
+        vt = ""
+    return f"{base} – {vt}" if vt else base
+
+
 class _TargetProductSelect(discord.ui.Select):
     def __init__(self, rows: list, lang: str, mode: str | None, target_price):
         self.lang    = lang
         self.mode    = mode          # 'additional' | 'replace' | None (aus)
         self.target  = target_price
-        self._rows   = {str(r["product_id"]): r for r in rows}
+        self._rows   = {f"{r['product_id']}:{r['variant_id'] or 0}": r for r in rows}
         options = []
         for r in rows[:25]:
-            title = (r["product_title"] or r["species"] or f"#{r['product_id']}").strip()
+            title = _row_title(r).strip()
             desc  = (r["shop_name"] or "").strip()
             options.append(discord.SelectOption(
                 label=(title[:95] or f"#{r['product_id']}"),
-                value=str(r["product_id"]),
+                value=f"{r['product_id']}:{r['variant_id'] or 0}",
                 description=(desc[:95] or None),
             ))
         super().__init__(
@@ -87,15 +115,17 @@ class _TargetProductSelect(discord.ui.Select):
         await interaction.response.defer(ephemeral=True)
         lang = self.lang
         row  = self._rows[self.values[0]]
-        pid  = int(self.values[0])
-        title = row["product_title"] or row["species"] or f"#{pid}"
+        pid_str, _, vid_str = self.values[0].partition(":")
+        pid  = int(pid_str)
+        vid  = int(vid_str or 0)
+        title = _row_title(row)
 
         if self.mode is None:
             await execute_db(
                 interaction.client,
                 "UPDATE user_price_tracking SET target_price=NULL, target_mode=NULL "
-                "WHERE user_id=? AND product_id=?",
-                (str(interaction.user.id), pid),
+                "WHERE user_id=? AND product_id=? AND variant_id=?",
+                (str(interaction.user.id), pid, vid),
                 commit=True,
             )
             await interaction.followup.send(
@@ -106,8 +136,8 @@ class _TargetProductSelect(discord.ui.Select):
         await execute_db(
             interaction.client,
             "UPDATE user_price_tracking SET target_price=?, target_mode=? "
-            "WHERE user_id=? AND product_id=?",
-            (self.target, self.mode, str(interaction.user.id), pid),
+            "WHERE user_id=? AND product_id=? AND variant_id=?",
+            (self.target, self.mode, str(interaction.user.id), pid, vid),
             commit=True,
         )
         try:
@@ -115,7 +145,10 @@ class _TargetProductSelect(discord.ui.Select):
         except Exception:
             pass
 
-        latest   = await asyncio.to_thread(_latest_min_sync, pid)
+        latest   = await asyncio.to_thread(
+            _latest_variant_min_sync if vid > 0 else _latest_min_sync,
+            vid if vid > 0 else pid,
+        )
         currency = latest[1] if latest else (row["currency_iso"] or "EUR")
         mode_lbl = l10n.get(
             "st_mode_additional" if self.mode == "additional" else "st_mode_replace", lang
@@ -186,7 +219,7 @@ class PriceTargetsCog(commands.Cog, name="PriceTargets"):
 
         rows = await execute_db(
             self.bot,
-            "SELECT product_id, product_title, species, shop_name, currency_iso "
+            "SELECT product_id, variant_id, variant_title, product_title, species, shop_name, currency_iso "
             "FROM user_price_tracking WHERE user_id=? ORDER BY added_at DESC",
             (str(ctx.author.id),),
             fetch=True,
