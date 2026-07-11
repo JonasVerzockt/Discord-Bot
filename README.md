@@ -557,6 +557,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
+| `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge + Shop-Link. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. | `/offers shop:Antstore` |
 | `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen). Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
@@ -820,7 +821,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
-│   └── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
+│   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
+│   └── offers.py            # /offers: alle lagernden Angebote eines Shops
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
