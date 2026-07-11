@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 import discord
 from discord.ext import commands, tasks
 
+from config import VERSION
 from utils.db import execute_db
 from utils.availability import load_shop_data
 
@@ -221,7 +222,7 @@ class TasksCog(commands.Cog, name="Tasks"):
             await self.bot.change_presence(
                 activity=discord.Activity(
                     type=discord.ActivityType.watching,
-                    name=quote,
+                    name=f"v{VERSION} · {quote}",
                 )
             )
         except Exception as e:
