@@ -260,7 +260,7 @@ Für alle `active`-Benachrichtigungen:
 
 **4. DM bei Fund**
 
-Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache). Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet – die Produkt-Preisspanne bleibt als Übersicht erhalten:
+Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache). Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet (max. 8 pro Produkt, Rest als „… und X weitere") – die Produkt-Preisspanne bleibt als Übersicht erhalten:
 
 ```
 34.49CAD (ca. 23.50€)
@@ -268,7 +268,7 @@ Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten).
 59.99EUR
 ```
 
-Bei mehr als ~2000 Zeichen werden mehrere DMs gesendet. Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal. Unter der DM erscheint ein Button **„📉 Preise beobachten"** – ein Klick öffnet direkt die `/track_price`-Auswahl (Shop → Produkte) für die gemeldete Art, ohne den Befehl tippen zu müssen.
+Lange Ausgaben werden sicher auf mehrere DMs aufgeteilt (jede ≤ 2000 Zeichen, auch einzelne sehr lange Einträge werden zerlegt – kein Discord-Fehler mehr). Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal. Unter der DM erscheint ein Button **„📉 Preise beobachten"** – ein Klick öffnet direkt die `/track_price`-Auswahl (Shop → Produkte) für die gemeldete Art, ohne den Befehl tippen zu müssen.
 
 **5. Feedback nach DM**
 
@@ -537,7 +537,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 
 | Befehl | Parameter | Beschreibung | Beispiel |
 |--------|-----------|--------------|----------|
-| `/notification` | `species` oder `genus` (Pflicht, nicht beides), `regions` (z.B. `de,at` oder `eu`), `swiss_only`, `exclude_species`, `force` | Verfügbarkeitsbenachrichtigung einrichten. `regions: eu` wird automatisch auf alle EU-Ländercodes aufgelöst. `exclude_species` schließt bestimmte Arten innerhalb einer Gattungs-Suche aus. `force: True` überspringt die Prüfung ob die Art in der DB vorkommt. | `/notification species:Messor barbarus regions:de,at swiss_only:true` |
+| `/notification` | `species` oder `genus` (Pflicht, nicht beides), `regions` (z.B. `de,at` oder `eu`), `swiss_only`, `exclude_species`, `force` | Verfügbarkeitsbenachrichtigung einrichten. `regions: eu` wird automatisch auf alle EU-Ländercodes aufgelöst. `exclude_species` schließt bestimmte Arten innerhalb einer Gattungs-Suche aus. `force: True` überspringt die Prüfung ob die Art in der DB vorkommt. Legt man dieselbe Kombination (Taxon + Regionen) erneut an, entsteht **kein Duplikat** – der bestehende Eintrag wird aktualisiert und man erhält den Hinweis „bereits aktiv – ich prüfe erneut". | `/notification species:Messor barbarus regions:de,at swiss_only:true` |
 | `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. | `/delete_notifications ids:12 15` |
 | `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). | `/history` |
 | `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. | `/testnotification` |

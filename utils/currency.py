@@ -105,7 +105,9 @@ def format_price(
         min_p = float(min_price or 0)
         max_p = float(max_price or 0)
     except (ValueError, TypeError):
-        return f"{min_price}-{max_price}{currency}"
+        mn = "?" if min_price is None else min_price
+        mx = "?" if max_price is None else max_price
+        return f"{mn}-{mx}{currency or 'EUR'}"
 
     cur = (currency or "EUR").upper()
 
