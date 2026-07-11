@@ -61,6 +61,7 @@ INITIAL_COGS = [
     "cogs.discount_codes",    # /codes /codes_rescan + Haiku-Rabattcode-Tracker
     "cogs.digest",            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
     "cogs.achievements",      # /achievements + Erfolge-Freischaltung/DM-Ping
+    "cogs.sells",             # /sells – Preisvergleich einer Art/Gattung über alle Shops
 ]
 
 

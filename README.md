@@ -556,6 +556,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
+| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, Preis in Originalwährung + EUR-Umrechnung. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -671,6 +672,25 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 
 /shopurl clear shop_id:2
 → Entfernt den Override – die API-URL wird wieder verwendet.
+```
+
+**`/sells` – Angebote einer Art/Gattung vergleichen**
+
+```text
+/sells species:aethiops
+→ Findet alle Arten, deren Name „aethiops" enthält. Gibt es Treffer für mehrere
+  Arten, aber nur für manche Angebote, wird das genannt. Pro Art: Quelle
+  (antcheck.info), Versand-Disclaimer, dann je Shop (mit Länderflagge) Produkttitel
+  + Preis in Originalwährung, bei Nicht-EUR zusätzlich die EUR-Umrechnung.
+
+/sells species:Lasius flavus
+→ Konkrete Art statt Teilname.
+
+/sells species:Camponotus
+→ Ganze Gattung: alle lagernden Camponotus-Angebote über alle Shops.
+
+/sells species:Messor barbarus country:de
+→ Nur Angebote aus Shops mit Ländercode „de".
 ```
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
@@ -797,7 +817,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
-│   └── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   └── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
@@ -811,6 +832,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält die Tabelle `prod
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
+│   ├── countries.py         # Ländercode → Flaggen-Emoji + englischer Name
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │
