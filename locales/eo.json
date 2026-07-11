@@ -56,6 +56,7 @@
   "shop_not_found_suggest": "🔍 Butiko '{shop}' ne trovita. Ĉu vi celis:\n{suggestions}",
   "shop_not_in_blacklist": "Ĉi tiu butiko ne estas en via nigralisto",
   "available_shops": "🏪 Disponiblaj butikoj & [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>):\n- {shops}",
+  "available_shops_grouped": "🏪 Disponiblaj butikoj laŭ lando & [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>):\n\n{shops}",
   "checking_availability": "🔍 Kontrolas tuj haveblecon de {species}...",
   "shopmapping_add_invalid_id": "❌ Nevalida butiko-ID.",
   "shopmapping_add_success": "✅ Mapado aldonita:\n`{external}` → `{id}` ({shop})",

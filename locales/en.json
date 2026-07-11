@@ -56,6 +56,7 @@
   "shop_not_found_suggest": "🔍 Shop '{shop}' not found. Did you mean:\n{suggestions}",
   "shop_not_in_blacklist": "ℹ️ This shop is not in your blacklist",
   "available_shops": "🏪 Available shops & [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>):\n- {shops}",
+  "available_shops_grouped": "🏪 Available shops by country & [AAM-Rating](<https://docs.google.com/spreadsheets/d/1NLPYvqpm01xNyHvrNvxgmQWYiOojyHZhKRZ1IVcYAT4/edit?usp=sharing>):\n\n{shops}",
   "checking_availability": "🔍 Checking immediate availability for {species}...",
   "shopmapping_add_invalid_id": "❌ Invalid shop ID.",
   "shopmapping_add_success": "✅ Mapping added:\n`{external}` → `{id}` ({shop})",

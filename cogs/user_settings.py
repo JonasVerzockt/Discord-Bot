@@ -32,6 +32,7 @@ from rapidfuzz import process
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, format_rating
+from utils.countries import country_label, country_name
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -208,18 +209,39 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             await ctx.respond(l10n.get("no_shops_found", lang))
             return
 
-        # Nach Bewertung sortieren
+        # Nach Bewertung sortieren (Ranking-Reihenfolge)
         filtered.sort(key=lambda s: (
             s.get("average_rating") is None,
             -(s.get("average_rating") or 0),
             s.get("name", "").lower(),
         ))
 
-        entries = [
-            f"`{s.get('id')}` | {s.get('name', '?')} - {format_rating(s.get('average_rating'))}"
-            for s in filtered
-        ]
-        text   = l10n.get("available_shops", lang, shops="\n- " + "\n- ".join(entries))
+        if country:
+            # Gefilterte Ansicht: flache Liste wie bisher
+            entries = [
+                f"`{s.get('id')}` | {s.get('name', '?')} - {format_rating(s.get('average_rating'))}"
+                for s in filtered
+            ]
+            text = l10n.get("available_shops", lang, shops="\n- " + "\n- ".join(entries))
+        else:
+            # Ohne Filter: nach Land gruppieren. Gruppen alphabetisch nach
+            # (englischem) Ländernamen; Reihenfolge INNERHALB der Gruppe bleibt
+            # die bestehende Ranking-Sortierung (filtered ist bereits sortiert).
+            groups: dict[str, list] = {}
+            for s in filtered:
+                code = (s.get("country") or "").strip().lower()
+                groups.setdefault(code, []).append(s)
+            sections = []
+            for code in sorted(groups, key=lambda c: country_name(c).lower()):
+                lines = []
+                for s in groups[code]:
+                    line = f"- {s.get('name', '?')} – {format_rating(s.get('average_rating'))}"
+                    if s.get("url"):
+                        line += f" <{s['url']}>"
+                    lines.append(line)
+                sections.append(country_label(code) + "\n" + "\n".join(lines))
+            text = l10n.get("available_shops_grouped", lang, shops="\n\n".join(sections))
+
         blocks = _split_message(text)
 
         await ctx.respond(blocks[0])
