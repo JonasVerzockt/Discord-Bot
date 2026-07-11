@@ -33,6 +33,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 16. [Datenbank](#datenbank)
 17. [Projektstruktur](#projektstruktur)
 18. [Lokalisierung](#lokalisierung)
+19. [Credits & Danksagung](#credits--danksagung)
 
 ---
 
@@ -878,5 +879,18 @@ Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server
 3. **KI-Chat:** einen System-Prompt in der neuen Sprache als `ai_chat_system_prompt_<code>.txt` anlegen **und** den Sprachcode in `config.py` in die Lade-Schleife von `AI_CHAT_SYSTEM_PROMPTS` (aktuell `for _lang in ("de", "en", "eo")`) aufnehmen. Fehlt einer der beiden Schritte, wird der Prompt nicht geladen und die KI antwortet in dieser Sprache über den englischen Fallback-Prompt (`ai_chat_system_prompt_en.txt`). Der Platzhalter `{model}` im Prompt wird automatisch durch das konfigurierte Modell ersetzt.
 
 Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dagegen sofort über die neue `locales/<code>.json` – nur der KI-Chat braucht zusätzlich die eigene Prompt-Datei.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Credits & Danksagung
+
+Dieser Bot steht auf den Schultern anderer – vielen Dank an:
+
+- **[Antony-Bot](https://github.com/deso85/Antony) von deso85** – ein großartiger Community-Bot für die Ameisenhaltung. Die Idee, Shop-Angebote **pro Variante** aufzuschlüsseln (`/sells`, `/offers`) und variantengenau zu tracken, ist von seinem `!sells`/`!offers` inspiriert. Dickes Lob und Danke dafür! 🐜👑
+- **[antcheck.info](https://antcheck.info)** – Datenquelle für Shops, Produkte, Varianten und Preise (Grabber + Preis-Tracking).
+- **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise).
+- **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
