@@ -146,7 +146,7 @@ Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar
 |-------|-------|-------------|
 | Discord User-ID + Anzeigename, genutzter Befehl (Slash-Befehle + bekannte Text-Trigger wie `!hilfe`), Parameter, Kanal, Server, Zeitstempel, Erfolg/Fehler | Moderations- und Missbrauchskontrolle (nachvollziehen, wer welche Bot-Funktionen nutzt) | Lokale SQLite-Datenbank + optional ein Mod-only-Discord-Kanal |
 
-Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen.
+Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/command_log` (nach User-ID, optional Zeitfenster) abfragen.
 
 ### Drittanbieter
 

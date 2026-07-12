@@ -29,6 +29,7 @@ dauerhaft; nur die DB-Zeilen werden nach COMMAND_LOG_RETENTION_DAYS bereinigt.
 """
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 
 import discord
@@ -37,6 +38,7 @@ from discord.ext import commands, tasks
 from config import MOD_LOG_CHANNEL_ID, COMMAND_LOG_RETENTION_DAYS
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,20 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     def cog_unload(self):
         self.flush_log.cancel()
         self.cleanup_log.cancel()
+
+    @discord.slash_command(
+        name="command_log",
+        description="(Admin) Show a user's command usage log",
+        description_localizations={"de": "(Admin) Befehls-Nutzungsprotokoll eines Users anzeigen"},
+    )
+    @admin_or_manage_messages()
+    async def command_log_cmd(
+        self,
+        ctx: discord.ApplicationContext,
+        user_id: discord.Option(str, "Discord user ID", description_localizations={"de": "Discord-User-ID", "en-US": "Discord user ID"}, required=True),  # type: ignore[valid-type]
+        period: discord.Option(str, "Time window, e.g. 1m, 1h, 1d, 1w (empty = all)", description_localizations={"de": "Zeitraum, z.B. 1m, 1h, 1d, 1w (leer = alle)", "en-US": "Time window, e.g. 1m, 1h, 1d, 1w (empty = all)"}, required=False, default=None),  # type: ignore[valid-type]
+    ):
+        await _cmdlog_query_impl(self, ctx, user_id, period)
 
     # ── Parameter aufbereiten ────────────────────────────────────────────────
     @staticmethod
@@ -213,6 +229,73 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     @cleanup_log.before_loop
     async def _before_cleanup(self):
         await self.bot.wait_until_ready()
+
+
+_QUERY_LIMIT = 100  # max. Treffer pro Abfrage (jüngste zuerst)
+_UNIT_SQL = {"m": "minutes", "h": "hours", "d": "days", "w": "days"}
+
+
+def _parse_period(text: str):
+    """'1m'/'2h'/'3d'/'1w' -> (sqlite_modifier, normalisiertes_label) oder (None, None) bei ungültig."""
+    m = re.match(r"^\s*(\d+)\s*([mhdw])\s*$", (text or "").lower())
+    if not m:
+        return None, None
+    n, unit = int(m.group(1)), m.group(2)
+    amount = n * 7 if unit == "w" else n
+    return f"-{amount} {_UNIT_SQL[unit]}", f"{n}{unit}"
+
+
+async def _cmdlog_query_impl(cog, ctx, user_id, period):
+    lang = await get_user_lang(cog.bot, ctx.author.id, ctx.guild_id)
+    uid = (user_id or "").strip()
+    if not uid.isdigit():
+        await ctx.respond(l10n.get("invalid_ids", lang), ephemeral=True)
+        return
+    await ctx.defer(ephemeral=True)
+
+    modifier = None
+    label = ""
+    if period:
+        modifier, norm = _parse_period(period)
+        if modifier is None:
+            await ctx.followup.send(l10n.get("cmdlog_bad_period", lang), ephemeral=True)
+            return
+        label = l10n.get("cmdlog_period", lang, period=norm)
+
+    base = "FROM command_log WHERE user_id=?"
+    params = [uid]
+    if modifier:
+        base += " AND created_at >= datetime('now', ?)"
+        params.append(modifier)
+
+    total_rows = await execute_db(cog.bot, f"SELECT COUNT(*) AS c {base}", tuple(params), fetch=True)
+    total = total_rows[0]["c"] if total_rows else 0
+    if not total:
+        await ctx.followup.send(l10n.get("cmdlog_none", lang, user=uid, period=label), ephemeral=True)
+        return
+
+    rows = await execute_db(
+        cog.bot,
+        f"SELECT created_at, command, params, channel_id, status {base} "
+        f"ORDER BY created_at DESC LIMIT {_QUERY_LIMIT}",
+        tuple(params), fetch=True,
+    )
+    lines = [l10n.get("cmdlog_query_header", lang, user=uid, shown=len(rows), total=total, period=label)]
+    for r in rows:
+        st = r["status"] or ""
+        mark = "❌ " if st.startswith("error") else ("💬 " if st == "text" else "")
+        p = f" {r['params']}" if r["params"] else ""
+        chan = f"<#{r['channel_id']}>" if r["channel_id"] else "?"
+        lines.append(f"{mark}`{r['created_at']}` `{r['command']}`{p} · {chan}")
+
+    chunks = _chunk_lines(lines)
+    first = True
+    for chunk in chunks:
+        embed = discord.Embed(description=chunk, color=discord.Color.dark_grey())
+        if first:
+            embed.title = l10n.get("cmdlog_title", lang)
+            first = False
+        await ctx.followup.send(embed=embed, ephemeral=True)
 
 
 def setup(bot: discord.Bot):
