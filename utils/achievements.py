@@ -40,6 +40,16 @@ class Ach:
         self.check = check      # stats -> (current, target)
 
 
+# Funktionsbereiche der User-Befehle (für 'Werkzeugkasten' / 'Komplettist').
+_USER_CMD_AREAS = {
+    "avail":     {"notification", "history", "testnotification", "delete_notifications"},
+    "price":     {"track_price", "my_price_tracking", "untrack_price", "price_history", "set_target"},
+    "browse":    {"sells", "offers"},
+    "community": {"codes", "digest", "achievements"},
+}
+_USER_COMMANDS = set().union(*_USER_CMD_AREAS.values())
+
+
 # Reihenfolge = Anzeige-Reihenfolge
 ACHIEVEMENTS = [
     Ach("first_notif", "🔔", False, "avail",     lambda s: (min(s["notif"], 1), 1)),
@@ -55,11 +65,20 @@ ACHIEVEMENTS = [
     Ach("code_bringer_2","🏷️", False, "community", lambda s: (s["codes"], 5)),
     Ach("code_bringer_3","🏷️", False, "community", lambda s: (s["codes"], 15)),
     Ach("ai_first",    "🤖", False, "community", lambda s: (min(s["ai_used"], 1), 1)),
+    # Aktivität / Nutzung
+    Ach("regular",      "📅", False, "usage", lambda s: (s["distinct_days"], 7)),
+    Ach("marathon",     "🏃", False, "usage", lambda s: (s["max_per_day"], 15)),
+    Ach("power_user",   "💪", False, "usage", lambda s: (s["cmd_total"], 100)),
+    Ach("toolbox",      "🧰", False, "usage", lambda s: (s["cmd_areas"], 4)),
+    Ach("completionist","🏆", False, "usage", lambda s: (s["cmd_user_done"], 12)),
     # Versteckte
     Ach("night_owl",   "🦉", True,  "hidden",    lambda s: (1 if s["night"] else 0, 1)),
     Ach("explorer",    "🧭", True,  "hidden",    lambda s: (s["distinct_cmds"], 8)),
     Ach("bargain",     "⚡", True,  "hidden",    lambda s: (1 if s["target_hit"] else 0, 1)),
     Ach("genus_hunter","🧬", True,  "hidden",    lambda s: (min(s["watch_genus"], 1), 1)),
+    Ach("early_bird",  "🌅", True,  "hidden",    lambda s: (1 if s["early"] else 0, 1)),
+    Ach("helpseeker",  "🆘", True,  "hidden",    lambda s: (1 if s["help_used"] else 0, 1)),
+    Ach("oops",        "🙈", True,  "hidden",    lambda s: (1 if s["had_error"] else 0, 1)),
     # Meta (wird gesondert berechnet, check bekommt s["_visible_unlocked"]/s["_visible_total"])
     Ach("all_visible", "🐜", True,  "hidden",    lambda s: (s["_visible_unlocked"], s["_visible_total"])),
 ]
@@ -91,24 +110,50 @@ async def gather_stats(bot, user_id: str, username: str | None = None) -> dict:
     s["ai_used"]         = await _count(bot, "SELECT COUNT(*) FROM ai_chat_budget WHERE user_id=?", (uid,))
 
     ev_rows = await execute_db(bot, "SELECT event, ts FROM user_events WHERE user_id=?", (uid,), fetch=True) or []
-    cmds, night, target_hit = set(), False, False
+    cmd_set, night, early, target_hit = set(), False, False, False
+    cmd_total = 0
+    per_day: dict[str, int] = {}
     for r in ev_rows:
         ev = r["event"] if not isinstance(r, (tuple, list)) else r[0]
         ts = r["ts"]    if not isinstance(r, (tuple, list)) else r[1]
         if ev == "target_hit":
             target_hit = True
         elif ev.startswith("cmd:"):
-            cmds.add(ev)
+            cmd_set.add(ev[4:])
+            cmd_total += 1
+            day = str(ts)[:10]
+            if len(day) == 10:
+                per_day[day] = per_day.get(day, 0) + 1
         # ts-Format: 'YYYY-MM-DD HH:MM:SS' (UTC von SQLite)
         try:
             hour = int(str(ts)[11:13])
             if hour in (2, 3):
                 night = True
+            if hour in (5, 6):
+                early = True
         except (ValueError, IndexError):
             pass
-    s["distinct_cmds"] = len(cmds)
+    s["distinct_cmds"] = len(cmd_set)
+    s["cmd_set"]       = cmd_set
+    s["cmd_total"]     = cmd_total
+    s["distinct_days"] = len(per_day)
+    s["max_per_day"]   = max(per_day.values()) if per_day else 0
     s["night"]         = night
+    s["early"]         = early
     s["target_hit"]    = target_hit
+    s["help_used"]     = "help" in cmd_set
+    s["cmd_areas"]     = sum(1 for cmds in _USER_CMD_AREAS.values() if cmd_set & cmds)
+    s["cmd_user_done"] = len(cmd_set & _USER_COMMANDS)
+
+    # Fehlversuche kennt nur command_log (user_events speichert keine Fehler) – 'Ups!'
+    try:
+        s["had_error"] = (await _count(
+            bot,
+            "SELECT COUNT(*) FROM command_log WHERE user_id=? AND status LIKE 'error%'",
+            (uid,),
+        )) > 0
+    except Exception:
+        s["had_error"] = False
     return s
 
 

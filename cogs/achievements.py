@@ -33,7 +33,7 @@ from utils.achievements import (
 
 logger = logging.getLogger(__name__)
 
-_CATS = ["avail", "price", "community", "hidden"]
+_CATS = ["avail", "price", "community", "usage", "hidden"]
 
 
 def _bar(cur: int, tgt: int, width: int = 5) -> str:

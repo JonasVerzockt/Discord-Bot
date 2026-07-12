@@ -524,6 +524,11 @@ Sammelbare Achievements – **rein persönlich, ohne Rollen**. Abrufbar per `/ac
 | 🏷️ | Code-Sammler | 5 Rabattcodes gepostet |
 | 🏷️ | Code-Meister | 15 Rabattcodes gepostet |
 | 🤖 | KI-Neugier | Den KI-Chat einmal genutzt |
+| 📅 | Stammgast | An 7 verschiedenen Tagen Befehle genutzt |
+| 🏃 | Marathon | 15 Befehle an einem einzigen Tag |
+| 💪 | Power-User | Insgesamt 100 Befehle ausgeführt |
+| 🧰 | Werkzeugkasten | Befehle aus allen vier Bereichen (Verfügbarkeit, Preis, Stöbern, Community) genutzt |
+| 🏆 | Komplettist | 12 verschiedene der wichtigsten Befehle eingesetzt |
 
 Die Reihe **Code-Bringer / Code-Sammler / Code-Meister** ist derselbe Erfolg in drei Stufen (1 / 5 / 15 gepostete Rabattcodes).
 
