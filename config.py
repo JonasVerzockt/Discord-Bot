@@ -28,7 +28,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "0.2.7"
+VERSION = "0.2.8"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -80,6 +80,14 @@ DISCOUNT_VISION_ENABLED = os.getenv("DISCOUNT_VISION_ENABLED", "true").lower() =
 DISCOUNT_VISION_MAX_IMAGES = int(os.getenv("DISCOUNT_VISION_MAX_IMAGES", "4"))
 # Max. Bildgröße in Bytes (wie beim KI-Chat: 4 MB). Größere werden übersprungen.
 DISCOUNT_VISION_MAX_BYTES = int(os.getenv("DISCOUNT_VISION_MAX_BYTES", "4000000"))
+
+# ── Command-Log (Moderation) ──────────────────────────────────────────────────
+# Kanal-ID für das gebündelte Befehls-Log (0/leer = kein Kanal-Post; DB-Log läuft
+# trotzdem). Wird von Jonas selbst gesetzt.
+MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", "0"))
+# Aufbewahrung der Log-Zeilen in der DB (Tage). 365 = zweckgebunden für Moderation
+# (siehe NUTZUNGSBEDINGUNGEN). Kanal-Nachrichten werden NICHT automatisch gelöscht.
+COMMAND_LOG_RETENTION_DAYS = int(os.getenv("COMMAND_LOG_RETENTION_DAYS", "365"))
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)

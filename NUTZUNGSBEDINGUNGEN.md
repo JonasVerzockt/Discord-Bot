@@ -140,6 +140,14 @@ Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest ac
 
 Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar), es werden **keine Rollen** vergeben und nichts öffentlich angezeigt. Es werden keine Nachrichteninhalte gespeichert, nur Befehlsnamen und Zeitstempel.
 
+#### Befehls-Log (Moderation)
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID + Anzeigename, genutzter Befehl (Slash-Befehle + bekannte Text-Trigger wie `!hilfe`), Parameter, Kanal, Server, Zeitstempel, Erfolg/Fehler | Moderations- und Missbrauchskontrolle (nachvollziehen, wer welche Bot-Funktionen nutzt) | Lokale SQLite-Datenbank + optional ein Mod-only-Discord-Kanal |
+
+Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen.
+
 ### Drittanbieter
 
 #### Anthropic (KI-Verarbeitung)
@@ -183,6 +191,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **AI-Chat-Budgetdaten** (User-ID + Tageskosten) werden nach dem jeweiligen Tag automatisch nicht mehr genutzt; eine manuelle Bereinigung erfolgt bei Bedarf.
 - **Rabattcodes** (extrahierte Codes inkl. Quell-Username und Scan-Historie) werden gespeichert, solange sie für die Community relevant sind; eine Bereinigung erfolgt bei Bedarf manuell.
 - **Digest-Anmeldung** (nur User-ID) wird gespeichert, bis du dich per `/digest action:deaktivieren` abmeldest.
+- **Befehls-Nutzungsprotokoll** wird **12 Monate** in der lokalen Datenbank vorgehalten und danach automatisch gelöscht. Diese Dauer ist zweckgebunden für die Moderations- und Missbrauchskontrolle (ein voller Jahreszyklus erlaubt das Nachvollziehen wiederkehrender/saisonaler Muster, Ban-Evasion und später auftauchender Streitfälle) und an gängige Praxis für Moderations-/Audit-Logs angelehnt – sie ist **keine** gesetzlich vorgeschriebene Höchstfrist (die DSGVO nennt keine feste Frist; maßgeblich ist die Speicherbegrenzung nach Art. 5 Abs. 1 lit. e). Im Mod-Kanal gepostete Übersichten bleiben bestehen.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte

@@ -33,6 +33,7 @@
   "system_file_missing": "❌ File not found",
   "system_error": "❌ Error retrieving status",
   "help_full": "**📚 Command overview**\n\n**For all users:**\n{user_commands}\n\n**Admin / Manage Messages only:**\n{admin_commands}{ai_section}",
+  "cmdlog_title": "🛡️ Command log",
   "help_notification": "🔔 `/notification` – Set up an availability notification (species, genus, regions, CH-only, exclusions)",
   "help_history": "📜 `/history` – Show your notification history",
   "help_test": "📨 `/testnotification` – Send a test DM to yourself",

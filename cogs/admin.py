@@ -212,6 +212,9 @@ class AdminCog(commands.Cog, name="Admin"):
                 data["events"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM user_events WHERE user_id=?", (uid,), fetch=True)]
 
+                data["command_log"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM command_log WHERE user_id=?", (uid,), fetch=True)]
+
                 try:
                     ai_hist = await execute_db(
                         self.bot,
@@ -269,6 +272,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 "digest_subscribers",
                 "achievements",
                 "user_events",
+                "command_log",
                 "discount_codes",
                 "review_tracking",
                 "review_pending",

@@ -33,6 +33,7 @@
   "system_file_missing": "❌ Dosiero ne trovita",
   "system_error": "❌ Eraro dum ricevo de stato",
   "help_full": "**📚 Komandotrarigardo**\n\n**Por ĉiuj uzantoj:**\n{user_commands}\n\n**Nur administrantoj / Administri mesaĝojn:**\n{admin_commands}{ai_section}",
+  "cmdlog_title": "🛡️ Komando-protokolo",
   "help_notification": "🔔 `/notification` – Agordi haveblecoscigon (specio, genro, regionoj, CH-nur, esceptoj)",
   "help_history": "📜 `/history` – Montri vian sciighistorion",
   "help_test": "📨 `/testnotification` – Sendi provan DM al vi mem",

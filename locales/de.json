@@ -33,6 +33,7 @@
   "system_file_missing": "❌ Datei nicht gefunden",
   "system_error": "❌ Fehler beim Abrufen des Status",
   "help_full": "**📚 Befehlsübersicht**\n\n**Für alle User:**\n{user_commands}\n\n**Nur Admin / Nachrichten verwalten:**\n{admin_commands}{ai_section}",
+  "cmdlog_title": "🛡️ Befehls-Log",
   "help_notification": "🔔 `/notification` – Verfügbarkeitsbenachrichtigung einrichten (Art, Gattung, Regionen, CH-only, Ausschlüsse)",
   "help_history": "📜 `/history` – Deine Benachrichtigungshistorie anzeigen",
   "help_test": "📨 `/testnotification` – Test-DM an dich selbst senden",

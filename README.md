@@ -123,6 +123,10 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
 # DISCOUNT_VISION_MAX_BYTES=4000000        # Max. Bildgröße in Bytes (4 MB)
 
+# ── Command-Log (Moderation, optional) ────────────────────────
+# MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
+# COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
+
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
 # SHOPS_DATA_FILE=/pfad/zu/shops_data.json  # Voller Pfad-Override (statt DATA_DIRECTORY)
@@ -776,6 +780,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `known_shops` | Baseline bekannter Shops (Diff für „neue Shops" im Digest) |
 | `achievements` | Freigeschaltete Erfolge pro User (user_id, achievement_id, Datum) |
 | `user_events` | Leichtes Event-Log (Befehlsnutzung, Zielpreis-Treffer) für Aktions-/Versteckt-Erfolge |
+| `command_log` | Befehls-Nutzungsprotokoll (User, Befehl, Parameter, Kanal, Zeit, Erfolg/Fehler) für Moderation; sensible Parameter ausgeblendet, DB-Retention 12 Monate |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -822,6 +827,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   ├── command_log.py       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   └── offers.py            # /offers: alle lagernden Angebote eines Shops
 │
