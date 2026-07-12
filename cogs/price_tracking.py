@@ -413,7 +413,7 @@ class SpeciesWatchConfirmView(_BaseView):
         normalized = self.species_normalized
         is_genus   = 1 if " " not in normalized.strip() else 0
 
-        await execute_db(
+        rc = await execute_db(
             self.bot,
             """INSERT INTO user_species_watch (user_id, species, is_genus)
                VALUES (?, ?, ?)
@@ -431,10 +431,12 @@ class SpeciesWatchConfirmView(_BaseView):
         except Exception:
             pass
         await interaction.response.edit_message(
-            content=l10n.get("pt_species_watch_saved", self.lang, species=self.species_raw),
+            content=l10n.get(
+                "pt_species_watch_saved" if rc else "pt_species_watch_already",
+                self.lang, species=self.species_raw),
             view=self,
         )
-        if interaction.channel:
+        if rc and interaction.channel:
             await interaction.channel.send(
                 l10n.get(
                     "pt_species_watch_announced", self.lang,
@@ -711,6 +713,7 @@ class ConfirmView(_BaseView):
         user_id    = str(self.owner_id)
         shop_name  = self.shop_info.get("name", self.shop_id)
         saved      = 0
+        already    = 0
 
         for p in self.selected:
             pid = p.get("id")
@@ -745,7 +748,7 @@ class ConfirmView(_BaseView):
                     baseline_max = max_p
                     currency = p.get("currency_iso") or "EUR"
 
-            await execute_db(
+            rc = await execute_db(
                 self.bot,
                 """INSERT INTO user_price_tracking
                    (user_id, product_id, variant_id, variant_title, species,
@@ -765,13 +768,20 @@ class ConfirmView(_BaseView):
                 ),
                 commit=True,
             )
-            saved += 1
+            if rc:
+                saved += 1
+            else:
+                already += 1
 
         self.disable_all_items()
-        await interaction.response.edit_message(
-            content=l10n.get("pt_saved", self.lang, count=saved),
-            view=self,
-        )
+        if saved and already:
+            content = (l10n.get("pt_saved", self.lang, count=saved) + "\n"
+                       + l10n.get("pt_already_tracked", self.lang, count=already))
+        elif already:
+            content = l10n.get("pt_already_tracked", self.lang, count=already)
+        else:
+            content = l10n.get("pt_saved", self.lang, count=saved)
+        await interaction.response.edit_message(content=content, view=self)
         if saved > 0 and interaction.channel:
             await interaction.channel.send(
                 l10n.get(
