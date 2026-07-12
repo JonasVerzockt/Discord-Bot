@@ -29,6 +29,7 @@ from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
 from utils.shop import set_mapping, remove_mapping, all_mappings
+from utils.text_chunks import send_chunked
 from cogs.server_settings import admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
@@ -115,8 +116,7 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
                 lines.append(f"• `{identifier}` → `{url}`")
             else:
                 lines.append(l10n.get("shopmap_pending_line", lang, identifier=identifier))
-        text = "\n".join(lines)
-        await ctx.respond(text[:1990], ephemeral=True)
+        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
 
 
 def setup(bot: discord.Bot):
