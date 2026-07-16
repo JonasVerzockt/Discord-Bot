@@ -37,7 +37,7 @@ from utils.availability import load_shop_data
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from config import SHOPS_DATA_FILE, VERSION
 from utils.timez import BERLIN
-from utils.embeds import send_embeds
+from utils.embeds import send_embeds, EMBED_COLOR, ADMIN_COLOR
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,7 @@ class StatsCog(commands.Cog, name="Stats"):
                     deleted_total=deleted_total,
                     top_species=top_species,
                 ),
+                color=ADMIN_COLOR,
             )
         except Exception as e:
             logger.error(f"❌ stats error: {e}")
@@ -141,6 +142,7 @@ class StatsCog(commands.Cog, name="Stats"):
                     integrity=integrity, total=total, file_status=file_status,
                 ),
                 ephemeral=True,
+                color=ADMIN_COLOR,
             )
             await send_embeds(
                 ctx,
@@ -152,6 +154,7 @@ class StatsCog(commands.Cog, name="Stats"):
                     system=f"{platform.system()} {platform.release()}",
                 ),
                 ephemeral=True,
+                color=ADMIN_COLOR,
             )
         except Exception as e:
             logger.error(f"❌ system error: {e}")
@@ -216,7 +219,7 @@ class StatsCog(commands.Cog, name="Stats"):
         """Baut die Hilfe als eine oder mehrere Embeds (umgeht das 2000-Zeichen-Limit)."""
         text = self._build_help_text(lang)
         return [
-            discord.Embed(description=chunk, color=discord.Color.blurple())
+            discord.Embed(description=chunk, color=EMBED_COLOR)
             for chunk in self._help_chunks(text)
         ]
 

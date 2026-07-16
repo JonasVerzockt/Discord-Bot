@@ -39,6 +39,7 @@ from config import MOD_LOG_CHANNEL_ID, COMMAND_LOG_RETENTION_DAYS
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.timez import now_berlin, berlin_from_utc_naive
+from utils.embeds import ADMIN_COLOR
 from cogs.server_settings import admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
@@ -201,7 +202,7 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
 
         try:
             for i, chunk in enumerate(_chunk_lines(lines)):
-                embed = discord.Embed(description=chunk, color=discord.Color.dark_grey())
+                embed = discord.Embed(description=chunk, color=ADMIN_COLOR)
                 if i == 0:
                     embed.title = l10n.get("cmdlog_title", lang)
                 await channel.send(embed=embed)
@@ -293,7 +294,7 @@ async def _cmdlog_query_impl(cog, ctx, user_id, period):
     chunks = _chunk_lines(lines)
     first = True
     for chunk in chunks:
-        embed = discord.Embed(description=chunk, color=discord.Color.dark_grey())
+        embed = discord.Embed(description=chunk, color=ADMIN_COLOR)
         if first:
             embed.title = l10n.get("cmdlog_title", lang)
             first = False

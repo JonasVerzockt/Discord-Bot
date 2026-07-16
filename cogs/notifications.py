@@ -544,7 +544,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             if has_pt or has_sw:
                 embed = discord.Embed(
                     title=l10n.get("history_pt_title", lang),
-                    color=discord.Color.blurple(),
+                    color=EMBED_COLOR,
                 )
                 if has_pt:
                     embed.add_field(
