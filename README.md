@@ -73,7 +73,7 @@ pip install -r requirements.txt
 | `anthropic>=0.25.0` | Claude Haiku KI-Parser |
 | `gspread>=6.0.0` | Google Sheets |
 | `google-auth>=2.0.0` | Google Auth |
-| `requests>=2.31.0` | HTTP (Grabber + Frankfurter Währungs-API) |
+| `requests>=2.31.0` | HTTP (Grabber + Währungs-APIs) |
 | `rapidfuzz>=3.0.0` | Fuzzy Shop-Matching |
 | `psutil>=5.9.0` | System-Stats (`/system`) |
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
@@ -266,7 +266,7 @@ Für alle `active`-Benachrichtigungen:
 
 **4. DM bei Fund**
 
-Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache). Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet (max. 8 pro Produkt, Rest als „… und X weitere") – die Produkt-Preisspanne bleibt als Übersicht erhalten:
+Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (EZB, kostenlos, kein API-Key, 6-Stunden-Cache); für Währungen außerhalb der EZB (z. B. TWD) dient die offene [fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api) als Fallback. Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet (max. 8 pro Produkt, Rest als „… und X weitere") – die Produkt-Preisspanne bleibt als Übersicht erhalten:
 
 ```
 34.49CAD (ca. 23.50€)
@@ -842,7 +842,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
 │   ├── availability.py      # Verfügbarkeitsprüfung gegen shops_data.json
-│   ├── currency.py          # Währungsumrechnung via Frankfurter API (6h Cache)
+│   ├── currency.py          # Währungsumrechnung: Frankfurter (EZB) + fawazahmed0-Fallback (6h)
 │   ├── sheet.py             # Google Sheets Cache (SheetCache) + Rating-Sync
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
@@ -904,7 +904,8 @@ Dieser Bot steht auf den Schultern anderer – vielen Dank an:
 
 - **[Antony-Bot](https://github.com/deso85/Antony) von deso85** – ein großartiger Community-Bot für die Ameisenhaltung. Die Idee, Shop-Angebote **pro Variante** aufzuschlüsseln (`/sells`, `/offers`) und variantengenau zu tracken, ist von seinem `!sells`/`!offers` inspiriert. Dickes Lob und Danke dafür! 🐜👑
 - **[antcheck.info](https://antcheck.info)** – Datenquelle für Shops, Produkte, Varianten und Preise (Grabber + Preis-Tracking).
-- **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise).
+- **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise, EZB-Kurse).
+- **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api)** – offene, key-lose Wechselkurse als Fallback (150+ Währungen inkl. TWD).
 - **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
