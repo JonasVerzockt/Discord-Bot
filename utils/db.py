@@ -300,6 +300,21 @@ CREATE TABLE IF NOT EXISTS user_events (
     ts      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events (user_id);
+
+-- Befehls-Nutzungsprotokoll (Moderation); Kanal-Posts separat, DB-Retention per Cleanup
+CREATE TABLE IF NOT EXISTS command_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     TEXT,
+    user_name   TEXT,
+    command     TEXT,
+    params      TEXT,
+    channel_id  TEXT,
+    server_id   TEXT,
+    status      TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_command_log_created ON command_log (created_at);
+CREATE INDEX IF NOT EXISTS idx_command_log_user ON command_log (user_id);
 """
 
 # Standard EU-Länder (falls DB noch leer)

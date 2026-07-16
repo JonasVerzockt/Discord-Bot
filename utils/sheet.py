@@ -97,6 +97,14 @@ class SheetCache:
             for i, v in enumerate(row):
                 self._rows[row_num - 1][i] = str(v) if v is not None else ""
 
+    def clear_row(self, row_num: int) -> None:
+        """Leert die Zellen A–I einer Zeile. Die Zeilennummer bleibt stabil
+        (nichts rutscht nach), damit bestehende Tracking-Zuordnungen gueltig
+        bleiben. Haelt den Cache aktuell."""
+        self.ws.batch_clear([f"A{row_num}:I{row_num}"])
+        if 1 <= row_num <= len(self._rows):
+            self._rows[row_num - 1] = [""] * 26
+
 
 # Singleton – wird von allen Cogs und Utils geteilt
 sheet = SheetCache()

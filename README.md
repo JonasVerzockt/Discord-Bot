@@ -123,6 +123,10 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
 # DISCOUNT_VISION_MAX_BYTES=4000000        # Max. Bildgröße in Bytes (4 MB)
 
+# ── Command-Log (Moderation, optional) ────────────────────────
+# MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
+# COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
+
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
 # SHOPS_DATA_FILE=/pfad/zu/shops_data.json  # Voller Pfad-Override (statt DATA_DIRECTORY)
@@ -191,6 +195,8 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 | Negativ | `Preis etwas hoch` |
 
 **Sheet-Struktur:** Spalten A–I werden pro Bewertung in das Google Sheet „Rohdaten" geschrieben.
+
+**Löschen:** Löscht ein User (oder ein Mod) seine Bewertungs-Nachricht im Review-Kanal, leert der Bot automatisch die zugehörige Sheet-Zeile (Spalten A–I) und entfernt den DB-Tracking-Eintrag. Die Zeile wird nur **geleert**, nicht physisch entfernt – so bleiben alle übrigen Zeilennummern stabil; leere Zeilen werden beim Reconcile ohnehin übersprungen. Funktioniert auch bei Massen-/Bulk-Löschungen. Bei mehrteiligen (zusammengeführten) Bewertungen ist die **erste** Nachricht der Anker: Löschen der Anker-Nachricht leert die Zeile, das Löschen einer reinen Fortsetzungsnachricht nicht.
 
 ### Reaktionssystem
 
@@ -520,6 +526,11 @@ Sammelbare Achievements – **rein persönlich, ohne Rollen**. Abrufbar per `/ac
 | 🏷️ | Code-Sammler | 5 Rabattcodes gepostet |
 | 🏷️ | Code-Meister | 15 Rabattcodes gepostet |
 | 🤖 | KI-Neugier | Den KI-Chat einmal genutzt |
+| 📅 | Stammgast | An 7 verschiedenen Tagen Befehle genutzt |
+| 🏃 | Marathon | 15 Befehle an einem einzigen Tag |
+| 💪 | Power-User | Insgesamt 100 Befehle ausgeführt |
+| 🧰 | Werkzeugkasten | Befehle aus allen vier Bereichen (Verfügbarkeit, Preis, Stöbern, Community) genutzt |
+| 🏆 | Komplettist | 12 verschiedene der wichtigsten Befehle eingesetzt |
 
 Die Reihe **Code-Bringer / Code-Sammler / Code-Meister** ist derselbe Erfolg in drei Stufen (1 / 5 / 15 gepostete Rabattcodes).
 
@@ -586,6 +597,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
+| `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
 | `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
 | `/shopmap list` | – | Alle Shop-Zuordnungen anzeigen (inkl. noch offener). | `/shopmap list` |
 | `/shopmap remove` | `identifier` | Eine Shop-Zuordnung entfernen. | `/shopmap remove identifier:Home of Insects` |
@@ -776,6 +788,7 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `known_shops` | Baseline bekannter Shops (Diff für „neue Shops" im Digest) |
 | `achievements` | Freigeschaltete Erfolge pro User (user_id, achievement_id, Datum) |
 | `user_events` | Leichtes Event-Log (Befehlsnutzung, Zielpreis-Treffer) für Aktions-/Versteckt-Erfolge |
+| `command_log` | Befehls-Nutzungsprotokoll (User, Befehl, Parameter, Kanal, Zeit, Erfolg/Fehler) für Moderation; sensible Parameter ausgeblendet, DB-Retention 12 Monate |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -822,6 +835,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   ├── command_log.py       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   └── offers.py            # /offers: alle lagernden Angebote eines Shops
 │

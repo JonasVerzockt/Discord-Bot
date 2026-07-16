@@ -50,6 +50,7 @@ INITIAL_COGS = [
     "cogs.user_settings",     # /usersetting language / blacklist_* / shop_list
     "cogs.notifications",     # /notification / /delete_notifications / /history / /testnotification
     "cogs.stats",             # /stats / /system / /help
+    "cogs.command_log",       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
     "cogs.shop_admin",        # /reloadshops / /shopmapping / /ch_delivery
     "cogs.shop_mapping",      # /shopmap set|list|remove (Review-CSV: Shop-Text → URL)
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)

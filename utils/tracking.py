@@ -58,6 +58,16 @@ async def set_tracking(bot, message_id: str, sheet_row: int) -> None:
     )
 
 
+async def remove_tracking(bot, message_id: str) -> None:
+    """Entfernt das Tracking (Message -> Sheet-Zeile) fuer eine Nachricht."""
+    await execute_db(
+        bot,
+        "DELETE FROM review_tracking WHERE message_id=?",
+        (message_id,),
+        commit=True,
+    )
+
+
 async def get_all_tracking(bot) -> dict[str, int]:
     """Gibt das komplette Tracking als Dict zurück."""
     rows = await execute_db(bot, "SELECT message_id, sheet_row FROM review_tracking", fetch=True)

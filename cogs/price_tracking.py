@@ -39,6 +39,7 @@ from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants
+from utils.text_chunks import send_chunked
 from utils.currency import ensure_rates, format_price
 from utils.achievements import log_event, check_and_grant
 
@@ -1058,10 +1059,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             msg_parts.append("\n".join(lines))
 
         msg = "\n\n".join(msg_parts)
-        if len(msg) > 2000:
-            msg = msg[:1990] + "…"
-
-        await ctx.followup.send(msg, ephemeral=True)
+        await send_chunked(ctx, msg, ephemeral=True)
 
     # ── /untrack_price ────────────────────────────────────────────────────────
 

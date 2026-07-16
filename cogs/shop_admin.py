@@ -36,6 +36,7 @@ from rapidfuzz import process
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data
+from utils.text_chunks import send_chunked
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             shop_name = shop_data.get(str(r["shop_id"]), {}).get("name", str(r["shop_id"]))
             lines.append(l10n.get("shopmapping_show_entry", lang,
                                    external=r["external_name"], id=r["shop_id"], shop=shop_name))
-        await ctx.respond("\n".join(lines), ephemeral=True)
+        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
 
     @shopmapping.command(name="remove", description="Remove an external shop name mapping", description_localizations={"de": "Eine Shopnamen-Zuordnung entfernen"})
     @admin_or_manage_messages()
@@ -248,7 +249,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                 "ch_delivery_entry", lang,
                 shop=shop_name, user=f"<@{r['added_by']}>", timestamp=r["added_at"],
             ))
-        await ctx.respond("\n".join(lines), ephemeral=True)
+        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
 
 
     # ── /shopurl ──────────────────────────────────────────────────────────────
@@ -331,7 +332,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                 "shopurl_list_entry", lang,
                 shop=r["name"], id=r["id"], url=r["url_override"],
             ))
-        await ctx.respond("\n".join(lines), ephemeral=True)
+        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
 
 
 def setup(bot: discord.Bot):
