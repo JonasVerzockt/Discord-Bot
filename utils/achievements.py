@@ -25,6 +25,7 @@ import logging
 
 from utils.db import execute_db
 from utils.localization import l10n
+from utils.embeds import send_embeds_to
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,7 @@ async def check_and_grant(bot, user, lang: str = "en") -> list:
             try:
                 title = l10n.get(f"ach_{a.id}_t", lang)
                 desc  = l10n.get(f"ach_{a.id}_d", lang)
-                await user.send(l10n.get("ach_new_dm", lang, emoji=a.emoji, title=title, desc=desc))
+                await send_embeds_to(user, l10n.get("ach_new_dm", lang, emoji=a.emoji, title=title, desc=desc))
             except Exception:
                 pass  # DMs gesperrt o.ä. – Freischaltung bleibt trotzdem
     return results

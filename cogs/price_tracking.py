@@ -40,7 +40,7 @@ from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants
 from utils.text_chunks import send_chunked
-from utils.embeds import send_embeds
+from utils.embeds import send_embeds, send_embeds_to
 from utils.currency import ensure_rates, format_price
 from utils.achievements import log_event, check_and_grant
 
@@ -1372,7 +1372,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         )
 
         try:
-            await user.send(msg)
+            await send_embeds_to(user, msg)
         except discord.Forbidden:
             await self._fallback_server_message(user_id, msg)
         except Exception as e:
@@ -1431,7 +1431,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     msg += "\n" + l10n.get(rkey, lang, variant=reason["variant"], old=op, new=np)
 
         try:
-            await user.send(msg)
+            await send_embeds_to(user, msg)
             logger.info(
                 "📩 Preis-Benachrichtigung: user=%s product=%s %s→%s",
                 user_id_str, row["product_id"],
@@ -1482,7 +1482,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             url=row["product_url"] or "",
         )
         try:
-            await user.send(msg)
+            await send_embeds_to(user, msg)
             logger.info(
                 "🎯 Zielpreis-DM: user=%s product=%s ziel=%s",
                 user_id_str, row["product_id"], target,

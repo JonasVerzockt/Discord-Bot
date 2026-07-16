@@ -48,7 +48,7 @@ from utils.availability import (
     available_variants,
 )
 from utils.currency import ensure_rates, format_price
-from utils.embeds import send_embeds
+from utils.embeds import send_embeds, EMBED_COLOR
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -187,7 +187,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                         vlines += "\n" + l10n.get("availability_variants_more", lang, count=extra)
                     entry += "\n" + l10n.get("availability_variants", lang, variants=vlines)
                 entries.append(entry)
-            chunks = split_availability_messages(entries)
+            chunks = split_availability_messages(entries, max_length=4000)
 
             try:
                 last_idx = len(chunks) - 1
@@ -196,7 +196,9 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                         TrackFromAlertView(self.bot, species, int(user_id), lang)
                         if i == last_idx else None
                     )
-                    await user.send(chunk, view=view)
+                    await user.send(
+                        embed=discord.Embed(description=chunk, color=EMBED_COLOR), view=view
+                    )
             except discord.Forbidden:
                 await self._handle_dm_failure(user_id, species, regions, lang)
                 return None
