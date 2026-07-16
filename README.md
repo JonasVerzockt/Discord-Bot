@@ -196,6 +196,8 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 
 **Sheet-Struktur:** Spalten A–I werden pro Bewertung in das Google Sheet „Rohdaten" geschrieben.
 
+**Löschen:** Löscht ein User (oder ein Mod) seine Bewertungs-Nachricht im Review-Kanal, leert der Bot automatisch die zugehörige Sheet-Zeile (Spalten A–I) und entfernt den DB-Tracking-Eintrag. Die Zeile wird nur **geleert**, nicht physisch entfernt – so bleiben alle übrigen Zeilennummern stabil; leere Zeilen werden beim Reconcile ohnehin übersprungen. Funktioniert auch bei Massen-/Bulk-Löschungen. Bei mehrteiligen (zusammengeführten) Bewertungen ist die **erste** Nachricht der Anker: Löschen der Anker-Nachricht leert die Zeile, das Löschen einer reinen Fortsetzungsnachricht nicht.
+
 ### Reaktionssystem
 
 | Reaktion | Bedeutung |

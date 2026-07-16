@@ -201,6 +201,7 @@ Du hast jederzeit das Recht auf **Auskunft, Berichtigung oder Löschung** deiner
 - Benachrichtigungen und zugehörige Einstellungen kannst du selbst per `/delete_notifications` löschen.
 - Eine Übersicht deiner aktiven Benachrichtigungen und Preis-Tracking-Einträge erhältst du per `/history`.
 - Preis-Tracking-Einträge kannst du selbst per `/untrack_price` entfernen.
+- Eine von dir abgegebene Bewertung kannst du selbst entfernen, indem du deine Bewertungs-Nachricht im Review-Kanal löschst – der Bot leert dann automatisch die zugehörige Zeile in der Bewertungsübersicht.
 - Für alle weiteren Anfragen (Auskunft, manuelle Löschung) wende dich an:  
   📧 aam-bot@proton.me
 

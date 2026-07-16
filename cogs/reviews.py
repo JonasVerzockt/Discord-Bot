@@ -36,7 +36,7 @@ from datetime import datetime, timezone, timedelta
 from config import REVIEW_CHANNEL_ID, SCAN_DAYS, ACCUMULATION_DELAY
 from utils.sheet import sheet
 from utils.tracking import (
-    get_tracking, set_tracking, get_all_tracking,
+    get_tracking, set_tracking, get_all_tracking, remove_tracking,
     get_pending, set_pending, remove_pending, get_all_pending,
 )
 from utils.shop import (
@@ -331,6 +331,53 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             await self._mark_unresolvable(message, e)
         except Exception as e:
             await self._mark_error(message, e)
+
+
+    # ── Loeschungen: Nachricht weg -> Sheet-Zeile leeren + DB bereinigen ─────────
+    async def _handle_deletions(self, message_ids: list[str]) -> None:
+        """Leert fuer jede geloeschte Review-Nachricht die zugehoerige Sheet-Zeile
+        (Inhalt raus, Zeilennummer bleibt stabil) und raeumt DB-Eintraege auf."""
+        async with self._sheet_lock:
+            for mid in message_ids:
+                row_num = await get_tracking(self.bot, mid)
+                cleared = False
+                if row_num is not None:
+                    if row_num <= sheet.row_count:
+                        try:
+                            await asyncio.to_thread(sheet.clear_row, row_num)
+                            cleared = True
+                            logger.info(
+                                f"🗑️  Review-Nachricht {mid} geloescht → Sheet-Zeile "
+                                f"{row_num} geleert"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Sheet-Zeile {row_num} leeren fehlgeschlagen "
+                                f"({mid}): {e}", exc_info=True
+                            )
+                    else:
+                        cleared = True  # Zeile existiert nicht (mehr) -> nur DB
+                        logger.warning(
+                            f"Loeschung {mid}: Zeile {row_num} ausserhalb des Sheets "
+                            f"({sheet.row_count} Zeilen) – nur DB bereinigt"
+                        )
+                    # Tracking nur entfernen, wenn das Sheet sauber ist (sonst spaeter erneut)
+                    if cleared:
+                        await remove_tracking(self.bot, mid)
+                # Pending immer mitbereinigen (Nachricht war evtl. noch nicht im Sheet)
+                await remove_pending(self.bot, mid)
+
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
+        if payload.channel_id != REVIEW_CHANNEL_ID:
+            return
+        await self._handle_deletions([str(payload.message_id)])
+
+    @commands.Cog.listener()
+    async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent):
+        if payload.channel_id != REVIEW_CHANNEL_ID:
+            return
+        await self._handle_deletions([str(mid) for mid in payload.message_ids])
 
 
 def setup(bot: discord.Bot) -> None:
