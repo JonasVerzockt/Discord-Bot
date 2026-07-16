@@ -31,6 +31,7 @@ from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 from cogs.sells import _price_md, _chunks, _read_fetched_at
+from utils.text_chunks import chunk_lines
 
 
 class OffersCog(commands.Cog, name="Offers"):
@@ -116,8 +117,10 @@ class OffersCog(commands.Cog, name="Offers"):
         parts.append("")
         parts.append(l10n.get("sells_footer", lang, ts=_read_fetched_at() or "?"))
 
-        for chunk in _chunks("\n".join(parts)):
-            await ctx.followup.send(chunk)
+        for chunk in chunk_lines("\n".join(parts), 4000):
+            await ctx.followup.send(
+                embed=discord.Embed(description=chunk, color=discord.Color.blurple())
+            )
 
 
 def setup(bot: discord.Bot):

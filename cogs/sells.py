@@ -35,6 +35,7 @@ from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, normalize_species_name
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
+from utils.text_chunks import chunk_lines
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 
@@ -211,8 +212,10 @@ class SellsCog(commands.Cog, name="Sells"):
 
         parts.append(l10n.get("sells_footer", lang, ts=_read_fetched_at() or "?"))
 
-        for chunk in _chunks("\n".join(parts)):
-            await ctx.followup.send(chunk)
+        for chunk in chunk_lines("\n".join(parts), 4000):
+            await ctx.followup.send(
+                embed=discord.Embed(description=chunk, color=discord.Color.blurple())
+            )
 
 
 def setup(bot: discord.Bot):
