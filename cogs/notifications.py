@@ -48,6 +48,7 @@ from utils.availability import (
     available_variants,
 )
 from utils.currency import ensure_rates, format_price
+from utils.embeds import send_embeds
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -516,7 +517,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             if buckets[bucket]:
                 lines.append(l10n.get(key, lang))
                 lines.extend(f"  {e}" for e in buckets[bucket])
-        await ctx.respond("\n".join(lines), ephemeral=True)
+        await send_embeds(ctx, "\n".join(lines), ephemeral=True)
 
         # ── Preis-Tracking Zusammenfassung ────────────────────────────────────
         try:

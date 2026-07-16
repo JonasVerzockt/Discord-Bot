@@ -37,6 +37,7 @@ from utils.availability import load_shop_data
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from config import SHOPS_DATA_FILE, VERSION
 from utils.timez import BERLIN
+from utils.embeds import send_embeds
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,8 @@ class StatsCog(commands.Cog, name="Stats"):
             )
             top_species = "\n".join(f"• {r['species']} ({r['cnt']}x)" for r in top_rows) or "–"
 
-            await ctx.respond(
+            await send_embeds(
+                ctx,
                 l10n.get(
                     "stats_message", lang,
                     active=counts.get("active", 0),
@@ -130,7 +132,8 @@ class StatsCog(commands.Cog, name="Stats"):
             except FileNotFoundError:
                 file_status = l10n.get("system_file_missing", lang)
 
-            await ctx.respond(
+            await send_embeds(
+                ctx,
                 l10n.get(
                     "system_status", lang,
                     version=VERSION,
@@ -139,7 +142,8 @@ class StatsCog(commands.Cog, name="Stats"):
                 ),
                 ephemeral=True,
             )
-            await ctx.followup.send(
+            await send_embeds(
+                ctx,
                 l10n.get(
                     "system_performance", lang,
                     latency=round(self.bot.latency * 1000),
