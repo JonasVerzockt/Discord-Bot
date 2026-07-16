@@ -73,7 +73,7 @@ pip install -r requirements.txt
 | `anthropic>=0.25.0` | Claude Haiku KI-Parser |
 | `gspread>=6.0.0` | Google Sheets |
 | `google-auth>=2.0.0` | Google Auth |
-| `requests>=2.31.0` | HTTP (Grabber + Frankfurter Währungs-API) |
+| `requests>=2.31.0` | HTTP (Grabber + Währungs-APIs) |
 | `rapidfuzz>=3.0.0` | Fuzzy Shop-Matching |
 | `psutil>=5.9.0` | System-Stats (`/system`) |
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
@@ -266,7 +266,7 @@ Für alle `active`-Benachrichtigungen:
 
 **4. DM bei Fund**
 
-Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (kostenlos, kein API-Key, 6-Stunden-Cache). Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet (max. 8 pro Produkt, Rest als „… und X weitere") – die Produkt-Preisspanne bleibt als Übersicht erhalten:
+Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten). Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung via [Frankfurter API](https://www.frankfurter.app) (EZB, kostenlos, kein API-Key, 6-Stunden-Cache); für Währungen außerhalb der EZB (z. B. TWD) dient die offene [fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api) als Fallback. Hat ein Produkt einzelne **Varianten** (aus `shops_data.json`), werden diese zusätzlich mit Einzelpreis pro Variante aufgelistet (max. 8 pro Produkt, Rest als „… und X weitere") – die Produkt-Preisspanne bleibt als Übersicht erhalten:
 
 ```
 34.49CAD (ca. 23.50€)
@@ -274,7 +274,7 @@ Produkte werden nach AAM-Rating sortiert (beste zuerst, ohne Rating ganz unten).
 59.99EUR
 ```
 
-Lange Ausgaben werden sicher auf mehrere DMs aufgeteilt (jede ≤ 2000 Zeichen, auch einzelne sehr lange Einträge werden zerlegt – kein Discord-Fehler mehr). Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal. Unter der DM erscheint ein Button **„📉 Preise beobachten"** – ein Klick öffnet direkt die `/track_price`-Auswahl (Shop → Produkte) für die gemeldete Art, ohne den Befehl tippen zu müssen.
+Die Benachrichtigung kommt als Discord-Embed; lange Ausgaben werden sicher auf mehrere Embeds aufgeteilt (jedes ≤ 4096 Zeichen, auch einzelne sehr lange Einträge werden zerlegt – kein Discord-Fehler mehr). Falls DMs blockiert sind, schreibt der Bot einen Ping in den Server-Kanal. Unter der DM erscheint ein Button **„📉 Preise beobachten"** – ein Klick öffnet direkt die `/track_price`-Auswahl (Shop → Produkte) für die gemeldete Art, ohne den Befehl tippen zu müssen.
 
 **5. Feedback nach DM**
 
@@ -550,7 +550,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 |--------|-----------|--------------|----------|
 | `/notification` | `species` oder `genus` (Pflicht, nicht beides), `regions` (z.B. `de,at` oder `eu`), `swiss_only`, `exclude_species`, `force` | Verfügbarkeitsbenachrichtigung einrichten. `regions: eu` wird automatisch auf alle EU-Ländercodes aufgelöst. `exclude_species` schließt bestimmte Arten innerhalb einer Gattungs-Suche aus. `force: True` überspringt die Prüfung ob die Art in der DB vorkommt. Legt man dieselbe Kombination (Taxon + Regionen) erneut an, entsteht **kein Duplikat** – der bestehende Eintrag wird aktualisiert und man erhält den Hinweis „bereits aktiv – ich prüfe erneut". | `/notification species:Messor barbarus regions:de,at swiss_only:true` |
 | `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. | `/delete_notifications ids:12 15` |
-| `/history` | – | Zeigt die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). | `/history` |
+| `/history` | – | Zeigt (als Embed) die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). | `/history` |
 | `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. | `/testnotification` |
 | `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Bei genau einem gewählten Produkt mit **Varianten** folgt ein optionaler Varianten-Auswahlschritt (ganzes Produkt oder konkrete Variante). Aktueller Preis als Baseline. Bereits beobachtete Produkte/Arten erzeugen kein Duplikat und werden als „bereits beobachtet" gemeldet. | `/track_price species:Camponotus` |
 | `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte/**Varianten** mit aktuellem Preis (Variantenname wird mit angezeigt). | `/my_price_tracking` |
@@ -569,8 +569,8 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
-| `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge + Shop-Link. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. | `/offers shop:Antstore` |
-| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen). Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. | `/sells species:aethiops` |
+| `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Ausgabe als Embed(s). | `/offers shop:Antstore` |
+| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Ausgabe als Embed(s). | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -842,7 +842,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
 │   ├── availability.py      # Verfügbarkeitsprüfung gegen shops_data.json
-│   ├── currency.py          # Währungsumrechnung via Frankfurter API (6h Cache)
+│   ├── currency.py          # Währungsumrechnung: Frankfurter (EZB) + fawazahmed0-Fallback (6h)
 │   ├── sheet.py             # Google Sheets Cache (SheetCache) + Rating-Sync
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
@@ -904,7 +904,8 @@ Dieser Bot steht auf den Schultern anderer – vielen Dank an:
 
 - **[Antony-Bot](https://github.com/deso85/Antony) von deso85** – ein großartiger Community-Bot für die Ameisenhaltung. Die Idee, Shop-Angebote **pro Variante** aufzuschlüsseln (`/sells`, `/offers`) und variantengenau zu tracken, ist von seinem `!sells`/`!offers` inspiriert. Dickes Lob und Danke dafür! 🐜👑
 - **[antcheck.info](https://antcheck.info)** – Datenquelle für Shops, Produkte, Varianten und Preise (Grabber + Preis-Tracking).
-- **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise).
+- **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise, EZB-Kurse).
+- **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api)** – offene, key-lose Wechselkurse als Fallback (150+ Währungen inkl. TWD).
 - **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)

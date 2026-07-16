@@ -33,6 +33,7 @@ from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
 import discord
+from utils.embeds import EMBED_COLOR
 from discord.ext import commands, tasks
 
 from config import DATA_DIRECTORY, DB_FILE
@@ -296,7 +297,7 @@ class DigestCog(commands.Cog, name="Digest"):
                 chunks = self._build_chunks(lang, drops, new_species, new_shops)
                 user = await self.bot.fetch_user(int(uid))
                 for chunk in chunks:
-                    await user.send(chunk)
+                    await user.send(embed=discord.Embed(description=chunk, color=EMBED_COLOR))
             except discord.Forbidden:
                 logger.info("📪 Digest: DMs für User %s gesperrt – übersprungen", uid)
             except Exception as e:

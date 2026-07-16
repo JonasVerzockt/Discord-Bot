@@ -37,8 +37,15 @@ logger = logging.getLogger(__name__)
 
 _RATES: dict[str, float] = {}   # {ISO-Code → Faktor X→EUR, z.B. "CAD": 0.681}
 _LAST_FETCH: datetime | None = None
-_CACHE_TTL  = timedelta(hours=6)
-_API_URL    = "https://api.frankfurter.app/latest?from=EUR"
+_CACHE_TTL       = timedelta(hours=6)
+# Primärquelle: EZB-Referenzkurse (Frankfurter), ~31 große Währungen.
+_FRANKFURTER_URL = "https://api.frankfurter.app/latest?from=EUR"
+# Breite, komplett offene & key-lose Fallback-Quelle (fawazahmed0), deckt 150+
+# Währungen inkl. TWD ab, die die EZB nicht führt. Zweite URL = Spiegel.
+_FAWAZ_URLS = (
+    "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/eur.json",
+    "https://latest.currency-api.pages.dev/v1/currencies/eur.json",
+)
 
 
 async def ensure_rates() -> None:
@@ -48,25 +55,64 @@ async def ensure_rates() -> None:
         await asyncio.to_thread(_fetch_rates_sync)
 
 
+def _invert_eur_to_x(eur_to_x: dict) -> dict[str, float]:
+    """EUR→X-Kurse in X→EUR-Faktoren umrechnen (Codes in Großbuchstaben)."""
+    out: dict[str, float] = {}
+    for cur, rate in (eur_to_x or {}).items():
+        try:
+            if rate:
+                out[str(cur).upper()] = 1.0 / float(rate)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+    return out
+
+
+def _fetch_frankfurter() -> dict[str, float]:
+    resp = requests.get(_FRANKFURTER_URL, timeout=10)
+    resp.raise_for_status()
+    return _invert_eur_to_x(resp.json().get("rates", {}))
+
+
+def _fetch_fawaz() -> dict[str, float]:
+    last_err: Exception | None = None
+    for url in _FAWAZ_URLS:
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            return _invert_eur_to_x(resp.json().get("eur", {}))
+        except Exception as e:  # noqa: BLE001 – zur nächsten URL/Quelle weitergehen
+            last_err = e
+    raise last_err or RuntimeError("fawazahmed0: keine URL erreichbar")
+
+
 def _fetch_rates_sync() -> None:
-    """Synchroner Abruf der Wechselkurse (läuft in ThreadPool)."""
+    """Synchroner Abruf der Wechselkurse (läuft im ThreadPool).
+
+    Strategie: die breite Quelle (fawazahmed0) als Basis laden, danach die
+    EZB-Referenzkurse (Frankfurter) darüberlegen – die haben für ihre Währungen
+    Vorrang. Fällt eine Quelle aus, wird die andere genutzt; fallen beide aus,
+    bleiben die zuletzt geladenen Kurse unverändert aktiv.
+    """
     global _RATES, _LAST_FETCH
+    merged: dict[str, float] = {}
+
     try:
-        resp = requests.get(_API_URL, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        # Frankfurter liefert EUR→X, wir brauchen X→EUR
-        rates_eur_to_x: dict[str, float] = data.get("rates", {})
-        _RATES = {
-            cur: 1.0 / rate
-            for cur, rate in rates_eur_to_x.items()
-            if rate
-        }
-        _RATES["EUR"] = 1.0
-        _LAST_FETCH = datetime.now(timezone.utc)
-        logger.info("💶 Währungskurse geladen: %d Währungen", len(_RATES))
+        merged.update(_fetch_fawaz())
+    except Exception as e:
+        logger.warning("⚠️ fawazahmed0-Kursquelle nicht erreichbar: %s", e)
+
+    try:
+        merged.update(_fetch_frankfurter())   # EZB-Kurse haben Vorrang
     except Exception as e:
         logger.warning("⚠️ Frankfurter API nicht erreichbar: %s", e)
+
+    if merged:
+        merged["EUR"] = 1.0
+        _RATES = merged
+        _LAST_FETCH = datetime.now(timezone.utc)
+        logger.info("💶 Währungskurse geladen: %d Währungen (EZB + Fallback)", len(_RATES))
+    else:
+        logger.warning("⚠️ Keine Kursquelle erreichbar – bestehende Kurse bleiben aktiv.")
 
 
 def to_eur(amount: float, currency: str) -> float | None:

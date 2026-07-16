@@ -28,7 +28,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 
 ### Haftung
 
-Der Bot wird ohne Gewähr betrieben. Für die Richtigkeit der eingetragenen Bewertungen, der angezeigten Verfügbarkeitsdaten oder der angezeigten Preise übernimmt der Betreiber keine Haftung. Preisangaben (inkl. EUR-Umrechnung via Frankfurter API) sind unverbindlich und können von tatsächlichen Preisen abweichen. Technische Ausfälle oder Fehler bei der Datenerfassung begründen keine Ansprüche.
+Der Bot wird ohne Gewähr betrieben. Für die Richtigkeit der eingetragenen Bewertungen, der angezeigten Verfügbarkeitsdaten oder der angezeigten Preise übernimmt der Betreiber keine Haftung. Preisangaben (inkl. EUR-Umrechnung via Frankfurter API bzw. offenem fawazahmed0-Fallback) sind unverbindlich und können von tatsächlichen Preisen abweichen. Technische Ausfälle oder Fehler bei der Datenerfassung begründen keine Ansprüche.
 
 ### Änderungen
 
@@ -83,7 +83,7 @@ Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitg
 | Beobachtete Art/Gattung (normalisierter Name) | Arten-Beobachtung shopübergreifend | Lokale SQLite-Datenbank auf dem Server |
 | Bekannte Produkt-IDs je Art-Beobachtung + letzter Preis | Erkennung von Neuerscheinungen und Preisänderungen | Lokale SQLite-Datenbank auf dem Server |
 
-Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Datenbank, die vom Grabber-Skript befüllt wird. Diese Daten enthalten keine personenbezogenen Informationen. Wechselkurse für die EUR-Umrechnung werden von der [Frankfurter API](https://www.frankfurter.app) abgerufen (keine personenbezogenen Daten übermittelt, 6-Stunden-Cache).
+Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Datenbank, die vom Grabber-Skript befüllt wird. Diese Daten enthalten keine personenbezogenen Informationen. Wechselkurse für die EUR-Umrechnung werden von der [Frankfurter API](https://www.frankfurter.app) – und für Währungen außerhalb der EZB als Fallback von der offenen [fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api) – abgerufen (keine personenbezogenen Daten übermittelt, 6-Stunden-Cache).
 
 #### AI-Chat-Bot
 
@@ -162,10 +162,10 @@ Gesprächsverläufe werden lokal für **maximal 24 Stunden** zwischengespeichert
 Ausgewertete Bewertungen und iNat-Daten werden in Google Sheets (Deutschland) gespeichert.  
 → Datenschutz: https://policies.google.com/privacy
 
-#### Frankfurter API (Währungskurse)
+#### Währungskurse (Frankfurter API + fawazahmed0-Fallback)
 
-Zur EUR-Umrechnung von Preisen werden aktuelle Wechselkurse von `api.frankfurter.app` abgerufen. Es werden dabei **keine personenbezogenen Daten** übermittelt – die Anfrage enthält nur den Basiswährungscode (EUR). Kurse werden 6 Stunden im Speicher gecacht.  
-→ https://www.frankfurter.app
+Zur EUR-Umrechnung von Preisen werden aktuelle Wechselkurse von `api.frankfurter.app` (EZB) abgerufen. Für Währungen, die die EZB nicht führt (z. B. TWD), wird zusätzlich die offene, key-lose fawazahmed0/exchange-api (`cdn.jsdelivr.net` bzw. `currency-api.pages.dev`) abgefragt. Es werden dabei **keine personenbezogenen Daten** übermittelt – die Anfrage enthält nur den Basiswährungscode (EUR). Kurse werden 6 Stunden im Speicher gecacht.  
+→ https://www.frankfurter.app · https://github.com/fawazahmed0/exchange-api
 
 #### AntCheck API
 

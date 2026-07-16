@@ -59,6 +59,7 @@ from config import (
 )
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.embeds import send_embeds
 from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
 from cogs.server_settings import allowed_channel, admin_or_manage_messages
@@ -370,10 +371,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 entry += f"\n<{r['shop_url']}>"
             lines.append(entry)
 
-        chunks = _chunks("\n".join(lines))
-        await ctx.followup.send(chunks[0])
-        for chunk in chunks[1:]:
-            await ctx.followup.send(chunk)
+        await send_embeds(ctx, "\n".join(lines))
 
     @discord.slash_command(
         name="codes_set",
