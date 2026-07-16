@@ -34,6 +34,7 @@ from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, normalize_species_name
 from utils.currency import ensure_rates, to_eur
+from utils.timez import berlin_from_iso
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 
@@ -49,11 +50,7 @@ def _read_fetched_at() -> str | None:
             raw = json.load(f)
         ts = raw.get("_meta", {}).get("fetched_at") if isinstance(raw, dict) else None
         if ts:
-            try:
-                dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-                return dt.strftime("%d.%m.%Y %H:%M UTC")
-            except ValueError:
-                return str(ts)
+            return berlin_from_iso(ts) or str(ts)
     except Exception:
         pass
     return None
@@ -161,6 +158,7 @@ class SellsCog(commands.Cog, name="Sells"):
                     "max":         p.get("max_price"),
                     "cur":         p.get("currency_iso") or "EUR",
                     "variants":    p.get("variants") or [],
+                    "url":         (p.get("antcheck_url") or p.get("shop_url") or "").strip(),
                 })
 
         if not found_species:
@@ -193,6 +191,8 @@ class SellsCog(commands.Cog, name="Sells"):
                 parts.append(f"{flag_emoji(o['country'])} **{o['shop_name']}**")
                 if o["title"]:
                     parts.append(o["title"])
+                if o.get("url"):
+                    parts.append(l10n.get("sells_product_link", lang, url=o["url"]))
                 vs = [v for v in o["variants"] if v.get("in_stock") and v.get("is_active")]
                 if vs:
                     # Varianten-Ebene: pro Variante Einzelpreis

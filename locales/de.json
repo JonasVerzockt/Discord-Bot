@@ -71,6 +71,7 @@
   "sells_multi_hint": "„{query}“ passt auf {found} Arten – Angebote gibt es nur für: {offered}.",
   "sells_source": "📊 Daten von antcheck.info.",
   "sells_disclaimer": "Hinweis: Preise sind ohne Versand und können je nach Shop abweichen.",
+  "sells_product_link": "🔗 [Produktlink](<{url}>)",
   "sells_footer": "🕒 Stand der Shop-Daten: {ts} (stündlich aktualisiert).",
   "help_sells": "🛒 `/sells` – Angebote einer Art/Gattung über alle Shops vergleichen (Preise inkl. EUR-Umrechnung, optional Länderfilter)",
   "offers_no_shop": "❌ Kein Shop passend zu „{query}“ gefunden.",

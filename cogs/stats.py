@@ -36,6 +36,7 @@ from config import AI_CHAT_PUBLIC
 from utils.availability import load_shop_data
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from config import SHOPS_DATA_FILE, VERSION
+from utils.timez import BERLIN
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ class StatsCog(commands.Cog, name="Stats"):
                 am    = ar // 60
                 file_status = l10n.get(
                     "system_file_status", lang,
-                    modified=datetime.utcfromtimestamp(mtime).strftime("%Y-%m-%d %H:%M"),
+                    modified=datetime.fromtimestamp(mtime, tz=BERLIN).strftime("%d.%m.%Y %H:%M %Z"),
                     age=f"{ah}h {am}m",
                 )
             except FileNotFoundError:

@@ -71,6 +71,7 @@
   "sells_multi_hint": "„{query}“ kongruas kun {found} specioj – ofertoj nur por: {offered}.",
   "sells_source": "📊 Datumoj de antcheck.info.",
   "sells_disclaimer": "Noto: prezoj estas sen sendokostoj kaj povas diferenci laŭ butiko.",
+  "sells_product_link": "🔗 [Produkto-ligilo](<{url}>)",
   "sells_footer": "🕒 Stato de butikdatumoj: {ts} (ĝisdatigite ĉiuhore).",
   "help_sells": "🛒 `/sells` – Komparu ofertojn de specio/genro tra ĉiuj butikoj (prezoj kun EUR-konverto, laŭvola landfiltrilo)",
   "offers_no_shop": "❌ Neniu butiko kongrua kun „{query}“.",

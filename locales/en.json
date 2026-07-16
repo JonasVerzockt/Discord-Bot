@@ -71,6 +71,7 @@
   "sells_multi_hint": "“{query}” matches {found} species – offers only for: {offered}.",
   "sells_source": "📊 Data from antcheck.info.",
   "sells_disclaimer": "Note: prices exclude shipping and can differ per shop.",
+  "sells_product_link": "🔗 [Product link](<{url}>)",
   "sells_footer": "🕒 Shop data as of: {ts} (updated hourly).",
   "help_sells": "🛒 `/sells` – Compare offers for a species/genus across all shops (prices incl. EUR conversion, optional country filter)",
   "offers_no_shop": "❌ No shop matching “{query}”.",

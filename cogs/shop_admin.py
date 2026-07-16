@@ -37,6 +37,7 @@ from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data
 from utils.text_chunks import send_chunked
+from utils.timez import berlin_from_utc_naive
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -247,7 +248,8 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             shop_name = shop_data.get(str(r["shop_id"]), {}).get("name", r["shop_id"])
             lines.append(l10n.get(
                 "ch_delivery_entry", lang,
-                shop=shop_name, user=f"<@{r['added_by']}>", timestamp=r["added_at"],
+                shop=shop_name, user=f"<@{r['added_by']}>",
+                timestamp=berlin_from_utc_naive(r["added_at"], "%Y-%m-%d %H:%M", "%d.%m.%Y %H:%M %Z"),
             ))
         await send_chunked(ctx, "\n".join(lines), ephemeral=True)
 

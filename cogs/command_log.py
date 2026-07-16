@@ -38,6 +38,7 @@ from discord.ext import commands, tasks
 from config import MOD_LOG_CHANNEL_ID, COMMAND_LOG_RETENTION_DAYS
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.timez import now_berlin, berlin_from_utc_naive
 from cogs.server_settings import admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
 
         if MOD_LOG_CHANNEL_ID:
             self._buffer.append({
-                "ts": datetime.now(timezone.utc).strftime("%d.%m %H:%M:%S"),
+                "ts": now_berlin("%d.%m %H:%M:%S"),
                 "uid": uid, "uname": uname, "command": command,
                 "params": params or "", "cid": cid, "status": status,
             })
@@ -286,7 +287,8 @@ async def _cmdlog_query_impl(cog, ctx, user_id, period):
         mark = "❌ " if st.startswith("error") else ("💬 " if st == "text" else "")
         p = f" {r['params']}" if r["params"] else ""
         chan = f"<#{r['channel_id']}>" if r["channel_id"] else "?"
-        lines.append(f"{mark}`{r['created_at']}` `{r['command']}`{p} · {chan}")
+        ts_local = berlin_from_utc_naive(r["created_at"], "%Y-%m-%d %H:%M:%S", "%d.%m %H:%M:%S")
+        lines.append(f"{mark}`{ts_local}` `{r['command']}`{p} · {chan}")
 
     chunks = _chunk_lines(lines)
     first = True

@@ -100,6 +100,9 @@ class OffersCog(commands.Cog, name="Offers"):
             parts.append("")
             title = (p.get("title") or p.get("species") or "?").strip()
             parts.append(f"**{title}**")
+            purl = (p.get("antcheck_url") or p.get("shop_url") or "").strip()
+            if purl:
+                parts.append(l10n.get("sells_product_link", lang, url=purl))
             cur = p.get("currency_iso") or "EUR"
             vs  = available_variants(p)
             if vs:
