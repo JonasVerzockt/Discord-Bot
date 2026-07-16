@@ -37,6 +37,7 @@ from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data
 from utils.text_chunks import send_chunked
+from utils.embeds import send_embeds, ADMIN_COLOR
 from utils.timez import berlin_from_utc_naive
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
@@ -131,7 +132,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
             shop_name = shop_data.get(str(r["shop_id"]), {}).get("name", str(r["shop_id"]))
             lines.append(l10n.get("shopmapping_show_entry", lang,
                                    external=r["external_name"], id=r["shop_id"], shop=shop_name))
-        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
+        await send_embeds(ctx, "\n".join(lines), ephemeral=True, color=ADMIN_COLOR)
 
     @shopmapping.command(name="remove", description="Remove an external shop name mapping", description_localizations={"de": "Eine Shopnamen-Zuordnung entfernen"})
     @admin_or_manage_messages()
@@ -251,7 +252,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                 shop=shop_name, user=f"<@{r['added_by']}>",
                 timestamp=berlin_from_utc_naive(r["added_at"], "%Y-%m-%d %H:%M", "%d.%m.%Y %H:%M %Z"),
             ))
-        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
+        await send_embeds(ctx, "\n".join(lines), ephemeral=True)
 
 
     # ── /shopurl ──────────────────────────────────────────────────────────────
@@ -334,7 +335,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
                 "shopurl_list_entry", lang,
                 shop=r["name"], id=r["id"], url=r["url_override"],
             ))
-        await send_chunked(ctx, "\n".join(lines), ephemeral=True)
+        await send_embeds(ctx, "\n".join(lines), ephemeral=True, color=ADMIN_COLOR)
 
 
 def setup(bot: discord.Bot):

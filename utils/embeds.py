@@ -25,8 +25,9 @@ import discord
 
 from utils.text_chunks import chunk_lines
 
-# Einheitliche Marken-Farbe für alle Report-Embeds.
-EMBED_COLOR = discord.Color.blurple()
+# Einheitliche Farben: Türkis für normale (User-)Ausgaben, Weinrot für Admin/Mod.
+EMBED_COLOR = discord.Colour(0x00BFA5)   # Türkis – Standard/User
+ADMIN_COLOR = discord.Colour(0x800020)   # Weinrot/Bordeaux – Admin/Mod
 
 _ZWSP = "​"  # Zero-Width-Space: verhindert leere Embed-Beschreibung.
 

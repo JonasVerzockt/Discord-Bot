@@ -27,6 +27,7 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
+from utils.embeds import EMBED_COLOR
 from utils.achievements import (
     ACHIEVEMENTS, evaluate, gather_stats, check_and_grant, log_event,
 )
@@ -99,7 +100,7 @@ class AchievementsCog(commands.Cog, name="Achievements"):
         embed = discord.Embed(
             title=l10n.get("ach_title", lang),
             description="\n\n".join(sections),
-            colour=0xF1C40F,
+            colour=EMBED_COLOR,
         )
         embed.set_footer(text=l10n.get(
             "ach_summary", lang,

@@ -32,6 +32,7 @@ from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 from cogs.sells import _price_md, _chunks, _read_fetched_at
 from utils.text_chunks import chunk_lines
+from utils.embeds import EMBED_COLOR
 
 
 class OffersCog(commands.Cog, name="Offers"):
@@ -119,7 +120,7 @@ class OffersCog(commands.Cog, name="Offers"):
 
         for chunk in chunk_lines("\n".join(parts), 4000):
             await ctx.followup.send(
-                embed=discord.Embed(description=chunk, color=discord.Color.blurple())
+                embed=discord.Embed(description=chunk, color=EMBED_COLOR)
             )
 
 
