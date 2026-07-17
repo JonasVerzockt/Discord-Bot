@@ -31,7 +31,7 @@ from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 from cogs.sells import _price_md, _chunks, _read_fetched_at, _has_price
-from utils.text_chunks import chunk_lines
+from utils.text_chunks import chunk_lines, chunk_paragraphs
 from utils.embeds import EMBED_COLOR
 from utils.sheet import get_shop_warnings, warn_emoji
 
@@ -135,7 +135,7 @@ class OffersCog(commands.Cog, name="Offers"):
         parts.append("")
         parts.append(l10n.get("sells_footer", lang, ts=_read_fetched_at() or "?"))
 
-        for chunk in chunk_lines("\n".join(parts), 4000):
+        for chunk in chunk_paragraphs("\n".join(parts), 4000):
             await ctx.followup.send(
                 embed=discord.Embed(description=chunk, color=EMBED_COLOR)
             )
