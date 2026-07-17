@@ -386,5 +386,14 @@
   "warn_level_1": "Verdachtsfall / erhöhte Wachsamkeit",
   "warn_level_2": "Akute Warnung / hohes Risiko",
   "warn_level_3": "Bestätigter Scam / akute Gefahr",
-  "warn_shop_line": "{emoji} **Warnung (Stufe {level}):** {text}"
+  "warn_shop_line": "{emoji} **Warnung (Stufe {level}):** {text}",
+  "rank_egg": "Ei",
+  "rank_larva": "Larve",
+  "rank_pupa": "Puppe",
+  "rank_worker": "Arbeiterin",
+  "rank_soldier": "Soldatin",
+  "rank_queen": "Königin",
+  "ach_rank_line": "{emoji} **Rang:** {rank} · {unlocked}/{total} Erfolge",
+  "ach_rank_next": "nächster Rang bei {n}",
+  "ach_rank_up_dm": "🎉 **Neuer Rang erreicht!** Du bist jetzt {emoji} **{rank}**."
 }

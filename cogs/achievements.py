@@ -31,6 +31,7 @@ from utils.localization import l10n, get_user_lang
 from utils.embeds import EMBED_COLOR
 from utils.achievements import (
     ACHIEVEMENTS, evaluate, gather_stats, check_and_grant, log_event,
+    rank_for, next_rank_threshold,
 )
 
 logger = logging.getLogger(__name__)
@@ -128,9 +129,19 @@ class AchievementsCog(commands.Cog, name="Achievements"):
             if cat_lines:
                 sections.append(f"**{l10n.get('ach_cat_' + cat, lang)}**\n" + "\n".join(cat_lines))
 
+        _idx, rkey, remoji = rank_for(unlocked)
+        rank_line = l10n.get(
+            "ach_rank_line", lang,
+            emoji=remoji, rank=l10n.get(f"rank_{rkey}", lang),
+            unlocked=unlocked, total=total,
+        )
+        nxt = next_rank_threshold(unlocked)
+        if nxt is not None:
+            rank_line += " · " + l10n.get("ach_rank_next", lang, n=nxt)
+
         embed = discord.Embed(
             title=l10n.get("ach_title", lang),
-            description="\n\n".join(sections),
+            description=rank_line + "\n\n" + "\n\n".join(sections),
             colour=EMBED_COLOR,
         )
         embed.set_footer(text=l10n.get(

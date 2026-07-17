@@ -537,6 +537,8 @@ Die Reihe **Code-Bringer / Code-Sammler / Code-Meister** ist derselbe Erfolg in 
 
 Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achievements` sichtbar werden – bis dahin erscheinen sie nur als 🔒 `???`. Titel und Bedingungen werden hier bewusst nicht verraten.
 
+**Metamorphose-Ränge:** Je nach Anzahl freigeschalteter Erfolge steigst du auf: 🥚 Ei → 🐛 Larve → ⚪ Puppe → 🐜 Arbeiterin → 🪖 Soldatin → 👑 Königin. Der aktuelle Rang steht oben in `/achievements`; beim Aufstieg kommt eine dezente DM.
+
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
