@@ -20,11 +20,13 @@ utils/availability.py - AntCheck-Verfügbarkeitspruefung.
 Liest shops_data.json (erzeugt von grabber.py) und prüft ob eine Art/Gattung
 verfügbar ist. Produkte sind direkt in shops_data.json eingebettet.
 """
+import os
 import re
 import html
 import json
 import asyncio
 import logging
+import threading
 from config import SHOPS_DATA_FILE
 
 
@@ -105,28 +107,59 @@ def split_availability_messages(entries: list[str], max_length: int = 2000) -> l
     return chunks
 
 
+# Cache: shops_data.json wird nur bei geänderter Datei (mtime+Größe) neu geparst.
+# Die gecachte Struktur wird NICHT mutiert – Aufrufer, die Felder ergänzen
+# (load_shop_data), kopieren die Shop-Dicts vorher flach.
+_shops_cache_lock = threading.Lock()
+_shops_cache: dict = {"key": None, "data": None}
+
+
+def ensure_url_scheme(url: str) -> str:
+    """Ergänzt fehlendes http(s):// (z.B. 'antstore.net' → 'https://antstore.net'),
+    damit Discord die URL als klickbaren Link erkennt. Leer → ''."""
+    u = (url or "").strip()
+    if not u:
+        return ""
+    if not u.startswith(("http://", "https://")):
+        u = "https://" + u
+    return u
+
+
 def _load_shops_json() -> dict:
-    """Lädt shops_data.json synchron und gibt {shop_id: shop_dict} zurück (ohne _meta)."""
+    """Lädt shops_data.json (gecacht per mtime+Größe) und gibt {shop_id: shop_dict}
+    zurück (ohne _meta). Rückgabe ist der geteilte Cache – nicht mutieren!"""
     try:
-        with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
-            raw = json.load(f)
+        st = os.stat(SHOPS_DATA_FILE)
+        key = (st.st_mtime_ns, st.st_size)
     except FileNotFoundError:
         logger.error(f"❌ shops_data.json nicht gefunden: {SHOPS_DATA_FILE}")
         return {}
-    except Exception as e:
-        logger.error(f"❌ Fehler beim Laden von shops_data.json: {e}")
+    except OSError as e:
+        logger.error(f"❌ Fehler beim Zugriff auf shops_data.json: {e}")
         return {}
 
-    # Neues Format: Dict mit shop_id als Key und _meta-Eintrag
-    if isinstance(raw, dict):
-        return {k: v for k, v in raw.items() if k != "_meta" and isinstance(v, dict)}
+    with _shops_cache_lock:
+        if _shops_cache["data"] is not None and _shops_cache["key"] == key:
+            return _shops_cache["data"]
+        try:
+            with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception as e:
+            logger.error(f"❌ Fehler beim Laden von shops_data.json: {e}")
+            return {}
 
-    # Altes Format: Liste von Shop-Dicts (Fallback)
-    result = {}
-    for shop in raw:
-        if isinstance(shop, dict) and "id" in shop:
-            result[str(shop["id"])] = shop
-    return result
+        if isinstance(raw, dict):
+            result = {k: v for k, v in raw.items() if k != "_meta" and isinstance(v, dict)}
+        else:
+            result = {}
+            for shop in raw:
+                if isinstance(shop, dict) and "id" in shop:
+                    result[str(shop["id"])] = shop
+
+        _shops_cache["key"] = key
+        _shops_cache["data"] = result
+        logger.debug("🗂️ shops_data.json neu geparst (%d Shops)", len(result))
+        return result
 
 
 async def load_shop_data(bot) -> dict:
@@ -136,9 +169,12 @@ async def load_shop_data(bot) -> dict:
     """
     from utils.db import execute_db
 
-    shops = await bot.loop.run_in_executor(None, _load_shops_json)
-    if not shops:
+    cached = await bot.loop.run_in_executor(None, _load_shops_json)
+    if not cached:
         return {}
+    # Flache Kopie je Shop, damit der Rating/URL-Merge den Cache nicht verändert
+    # (verschachtelte Listen wie "products" werden nur gelesen, bleiben geteilt).
+    shops = {sid: dict(shop) for sid, shop in cached.items()}
 
     rows = await execute_db(bot, "SELECT id, average_rating, url_override FROM shops", fetch=True)
     for r in rows:

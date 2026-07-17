@@ -31,7 +31,7 @@ from rapidfuzz import process
 
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, format_rating
+from utils.availability import load_shop_data, format_rating, ensure_url_scheme
 from utils.countries import country_label, country_name
 from utils.embeds import send_embeds
 from utils.sheet import get_shop_warnings, all_warnings, warn_emoji
@@ -241,7 +241,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
                     marker = "⚠️ " if get_shop_warnings(s.get("url", ""), s.get("name", "")) else ""
                     line = f"- {marker}{s.get('name', '?')} – {format_rating(s.get('average_rating'))}"
                     if s.get("url"):
-                        line += f" <{s['url']}>"
+                        line += f" <{ensure_url_scheme(s['url'])}>"
                     lines.append(line)
                 sections.append(country_label(code, lang) + "\n" + "\n".join(lines))
             text = l10n.get("available_shops_grouped", lang, shops="\n\n".join(sections))
