@@ -87,6 +87,35 @@ ACHIEVEMENTS = [
 _VISIBLE_TOTAL = sum(1 for a in ACHIEVEMENTS if not a.hidden)
 
 
+# Metamorphose-Ränge nach Anzahl freigeschalteter Erfolge (Ei → Königin).
+RANKS = [
+    (0,  "egg",     "🥚"),
+    (1,  "larva",   "🐛"),
+    (6,  "pupa",    "⚪"),
+    (12, "worker",  "🐜"),
+    (18, "soldier", "🪖"),
+    (24, "queen",   "👑"),
+]
+
+
+def rank_for(unlocked: int):
+    """(index, key, emoji) für die Anzahl freigeschalteter Erfolge."""
+    idx = 0
+    for i, (thr, _k, _e) in enumerate(RANKS):
+        if unlocked >= thr:
+            idx = i
+    _thr, key, emoji = RANKS[idx]
+    return idx, key, emoji
+
+
+def next_rank_threshold(unlocked: int):
+    """Schwelle des nächsten Rangs – oder None beim Maximalrang."""
+    for thr, _k, _e in RANKS:
+        if unlocked < thr:
+            return thr
+    return None
+
+
 async def _count(bot, sql, params) -> int:
     rows = await execute_db(bot, sql, params, fetch=True)
     if not rows:
@@ -210,16 +239,32 @@ async def check_and_grant(bot, user, lang: str = "en") -> list:
     rows = await execute_db(bot, "SELECT achievement_id FROM achievements WHERE user_id=?", (uid,), fetch=True) or []
     have = {r["achievement_id"] if not isinstance(r, (tuple, list)) else r[0] for r in rows}
 
+    granted = 0
     for a, cur, tgt, unlocked in results:
         if unlocked and a.id not in have:
             await execute_db(
                 bot, "INSERT OR IGNORE INTO achievements (user_id, achievement_id) VALUES (?, ?)",
                 (uid, a.id), commit=True,
             )
+            granted += 1
             try:
                 title = l10n.get(f"ach_{a.id}_t", lang)
                 desc  = l10n.get(f"ach_{a.id}_d", lang)
                 await send_embeds_to(user, l10n.get("ach_new_dm", lang, emoji=a.emoji, title=title, desc=desc))
             except Exception:
                 pass  # DMs gesperrt o.ä. – Freischaltung bleibt trotzdem
+
+    # Metamorphose-Rang-Aufstieg (aus der Anzahl freigeschalteter Erfolge)
+    if granted:
+        new_count = sum(1 for r in results if r[3])
+        old_idx = rank_for(new_count - granted)[0]
+        new_idx, rkey, remoji = rank_for(new_count)
+        if new_idx > old_idx:
+            try:
+                await send_embeds_to(
+                    user,
+                    l10n.get("ach_rank_up_dm", lang, emoji=remoji, rank=l10n.get(f"rank_{rkey}", lang)),
+                )
+            except Exception:
+                pass
     return results

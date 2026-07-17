@@ -386,5 +386,14 @@
   "warn_level_1": "Suspektata kazo / pliigita atento",
   "warn_level_2": "Akuta averto / alta risko",
   "warn_level_3": "Konfirmita trompo / akuta danĝero",
-  "warn_shop_line": "{emoji} **Averto (nivelo {level}):** {text}"
+  "warn_shop_line": "{emoji} **Averto (nivelo {level}):** {text}",
+  "rank_egg": "Ovo",
+  "rank_larva": "Larvo",
+  "rank_pupa": "Pupo",
+  "rank_worker": "Laboristo",
+  "rank_soldier": "Soldato",
+  "rank_queen": "Reĝino",
+  "ach_rank_line": "{emoji} **Rango:** {rank} · {unlocked}/{total} atingoj",
+  "ach_rank_next": "sekva rango je {n}",
+  "ach_rank_up_dm": "🎉 **Nova rango atingita!** Vi nun estas {emoji} **{rank}**."
 }

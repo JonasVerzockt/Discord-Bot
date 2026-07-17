@@ -386,5 +386,14 @@
   "warn_level_1": "Suspected case / heightened caution",
   "warn_level_2": "Acute warning / high risk",
   "warn_level_3": "Confirmed scam / acute danger",
-  "warn_shop_line": "{emoji} **Warning (level {level}):** {text}"
+  "warn_shop_line": "{emoji} **Warning (level {level}):** {text}",
+  "rank_egg": "Egg",
+  "rank_larva": "Larva",
+  "rank_pupa": "Pupa",
+  "rank_worker": "Worker",
+  "rank_soldier": "Soldier",
+  "rank_queen": "Queen",
+  "ach_rank_line": "{emoji} **Rank:** {rank} · {unlocked}/{total} achievements",
+  "ach_rank_next": "next rank at {n}",
+  "ach_rank_up_dm": "🎉 **New rank reached!** You are now {emoji} **{rank}**."
 }

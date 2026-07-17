@@ -26,6 +26,7 @@ Zeitplan:
   • Bot-Status               jede Minute (Uptime / Server-Anzahl)
 """
 import logging
+import random
 from datetime import datetime, timedelta
 
 import discord
@@ -43,6 +44,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     def __init__(self, bot: discord.Bot):
         self.bot       = bot
         self._start_time = datetime.utcnow()
+        self._quote_deck: list = []   # gemischtes Deck für zufällige Status-Reihenfolge
         # Tasks starten
         self.check_availability.start()
         self.reload_shops_task.start()
@@ -215,14 +217,29 @@ class TasksCog(commands.Cog, name="Tasks"):
         "🌍 Wir waren zuerst da.",
         "🔬 Keine Ahnung was die Larve gerade macht.",
         "💀 Gegen Ameisen hilft kein Silikon.",
+        # ── Faktisch korrekte Ameisen-Fakten (belegt) ──
+        "🐜 Auf der Erde leben rund 20 Billiarden Ameisen – etwa 2,5 Mio. pro Mensch.",
+        "⚖️ Alle Ameisen zusammen wiegen mehr als alle wilden Vögel und Säugetiere zusammen.",
+        "⚡ Die Fallkiefer-Ameise schnappt mit bis zu 64 m/s zu – schnellster Beutefang im Tierreich.",
+        "👑 Eine Lasius-niger-Königin kann fast 30 Jahre alt werden – Rekord unter Staateninsekten.",
+        "🍄 Blattschneiderameisen fressen Blätter nicht – sie züchten damit einen Pilz als Nahrung.",
+        "🔬 Über 13.000 Ameisenarten sind bislang wissenschaftlich beschrieben.",
+        "👂 Ameisen haben keine Ohren – sie nehmen Vibrationen über die Beine wahr.",
+        "📡 Ameisen verständigen sich vor allem über Pheromone (Duftspuren).",
+        "🦕 Ameisen gibt es seit über 100 Millionen Jahren – schon zur Dinosaurierzeit.",
+        "♀️ Fast alle Tiere im Staat sind Weibchen; Männchen leben nur kurz für den Schwarmflug.",
+        "🐛 Ameisen durchlaufen eine vollständige Verwandlung: Ei → Larve → Puppe → fertige Ameise.",
+        "🤝 Viele Ameisen 'melken' Blattläuse für deren zuckrigen Honigtau.",
+        "🌡️ Heimische Arten halten Winterruhe und stellen dabei die Brutpflege ein.",
+        "🪖 Manche Arten haben spezialisierte Soldatinnen mit riesigen Köpfen zur Verteidigung.",
     ]
-    _quote_index = 0
-
     @tasks.loop(minutes=2)
     async def update_bot_status(self):
         try:
-            quote = self._ANT_QUOTES[self._quote_index % len(self._ANT_QUOTES)]
-            self._quote_index += 1
+            if not self._quote_deck:
+                self._quote_deck = list(self._ANT_QUOTES)
+                random.shuffle(self._quote_deck)
+            quote = self._quote_deck.pop()
             await self.bot.change_presence(
                 activity=discord.Activity(
                     type=discord.ActivityType.watching,
