@@ -23,7 +23,7 @@ Ausgaben (Listen/Reports); kurze Bestätigungen/Fehler bleiben bewusst Plain-Tex
 """
 import discord
 
-from utils.text_chunks import chunk_lines
+from utils.text_chunks import chunk_lines, chunk_paragraphs
 
 # Einheitliche Farben: Türkis für normale (User-)Ausgaben, Weinrot für Admin/Mod.
 EMBED_COLOR = discord.Colour(0x00BFA5)   # Türkis – Standard/User
@@ -36,7 +36,7 @@ def build_embeds(text: str, *, title: str | None = None,
                  color: discord.Color | None = None, max_len: int = 4000) -> list[discord.Embed]:
     """Zerlegt Text in eine Liste von Embeds (jeweils <= max_len Zeichen)."""
     color = color or EMBED_COLOR
-    parts = chunk_lines(text if (text and text.strip()) else _ZWSP, max_len)
+    parts = chunk_paragraphs(text if (text and text.strip()) else _ZWSP, max_len)
     embeds: list[discord.Embed] = []
     for i, chunk in enumerate(parts):
         e = discord.Embed(description=chunk, color=color)
