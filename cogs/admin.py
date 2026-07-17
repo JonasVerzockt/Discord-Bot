@@ -42,6 +42,7 @@ from utils.tracking import (
 from utils.ai_parser import parse_with_ai
 from cogs.server_settings import admin_or_manage_messages
 from utils.localization import l10n, get_user_lang
+from utils.embeds import send_embeds, ADMIN_COLOR
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,10 @@ class AdminCog(commands.Cog, name="Admin"):
         )
         header   = l10n.get("review_pending_header", lang, count=len(pending))
         csv_note = l10n.get("review_pending_fill_csv", lang, file=MAPPING_FILE)
-        await ctx.respond(
+        await send_embeds(
+            ctx,
             header + "\n" + "\n".join(lines) + extra + "\n\n" + csv_note,
-            ephemeral=True,
+            ephemeral=True, color=ADMIN_COLOR,
         )
 
     @discord.slash_command(name="test", description="Test AI parser without writing to sheet (Admin/Mod)", description_localizations={"de": "KI-Parser ohne Sheet-Eintrag testen (Admin/Mod)"})
