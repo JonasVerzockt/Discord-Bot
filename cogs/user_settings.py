@@ -33,6 +33,7 @@ from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, format_rating
 from utils.countries import country_label, country_name
+from utils.embeds import send_embeds
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -242,11 +243,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
                 sections.append(country_label(code, lang) + "\n" + "\n".join(lines))
             text = l10n.get("available_shops_grouped", lang, shops="\n\n".join(sections))
 
-        blocks = _split_message(text)
-
-        await ctx.respond(blocks[0])
-        for block in blocks[1:]:
-            await ctx.followup.send(block)
+        await send_embeds(ctx, text)
 
 
 def setup(bot: discord.Bot):
