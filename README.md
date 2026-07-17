@@ -12,9 +12,28 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 
 ---
 
+## 🔒 Sicherheit: Server-Bindung (Guild-Lock)
+
+> **Diese Bot-Instanz arbeitet ausschließlich auf einem einzigen, fest eingebauten Discord-Server:**
+> **`375031723601297409`** (*Ameisen an die Macht*).
+
+Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort **kein einziger Befehl** und der Bot **verlässt den Server automatisch wieder**. Die Durchsetzung erfolgt mehrschichtig in [`main.py`](main.py):
+
+- **`ALLOWED_GUILD_ID`** – prominente Konstante ganz oben in `main.py` (überschreibbar per Umgebungsvariable `ALLOWED_GUILD_ID`).
+- **`on_guild_join`** – bei Einladung auf einen fremden Server verlässt der Bot ihn sofort (mit Log-Warnung).
+- **`on_ready`** – beim Start wird jeder bereits beigetretene fremde Server verlassen.
+- **Globaler Befehls-Check** (`_guild_lock_check`) – blockt als zusätzliche Sicherheitsebene jeden Befehl außerhalb des gebundenen Servers.
+
+**Warum?** Der Quellcode steht unter der **AGPLv3** – jede und jeder darf den Bot forken und selbst betreiben. Das bedeutet aber ausdrücklich: **mit eigenem Bot-Token und eigener Instanz**. Dieser konkrete Bot-*Account* soll nur für den einen offiziellen Server laufen und nicht versehentlich (oder absichtlich) auf fremden Servern Daten sammeln oder antworten.
+
+**Eigene Instanz betreiben?** Einfach in `main.py` die `ALLOWED_GUILD_ID` auf die eigene Server-ID setzen (oder `ALLOWED_GUILD_ID` als Umgebungsvariable definieren) und einen **eigenen** Bot-Token verwenden.
+
+---
+
 ## Inhaltsverzeichnis
 
 0. [Inhaltsverzeichnis](#inhaltsverzeichnis)
+0. [🔒 Sicherheit: Server-Bindung (Guild-Lock)](#-sicherheit-server-bindung-guild-lock)
 1. [Voraussetzungen](#voraussetzungen)
 2. [Installation](#installation)
 3. [Konfiguration](#konfiguration)

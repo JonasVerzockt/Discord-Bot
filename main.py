@@ -34,6 +34,25 @@ from utils.db import init_db
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  🔒 SICHERHEIT: GUILD-LOCK – dieser Bot-Account arbeitet NUR auf EINEM Server.
+# ══════════════════════════════════════════════════════════════════════════════
+#  Diese Instanz ist fest an den unten stehenden Discord-Server gebunden
+#  ("Ameisen an die Macht"). Wird der Bot-Account auf einen anderen (fremden)
+#  Server eingeladen, funktioniert dort KEIN Befehl und der Bot verlässt den
+#  Server automatisch wieder (siehe on_guild_join / on_ready / _guild_lock_check).
+#
+#  Der Quellcode ist AGPLv3 und darf frei geforkt/betrieben werden – aber dann
+#  mit EIGENEM Bot-Token/eigener Instanz. Dieser spezifische Account läuft nur
+#  für den einen Server. Zum Betrieb einer eigenen Instanz einfach die ID unten
+#  auf die eigene Server-ID setzen (oder per Env ALLOWED_GUILD_ID überschreiben).
+#
+#  Ändern erlaubt (AGPLv3) – für die offizielle AAM-Instanz aber unverändert
+#  lassen. Override optional via Umgebungsvariable ALLOWED_GUILD_ID.
+# ══════════════════════════════════════════════════════════════════════════════
+import os as _os
+ALLOWED_GUILD_ID: int = int(_os.getenv("ALLOWED_GUILD_ID", "375031723601297409"))
+
 # ── Bot-Konfiguration ─────────────────────────────────────────────────────────
 intents                  = discord.Intents.default()
 intents.message_content  = True
@@ -41,6 +60,40 @@ intents.members          = True
 intents.reactions        = True
 
 bot = discord.Bot(intents=intents)
+
+
+# ── Guild-Lock-Durchsetzung ───────────────────────────────────────────────────
+async def _enforce_guild_lock(guild: "discord.Guild") -> bool:
+    """Verlässt einen fremden Server automatisch. Gibt True zurück, wenn der
+    Server erlaubt ist, sonst False (nachdem der Bot ihn verlassen hat)."""
+    if guild is None:
+        return True
+    if guild.id == ALLOWED_GUILD_ID:
+        return True
+    logger.warning(
+        f"⛔ Guild-Lock: fremder Server '{guild.name}' ({guild.id}) – "
+        f"nur {ALLOWED_GUILD_ID} ist erlaubt. Verlasse den Server."
+    )
+    try:
+        await guild.leave()
+    except Exception as e:
+        logger.error(f"❌ Konnte fremden Server {guild.id} nicht verlassen: {e}")
+    return False
+
+
+async def _guild_lock_check(ctx: "discord.ApplicationContext") -> bool:
+    """Globaler Befehls-Check: erlaubt Befehle ausschließlich auf dem gebundenen
+    Server. Greift zusätzlich zur Leave-Automatik (Defense-in-Depth)."""
+    if getattr(ctx, "guild_id", None) == ALLOWED_GUILD_ID:
+        return True
+    logger.warning(
+        f"⛔ Guild-Lock: Befehl auf nicht erlaubtem Server "
+        f"{getattr(ctx, 'guild_id', None)} blockiert."
+    )
+    raise commands.CheckFailure("")   # leer -> lokalisierter Fallback im Error-Handler
+
+
+bot.add_check(_guild_lock_check)
 
 # ── Alle Cogs ─────────────────────────────────────────────────────────────────
 INITIAL_COGS = [
@@ -96,6 +149,16 @@ async def main():
 async def on_ready():
     logger.info(f"✅ Bot online als {bot.user} ({bot.user.id})")
     logger.info(f"   Verbunden mit {len(bot.guilds)} Server(n)")
+    # 🔒 Guild-Lock: beim Start jeden fremden Server sofort verlassen.
+    for g in list(bot.guilds):
+        await _enforce_guild_lock(g)
+
+
+@bot.event
+async def on_guild_join(guild: discord.Guild):
+    """🔒 Guild-Lock: wird der Bot auf einen fremden Server eingeladen, verlässt
+    er ihn sofort wieder. Nur der gebundene Server (ALLOWED_GUILD_ID) bleibt."""
+    await _enforce_guild_lock(guild)
 
 
 if __name__ == "__main__":
