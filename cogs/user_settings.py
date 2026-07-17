@@ -34,6 +34,7 @@ from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, format_rating
 from utils.countries import country_label, country_name
 from utils.embeds import send_embeds
+from utils.sheet import get_shop_warnings, all_warnings, warn_emoji
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -220,6 +221,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
         if country:
             # Gefilterte Ansicht: flache Liste wie bisher
             entries = [
+                f"{'⚠️ ' if get_shop_warnings(s.get('url',''), s.get('name','')) else ''}"
                 f"`{s.get('id')}` | {s.get('name', '?')} - {format_rating(s.get('average_rating'))}"
                 for s in filtered
             ]
@@ -236,12 +238,22 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             for code in sorted(groups, key=lambda c: country_name(c, lang).lower()):
                 lines = []
                 for s in groups[code]:
-                    line = f"- {s.get('name', '?')} – {format_rating(s.get('average_rating'))}"
+                    marker = "⚠️ " if get_shop_warnings(s.get("url", ""), s.get("name", "")) else ""
+                    line = f"- {marker}{s.get('name', '?')} – {format_rating(s.get('average_rating'))}"
                     if s.get("url"):
                         line += f" <{s['url']}>"
                     lines.append(line)
                 sections.append(country_label(code, lang) + "\n" + "\n".join(lines))
             text = l10n.get("available_shops_grouped", lang, shops="\n\n".join(sections))
+
+        warns = all_warnings()
+        if warns:
+            wlines = [l10n.get("warn_block_header", lang)]
+            for w in warns:
+                label = l10n.get(f"warn_level_{w['level']}", lang) if w["level"] in (1, 2, 3) else ""
+                datepart = f" _({w['date']})_" if w.get("date") else ""
+                wlines.append(f"{warn_emoji(w['level'])} **{w['shop']}** — {label}: {w['text']}{datepart}")
+            text = "\n".join(wlines) + "\n\n" + text
 
         await send_embeds(ctx, text)
 

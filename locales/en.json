@@ -89,7 +89,7 @@
   "shopmapping_remove_none": "ℹ️ No mapping found.",
   "help_reloadshops": "🔄 `/reloadshops` – Reload shop data",
   "help_shopmapping": "🗂️ `/shopmapping` – Manage shop name mappings",
-  "help_shopmap": "🟡 `/shopmap` – Map a review shop text to a URL (resolves the 🟡)",
+  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Map a review shop text to a URL (resolves the 🟡)",
   "ch_delivery_exists": "⚠️ Shop {shop} is already on the list!",
   "ch_delivery_add_success": "✅ {shop} has been added to the CH delivery list",
   "ch_delivery_remove_success": "❌ {shop} has been removed from the CH delivery list",
@@ -320,7 +320,6 @@
   "shopmap_list_empty": "No shop mappings yet.",
   "shopmap_list_header": "🗂️ **Shop mappings (review bot)**",
   "shopmap_pending_line": "• `{identifier}` → ⚠️ *(pending – set URL with /shopmap set)*",
-  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Map a review shop text to a URL (resolves the 🟡)",
   "ach_first_notif_t": "First Search",
   "ach_first_notif_d": "Set up your first availability notification",
   "ach_collector_t": "Collector",
@@ -382,5 +381,10 @@
   "ach_code_bringer_3_t": "Code Master",
   "ach_code_bringer_3_d": "Posted 15 discount codes",
   "ach_ai_first_t": "AI Curious",
-  "ach_ai_first_d": "Used the AI chat once"
+  "ach_ai_first_d": "Used the AI chat once",
+  "warn_block_header": "⚠️ **Community warnings:**",
+  "warn_level_1": "Suspected case / heightened caution",
+  "warn_level_2": "Acute warning / high risk",
+  "warn_level_3": "Confirmed scam / acute danger",
+  "warn_shop_line": "{emoji} **Warning (level {level}):** {text}"
 }

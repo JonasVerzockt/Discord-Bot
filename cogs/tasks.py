@@ -116,6 +116,11 @@ class TasksCog(commands.Cog, name="Tasks"):
                 )
                 count += 1
             logger.info(f"🏪 Shop-Daten neu geladen: {count} Shops")
+            try:
+                from utils.sheet import sync_warnings_from_sheet
+                await sync_warnings_from_sheet(self.bot)
+            except Exception as e:
+                logger.error(f"❌ sync_warnings error: {e}")
         except Exception as e:
             logger.error(f"❌ reload_shops_task error: {e}")
 

@@ -89,7 +89,7 @@
   "shopmapping_remove_none": "ℹ️ Neniu mapado trovita.",
   "help_reloadshops": "🔄 `/reloadshops` – Reŝargi butikdatumojn",
   "help_shopmapping": "🗂️ `/shopmapping` – Administri butiknomnomigojn",
-  "help_shopmap": "🟡 `/shopmap` – Recenz-butiktekston al URL mapi (solvas la 🟡)",
+  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Mapu vendejan tekston al URL (solvas la 🟡)",
   "ch_delivery_exists": "⚠️ Butiko {shop} jam estas en la listo!",
   "ch_delivery_add_success": "✅ {shop} aldoniĝis al la CH-livera listo",
   "ch_delivery_remove_success": "❌ {shop} foriĝis el la CH-livera listo",
@@ -320,7 +320,6 @@
   "shopmap_list_empty": "Ankoraŭ neniuj vendejaj mapadoj.",
   "shopmap_list_header": "🗂️ **Vendejaj mapadoj (recenzo-boto)**",
   "shopmap_pending_line": "• `{identifier}` → ⚠️ *(ankoraŭ malfermita – agordu URL per /shopmap set)*",
-  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Mapu vendejan tekston al URL (solvas la 🟡)",
   "ach_first_notif_t": "Unua Serĉo",
   "ach_first_notif_d": "Vi agordis vian unuan disponebla-sciigon",
   "ach_collector_t": "Kolektanto",
@@ -382,5 +381,10 @@
   "ach_code_bringer_3_t": "Kod-Majstro",
   "ach_code_bringer_3_d": "Afiŝis 15 rabatkodojn",
   "ach_ai_first_t": "AI-Scivolo",
-  "ach_ai_first_d": "Uzis la AI-babilon unufoje"
+  "ach_ai_first_d": "Uzis la AI-babilon unufoje",
+  "warn_block_header": "⚠️ **Avertoj de la komunumo:**",
+  "warn_level_1": "Suspektata kazo / pliigita atento",
+  "warn_level_2": "Akuta averto / alta risko",
+  "warn_level_3": "Konfirmita trompo / akuta danĝero",
+  "warn_shop_line": "{emoji} **Averto (nivelo {level}):** {text}"
 }

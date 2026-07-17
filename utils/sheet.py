@@ -245,3 +245,94 @@ async def sync_ratings_from_sheet(bot) -> int:
 
     logger.info(f"📊 sync_ratings: {updated}/{len(shop_rows)} Shops mit Sheet-Rating versehen")
     return updated
+
+
+# ── Community-Warnhinweise (Tab "Übersicht", ab Zeile 40) ─────────────────────
+# Spalten: A = Stufe (1–3), B = Hinweis, C = Shop (Domain), D = Eintragungsdatum.
+
+_WARNINGS: dict[str, list] = {}          # normalisierte Domain → [ {level,text,shop,date}, … ]
+_WARNINGS_FUZZY: dict[str, str] = {}     # Fuzzy-Name → Domain-Key
+_WARN_EMOJI = {1: "🟡", 2: "🟠", 3: "🔴"}
+
+
+def warn_emoji(level) -> str:
+    """Emoji je Warnstufe (1/2/3); unbekannt → ⚠️."""
+    try:
+        return _WARN_EMOJI.get(int(level), "⚠️")
+    except (TypeError, ValueError):
+        return "⚠️"
+
+
+def _warn_level(raw):
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+async def sync_warnings_from_sheet(bot) -> int:
+    """Liest den Community-Warnhinweis-Block aus dem 'Übersicht'-Tab (ab Zeile 40)
+    und aktualisiert den Cache. Rückgabe: Anzahl Einträge (–1 = Lesefehler,
+    Cache bleibt unverändert)."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    def _read():
+        ws = _gc.open_by_key(SPREADSHEET_ID).worksheet("Übersicht")
+        rows = ws.get_all_values()
+        data: dict[str, list] = {}
+        for row in rows[39:]:            # Zeile 40 = Index 39
+            if not row:
+                continue
+            level = _warn_level(row[0]) if len(row) > 0 and row[0].strip() else None
+            shop  = row[2].strip() if len(row) > 2 else ""
+            if level is None or level < 1 or not shop:
+                continue
+            text = row[1].strip() if len(row) > 1 else ""
+            date = row[3].strip() if len(row) > 3 else ""
+            key = _extract_domain(shop) or _normalize_sheet_key(shop)
+            data.setdefault(key, []).append(
+                {"level": level, "text": text, "shop": shop, "date": date}
+            )
+        return data
+
+    try:
+        data = await bot.loop.run_in_executor(None, _read)
+    except Exception as e:
+        logger.error(f"❌ sync_warnings: Sheet-Lesefehler: {e}")
+        return -1
+
+    global _WARNINGS, _WARNINGS_FUZZY
+    _WARNINGS = data
+    _WARNINGS_FUZZY = {_normalize_for_fuzzy(k): k for k in data if _normalize_for_fuzzy(k)}
+    total = sum(len(v) for v in data.values())
+    logger.info(f"⚠️ sync_warnings: {total} Warnhinweis(e) für {len(data)} Shop(s) geladen")
+    return total
+
+
+def get_shop_warnings(url: str = "", name: str = "") -> list:
+    """Warnhinweise für einen Shop: Domain-Exact-Match, sonst strenger Fuzzy-Name."""
+    if not _WARNINGS:
+        return []
+    dom = _extract_domain(url or "")
+    if dom and dom in _WARNINGS:
+        return _WARNINGS[dom]
+    norm = _normalize_for_fuzzy(name or "")
+    if norm and _WARNINGS_FUZZY:
+        from rapidfuzz import process, fuzz
+        m = process.extractOne(
+            norm, list(_WARNINGS_FUZZY.keys()),
+            scorer=fuzz.token_sort_ratio, score_cutoff=90,
+        )
+        if m:
+            return _WARNINGS.get(_WARNINGS_FUZZY[m[0]], [])
+    return []
+
+
+def all_warnings() -> list:
+    """Alle Warnhinweise, nach Stufe (absteigend) und Shop sortiert."""
+    out: list = []
+    for lst in _WARNINGS.values():
+        out.extend(lst)
+    out.sort(key=lambda w: (-int(w.get("level", 0) or 0), str(w.get("shop", "")).lower()))
+    return out

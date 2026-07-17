@@ -37,6 +37,7 @@ from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_lines
 from utils.embeds import EMBED_COLOR
+from utils.sheet import get_shop_warnings, warn_emoji
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 
@@ -167,6 +168,7 @@ class SellsCog(commands.Cog, name="Sells"):
                     "cur":         p.get("currency_iso") or "EUR",
                     "variants":    p.get("variants") or [],
                     "url":         (p.get("antcheck_url") or p.get("shop_url") or "").strip(),
+                    "shop_web":    (shop.get("url") or "").strip(),
                 })
 
         if not found_species:
@@ -208,6 +210,11 @@ class SellsCog(commands.Cog, name="Sells"):
                     continue  # 0-€/Preis-unbekannt → Angebot überspringen
                 sp_parts.append("")
                 sp_parts.append(f"{flag_emoji(o['country'])} **{o['shop_name']}**")
+                for w in get_shop_warnings(o.get("shop_web", ""), o["shop_name"]):
+                    sp_parts.append(l10n.get(
+                        "warn_shop_line", lang,
+                        emoji=warn_emoji(w["level"]), level=w["level"], text=w["text"],
+                    ))
                 if o["title"]:
                     sp_parts.append(o["title"])
                 if o.get("url"):

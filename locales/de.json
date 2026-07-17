@@ -89,7 +89,7 @@
   "shopmapping_remove_none": "ℹ️ Keine Zuordnung gefunden.",
   "help_reloadshops": "🔄 `/reloadshops` – Shop-Daten neu laden",
   "help_shopmapping": "🗂️ `/shopmapping` – Shopnamen-Zuordnungen verwalten",
-  "help_shopmap": "🟡 `/shopmap` – Review-Shop-Text einer URL zuordnen (löst 🟡 auf)",
+  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Shop-Text aus Bewertungen einer URL zuordnen (löst 🟡 auf)",
   "ch_delivery_exists": "⚠️ Shop {shop} steht bereits auf der Liste!",
   "ch_delivery_add_success": "✅ {shop} wurde zur CH-Lieferliste hinzugefügt",
   "ch_delivery_remove_success": "❌ {shop} wurde von der CH-Lieferliste entfernt",
@@ -320,7 +320,6 @@
   "shopmap_list_empty": "Noch keine Shop-Zuordnungen vorhanden.",
   "shopmap_list_header": "🗂️ **Shop-Zuordnungen (Review-Bot)**",
   "shopmap_pending_line": "• `{identifier}` → ⚠️ *(noch offen – URL mit /shopmap set setzen)*",
-  "help_shopmap": "🗂️ `/shopmap set|list|remove` – Shop-Text aus Bewertungen einer URL zuordnen (löst 🟡 auf)",
   "ach_first_notif_t": "Erste Suche",
   "ach_first_notif_d": "Erste Verfügbarkeitsbenachrichtigung eingerichtet",
   "ach_collector_t": "Sammler",
@@ -382,5 +381,10 @@
   "ach_code_bringer_3_t": "Code-Meister",
   "ach_code_bringer_3_d": "15 Rabattcodes gepostet",
   "ach_ai_first_t": "KI-Neugier",
-  "ach_ai_first_d": "Den KI-Chat einmal genutzt"
+  "ach_ai_first_d": "Den KI-Chat einmal genutzt",
+  "warn_block_header": "⚠️ **Warnhinweise der Community:**",
+  "warn_level_1": "Verdachtsfall / erhöhte Wachsamkeit",
+  "warn_level_2": "Akute Warnung / hohes Risiko",
+  "warn_level_3": "Bestätigter Scam / akute Gefahr",
+  "warn_shop_line": "{emoji} **Warnung (Stufe {level}):** {text}"
 }
