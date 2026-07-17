@@ -33,6 +33,7 @@ from cogs.server_settings import allowed_channel
 from cogs.sells import _price_md, _chunks, _read_fetched_at, _has_price
 from utils.text_chunks import chunk_lines
 from utils.embeds import EMBED_COLOR
+from utils.sheet import get_shop_warnings, warn_emoji
 
 
 class OffersCog(commands.Cog, name="Offers"):
@@ -95,6 +96,11 @@ class OffersCog(commands.Cog, name="Offers"):
         parts = [f"{flag_emoji(country)} **{shop_name}**"]
         if shop_info.get("url"):
             parts.append(f"<{shop_info['url']}>")
+        for w in get_shop_warnings(shop_info.get("url", ""), shop_name):
+            parts.append(l10n.get(
+                "warn_shop_line", lang,
+                emoji=warn_emoji(w["level"]), level=w["level"], text=w["text"],
+            ))
         parts.append(l10n.get("sells_source", lang))
         parts.append(l10n.get("sells_disclaimer", lang))
 
