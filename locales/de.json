@@ -235,6 +235,7 @@
   "pt_select_variant": "🔖 Wähle eine oder mehrere Varianten – oder das ganze Produkt:",
   "pt_variant_placeholder": "Variante(n) auswählen …",
   "pt_whole_product": "🔭 Ganzes Produkt (alle Varianten)",
+  "pt_variant_count": "{count} Varianten",
   "pt_no_price_short": "kein Preis",
   "pt_species_watch_type": "Arten-Beobachtung (alle Shops)",
   "pt_untrack_placeholder": "Produkt(e) / Arten-Beobachtung auswählen …",

@@ -29,6 +29,7 @@ Background Tasks (gestaffelt, damit nicht beide gleichzeitig laufen):
 """
 import asyncio
 import logging
+import re
 import sqlite3
 from pathlib import Path
 
@@ -287,6 +288,22 @@ def _make_product_label(p: dict) -> str:
     return label[:97]
 
 
+_VARIANT_SIZE_RE = re.compile(r"\d+\s*[-~–—]\s*\d+")
+
+
+def _variant_size_summary(product) -> str:
+    """Kompakte Zusammenfassung der lagernden Varianten-Größen (z.B. '3-6, 10-20, 25-50').
+    Sprachneutral: zieht Zahlenspannen aus den Variantentiteln, sonst den Kurztitel."""
+    tokens: list[str] = []
+    for v in available_variants(product):
+        t = strip_html(v.get("title") or v.get("description") or "")
+        m = _VARIANT_SIZE_RE.search(t)
+        tok = (m.group(0).replace(" ", "") if m else t).strip()
+        if tok and tok not in tokens:
+            tokens.append(tok)
+    return ", ".join(tokens)
+
+
 # ── Discord-UI Views ──────────────────────────────────────────────────────────
 
 class _BaseView(discord.ui.View):
@@ -519,10 +536,19 @@ class _ProductSelectItem(discord.ui.Select):
                 price_str  = format_price(min_p, max_p, currency)
                 stock_icon = "❌"
 
+            vsum  = _variant_size_summary(p)
+            n_var = len(available_variants(p))
+            if vsum:
+                desc = f"{price_str} · {vsum}"
+            elif n_var:
+                desc = f"{price_str} · " + l10n.get("pt_variant_count", lang, count=n_var)
+            else:
+                desc = price_str
+
             options.append(discord.SelectOption(
                 label=label,
                 value=str(p.get("id", "")),
-                description=price_str[:100],
+                description=desc[:100],
                 emoji=stock_icon,
             ))
         super().__init__(
