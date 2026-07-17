@@ -32,7 +32,7 @@ from discord.ext import commands
 
 from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name
+from utils.availability import load_shop_data, normalize_species_name, strip_html
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_lines
@@ -154,8 +154,8 @@ class SellsCog(commands.Cog, name="Sells"):
                     "shop_name":   shop.get("name", "?"),
                     "country":     scountry,
                     "rating":      shop.get("average_rating"),
-                    "title":       (p.get("title") or sp).strip(),
-                    "description": (p.get("description") or "").strip(),
+                    "title":       strip_html(p.get("title") or sp),
+                    "description": strip_html(p.get("description") or ""),
                     "min":         p.get("min_price"),
                     "max":         p.get("max_price"),
                     "cur":         p.get("currency_iso") or "EUR",
@@ -199,13 +199,13 @@ class SellsCog(commands.Cog, name="Sells"):
                 if vs:
                     # Varianten-Ebene: pro Variante Einzelpreis
                     for i, v in enumerate(vs, 1):
-                        label  = v.get("title") or v.get("description") or f"Variante {i}"
+                        label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
                         vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or o["cur"])
                         parts.append(f"{label}: {vprice}")
                 else:
                     # Fallback: Produkt-Ebene (min/max), falls (noch) keine Varianten
                     price = _price_md(o["min"], o["max"], o["cur"])
-                    if o["description"] and o["description"].lower() != o["title"].lower():
+                    if o["description"] and len(o["description"]) <= 60 and o["description"].lower() != o["title"].lower():
                         parts.append(f"{o['description']}: {price}")
                     else:
                         parts.append(price)

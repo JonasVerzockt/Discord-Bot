@@ -36,6 +36,8 @@ import os
 import sqlite3
 import sys
 import time
+import re
+import html
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -78,6 +80,18 @@ if not API_VERIFY_SSL:
 
 # ── HTTP-Helfer ───────────────────────────────────────────────────────────────
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text) -> str:
+    """Entfernt HTML-Tags/Entities aus Shop-Texten (Titel/Beschreibung)."""
+    if not text:
+        return ""
+    cleaned = _HTML_TAG_RE.sub(" ", str(text))
+    cleaned = html.unescape(cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def _fetch_json(url: str) -> dict | list:
     """Holt JSON von der URL mit Retry-Logik."""
     for attempt in range(1, API_RETRIES + 1):
@@ -119,8 +133,8 @@ def _variant_entry(v: dict, product_currency: str) -> dict:
         price = v.get("min_price") or v.get("amount") or "0"
     return {
         "id":           v.get("id"),
-        "title":        (v.get("title") or "").strip(),
-        "description":  (v.get("description") or "").strip(),
+        "title":        _strip_html(v.get("title") or ""),
+        "description":  _strip_html(v.get("description") or ""),
         "price":        str(price),
         "currency_iso": v.get("currency_iso") or v.get("currency") or product_currency,
         "url":          v.get("url") or v.get("antcheck_url") or "",
@@ -181,8 +195,8 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list,
             p.get("species_name") or p.get("name") or p.get("title") or ""
         ).strip()
         # Varianteninfo: description/comment falls vorhanden, sonst Artname
-        description = (p.get("description") or p.get("comment") or "").strip()
-        product_title = (p.get("name") or p.get("title") or species_name).strip()
+        description = _strip_html(p.get("description") or p.get("comment") or "")
+        product_title = _strip_html(p.get("name") or p.get("title") or species_name)
         genus = species_name.split()[0] if " " in species_name else species_name
         currency = p.get("currency_iso") or p.get("currency") or "EUR"
         pid = p.get("id")
