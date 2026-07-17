@@ -11,7 +11,7 @@
   "species_not_found": "❌ Specio ne trovita.",
   "invalid_regions": "❌ Nevalidaj regionoj. Haveblaj: {regions}.",
   "invalid_ids": "❌ Nevalidaj ID-oj indikitaj.",
-  "no_permission": "❌ Neniu permeso.",
+  "no_permission": "❌ Vi bezonas administrajn aŭ moderigajn rajtojn por tio.",
   "deleted_success": "🗑️ Forigita: {ids}.",
   "delete_error": "❌ Eraro dum forigo.",
   "stats_message": "📊 **Statistikoj**\n🔄 Aktivaj: {active}\n✅ Finitaj: {completed}\n⏳ Eksvalidiĝis: {expired}\n🗑️ Forigitaj: {deleted_total}\n\n🏆 **Plej bonaj specioj**\n{top_species}",
@@ -395,5 +395,6 @@
   "rank_queen": "Reĝino",
   "ach_rank_line": "{emoji} **Rango:** {rank} · {unlocked}/{total} atingoj",
   "ach_rank_next": "sekva rango je {n}",
-  "ach_rank_up_dm": "🎉 **Nova rango atingita!** Vi nun estas {emoji} **{rank}**."
+  "ach_rank_up_dm": "🎉 **Nova rango atingita!** Vi nun estas {emoji} **{rank}**.",
+  "command_check_failed": "❌ Vi ne povas uzi ĉi tiun komandon ĉi tie."
 }

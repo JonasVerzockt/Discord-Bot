@@ -11,7 +11,7 @@
   "species_not_found": "❌ Art nicht gefunden",
   "invalid_regions": "❌ Ungültige Regionen. Verfügbare: {regions}",
   "invalid_ids": "❌ Ungültige IDs angegeben",
-  "no_permission": "❌ Keine Berechtigung",
+  "no_permission": "❌ Dafür brauchst du Admin- oder Moderationsrechte.",
   "deleted_success": "🗑️ Gelöscht:{ids}",
   "delete_error": "❌ Fehler beim Löschen",
   "stats_message": "📊 **Statistiken**\n🔄 Aktiv: {active}\n✅ Abgeschlossen: {completed}\n⏳ Abgelaufen: {expired}\n🗑️ Gelöscht: {deleted_total}\n\n🏆 **Top-Arten**\n{top_species}",
@@ -395,5 +395,6 @@
   "rank_queen": "Königin",
   "ach_rank_line": "{emoji} **Rang:** {rank} · {unlocked}/{total} Erfolge",
   "ach_rank_next": "nächster Rang bei {n}",
-  "ach_rank_up_dm": "🎉 **Neuer Rang erreicht!** Du bist jetzt {emoji} **{rank}**."
+  "ach_rank_up_dm": "🎉 **Neuer Rang erreicht!** Du bist jetzt {emoji} **{rank}**.",
+  "command_check_failed": "❌ Du kannst diesen Befehl hier nicht ausführen."
 }
