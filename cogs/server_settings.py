@@ -37,10 +37,12 @@ logger = logging.getLogger(__name__)
 
 def admin_or_manage_messages():
     async def predicate(ctx: discord.ApplicationContext) -> bool:
-        if ctx.guild is None:
-            return False   # Admin-Befehle nie in DMs zulassen
-        perms = ctx.author.guild_permissions
-        return perms.administrator or perms.manage_messages
+        if ctx.guild is not None:
+            perms = ctx.author.guild_permissions
+            if perms.administrator or perms.manage_messages:
+                return True
+        lang = await get_user_lang(ctx.bot, ctx.author.id, ctx.guild.id if ctx.guild else None)
+        raise commands.CheckFailure(l10n.get("no_permission", lang))
     return commands.check(predicate)
 
 
@@ -70,6 +72,27 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
 
     def __init__(self, bot: discord.Bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_application_command_error(self, ctx: discord.ApplicationContext, error):
+        """Bei abgelehntem Kanal-/Rechte-Check dem User kurz (ephemer) Bescheid geben,
+        statt die Interaktion unbeantwortet in den Timeout laufen zu lassen."""
+        if not isinstance(error, commands.CheckFailure):
+            return
+        msg = str(error).strip()
+        if not msg:
+            try:
+                lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild.id if ctx.guild else None)
+            except Exception:
+                lang = "en"
+            msg = l10n.get("command_check_failed", lang)
+        try:
+            if ctx.interaction.response.is_done():
+                await ctx.followup.send(msg, ephemeral=True)
+            else:
+                await ctx.respond(msg, ephemeral=True)
+        except discord.HTTPException:
+            pass
 
     @discord.slash_command(
         name="startup",

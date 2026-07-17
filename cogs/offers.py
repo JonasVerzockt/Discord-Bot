@@ -26,7 +26,7 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, available_variants, strip_html, ensure_url_scheme
+from utils.availability import load_shop_data, available_variants, strip_html, ensure_url_scheme, format_rating
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
@@ -93,7 +93,11 @@ class OffersCog(commands.Cog, name="Offers"):
 
         prods.sort(key=lambda p: ((p.get("species") or "").lower(), (p.get("title") or "").lower()))
 
-        parts = [f"{flag_emoji(country)} **{shop_name}**"]
+        shop_header = f"{flag_emoji(country)} **{shop_name}**"
+        _rating = shop_info.get("average_rating")
+        if _rating is not None:
+            shop_header += f" · {format_rating(_rating)}"
+        parts = [shop_header]
         if shop_info.get("url"):
             parts.append(f"<{ensure_url_scheme(shop_info['url'])}>")
         for w in get_shop_warnings(shop_info.get("url", ""), shop_name):

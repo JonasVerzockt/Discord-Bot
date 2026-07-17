@@ -11,7 +11,7 @@
   "species_not_found": "❌ Species not found",
   "invalid_regions": "❌ Invalid regions. Available: {regions}",
   "invalid_ids": "❌ Invalid IDs provided",
-  "no_permission": "❌ No permission",
+  "no_permission": "❌ You need admin or moderator permissions for this.",
   "deleted_success": "🗑️ Deleted: {ids}",
   "delete_error": "❌ Error while deleting",
   "stats_message": "📊 **Statistics**\n🔄 Active: {active}\n✅ Completed: {completed}\n⏳ Expired: {expired}\n🗑️ Deleted: {deleted_total}\n\n🏆 **Top Species**\n{top_species}",
@@ -395,5 +395,6 @@
   "rank_queen": "Queen",
   "ach_rank_line": "{emoji} **Rank:** {rank} · {unlocked}/{total} achievements",
   "ach_rank_next": "next rank at {n}",
-  "ach_rank_up_dm": "🎉 **New rank reached!** You are now {emoji} **{rank}**."
+  "ach_rank_up_dm": "🎉 **New rank reached!** You are now {emoji} **{rank}**.",
+  "command_check_failed": "❌ You can't use this command here."
 }
