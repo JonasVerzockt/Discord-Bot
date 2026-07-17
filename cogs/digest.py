@@ -39,6 +39,7 @@ from discord.ext import commands, tasks
 from config import DATA_DIRECTORY, DB_FILE
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import allowed_channel
 from utils.availability import load_shop_data
 
 logger = logging.getLogger(__name__)
@@ -200,6 +201,7 @@ class DigestCog(commands.Cog, name="Digest"):
         description_localizations={"de": "Wöchentlicher Digest per DM: Preisstürze, neue Arten & Shops."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def digest(
         self,
         ctx: discord.ApplicationContext,

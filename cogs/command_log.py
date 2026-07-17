@@ -40,7 +40,7 @@ from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.timez import now_berlin, berlin_from_utc_naive
 from utils.embeds import ADMIN_COLOR
-from cogs.server_settings import admin_or_manage_messages
+from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,7 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
         description_localizations={"de": "(Admin) Befehls-Nutzungsprotokoll eines Users anzeigen"},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def command_log_cmd(
         self,
         ctx: discord.ApplicationContext,

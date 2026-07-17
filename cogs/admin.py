@@ -40,7 +40,7 @@ from utils.tracking import (
     get_tracking, remove_pending,
 )
 from utils.ai_parser import parse_with_ai
-from cogs.server_settings import admin_or_manage_messages
+from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from utils.localization import l10n, get_user_lang
 from utils.embeds import send_embeds, ADMIN_COLOR
 
@@ -55,6 +55,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(name="status", description="Show review bot status (Admin/Mod)", description_localizations={"de": "Review-Bot-Status anzeigen (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def cmd_status(self, ctx: discord.ApplicationContext):
         """Zeigt Bewertungsanzahl, verarbeitete und ausstehende Nachrichten."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -72,6 +73,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(name="pending", description="List pending messages (Admin/Mod)", description_localizations={"de": "Ausstehende Nachrichten auflisten (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def cmd_pending(self, ctx: discord.ApplicationContext):
         """Listet ausstehende Nachrichten auf."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -99,6 +101,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(name="test", description="Test AI parser without writing to sheet (Admin/Mod)", description_localizations={"de": "KI-Parser ohne Sheet-Eintrag testen (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def cmd_test(
         self,
         ctx: discord.ApplicationContext,
@@ -118,6 +121,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(name="rescan", description="Manually re-reconcile last N days (Admin/Mod)", description_localizations={"de": "Letzte N Tage manuell neu abgleichen (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def cmd_rescan(self, ctx: discord.ApplicationContext):
         """Gleicht die letzten N Tage manuell erneut ab."""
         await ctx.defer(ephemeral=True)
@@ -148,6 +152,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(name="export", description="Export DB data as JSON (Admin/Mod)", description_localizations={"de": "DB-Daten als JSON exportieren (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def cmd_export(
         self,
         ctx: discord.ApplicationContext,
@@ -310,6 +315,7 @@ class AdminCog(commands.Cog, name="Admin"):
         description="Re-process one or more review messages by ID (Admin/Mod) – separate multiple IDs with spaces", description_localizations={"de": "Bewertungsnachricht(en) per ID neu verarbeiten (mehrere durch Leerzeichen trennen, Admin/Mod)"},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def cmd_reprocess(
         self,
         ctx: discord.ApplicationContext,

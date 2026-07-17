@@ -28,6 +28,7 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import allowed_channel
 from utils.embeds import EMBED_COLOR
 from utils.achievements import (
     ACHIEVEMENTS, evaluate, gather_stats, check_and_grant, log_event,
@@ -101,6 +102,7 @@ class AchievementsCog(commands.Cog, name="Achievements"):
         description_localizations={"de": "Deine Erfolge anzeigen: freigeschaltet, in Arbeit und versteckt."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def achievements(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         results = await check_and_grant(self.bot, ctx.author, lang)

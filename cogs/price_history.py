@@ -40,6 +40,7 @@ import matplotlib.dates as mdates
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +273,7 @@ class PriceHistoryCog(commands.Cog, name="PriceHistory"):
         description_localizations={"de": "Preisverlauf eines beobachteten Produkts als Diagramm anzeigen."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def price_history(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         rows = await execute_db(

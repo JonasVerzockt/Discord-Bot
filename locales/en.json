@@ -397,7 +397,7 @@
   "ach_rank_next": "next rank at {n}",
   "ach_rank_up_dm": "🎉 **New rank reached!** You are now {emoji} **{rank}**.",
   "command_check_failed": "❌ You can't use this command here.",
-  "wrong_channel_confirm": "⚠️ This isn't the bot channel. Run the command here **publicly** anyway?",
+  "wrong_channel_confirm": "⚠️ This isn't the bot channel. Run the command here anyway?",
   "wrong_channel_confirmed": "✅ Running …",
   "wrong_channel_cancelled": "❌ Cancelled – the command was not run.",
   "channel_confirm_yes": "Yes, run here",

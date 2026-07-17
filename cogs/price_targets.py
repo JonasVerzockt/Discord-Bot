@@ -36,6 +36,7 @@ from discord.ext import commands
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import allowed_channel
 from utils.achievements import check_and_grant
 
 logger = logging.getLogger(__name__)
@@ -191,6 +192,7 @@ class PriceTargetsCog(commands.Cog, name="PriceTargets"):
         description_localizations={"de": "Zielpreis für ein beobachtetes Produkt setzen (Alarm bei Erreichen)."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def set_target(
         self,
         ctx: discord.ApplicationContext,

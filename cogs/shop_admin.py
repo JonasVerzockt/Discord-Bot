@@ -52,6 +52,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     # ── /reloadshops ──────────────────────────────────────────────────────────
     @discord.slash_command(name="reloadshops", description="Reload shop data from JSON file (Admin/Mod)", description_localizations={"de": "Shop-Daten aus JSON-Datei neu laden (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def reloadshops(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         await ctx.defer(ephemeral=True)
@@ -83,6 +84,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
     @shopmapping.command(name="add", description="Add an external shop name → shop ID mapping", description_localizations={"de": "Externen Shopnamen einer internen Shop-ID zuordnen"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopmapping_add(
         self,
         ctx: discord.ApplicationContext,
@@ -116,6 +118,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
     @shopmapping.command(name="show", description="Show all current shop name mappings", description_localizations={"de": "Alle aktuellen Shopnamen-Zuordnungen anzeigen"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopmapping_show(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         rows = await execute_db(
@@ -136,6 +139,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
     @shopmapping.command(name="remove", description="Remove an external shop name mapping", description_localizations={"de": "Eine Shopnamen-Zuordnung entfernen"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopmapping_remove(
         self,
         ctx: discord.ApplicationContext,
@@ -263,6 +267,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
     @shopurl.command(name="set", description="Set a manual URL for a shop", description_localizations={"de": "Manuelle URL für einen Shop setzen"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopurl_set(
         self,
         ctx: discord.ApplicationContext,
@@ -296,6 +301,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
     @shopurl.command(name="clear", description="Remove the manual URL (the API URL is used again)", description_localizations={"de": "Manuelle URL entfernen (API-URL wird wieder genutzt)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopurl_clear(
         self,
         ctx: discord.ApplicationContext,
@@ -319,6 +325,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
 
     @shopurl.command(name="list", description="Show all manual URL overrides", description_localizations={"de": "Alle manuellen URL-Overrides anzeigen"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopurl_list(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         rows = await execute_db(

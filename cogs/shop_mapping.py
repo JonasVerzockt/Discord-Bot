@@ -31,7 +31,7 @@ from utils.localization import l10n, get_user_lang
 from utils.shop import set_mapping, remove_mapping, all_mappings
 from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, ADMIN_COLOR
-from cogs.server_settings import admin_or_manage_messages
+from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
         description_localizations={"de": "Shop-Text aus einer Bewertung einer Shop-URL zuordnen (löst 🟡 auf)."},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopmap_set(
         self,
         ctx: discord.ApplicationContext,
@@ -84,6 +85,7 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
         description_localizations={"de": "Eine Shop-Zuordnung entfernen."},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopmap_remove(
         self,
         ctx: discord.ApplicationContext,
@@ -105,6 +107,7 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
         description_localizations={"de": "Alle Shop-Zuordnungen anzeigen."},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def shopmap_list(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         rows = all_mappings()
