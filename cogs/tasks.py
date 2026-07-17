@@ -32,7 +32,7 @@ import discord
 from discord.ext import commands, tasks
 
 from config import VERSION
-from utils.db import execute_db
+from utils.db import execute_db, execute_many
 from utils.availability import load_shop_data
 
 logger = logging.getLogger(__name__)
@@ -99,23 +99,22 @@ class TasksCog(commands.Cog, name="Tasks"):
     async def reload_shops_task(self):
         try:
             shop_data = await load_shop_data(self.bot)
-            count = 0
-            for sid, sd in shop_data.items():
-                if sid == "_meta" or not isinstance(sd, dict):
-                    continue
-                await execute_db(
-                    self.bot,
-                    """INSERT INTO shops (id, name, country, url)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT(id) DO UPDATE SET
-                           name=excluded.name,
-                           country=excluded.country,
-                           url=excluded.url""",
-                    (sid, sd.get("name"), sd.get("country"), sd.get("url")),
-                    commit=True,
-                )
-                count += 1
-            logger.info(f"🏪 Shop-Daten neu geladen: {count} Shops")
+            rows = [
+                (sid, sd.get("name"), sd.get("country"), sd.get("url"))
+                for sid, sd in shop_data.items()
+                if sid != "_meta" and isinstance(sd, dict)
+            ]
+            await execute_many(
+                self.bot,
+                """INSERT INTO shops (id, name, country, url)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                       name=excluded.name,
+                       country=excluded.country,
+                       url=excluded.url""",
+                rows,
+            )
+            logger.info(f"🏪 Shop-Daten neu geladen: {len(rows)} Shops")
             try:
                 from utils.sheet import sync_warnings_from_sheet
                 await sync_warnings_from_sheet(self.bot)

@@ -75,6 +75,32 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
     return await bot.loop.run_in_executor(_executor, _sync)
 
 
+async def execute_many(bot, query: str, seq_params, *, commit: bool = True) -> int:
+    """Fuehrt eine Query gebuendelt fuer viele Parametersaetze aus – EINE Verbindung,
+    executemany, EINE Transaktion (statt einer Query pro Element). Leere Sequenz -> 0."""
+    rows = list(seq_params)
+    if not rows:
+        return 0
+
+    def _sync():
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=5000")
+        try:
+            cur = conn.cursor()
+            cur.executemany(query, rows)
+            if commit:
+                conn.commit()
+            return cur.rowcount
+        except Exception as e:
+            logger.error(f"❌ DB error (executemany) | query={query!r} n={len(rows)} | {e}")
+            raise
+        finally:
+            conn.close()
+
+    return await bot.loop.run_in_executor(_executor, _sync)
+
+
 # ── Schema ────────────────────────────────────────────────────────────────────
 _SCHEMA = """
 -- AntCheckBot-Tabellen
