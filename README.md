@@ -711,6 +711,12 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 → Nur Angebote aus Shops mit Ländercode „de".
 ```
 
+> Es werden ausschließlich **lebende Ameisen** angezeigt. Merchandise/Präparate
+> (Sticker, Aufkleber, Poster, Präparate usw.), die manche Shops in AntCheck unter
+> derselben „ants"-Kategorie führen, werden herausgefiltert – analog zur
+> Benachrichtigungs-Logik, die ebenfalls nur echte Kolonien berücksichtigt. Das
+> Gleiche gilt für `/offers`.
+
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---

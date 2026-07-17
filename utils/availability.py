@@ -51,6 +51,49 @@ def normalize_species_name(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip().lower()
 
 
+def matches_species_query(field_species: str, query: str) -> bool:
+    """Anker-Match wie bei den Notifications (check_availability_for_species).
+
+    Gattungssuche (ein Wort): das species-Feld muss mit 'gattung ' beginnen
+    (bzw. exakt die Gattung sein). Artsuche (Binomen): das Feld muss exakt gleich
+    sein. Dadurch wird Merch/Präparat zuverlässig ausgeschlossen – ein langer
+    Produkttitel wie 'Ameisen Stickerbogen Oecophylla smaragdina' ist weder exakt
+    'oecophylla smaragdina' noch beginnt er mit 'oecophylla '/'oecophylla smaragdina '.
+    Kein Keyword-Blacklisting nötig: die Prüfung ist am echten Artnamen verankert.
+    """
+    norm_field = normalize_species_name(field_species)
+    norm_query = normalize_species_name(query)
+    if not norm_field or not norm_query:
+        return False
+    if " " not in query.strip():          # Gattung
+        return norm_field == norm_query or norm_field.startswith(norm_query + " ")
+    return norm_field == norm_query        # konkrete Art (Binomen)
+
+
+# Erlaubt reine Latin-Wörter (Buchstaben, Bindestrich, Punkt) – ein echter
+# Artname besteht ausschließlich daraus; Merch-Titel enthalten Zahlen, Symbole
+# (×, cm, „–") oder viele Wörter.
+_LATIN_WORD_RE = re.compile(r"[a-zà-ÿ][a-zà-ÿ.\-]*$")
+
+
+def is_live_ant_species(species: str) -> bool:
+    """Struktur-Test für query-lose Kontexte (/offers): True nur, wenn das
+    species-Feld strukturell ein sauberes Binomen ist (max. 3 reine Latin-Wörter).
+
+    Merch/Präparate erhalten vom Grabber als 'species' den langen Produkttitel
+    (Fallback auf name/title, wenn AntCheck keinen Artnamen liefert) und fallen
+    hier durch Wortzahl bzw. Nicht-Latin-Token heraus. Ohne Keyword-Blacklist –
+    daher sprachneutral und lückenfrei gegenüber neuen Merch-Begriffen.
+    """
+    s = normalize_species_name(species or "")
+    if not s:
+        return False
+    words = s.split()
+    if not (1 <= len(words) <= 3):      # echte Art/Unterart hat 1–3 Wörter
+        return False
+    return all(_LATIN_WORD_RE.match(w) for w in words)
+
+
 def format_rating(rating) -> str:
     """Formatiert eine Shopbewertung als 'Stern 4.75' oder 'kein Rating'."""
     try:

@@ -32,7 +32,7 @@ from discord.ext import commands
 
 from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating
+from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species, matches_species_query
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_lines, chunk_paragraphs
@@ -144,32 +144,47 @@ class SellsCog(commands.Cog, name="Sells"):
         await ensure_rates()
         shop_data = await load_shop_data(self.bot)
 
-        found_species: set[str] = set()
-        offers: dict[str, list] = {}
-        for shop in shop_data.values():
-            scountry = (shop.get("country") or "").strip().lower()
-            if cc and scountry != cc:
-                continue
-            for p in shop.get("products", []):
-                sp = (p.get("species") or "").strip()
-                if not sp or search not in normalize_species_name(sp):
+        def _collect(match_fn):
+            """Sammelt Arten + Angebote aus allen (Länder-gefilterten) Shops für
+            Produkte, deren species-Feld match_fn erfüllt."""
+            fs: set[str] = set()
+            off: dict[str, list] = {}
+            for shop in shop_data.values():
+                scountry = (shop.get("country") or "").strip().lower()
+                if cc and scountry != cc:
                     continue
-                found_species.add(sp)
-                if not (p.get("in_stock") and p.get("is_active")):
-                    continue
-                offers.setdefault(sp, []).append({
-                    "shop_name":   shop.get("name", "?"),
-                    "country":     scountry,
-                    "rating":      shop.get("average_rating"),
-                    "title":       strip_html(p.get("title") or sp),
-                    "description": strip_html(p.get("description") or ""),
-                    "min":         p.get("min_price"),
-                    "max":         p.get("max_price"),
-                    "cur":         p.get("currency_iso") or "EUR",
-                    "variants":    p.get("variants") or [],
-                    "url":         (p.get("antcheck_url") or p.get("shop_url") or "").strip(),
-                    "shop_web":    (shop.get("url") or "").strip(),
-                })
+                for p in shop.get("products", []):
+                    sp = (p.get("species") or "").strip()
+                    if not sp or not match_fn(sp):
+                        continue
+                    fs.add(sp)
+                    if not (p.get("in_stock") and p.get("is_active")):
+                        continue
+                    off.setdefault(sp, []).append({
+                        "shop_name":   shop.get("name", "?"),
+                        "country":     scountry,
+                        "rating":      shop.get("average_rating"),
+                        "title":       strip_html(p.get("title") or sp),
+                        "description": strip_html(p.get("description") or ""),
+                        "min":         p.get("min_price"),
+                        "max":         p.get("max_price"),
+                        "cur":         p.get("currency_iso") or "EUR",
+                        "variants":    p.get("variants") or [],
+                        "url":         (p.get("antcheck_url") or p.get("shop_url") or "").strip(),
+                        "shop_web":    (shop.get("url") or "").strip(),
+                    })
+            return fs, off
+
+        # 1) Primär: exakter/Gattungs-Anker-Match wie bei den Notifications –
+        #    schließt Merch/Präparate zuverlässig aus (kein Keyword-Blacklisting).
+        found_species, offers = _collect(lambda sp: matches_species_query(sp, query))
+        # 2) Fallback nur, wenn exakt nichts gefunden wurde: Teilsuche (z.B. reines
+        #    Epitheton „aethiops"), strukturell auf saubere Binomen begrenzt, damit
+        #    weiterhin kein Merch durchrutscht.
+        if not found_species:
+            found_species, offers = _collect(
+                lambda sp: is_live_ant_species(sp) and search in normalize_species_name(sp)
+            )
 
         if not found_species:
             await ctx.followup.send(l10n.get("sells_none", lang, query=query))
