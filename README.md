@@ -77,6 +77,7 @@ pip install -r requirements.txt
 | `rapidfuzz>=3.0.0` | Fuzzy Shop-Matching |
 | `psutil>=5.9.0` | System-Stats (`/system`) |
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
+| `Babel>=2.8.0` | Lokalisierte Ländernamen (CLDR) |
 | `PyNaCl>=1.5.0` | Voice-Verschlüsselung (unterdrückt discord-Warning) |
 | `davey` | Voice-Receive (unterdrückt discord-Warning) |
 | `matplotlib>=3.7.0` | Ranking-Bild (iNat-Treppchen, lokal gerendert) |
@@ -561,7 +562,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
 | `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. | `/usersetting blacklist_remove shop:Antstore` |
 | `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). | `/usersetting blacklist_list` |
-| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen. **Ohne** `country`-Filter nach Ländern gruppiert (Überschrift `🇦🇹 Austria (AT)`, Gruppen alphabetisch nach Ländername, Shop-Reihenfolge innerhalb wie im Ranking). **Mit** Filter flache Liste. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
+| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen. **Ohne** `country`-Filter nach Ländern gruppiert (Überschrift z.B. `🇦🇹 Österreich (AT)` – Ländernamen in deiner Sprache (de/en/eo, via Babel/CLDR), Gruppen alphabetisch nach Ländername, Shop-Reihenfolge innerhalb wie im Ranking). **Mit** Filter flache Liste. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
 | `/ch_delivery add` | `shop` (Name, Fuzzy-Match) | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. | `/ch_delivery add shop:Antstore` |
 | `/ch_delivery remove` | `shop` (Name, Fuzzy-Match) | Shop aus der CH-Lieferliste entfernen. Angegeben wird der Shop-**Name** (nicht die ID). Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. | `/ch_delivery remove shop:Antstore` |
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
@@ -851,7 +852,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
-│   ├── countries.py         # Ländercode → Flaggen-Emoji + englischer Name
+│   ├── countries.py         # Ländercode → Flaggen-Emoji + lokalisierter Name (Babel/CLDR)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │

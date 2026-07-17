@@ -20,6 +20,9 @@ psutil>=5.9.0
 # Umgebungsvariablen
 python-dotenv>=1.0.0
 
+# Lokalisierte Ländernamen (CLDR-Daten)
+Babel>=2.8.0
+
 # Voice (optional, unterdrückt discord voice-warning / behebt Voice-Fehlermeldungen)
 PyNaCl>=1.5.0
 davey
