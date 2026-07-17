@@ -21,10 +21,24 @@ Liest shops_data.json (erzeugt von grabber.py) und prüft ob eine Art/Gattung
 verfügbar ist. Produkte sind direkt in shops_data.json eingebettet.
 """
 import re
+import html
 import json
 import asyncio
 import logging
 from config import SHOPS_DATA_FILE
+
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html(text) -> str:
+    """Entfernt HTML-Tags, dekodiert Entities und normalisiert Whitespace –
+    schützt Anzeigenamen/Beschreibungen aus Shop-Daten vor rohem HTML."""
+    if not text:
+        return ""
+    cleaned = _HTML_TAG_RE.sub(" ", str(text))
+    cleaned = html.unescape(cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 logger = logging.getLogger(__name__)
 

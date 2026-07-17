@@ -38,7 +38,7 @@ from discord.ext import commands, tasks
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants
+from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants, strip_html
 from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, send_embeds_to
 from utils.currency import ensure_rates, format_price
@@ -267,24 +267,19 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
 
 def _make_product_label(p: dict) -> str:
     """
-    Eindeutiges Label für ein Produkt im Select-Menü.
-    Reihenfolge: title (wenn != species) > species + description > species + #ID.
-    Die AntCheck API liefert aktuell kein separates Varianten-Feld;
-    description/comment werden genutzt falls ein Shop sie befüllt.
+    Eindeutiges Label für ein Produkt im Select-Menü: der bereinigte Produkttitel.
+    Entspricht der Titel dem Artnamen, wird die Produkt-ID als Disambiguator
+    angehängt. Die (lange, HTML-lastige) Produkt-„description" wird bewusst NICHT
+    verwendet – die konkreten Varianten wählt man im nachfolgenden Varianten-Schritt
+    aus dem `variants`-Feld.
     """
-    raw_title   = (p.get("title") or p.get("species") or "?").strip()
-    species     = (p.get("species") or "").strip()
-    description = (p.get("description") or "").strip()
-    pid_str     = str(p.get("id", ""))
+    raw_title = strip_html(p.get("title") or p.get("species") or "?")
+    species   = strip_html(p.get("species") or "")
+    pid_str   = str(p.get("id", ""))
 
     if raw_title.lower() != species.lower():
-        # title enthält Varianteninfo → direkt nutzen
         label = raw_title
-    elif description:
-        # description enthält Varianteninfo (z.B. "1Q + 10W")
-        label = f"{raw_title} – {description}"
     elif pid_str:
-        # Fallback: Produkt-ID als Disambiguator
         label = f"{raw_title} (#{pid_str})"
     else:
         label = raw_title
@@ -623,7 +618,7 @@ class _VariantSelectItem(discord.ui.Select):
             vid   = v.get("id")
             if vid is None:
                 continue
-            label = (v.get("title") or v.get("description") or f"Variante {vid}")[:97]
+            label = strip_html(v.get("title") or v.get("description") or f"Variante {vid}")[:97]
             cur   = v.get("currency_iso") or product.get("currency_iso") or "EUR"
             price = format_price(v.get("price"), v.get("price"), cur)
             opts.append(discord.SelectOption(
@@ -662,7 +657,7 @@ class VariantSelectView(_BaseView):
                 if not v:
                     continue
                 e["_variant_id"]       = int(val)
-                e["_variant_title"]    = v.get("title") or v.get("description") or f"Variante {val}"
+                e["_variant_title"]    = strip_html(v.get("title") or v.get("description") or f"Variante {val}")
                 e["_variant_price"]    = v.get("price")
                 e["_variant_currency"] = v.get("currency_iso") or self.product.get("currency_iso") or "EUR"
             entries.append(e)
@@ -761,7 +756,7 @@ class ConfirmView(_BaseView):
                 (
                     user_id, pid, vid, vtitle,
                     p.get("species") or "",
-                    p.get("title") or p.get("species") or "",
+                    strip_html(p.get("title") or p.get("species") or ""),
                     p.get("antcheck_url") or "",
                     shop_name, self.shop_id,
                     currency,

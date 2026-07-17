@@ -28,7 +28,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "0.3.8"
+VERSION = "0.3.9"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")

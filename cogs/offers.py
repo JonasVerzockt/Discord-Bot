@@ -26,7 +26,7 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, available_variants
+from utils.availability import load_shop_data, available_variants, strip_html
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
@@ -100,7 +100,7 @@ class OffersCog(commands.Cog, name="Offers"):
 
         for p in prods:
             parts.append("")
-            title = (p.get("title") or p.get("species") or "?").strip()
+            title = strip_html(p.get("title") or p.get("species") or "?")
             parts.append(f"**{title}**")
             purl = (p.get("antcheck_url") or p.get("shop_url") or "").strip()
             if purl:
@@ -109,7 +109,7 @@ class OffersCog(commands.Cog, name="Offers"):
             vs  = available_variants(p)
             if vs:
                 for i, v in enumerate(vs, 1):
-                    label  = v.get("title") or v.get("description") or f"Variante {i}"
+                    label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
                     vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or cur)
                     parts.append(f"{label}: {vprice}")
             else:
