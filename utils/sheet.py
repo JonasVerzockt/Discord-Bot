@@ -168,7 +168,7 @@ async def sync_ratings_from_sheet(bot) -> int:
     """
     import logging
     from rapidfuzz import process, fuzz
-    from utils.db import execute_db
+    from utils.db import execute_db, execute_many
 
     logger = logging.getLogger(__name__)
 
@@ -209,6 +209,7 @@ async def sync_ratings_from_sheet(bot) -> int:
     sheet_fuzzy_keys = list(sheet_fuzzy.keys())
 
     updated = 0
+    update_params: list = []
     for row in shop_rows:
         rating = None
         match_info = ""
@@ -234,14 +235,12 @@ async def sync_ratings_from_sheet(bot) -> int:
                     match_info = f"fuzzy '{orig_key}' ({m[1]:.0f}%)"
 
         if rating is not None:
-            await execute_db(
-                bot,
-                "UPDATE shops SET average_rating=? WHERE id=?",
-                (rating, row["id"]),
-                commit=True,
-            )
+            update_params.append((rating, row["id"]))
             updated += 1
             logger.info(f"  📊 Rating: '{row['name']}' [{match_info}] = {rating:.2f}")
+
+    if update_params:
+        await execute_many(bot, "UPDATE shops SET average_rating=? WHERE id=?", update_params)
 
     logger.info(f"📊 sync_ratings: {updated}/{len(shop_rows)} Shops mit Sheet-Rating versehen")
     return updated

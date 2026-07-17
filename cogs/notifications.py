@@ -35,7 +35,7 @@ from datetime import datetime, timedelta
 import discord
 from discord.ext import commands
 
-from utils.db import execute_db
+from utils.db import execute_db, execute_many
 from utils.localization import l10n, get_user_lang
 from utils.achievements import check_and_grant
 from utils.availability import (
@@ -206,20 +206,18 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 logger.error("❌ Verfügbarkeits-DM (%s) fehlgeschlagen: %s", species, e)
                 return None
 
-            # Gesehene Produkte aktualisieren
-            for p in new_products:
-                await execute_db(
-                    self.bot,
-                    "INSERT OR IGNORE INTO user_seen_products (user_id, product_id) VALUES (?, ?)",
-                    (user_id, str(p["id"])), commit=True,
-                )
+            # Gesehene Produkte aktualisieren (gebuendelt)
+            await execute_many(
+                self.bot,
+                "INSERT OR IGNORE INTO user_seen_products (user_id, product_id) VALUES (?, ?)",
+                [(user_id, str(p["id"])) for p in new_products],
+            )
             current_ids = {str(p["id"]) for p in available}
-            for pid in seen_ids - current_ids:
-                await execute_db(
-                    self.bot,
-                    "DELETE FROM user_seen_products WHERE user_id=? AND product_id=?",
-                    (user_id, pid), commit=True,
-                )
+            await execute_many(
+                self.bot,
+                "DELETE FROM user_seen_products WHERE user_id=? AND product_id=?",
+                [(user_id, pid) for pid in (seen_ids - current_ids)],
+            )
 
             await execute_db(
                 self.bot,

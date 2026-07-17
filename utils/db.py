@@ -31,11 +31,27 @@ Schema:
 """
 import sqlite3
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from config import DB_FILE
 
 _executor = ThreadPoolExecutor(max_workers=5)
 logger    = logging.getLogger(__name__)
+
+# Persistente SQLite-Verbindung PRO Worker-Thread (spart connect/close pro Query).
+# WAL erlaubt parallele Leser ueber die bis zu 5 Executor-Threads; Schreiber werden
+# von SQLite serialisiert (busy_timeout wartet bei Contention).
+_local = threading.local()
+
+
+def _get_conn() -> sqlite3.Connection:
+    conn = getattr(_local, "conn", None)
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=5000")
+        _local.conn = conn
+    return conn
 
 
 async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = False, fetch: bool = False):
@@ -53,11 +69,7 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
         list[sqlite3.Row] wenn fetch=True, sonst rowcount (int)
     """
     def _sync():
-        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        # Wartet bis zu 5s wenn die DB gerade gesperrt ist (verhindert
-        # "database is locked" bei parallelen Schreibzugriffen / WAL).
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn = _get_conn()
         try:
             cur = conn.cursor()
             cur.execute(query, params)
@@ -67,10 +79,38 @@ async def execute_db(bot, query: str, params: tuple = (), *, commit: bool = Fals
                 return cur.fetchall()
             return cur.rowcount
         except Exception as e:
+            try:
+                conn.rollback()   # offene Transaktion verwerfen, Verbindung bleibt nutzbar
+            except Exception:
+                pass
             logger.error(f"❌ DB error | query={query!r} params={params} | {e}")
             raise
-        finally:
-            conn.close()
+
+    return await bot.loop.run_in_executor(_executor, _sync)
+
+
+async def execute_many(bot, query: str, seq_params, *, commit: bool = True) -> int:
+    """Fuehrt eine Query gebuendelt fuer viele Parametersaetze aus – EINE Verbindung,
+    executemany, EINE Transaktion (statt einer Query pro Element). Leere Sequenz -> 0."""
+    rows = list(seq_params)
+    if not rows:
+        return 0
+
+    def _sync():
+        conn = _get_conn()
+        try:
+            cur = conn.cursor()
+            cur.executemany(query, rows)
+            if commit:
+                conn.commit()
+            return cur.rowcount
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            logger.error(f"❌ DB error (executemany) | query={query!r} n={len(rows)} | {e}")
+            raise
 
     return await bot.loop.run_in_executor(_executor, _sync)
 
@@ -315,6 +355,11 @@ CREATE TABLE IF NOT EXISTS command_log (
 );
 CREATE INDEX IF NOT EXISTS idx_command_log_created ON command_log (created_at);
 CREATE INDEX IF NOT EXISTS idx_command_log_user ON command_log (user_id);
+
+-- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
+CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
+CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_budget_user    ON ai_chat_budget (user_id);
 """
 
 # Standard EU-Länder (falls DB noch leer)

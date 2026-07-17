@@ -21,6 +21,7 @@ Zeigt freigeschaltete, in Arbeit befindliche und versteckte Erfolge. Ein globale
 Listener protokolliert Befehlsnutzung (für Aktions-/Versteckt-Erfolge) und schaltet
 neue Erfolge frei – mit dezenter DM.
 """
+import asyncio
 import logging
 
 import discord
@@ -36,6 +37,10 @@ logger = logging.getLogger(__name__)
 
 _CATS = ["avail", "price", "community", "usage", "hidden"]
 
+# Achievement-Check pro User hoechstens 1x pro Cooldown (Sekunden) – entlastet
+# gather_stats bei schnellen Command-Bursts; Trailing-Check garantiert Vollstaendigkeit.
+_ACH_COOLDOWN = 15.0
+
 
 def _bar(cur: int, tgt: int, width: int = 5) -> str:
     if tgt <= 0:
@@ -48,6 +53,8 @@ class AchievementsCog(commands.Cog, name="Achievements"):
 
     def __init__(self, bot: discord.Bot):
         self.bot = bot
+        self._ach_last: dict[int, float] = {}     # user_id -> letzte Check-Zeit (loop.time)
+        self._ach_pending: set[int] = set()       # user_id mit eingeplantem Trailing-Check
 
     # ── globaler Listener: Befehlsnutzung protokollieren + freischalten ──────────
     @commands.Cog.listener()
@@ -56,11 +63,35 @@ class AchievementsCog(commands.Cog, name="Achievements"):
             if ctx.author is None or ctx.author.bot:
                 return
             name = getattr(ctx.command, "qualified_name", None) or getattr(ctx.command, "name", "?")
+            # log_event ist billig (1 Insert) und laeuft IMMER – die Event-Historie
+            # muss vollstaendig sein. Der teure gather_stats-Check wird gedrosselt.
             await log_event(self.bot, ctx.author.id, f"cmd:{name}")
-            lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-            await check_and_grant(self.bot, ctx.author, lang)
+
+            uid = ctx.author.id
+            now = self.bot.loop.time()
+            if now - self._ach_last.get(uid, 0.0) >= _ACH_COOLDOWN:
+                self._ach_last[uid] = now
+                lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+                await check_and_grant(self.bot, ctx.author, lang)
+            elif uid not in self._ach_pending:
+                # innerhalb des Cooldowns -> genau einen nachlaufenden Check einplanen,
+                # damit die juengste Aktion garantiert geprueft wird (kein verpasster Erfolg)
+                self._ach_pending.add(uid)
+                asyncio.create_task(self._deferred_grant(ctx.author, ctx.guild_id))
         except Exception as e:
             logger.debug("achievement completion hook failed: %s", e)
+
+    async def _deferred_grant(self, author, guild_id):
+        """Nachlaufender Achievement-Check nach Ablauf des Cooldowns (Trailing-Debounce)."""
+        try:
+            await asyncio.sleep(_ACH_COOLDOWN)
+            self._ach_last[author.id] = self.bot.loop.time()
+            lang = await get_user_lang(self.bot, author.id, guild_id)
+            await check_and_grant(self.bot, author, lang)
+        except Exception as e:
+            logger.debug("deferred achievement grant failed: %s", e)
+        finally:
+            self._ach_pending.discard(author.id)
 
     # ── /achievements ────────────────────────────────────────────────────────────
     @discord.slash_command(
