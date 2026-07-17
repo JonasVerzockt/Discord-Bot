@@ -225,21 +225,21 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             text = l10n.get("available_shops", lang, shops="\n- " + "\n- ".join(entries))
         else:
             # Ohne Filter: nach Land gruppieren. Gruppen alphabetisch nach
-            # (englischem) Ländernamen; Reihenfolge INNERHALB der Gruppe bleibt
+            # lokalisierten Ländernamen; Reihenfolge INNERHALB der Gruppe bleibt
             # die bestehende Ranking-Sortierung (filtered ist bereits sortiert).
             groups: dict[str, list] = {}
             for s in filtered:
                 code = (s.get("country") or "").strip().lower()
                 groups.setdefault(code, []).append(s)
             sections = []
-            for code in sorted(groups, key=lambda c: country_name(c).lower()):
+            for code in sorted(groups, key=lambda c: country_name(c, lang).lower()):
                 lines = []
                 for s in groups[code]:
                     line = f"- {s.get('name', '?')} – {format_rating(s.get('average_rating'))}"
                     if s.get("url"):
                         line += f" <{s['url']}>"
                     lines.append(line)
-                sections.append(country_label(code) + "\n" + "\n".join(lines))
+                sections.append(country_label(code, lang) + "\n" + "\n".join(lines))
             text = l10n.get("available_shops_grouped", lang, shops="\n\n".join(sections))
 
         blocks = _split_message(text)

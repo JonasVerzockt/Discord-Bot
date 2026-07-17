@@ -77,6 +77,7 @@ pip install -r requirements.txt
 | `rapidfuzz>=3.0.0` | Fuzzy Shop-Matching |
 | `psutil>=5.9.0` | System-Stats (`/system`) |
 | `python-dotenv>=1.0.0` | `.env`-Dateien |
+| `Babel>=2.8.0` | Lokalisierte Ländernamen (CLDR) |
 | `PyNaCl>=1.5.0` | Voice-Verschlüsselung (unterdrückt discord-Warning) |
 | `davey` | Voice-Receive (unterdrückt discord-Warning) |
 | `matplotlib>=3.7.0` | Ranking-Bild (iNat-Treppchen, lokal gerendert) |
@@ -561,7 +562,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/usersetting blacklist_add` | `shop` (Name oder Teile davon, Fuzzy-Match) | Shop dauerhaft von Verfügbarkeits-DMs ausschließen. Der Bot sucht den besten Treffer im Shop-Verzeichnis. | `/usersetting blacklist_add shop:Antstore` |
 | `/usersetting blacklist_remove` | `shop` | Shop wieder in Benachrichtigungen einschließen. | `/usersetting blacklist_remove shop:Antstore` |
 | `/usersetting blacklist_list` | – | Eigene Blacklist anzeigen (Shop-Name + ID). | `/usersetting blacklist_list` |
-| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen. **Ohne** `country`-Filter nach Ländern gruppiert (Überschrift `🇦🇹 Austria (AT)`, Gruppen alphabetisch nach Ländername, Shop-Reihenfolge innerhalb wie im Ranking). **Mit** Filter flache Liste. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
+| `/usersetting shop_list` | `country` (optional, z.B. `de`) | Alle bekannten Shops anzeigen. **Ohne** `country`-Filter nach Ländern gruppiert (Überschrift z.B. `🇦🇹 Österreich (AT)` – Ländernamen in deiner Sprache (de/en/eo, via Babel/CLDR), Gruppen alphabetisch nach Ländername, Shop-Reihenfolge innerhalb wie im Ranking). **Mit** Filter flache Liste. Zeigt Name, URL und AAM-Rating. | `/usersetting shop_list country:ch` |
 | `/ch_delivery add` | `shop` (Name, Fuzzy-Match) | Shop manuell zur CH-Lieferliste hinzufügen (für `swiss_only`-Benachrichtigungen). Automatische CH-Shops (aus `country=ch` in der API) werden immer einbezogen. | `/ch_delivery add shop:Antstore` |
 | `/ch_delivery remove` | `shop` (Name, Fuzzy-Match) | Shop aus der CH-Lieferliste entfernen. Angegeben wird der Shop-**Name** (nicht die ID). Jeder User kann eigene Einträge entfernen; Admins können alle entfernen. | `/ch_delivery remove shop:Antstore` |
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
@@ -569,8 +570,8 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
-| `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Ausgabe als Embed(s). | `/offers shop:Antstore` |
-| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Ausgabe als Embed(s). | `/sells species:aethiops` |
+| `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet. Ausgabe als Embed(s). | `/offers shop:Antstore` |
+| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge, **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet. Ausgabe als Embed(s). | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -851,7 +852,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
-│   ├── countries.py         # Ländercode → Flaggen-Emoji + englischer Name
+│   ├── countries.py         # Ländercode → Flaggen-Emoji + lokalisierter Name (Babel/CLDR)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │
