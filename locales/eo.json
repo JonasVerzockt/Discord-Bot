@@ -396,5 +396,10 @@
   "ach_rank_line": "{emoji} **Rango:** {rank} · {unlocked}/{total} atingoj",
   "ach_rank_next": "sekva rango je {n}",
   "ach_rank_up_dm": "🎉 **Nova rango atingita!** Vi nun estas {emoji} **{rank}**.",
-  "command_check_failed": "❌ Vi ne povas uzi ĉi tiun komandon ĉi tie."
+  "command_check_failed": "❌ Vi ne povas uzi ĉi tiun komandon ĉi tie.",
+  "wrong_channel_confirm": "⚠️ Ĉi tio ne estas la bot-kanalo. Ĉu tamen ruli la komandon ĉi tie **publike**?",
+  "wrong_channel_confirmed": "✅ Rulante …",
+  "wrong_channel_cancelled": "❌ Nuligita – la komando ne estis rulita.",
+  "channel_confirm_yes": "Jes, ruli ĉi tie",
+  "channel_confirm_no": "Nuligi"
 }

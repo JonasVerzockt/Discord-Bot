@@ -160,7 +160,7 @@ Auf jedem Discord-Server muss einmalig `/startup` ausgeführt werden (Admin):
 /startup  language: de  channel: #bot-commands
 ```
 
-Damit wird der Bot-Kanal festgelegt und die Serversprache gesetzt. Ohne `/startup` funktionieren alle Befehle, aber in jedem Kanal.
+Damit wird der Bot-Kanal festgelegt und die Serversprache gesetzt. Ohne `/startup` funktionieren alle Befehle, aber in jedem Kanal. Ist ein Bot-Kanal gesetzt und ein Befehl wird woanders genutzt, wird er für normale Mitglieder mit einem (nur für sie sichtbaren) Hinweis abgelehnt; Mitglieder mit **Nachrichten-verwalten/Admin**-Recht bekommen stattdessen eine ephemere **Ja/Nein-Rückfrage** und können den Befehl bei Bestätigung trotzdem dort ausführen (Ausgabe dann normal/öffentlich).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
