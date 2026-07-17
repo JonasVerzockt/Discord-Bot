@@ -175,6 +175,7 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
         description="Set server language and bot channel (Admin/Mod only)", description_localizations={"de": "Serversprache und Bot-Kanal festlegen (nur Admin/Mod)"},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def startup(
         self,
         ctx: discord.ApplicationContext,

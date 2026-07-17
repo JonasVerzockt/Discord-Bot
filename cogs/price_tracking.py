@@ -39,6 +39,7 @@ from discord.ext import commands, tasks
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import allowed_channel
 from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants, strip_html
 from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, send_embeds_to
@@ -1007,6 +1008,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         description_localizations={"de": "Preise für eine Art beobachten und bei Änderung per PN informiert werden."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def track_price(
         self,
         ctx: discord.ApplicationContext,
@@ -1041,6 +1043,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         description_localizations={"de": "Alle beobachteten Produkte mit aktuellen Preisen anzeigen."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def my_price_tracking(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
 
@@ -1127,6 +1130,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         description_localizations={"de": "Produkte oder Arten-Beobachtungen aus dem Preis-Tracking entfernen."},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def untrack_price(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
 

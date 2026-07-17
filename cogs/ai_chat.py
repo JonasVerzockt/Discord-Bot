@@ -37,6 +37,7 @@ from discord.ext import commands, tasks
 
 import config as cfg
 from utils.localization import l10n, get_user_lang
+from cogs.server_settings import allowed_channel
 from utils.achievements import check_and_grant
 from utils.ai_chat import (
     chat,
@@ -305,6 +306,7 @@ class AiChatCog(commands.Cog):
         description="Show your AI chat budget status for today", description_localizations={"de": "Deinen KI-Chat Budget-Status für heute anzeigen"},
     )
     @commands.guild_only()
+    @allowed_channel()
     async def ai_status(self, ctx: discord.ApplicationContext) -> None:
         """Zeigt globales und persoenliches Tagesbudget (nur für dich sichtbar)."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -346,6 +348,7 @@ class AiChatCog(commands.Cog):
     )
     @commands.has_permissions(manage_messages=True)
     @commands.guild_only()
+    @allowed_channel()
     async def ai_reset(
         self,
         ctx: discord.ApplicationContext,
@@ -382,6 +385,7 @@ class AiChatCog(commands.Cog):
     )
     @commands.has_permissions(manage_messages=True)
     @commands.guild_only()
+    @allowed_channel()
     async def ai_prompt(self, ctx: discord.ApplicationContext) -> None:
         """Gibt den aktiven System-Prompt in der Sprache des Users aus (ephemeral)."""
         lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)

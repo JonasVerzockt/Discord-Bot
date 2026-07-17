@@ -51,6 +51,7 @@ class StatsCog(commands.Cog, name="Stats"):
 
     @discord.slash_command(name="stats", description="Show bot statistics (Admin/Mod)", description_localizations={"de": "Bot-Statistiken anzeigen (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def stats(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:
@@ -94,6 +95,7 @@ class StatsCog(commands.Cog, name="Stats"):
 
     @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)", description_localizations={"de": "System- und Bot-Status anzeigen (Admin/Mod)"})
     @admin_or_manage_messages()
+    @allowed_channel()
     async def system(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:

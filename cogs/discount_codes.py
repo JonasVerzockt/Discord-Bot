@@ -380,6 +380,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         description_localizations={"de": "(Admin) Code als gültig / ungültig / automatisch markieren"},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def codes_set(
         self,
         ctx: discord.ApplicationContext,
@@ -423,6 +424,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         description_localizations={"de": "(Admin) Rabattcode-Kanal nach neuen Nachrichten scannen"},
     )
     @admin_or_manage_messages()
+    @allowed_channel()
     async def codes_rescan(self, ctx: discord.ApplicationContext):
         """Inkrementeller Scan: bereits gescannte Nachrichten werden übersprungen."""
         await ctx.defer(ephemeral=True)

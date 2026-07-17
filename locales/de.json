@@ -397,7 +397,7 @@
   "ach_rank_next": "nächster Rang bei {n}",
   "ach_rank_up_dm": "🎉 **Neuer Rang erreicht!** Du bist jetzt {emoji} **{rank}**.",
   "command_check_failed": "❌ Du kannst diesen Befehl hier nicht ausführen.",
-  "wrong_channel_confirm": "⚠️ Das ist nicht der Bot-Kanal. Den Befehl hier trotzdem **öffentlich** ausführen?",
+  "wrong_channel_confirm": "⚠️ Das ist nicht der Bot-Kanal. Den Befehl hier trotzdem ausführen?",
   "wrong_channel_confirmed": "✅ Wird ausgeführt …",
   "wrong_channel_cancelled": "❌ Abgebrochen – der Befehl wurde nicht ausgeführt.",
   "channel_confirm_yes": "Ja, hier ausführen",
