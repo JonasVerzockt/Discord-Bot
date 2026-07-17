@@ -315,6 +315,11 @@ CREATE TABLE IF NOT EXISTS command_log (
 );
 CREATE INDEX IF NOT EXISTS idx_command_log_created ON command_log (created_at);
 CREATE INDEX IF NOT EXISTS idx_command_log_user ON command_log (user_id);
+
+-- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
+CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
+CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_budget_user    ON ai_chat_budget (user_id);
 """
 
 # Standard EU-Länder (falls DB noch leer)
