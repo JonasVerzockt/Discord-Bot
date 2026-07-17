@@ -25,6 +25,8 @@ Decorator für andere Cogs bereit (via utils.checks).
 """
 import logging
 import discord
+import functools
+
 from discord.ext import commands
 
 from utils.db import execute_db
@@ -46,24 +48,98 @@ def admin_or_manage_messages():
     return commands.check(predicate)
 
 
+class _ChannelConfirmView(discord.ui.View):
+    """Ephemere Ja/Nein-Rückfrage für berechtigte User im falschen Kanal."""
+
+    def __init__(self, owner_id: int, lang: str, timeout: float = 60):
+        super().__init__(timeout=timeout)
+        self.owner_id = owner_id
+        self.lang = lang
+        self.value = False
+        self.responded = False                                # Nein-Button hat quittiert
+        self.interaction: discord.Interaction | None = None  # Ja-Klick-Interaktion
+        self.children[0].label = l10n.get("channel_confirm_yes", lang)
+        self.children[1].label = l10n.get("channel_confirm_no", lang)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.owner_id
+
+    @discord.ui.button(style=discord.ButtonStyle.success)
+    async def yes(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.value = True
+        self.interaction = interaction   # NICHT beantworten – der Befehl nutzt sie
+        self.stop()
+
+    @discord.ui.button(style=discord.ButtonStyle.danger)
+    async def no(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.value = False
+        self.responded = True
+        try:
+            await interaction.response.edit_message(
+                content=l10n.get("wrong_channel_cancelled", self.lang), view=None
+            )
+        except Exception:
+            pass
+        self.stop()
+
+
 def allowed_channel():
-    """Prüft ob der Befehl im konfigurierten Server-Kanal ausgeführt wird."""
-    async def predicate(ctx: discord.ApplicationContext) -> bool:
-        if ctx.guild is None:
-            return False   # Befehle nur auf dem Server, nicht in DMs
-        rows = await execute_db(
-            ctx.bot,
-            "SELECT channel_id FROM server_settings WHERE server_id=?",
-            (ctx.guild.id,),
-            fetch=True,
-        )
-        if not rows or rows[0]["channel_id"] is None:
-            return True
-        if ctx.channel_id == rows[0]["channel_id"]:
-            return True
-        lang = await get_user_lang(ctx.bot, ctx.author.id, ctx.guild.id)
-        raise commands.CheckFailure(l10n.get("wrong_channel", lang))
-    return commands.check(predicate)
+    """Kanal-Gate. Im konfigurierten Kanal (oder wenn keiner gesetzt ist) läuft der
+    Befehl normal. In einem anderen Kanal wird er für normale User ephemer abgelehnt;
+    User mit Admin-/„Nachrichten verwalten"-Recht bekommen eine ephemere Rückfrage –
+    bei Bestätigung läuft der Befehl normal weiter (öffentlich), sonst gar nicht.
+
+    Umgesetzt als signatur-erhaltender Wrapper (nicht als commands.check), damit die
+    Slash-Optionen erhalten bleiben UND die Interaktion nach der Rückfrage frisch ist.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(self, ctx, *args, **kwargs):
+            guild = ctx.guild
+            channel_id = None
+            if guild is not None:
+                rows = await execute_db(
+                    ctx.bot,
+                    "SELECT channel_id FROM server_settings WHERE server_id=?",
+                    (guild.id,), fetch=True,
+                )
+                channel_id = rows[0]["channel_id"] if rows else None
+
+            # Richtiger Kanal oder kein Kanal konfiguriert -> normaler Ablauf (unverändert)
+            if channel_id is None or ctx.channel_id == channel_id:
+                return await func(self, ctx, *args, **kwargs)
+
+            lang  = await get_user_lang(ctx.bot, ctx.author.id, guild.id if guild else None)
+            perms = ctx.author.guild_permissions if guild is not None else None
+            if not perms or not (perms.administrator or perms.manage_messages):
+                await ctx.respond(l10n.get("wrong_channel", lang), ephemeral=True)
+                return
+
+            # Berechtigt -> ephemere Rückfrage
+            view = _ChannelConfirmView(ctx.author.id, lang)
+            await ctx.respond(l10n.get("wrong_channel_confirm", lang), view=view, ephemeral=True)
+            await view.wait()
+
+            if view.value and view.interaction is not None:
+                try:
+                    await ctx.interaction.edit_original_response(
+                        content=l10n.get("wrong_channel_confirmed", lang), view=None
+                    )
+                except Exception:
+                    pass
+                # Befehls-Ausgabe auf die frische Button-Interaktion umleiten -> öffentlich
+                ctx.interaction = view.interaction
+                return await func(self, ctx, *args, **kwargs)
+
+            # Timeout (kein Klick) -> ephemere Nachricht aktualisieren; bei "Nein" hat
+            # der Button die Interaktion bereits quittiert und die Nachricht editiert.
+            if not view.responded:
+                try:
+                    await ctx.edit(content=l10n.get("wrong_channel_cancelled", lang), view=None)
+                except Exception:
+                    pass
+        return wrapper
+    return decorator
 
 
 # ── Cog ───────────────────────────────────────────────────────────────────────
