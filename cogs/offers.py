@@ -26,7 +26,7 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, available_variants, strip_html
+from utils.availability import load_shop_data, available_variants, strip_html, ensure_url_scheme
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
@@ -95,7 +95,7 @@ class OffersCog(commands.Cog, name="Offers"):
 
         parts = [f"{flag_emoji(country)} **{shop_name}**"]
         if shop_info.get("url"):
-            parts.append(f"<{shop_info['url']}>")
+            parts.append(f"<{ensure_url_scheme(shop_info['url'])}>")
         for w in get_shop_warnings(shop_info.get("url", ""), shop_name):
             parts.append(l10n.get(
                 "warn_shop_line", lang,

@@ -59,6 +59,7 @@ from config import (
 )
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.availability import ensure_url_scheme
 from utils.embeds import send_embeds
 from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
@@ -368,7 +369,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 validity=validity, min_part=min_part,
             )
             if r["shop_url"]:
-                entry += f"\n<{r['shop_url']}>"
+                entry += f"\n<{ensure_url_scheme(r['shop_url'])}>"
             lines.append(entry)
 
         await send_embeds(ctx, "\n".join(lines))

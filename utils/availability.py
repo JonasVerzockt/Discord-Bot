@@ -114,6 +114,17 @@ _shops_cache_lock = threading.Lock()
 _shops_cache: dict = {"key": None, "data": None}
 
 
+def ensure_url_scheme(url: str) -> str:
+    """Ergänzt fehlendes http(s):// (z.B. 'antstore.net' → 'https://antstore.net'),
+    damit Discord die URL als klickbaren Link erkennt. Leer → ''."""
+    u = (url or "").strip()
+    if not u:
+        return ""
+    if not u.startswith(("http://", "https://")):
+        u = "https://" + u
+    return u
+
+
 def _load_shops_json() -> dict:
     """Lädt shops_data.json (gecacht per mtime+Größe) und gibt {shop_id: shop_dict}
     zurück (ohne _meta). Rückgabe ist der geteilte Cache – nicht mutieren!"""
