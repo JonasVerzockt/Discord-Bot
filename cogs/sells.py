@@ -32,7 +32,7 @@ from discord.ext import commands
 
 from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating
+from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_lines, chunk_paragraphs
@@ -152,7 +152,11 @@ class SellsCog(commands.Cog, name="Sells"):
                 continue
             for p in shop.get("products", []):
                 sp = (p.get("species") or "").strip()
-                if not sp or search not in normalize_species_name(sp):
+                # Nur echte lebende Ameisen – Merch/Präparate (langer Titel im
+                # species-Feld) ausschließen, analog zur Notification-Filterung.
+                if not sp or not is_live_ant_species(sp):
+                    continue
+                if search not in normalize_species_name(sp):
                     continue
                 found_species.add(sp)
                 if not (p.get("in_stock") and p.get("is_active")):

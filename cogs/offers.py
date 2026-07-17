@@ -26,7 +26,7 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, available_variants, strip_html, ensure_url_scheme, format_rating
+from utils.availability import load_shop_data, available_variants, strip_html, ensure_url_scheme, format_rating, is_live_ant_species
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
@@ -86,6 +86,7 @@ class OffersCog(commands.Cog, name="Offers"):
         prods = [
             p for p in shop_info.get("products", [])
             if p.get("in_stock") and p.get("is_active")
+            and is_live_ant_species(p.get("species") or "")  # Merch/Präparate raus
         ]
         if not prods:
             await ctx.followup.send(l10n.get("offers_none", lang, shop=shop_name))

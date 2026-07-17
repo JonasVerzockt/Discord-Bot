@@ -51,6 +51,40 @@ def normalize_species_name(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip().lower()
 
 
+# Wörter, die auf Merch/Präparate statt lebende Kolonien hindeuten. Merch hat im
+# 'species'-Feld i.d.R. den langen Produkttitel (Grabber-Fallback name/title),
+# während echte Ameisen ein sauberes Binomen ("Genus species") tragen.
+_MERCH_TOKENS = frozenset({
+    "präparat", "praeparat", "präparate", "praeparate",
+    "sticker", "stickerbogen", "aufkleber", "aufkleberbogen",
+    "poster", "postkarte", "tasse", "shirt", "tshirt", "hoodie", "pullover",
+    "buch", "book", "büchlein", "heft", "kalender",
+    "metamorphose", "puzzle", "magnet", "figur", "figuren", "modell",
+    "set", "gutschein", "geschenkgutschein", "geschenk", "voucher",
+    "keychain", "schlüsselanhänger", "pin", "button", "patch",
+})
+
+
+def is_live_ant_species(species: str) -> bool:
+    """Heuristik: True nur für echte lebende-Ameisen-Angebote (kein Merch/Präparat).
+
+    Merch/Präparate erhalten vom Grabber als 'species' den langen Produkttitel
+    (Fallback auf name/title, wenn AntCheck keinen Artnamen liefert). Echte Arten
+    sind dagegen ein sauberes Binomen (Genus + Art, ggf. Unterart) mit wenigen
+    Wörtern. Diese Funktion spiegelt damit die strengere Notification-Filterung
+    (exakter/Gattungs-Match), ohne die Teilsuche in /sells zu verlieren.
+    """
+    s = normalize_species_name(species or "")
+    if not s:
+        return False
+    words = s.split()
+    if len(words) > 3:          # echte Art/Unterart hat max. ~3 Wörter
+        return False
+    if any(w in _MERCH_TOKENS for w in words):
+        return False
+    return True
+
+
 def format_rating(rating) -> str:
     """Formatiert eine Shopbewertung als 'Stern 4.75' oder 'kein Rating'."""
     try:
