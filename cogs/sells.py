@@ -32,7 +32,7 @@ from discord.ext import commands
 
 from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, strip_html
+from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_lines, chunk_paragraphs
@@ -209,7 +209,10 @@ class SellsCog(commands.Cog, name="Sells"):
                 if not price_lines:
                     continue  # 0-€/Preis-unbekannt → Angebot überspringen
                 sp_parts.append("")
-                sp_parts.append(f"{flag_emoji(o['country'])} **{o['shop_name']}**")
+                shop_header = f"{flag_emoji(o['country'])} **{o['shop_name']}**"
+                if o["rating"] is not None:
+                    shop_header += f" · {format_rating(o['rating'])}"
+                sp_parts.append(shop_header)
                 for w in get_shop_warnings(o.get("shop_web", ""), o["shop_name"]):
                     sp_parts.append(l10n.get(
                         "warn_shop_line", lang,
