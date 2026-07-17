@@ -65,6 +65,12 @@ def _fnum(v):
         return None
 
 
+def _has_price(v) -> bool:
+    """True, wenn ein echter positiver Preis vorliegt (nicht 0/leer/unbekannt)."""
+    f = _fnum(v)
+    return f is not None and f > 0
+
+
 def _price_md(min_v, max_v, cur: str) -> str:
     """Fett: Originalpreis(-spanne); bei Nicht-EUR zusätzlich kursiv die EUR-Umrechnung."""
     cur = (cur or "EUR").upper()
@@ -170,45 +176,64 @@ class SellsCog(commands.Cog, name="Sells"):
             await ctx.followup.send(l10n.get("sells_no_stock", lang, query=query))
             return
 
-        parts: list[str] = []
-        offered_species = sorted(offers.keys())
-        if len(found_species) > len(offered_species):
-            parts.append(l10n.get(
-                "sells_multi_hint", lang,
-                query=query, found=len(found_species),
-                offered=", ".join(offered_species),
-            ))
-            parts.append("")
-
-        for sp in offered_species:
-            parts.append(f"***{sp}***")
-            parts.append(l10n.get("sells_source", lang))
-            parts.append(l10n.get("sells_disclaimer", lang))
+        # Angebote je Art aufbauen. Angebote ohne echten Preis (0 €/unbekannt)
+        # werden übersprungen; Arten ohne gültiges Angebot ganz weggelassen.
+        species_blocks: dict[str, list] = {}
+        for sp in sorted(offers.keys()):
             shops_sorted = sorted(
                 offers[sp],
                 key=lambda o: (o["rating"] is None, -(o["rating"] or 0), o["shop_name"].lower()),
             )
+            sp_parts: list[str] = []
             for o in shops_sorted:
-                parts.append("")
-                parts.append(f"{flag_emoji(o['country'])} **{o['shop_name']}**")
-                if o["title"]:
-                    parts.append(o["title"])
-                if o.get("url"):
-                    parts.append(l10n.get("sells_product_link", lang, url=o["url"]))
-                vs = [v for v in o["variants"] if v.get("in_stock") and v.get("is_active")]
+                vs = [
+                    v for v in o["variants"]
+                    if v.get("in_stock") and v.get("is_active") and _has_price(v.get("price"))
+                ]
+                price_lines: list[str] = []
                 if vs:
                     # Varianten-Ebene: pro Variante Einzelpreis
                     for i, v in enumerate(vs, 1):
                         label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
                         vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or o["cur"])
-                        parts.append(f"{label}: {vprice}")
-                else:
+                        price_lines.append(f"{label}: {vprice}")
+                elif _has_price(o["min"]) or _has_price(o["max"]):
                     # Fallback: Produkt-Ebene (min/max), falls (noch) keine Varianten
                     price = _price_md(o["min"], o["max"], o["cur"])
                     if o["description"] and len(o["description"]) <= 60 and o["description"].lower() != o["title"].lower():
-                        parts.append(f"{o['description']}: {price}")
+                        price_lines.append(f"{o['description']}: {price}")
                     else:
-                        parts.append(price)
+                        price_lines.append(price)
+                if not price_lines:
+                    continue  # 0-€/Preis-unbekannt → Angebot überspringen
+                sp_parts.append("")
+                sp_parts.append(f"{flag_emoji(o['country'])} **{o['shop_name']}**")
+                if o["title"]:
+                    sp_parts.append(o["title"])
+                if o.get("url"):
+                    sp_parts.append(l10n.get("sells_product_link", lang, url=o["url"]))
+                sp_parts.extend(price_lines)
+            if sp_parts:
+                species_blocks[sp] = sp_parts
+
+        if not species_blocks:
+            await ctx.followup.send(l10n.get("sells_no_stock", lang, query=query))
+            return
+
+        shown_species = sorted(species_blocks)
+        parts: list[str] = []
+        if len(found_species) > len(shown_species):
+            parts.append(l10n.get(
+                "sells_multi_hint", lang,
+                query=query, found=len(found_species),
+                offered=", ".join(shown_species),
+            ))
+            parts.append("")
+        for sp in shown_species:
+            parts.append(f"***{sp}***")
+            parts.append(l10n.get("sells_source", lang))
+            parts.append(l10n.get("sells_disclaimer", lang))
+            parts.extend(species_blocks[sp])
             parts.append("")
 
         parts.append(l10n.get("sells_footer", lang, ts=_read_fetched_at() or "?"))

@@ -30,7 +30,7 @@ from utils.availability import load_shop_data, available_variants, strip_html
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
-from cogs.sells import _price_md, _chunks, _read_fetched_at
+from cogs.sells import _price_md, _chunks, _read_fetched_at, _has_price
 from utils.text_chunks import chunk_lines
 from utils.embeds import EMBED_COLOR
 
@@ -98,22 +98,33 @@ class OffersCog(commands.Cog, name="Offers"):
         parts.append(l10n.get("sells_source", lang))
         parts.append(l10n.get("sells_disclaimer", lang))
 
+        shown = 0
         for p in prods:
+            cur = p.get("currency_iso") or "EUR"
+            vs  = [v for v in available_variants(p) if _has_price(v.get("price"))]
+            price_lines: list[str] = []
+            if vs:
+                for i, v in enumerate(vs, 1):
+                    label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
+                    vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or cur)
+                    price_lines.append(f"{label}: {vprice}")
+            elif _has_price(p.get("min_price")) or _has_price(p.get("max_price")):
+                price_lines.append(_price_md(p.get("min_price"), p.get("max_price"), cur))
+            if not price_lines:
+                continue  # 0-€/Preis-unbekannt → Produkt überspringen
+
             parts.append("")
             title = strip_html(p.get("title") or p.get("species") or "?")
             parts.append(f"**{title}**")
             purl = (p.get("antcheck_url") or p.get("shop_url") or "").strip()
             if purl:
                 parts.append(l10n.get("sells_product_link", lang, url=purl))
-            cur = p.get("currency_iso") or "EUR"
-            vs  = available_variants(p)
-            if vs:
-                for i, v in enumerate(vs, 1):
-                    label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
-                    vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or cur)
-                    parts.append(f"{label}: {vprice}")
-            else:
-                parts.append(_price_md(p.get("min_price"), p.get("max_price"), cur))
+            parts.extend(price_lines)
+            shown += 1
+
+        if shown == 0:
+            await ctx.followup.send(l10n.get("offers_none", lang, shop=shop_name))
+            return
 
         parts.append("")
         parts.append(l10n.get("sells_footer", lang, ts=_read_fetched_at() or "?"))
