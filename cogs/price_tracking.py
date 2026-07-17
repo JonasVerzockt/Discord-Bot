@@ -304,6 +304,16 @@ def _variant_size_summary(product) -> str:
     return ", ".join(tokens)
 
 
+def _variant_step_header(lang, current, total, product) -> str:
+    """Kopfzeile für den (ggf. mehrstufigen) Varianten-Auswahlschritt."""
+    if total <= 1:
+        return l10n.get("pt_select_variant", lang)
+    return l10n.get(
+        "pt_variant_step", lang,
+        product=_make_product_label(product), current=current, total=total,
+    )
+
+
 # ── Discord-UI Views ──────────────────────────────────────────────────────────
 
 class _BaseView(discord.ui.View):
@@ -585,14 +595,20 @@ class ProductSelectView(_BaseView):
     async def on_products_selected(self, product_ids: list[str], interaction: discord.Interaction):
         selected = [self.products_by_id[pid] for pid in product_ids if pid in self.products_by_id]
 
-        # Genau EIN Produkt mit Varianten -> optionaler Varianten-Auswahlschritt
-        if len(selected) == 1 and available_variants(selected[0]):
+        # Produkte mit Varianten -> sequentiell pro Produkt die Variante(n) wählen;
+        # Produkte ohne Varianten kommen direkt als ganzes Produkt in die Sammlung.
+        with_variants = [p for p in selected if available_variants(p)]
+        without       = [p for p in selected if not available_variants(p)]
+        if with_variants:
             vview = VariantSelectView(
-                selected[0], self.shop_id, self.shop_info, self.species,
+                with_variants[0], self.shop_id, self.shop_info, self.species,
                 self.bot, self.owner_id, self.lang,
+                queue=with_variants[1:], acc=list(without),
+                step=1, total=len(with_variants),
             )
             await interaction.response.edit_message(
-                content=l10n.get("pt_select_variant", self.lang), view=vview,
+                content=_variant_step_header(self.lang, 1, len(with_variants), with_variants[0]),
+                view=vview,
             )
             return
 
@@ -660,7 +676,8 @@ class _VariantSelectItem(discord.ui.Select):
 
 
 class VariantSelectView(_BaseView):
-    def __init__(self, product, shop_id, shop_info, species, bot, owner_id, lang):
+    def __init__(self, product, shop_id, shop_info, species, bot, owner_id, lang,
+                 queue=None, acc=None, step=1, total=1):
         super().__init__(owner_id, lang)
         self.product   = product
         self.shop_id   = shop_id
@@ -668,11 +685,14 @@ class VariantSelectView(_BaseView):
         self.species   = species
         self.bot       = bot
         self.lang      = lang
+        self.queue     = queue or []   # noch zu bearbeitende Produkte mit Varianten
+        self.acc       = acc or []     # bereits gewählte Einträge (inkl. Ganzprodukte)
+        self.step      = step
+        self.total     = total
         self.add_item(_VariantSelectItem(product, lang))
 
     async def on_variant_selected(self, values, interaction):
         vmap = {str(v.get("id")): v for v in available_variants(self.product)}
-        entries = []
         for val in values:
             e = dict(self.product)
             if val == "0":
@@ -686,10 +706,26 @@ class VariantSelectView(_BaseView):
                 e["_variant_title"]    = strip_html(v.get("title") or v.get("description") or f"Variante {val}")
                 e["_variant_price"]    = v.get("price")
                 e["_variant_currency"] = v.get("currency_iso") or self.product.get("currency_iso") or "EUR"
-            entries.append(e)
+            self.acc.append(e)
 
+        # Nächstes Produkt mit Varianten? -> weiterer Auswahlschritt
+        if self.queue:
+            nxt = self.queue[0]
+            vview = VariantSelectView(
+                nxt, self.shop_id, self.shop_info, self.species,
+                self.bot, self.owner_id, self.lang,
+                queue=self.queue[1:], acc=self.acc,
+                step=self.step + 1, total=self.total,
+            )
+            await interaction.response.edit_message(
+                content=_variant_step_header(self.lang, self.step + 1, self.total, nxt),
+                view=vview,
+            )
+            return
+
+        # Alle Produkte abgearbeitet -> Bestätigung über alle gesammelten Einträge
         lines = []
-        for e in entries:
+        for e in self.acc:
             vt = e.get("_variant_title")
             title = _make_product_label(e) + (f" – {vt}" if vt else "")
             if e.get("_variant_id"):
@@ -699,7 +735,7 @@ class VariantSelectView(_BaseView):
             lines.append(f"• {title} – {price_str}")
 
         content = l10n.get("pt_confirm_header", self.lang) + "\n" + "\n".join(lines)
-        view = ConfirmView(entries, self.shop_id, self.shop_info, self.species,
+        view = ConfirmView(self.acc, self.shop_id, self.shop_info, self.species,
                            self.bot, self.owner_id, self.lang)
         await interaction.response.edit_message(content=content, view=view)
 

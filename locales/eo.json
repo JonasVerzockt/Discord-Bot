@@ -233,6 +233,7 @@
   "pt_last_price_prefix": "lasta",
   "pt_product_placeholder": "Elekti produkt(o)jn …",
   "pt_select_variant": "🔖 Elektu unu aŭ plurajn variantojn – aŭ la tutan produkton:",
+  "pt_variant_step": "🔖 Elektu varianto(j)n por **{product}** ({current}/{total}) – aŭ la tutan produkton:",
   "pt_variant_placeholder": "Elektu varianto(j)n …",
   "pt_whole_product": "🔭 Tuta produkto (ĉiuj variantoj)",
   "pt_variant_count": "{count} variantoj",
