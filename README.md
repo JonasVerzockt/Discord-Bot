@@ -1,4 +1,4 @@
-# AAM Discord Bot
+Guild-Lock-Lockr-Bindungrheitrheitrheit Discord Bot
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -12,7 +12,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 
 ---
 
-## 🔒 Sicherheit: Server-Bindung (Guild-Lock)
+## Sicherheit: Server-Bindung (Guild-Lock)
 
 > **Diese Bot-Instanz arbeitet ausschließlich auf einem einzigen, fest eingebauten Discord-Server:**
 > **`375031723601297409`** (*Ameisen an die Macht*).
@@ -33,7 +33,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 ## Inhaltsverzeichnis
 
 0. [Inhaltsverzeichnis](#inhaltsverzeichnis)
-0. [🔒 Sicherheit: Server-Bindung (Guild-Lock)](#-sicherheit-server-bindung-guild-lock)
+0. [Sicherheit: Server-Bindung (Guild-Lock)](#sicherheit-server-bindung-guild-lock)
 1. [Voraussetzungen](#voraussetzungen)
 2. [Installation](#installation)
 3. [Konfiguration](#konfiguration)
