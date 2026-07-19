@@ -46,8 +46,10 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_species_name(name: str) -> str:
-    """Normalisiert Artnamen (cf./sp./aff. entfernen, Leerzeichen reduzieren)."""
-    name = re.sub(r"\s*\b(cf|sp|aff)\.?\s*", " ", name, flags=re.IGNORECASE)
+    """Normalisiert Artnamen (nur eigenständige cf./sp./aff. entfernen, Leerzeichen
+    reduzieren). Wichtig: nur als GANZES Token entfernen – sonst würde „affiche"
+    (FR Merch) zu „iche" oder das echte Epitheton „affinis" zu „inis" verstümmelt."""
+    name = re.sub(r"(?<!\w)(cf|sp|aff)\.?(?!\w)", " ", name, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", name).strip().lower()
 
 
@@ -61,24 +63,40 @@ def normalize_species_name(name: str) -> str:
 # unterscheidet sich zuverlässig durch charakteristische Nomen – daher ein
 # gezielter Negativ-Filter NUR gegen Merch, statt echte Artnamen strukturell zu
 # erraten. Neue Merch-Begriffe können hier einfach ergänzt werden.
+#
+# Mehrsprachig (DE/EN + PL/FR, da die Shops international sind – ANTSHOP AT,
+# ANTSTORE, AntOnTop/PL, Esprit Fourmis/FR, AntAntics/UK, My Home Nature/HK …)
+# und zusammengeführt mit der ursprünglichen Liste aus v1.0.1 (u.a. „set",
+# „geschenk"). Neue Begriffe/Sprachen einfach ergänzen.
 _MERCH_TOKENS = frozenset({
-    # Aufkleber / Papier / Druck
+    # ── Aufkleber / Papier / Druck ──────────────────────────────
     "sticker", "stickers", "stickerbogen", "aufkleber", "aufkleberbogen",
-    "poster", "postkarte", "postcard", "postkarten", "lesezeichen",
+    "poster", "postkarte", "postkarten", "postcard", "lesezeichen",
     "leinwand", "kunstdruck", "druck", "print", "malbuch", "sammelkarte",
     "sammelkarten", "kalender", "calendar",
-    # Präparate / Deko / Sammler
+    "naklejka", "naklejki", "nalepka", "plakat", "pocztówka", "zakładka",   # PL
+    "autocollant", "autocollants", "affiche", "calendrier", "marque-page",  # FR
+    # ── Präparate / Deko / Sammler ──────────────────────────────
     "präparat", "praeparat", "präparate", "praeparate", "präpariert",
-    "metamorphose", "figur", "figuren", "modell", "model", "puzzle",
-    "magnet", "plüsch", "plush", "stofftier",
-    # Kleidung / Tassen / Zubehör-Merch
-    "tasse", "becher", "kaffeebecher", "mug", "shirt", "tshirt", "t-shirt",
-    "hoodie", "pullover", "sweater", "mousepad", "mauspad",
-    "schlüsselanhänger", "keychain", "anhänger", "pin", "button", "anstecker",
-    "patch",
-    # Bücher / Gutscheine
-    "buch", "book", "büchlein", "heft",
-    "gutschein", "geschenkgutschein", "voucher",
+    "preparat", "préparation", "metamorphose",
+    "figur", "figuren", "figurine", "figurka", "modell", "model", "modèle",
+    "puzzle", "magnet", "magnes", "aimant",
+    "plüsch", "plush", "peluche", "stofftier",
+    # ── Kleidung / Tassen / Zubehör-Merch ───────────────────────
+    "tasse", "becher", "kaffeebecher", "mug", "kubek",
+    "shirt", "tshirt", "t-shirt", "koszulka", "chemise",
+    "hoodie", "pullover", "sweater", "sweat", "bluza",
+    "mousepad", "mauspad",
+    "schlüsselanhänger", "keychain", "keyring", "anhänger", "breloczek",
+    "brelok", "porte-clés", "porte-cles",
+    "pin", "button", "anstecker", "badge", "przypinka",
+    "patch", "naszywka", "écusson", "plakietka",
+    "gadget", "gadżet",
+    # ── Bücher / Gutscheine ─────────────────────────────────────
+    "buch", "book", "büchlein", "heft", "książka", "livre",
+    "gutschein", "geschenkgutschein", "geschenk", "voucher",
+    # ── Sets / Kits (Zubehör statt lebende Kolonie) ─────────────
+    "set", "zestaw", "kit", "coffret",
 })
 
 
