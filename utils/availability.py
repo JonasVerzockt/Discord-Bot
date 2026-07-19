@@ -97,6 +97,18 @@ _MERCH_TOKENS = frozenset({
     "gutschein", "geschenkgutschein", "geschenk", "voucher",
     # ── Sets / Kits (Zubehör statt lebende Kolonie) ─────────────
     "set", "zestaw", "kit", "coffret",
+    # ── Niederländisch (NL) – Antmerchant, Esthetic Ants, … ─────
+    "mok", "beker", "trui", "boek", "puzzel", "magneet", "sleutelhanger",
+    "ansichtkaart", "knuffel", "speld", "cadeaubon", "cadeau", "preparaat",
+    "figuur", "figuurtje", "muismat", "poster",
+    # ── Spanisch (ES) – Ant Dimension, Antderground, … ──────────
+    "pegatina", "pegatinas", "adhesivo", "póster", "cartel", "postal",
+    "taza", "camiseta", "sudadera", "libro", "calendario", "imán", "iman",
+    "llavero", "rompecabezas", "figura", "chapa", "parche", "cupón", "cupon",
+    "regalo", "marcapáginas", "marcapaginas", "preparación", "preparacion",
+    # ── Ungarisch (HU) – AntSite ────────────────────────────────
+    "matrica", "poszter", "bögre", "póló", "polo", "könyv", "naptár",
+    "mágnes", "kulcstartó", "kitűző", "kirakó", "ajándék", "képeslap",
 })
 
 
