@@ -46,52 +46,110 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_species_name(name: str) -> str:
-    """Normalisiert Artnamen (cf./sp./aff. entfernen, Leerzeichen reduzieren)."""
-    name = re.sub(r"\s*\b(cf|sp|aff)\.?\s*", " ", name, flags=re.IGNORECASE)
+    """Normalisiert Artnamen (nur eigenständige cf./sp./aff. entfernen, Leerzeichen
+    reduzieren). Wichtig: nur als GANZES Token entfernen – sonst würde „affiche"
+    (FR Merch) zu „iche" oder das echte Epitheton „affinis" zu „inis" verstümmelt."""
+    name = re.sub(r"(?<!\w)(cf|sp|aff)\.?(?!\w)", " ", name, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", name).strip().lower()
 
 
+# ── Merch-Erkennung ───────────────────────────────────────────────────────────
+# Reale Shop-Angebote für LEBENDE Ameisen haben oft „unsaubere" species-Felder:
+#   • Zusatz in Klammern:      „Odontomachus cf. monticola (Schnappkiefer)"
+#   • Präfixe/Beschreibungen:  „Ant colony odontomachus monticola"
+#   • cf./sp./aff.:            „Odontomachus cf. monticola"
+# Ein rein struktureller Filter (exakter Match / Wortzahl-Cap) verwirft solche
+# legitimen Angebote fälschlich. Merch dagegen (Sticker, Präparate, Poster …)
+# unterscheidet sich zuverlässig durch charakteristische Nomen – daher ein
+# gezielter Negativ-Filter NUR gegen Merch, statt echte Artnamen strukturell zu
+# erraten. Neue Merch-Begriffe können hier einfach ergänzt werden.
+#
+# Mehrsprachig (DE/EN + PL/FR, da die Shops international sind – ANTSHOP AT,
+# ANTSTORE, AntOnTop/PL, Esprit Fourmis/FR, AntAntics/UK, My Home Nature/HK …)
+# und zusammengeführt mit der ursprünglichen Liste aus v1.0.1 (u.a. „set",
+# „geschenk"). Neue Begriffe/Sprachen einfach ergänzen.
+_MERCH_TOKENS = frozenset({
+    # ── Aufkleber / Papier / Druck ──────────────────────────────
+    "sticker", "stickers", "stickerbogen", "aufkleber", "aufkleberbogen",
+    "poster", "postkarte", "postkarten", "postcard", "lesezeichen",
+    "leinwand", "kunstdruck", "druck", "print", "malbuch", "sammelkarte",
+    "sammelkarten", "kalender", "calendar",
+    "naklejka", "naklejki", "nalepka", "plakat", "pocztówka", "zakładka",   # PL
+    "autocollant", "autocollants", "affiche", "calendrier", "marque-page",  # FR
+    # ── Präparate / Deko / Sammler ──────────────────────────────
+    "präparat", "praeparat", "präparate", "praeparate", "präpariert",
+    "preparat", "préparation", "metamorphose",
+    "figur", "figuren", "figurine", "figurka", "modell", "model", "modèle",
+    "puzzle", "magnet", "magnes", "aimant",
+    "plüsch", "plush", "peluche", "stofftier",
+    # ── Kleidung / Tassen / Zubehör-Merch ───────────────────────
+    "tasse", "becher", "kaffeebecher", "mug", "kubek",
+    "shirt", "tshirt", "t-shirt", "koszulka", "chemise",
+    "hoodie", "pullover", "sweater", "sweat", "bluza",
+    "mousepad", "mauspad",
+    "schlüsselanhänger", "keychain", "keyring", "anhänger", "breloczek",
+    "brelok", "porte-clés", "porte-cles",
+    "pin", "button", "anstecker", "badge", "przypinka",
+    "patch", "naszywka", "écusson", "plakietka",
+    "gadget", "gadżet",
+    # ── Bücher / Gutscheine ─────────────────────────────────────
+    "buch", "book", "büchlein", "heft", "książka", "livre",
+    "gutschein", "geschenkgutschein", "geschenk", "voucher",
+    # ── Sets / Kits (Zubehör statt lebende Kolonie) ─────────────
+    "set", "zestaw", "kit", "coffret",
+    # ── Niederländisch (NL) – Antmerchant, Esthetic Ants, … ─────
+    "mok", "beker", "trui", "boek", "puzzel", "magneet", "sleutelhanger",
+    "ansichtkaart", "knuffel", "speld", "cadeaubon", "cadeau", "preparaat",
+    "figuur", "figuurtje", "muismat", "poster",
+    # ── Spanisch (ES) – Ant Dimension, Antderground, … ──────────
+    "pegatina", "pegatinas", "adhesivo", "póster", "cartel", "postal",
+    "taza", "camiseta", "sudadera", "libro", "calendario", "imán", "iman",
+    "llavero", "rompecabezas", "figura", "chapa", "parche", "cupón", "cupon",
+    "regalo", "marcapáginas", "marcapaginas", "preparación", "preparacion",
+    # ── Ungarisch (HU) – AntSite ────────────────────────────────
+    "matrica", "poszter", "bögre", "póló", "polo", "könyv", "naptár",
+    "mágnes", "kulcstartó", "kitűző", "kirakó", "ajándék", "képeslap",
+})
+
+
+def is_merch(species: str) -> bool:
+    """True, wenn das species/Titel-Feld auf Merch/Präparat statt eine lebende
+    Kolonie hindeutet (charakteristisches Nomen aus _MERCH_TOKENS)."""
+    return any(w in _MERCH_TOKENS for w in normalize_species_name(species or "").split())
+
+
 def matches_species_query(field_species: str, query: str) -> bool:
-    """Anker-Match wie bei den Notifications (check_availability_for_species).
+    """Match für /sells – inklusiv für reale Shop-Felder, aber ohne Merch.
 
-    Gattungssuche (ein Wort): das species-Feld muss mit 'gattung ' beginnen
-    (bzw. exakt die Gattung sein). Artsuche (Binomen): das Feld muss exakt gleich
-    sein. Dadurch wird Merch/Präparat zuverlässig ausgeschlossen – ein langer
-    Produkttitel wie 'Ameisen Stickerbogen Oecophylla smaragdina' ist weder exakt
-    'oecophylla smaragdina' noch beginnt er mit 'oecophylla '/'oecophylla smaragdina '.
-    Kein Keyword-Blacklisting nötig: die Prüfung ist am echten Artnamen verankert.
+    Merch (Sticker/Präparat/…) wird zuerst per is_merch ausgeschlossen. Danach:
+      • Gattungssuche (ein Wort): die Gattung kommt als Token im Feld vor
+        (deckt „Ant colony Camponotus singularis" ebenso ab wie „Camponotus …").
+      • Artsuche (Binomen): der Suchbegriff kommt als zusammenhängende Phrase an
+        Wortgrenzen vor – so matchen „Odontomachus monticola" auch in
+        „Odontomachus cf. monticola (Schnappkiefer)" und „Ant colony odontomachus
+        monticola", nicht aber ein zufälliges Teilwort.
     """
-    norm_field = normalize_species_name(field_species)
-    norm_query = normalize_species_name(query)
-    if not norm_field or not norm_query:
+    if is_merch(field_species):
         return False
-    if " " not in query.strip():          # Gattung
-        return norm_field == norm_query or norm_field.startswith(norm_query + " ")
-    return norm_field == norm_query        # konkrete Art (Binomen)
-
-
-# Erlaubt reine Latin-Wörter (Buchstaben, Bindestrich, Punkt) – ein echter
-# Artname besteht ausschließlich daraus; Merch-Titel enthalten Zahlen, Symbole
-# (×, cm, „–") oder viele Wörter.
-_LATIN_WORD_RE = re.compile(r"[a-zà-ÿ][a-zà-ÿ.\-]*$")
+    nf = normalize_species_name(field_species)
+    nq = normalize_species_name(query)
+    if not nf or not nq:
+        return False
+    if " " not in nq:                      # Gattung / einzelnes Wort
+        return nq in nf.split() or nf.startswith(nq + " ")
+    return f" {nq} " in f" {nf} "          # Binomen als zusammenhängende Phrase
 
 
 def is_live_ant_species(species: str) -> bool:
-    """Struktur-Test für query-lose Kontexte (/offers): True nur, wenn das
-    species-Feld strukturell ein sauberes Binomen ist (max. 3 reine Latin-Wörter).
+    """Für query-lose Kontexte (/offers): True für jedes echte Ameisen-Angebot,
+    d.h. ein nicht-leeres species-Feld, das NICHT nach Merch aussieht.
 
-    Merch/Präparate erhalten vom Grabber als 'species' den langen Produkttitel
-    (Fallback auf name/title, wenn AntCheck keinen Artnamen liefert) und fallen
-    hier durch Wortzahl bzw. Nicht-Latin-Token heraus. Ohne Keyword-Blacklist –
-    daher sprachneutral und lückenfrei gegenüber neuen Merch-Begriffen.
-    """
+    Bewusst inklusiv – „Ant colony odontomachus monticola" o.Ä. sollen erscheinen;
+    nur Merch/Präparate werden herausgefiltert."""
     s = normalize_species_name(species or "")
     if not s:
         return False
-    words = s.split()
-    if not (1 <= len(words) <= 3):      # echte Art/Unterart hat 1–3 Wörter
-        return False
-    return all(_LATIN_WORD_RE.match(w) for w in words)
+    return not is_merch(species)
 
 
 def format_rating(rating) -> str:
