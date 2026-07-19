@@ -330,12 +330,17 @@ async def check_availability_for_species(
     ch_mode: bool = False,
     ch_shops: set | None = None,
     excluded_species_list: set | None = None,
+    require_stock: bool = True,
 ) -> list[dict]:
     """
     Prüft Verfügbarkeit einer Art/Gattung in den gegebenen Regionen.
 
+    require_stock=True (Default): nur lagernde, aktive Produkte.
+    require_stock=False: ALLE passenden Produkte (auch ausverkauft/inaktiv) – für
+    art-genaues Seen-Pruning nötig. Jedes dict enthält 'in_stock'/'is_active'.
+
     Returns:
-        Liste von verfügbaren Produkten (dicts mit species, shop_name, etc.)
+        Liste von Produkten (dicts mit species, shop_name, in_stock, is_active, …)
     """
     from utils.db import execute_db
 
@@ -384,17 +389,14 @@ async def check_availability_for_species(
                 match = norm_title == normalized_search
 
             if match:
-                # Nur lagerverfügbare, aktive Produkte beruecksichtigen
-                if not product.get("in_stock", False):
+                p_in_stock  = bool(product.get("in_stock", False))
+                p_is_active = bool(product.get("is_active", False))
+                # Standard: nur lagerverfügbare, aktive Produkte. Bei require_stock=
+                # False werden ALLE Treffer zurückgegeben (fürs art-genaue Pruning).
+                if require_stock and not (p_in_stock and p_is_active):
                     logger.debug(
                         f"🔍 Produkt {product.get('id')} ({species}) bei "
-                        f"{shop_info.get('name', shop_id_str)}: not in_stock – übersprungen"
-                    )
-                    continue
-                if not product.get("is_active", False):
-                    logger.debug(
-                        f"🔍 Produkt {product.get('id')} ({species}) bei "
-                        f"{shop_info.get('name', shop_id_str)}: not is_active – übersprungen"
+                        f"{shop_info.get('name', shop_id_str)}: nicht lagernd/aktiv – übersprungen"
                     )
                     continue
 
@@ -410,6 +412,8 @@ async def check_availability_for_species(
                     "shop_id":      shop_id_str,
                     "rating":       shop_info.get("average_rating"),
                     "variants":     product.get("variants") or [],
+                    "in_stock":     p_in_stock,
+                    "is_active":    p_is_active,
                 })
 
     return results

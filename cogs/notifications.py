@@ -130,12 +130,18 @@ class NotificationsCog(commands.Cog, name="Notifications"):
             else:
                 regions_list = await expand_regions(self.bot, regions.split(","))
 
-            available = await check_availability_for_species(
+            # ALLE passenden Produkte dieser Art holen (auch ausverkaufte) – nötig,
+            # damit das Seen-Pruning weiter unten NUR Produkte dieser Art betrifft
+            # und nicht die gesehenen Produkte anderer Benachrichtigungen löscht.
+            all_matches = await check_availability_for_species(
                 self.bot, species, regions_list,
                 user_id=user_id, ch_mode=ch_mode,
                 ch_shops=ch_shops if ch_mode else None,
                 excluded_species_list=excluded_species_list,
+                require_stock=False,
             )
+            species_ids = {str(p["id"]) for p in all_matches}
+            available   = [p for p in all_matches if p.get("in_stock") and p.get("is_active")]
             if not available:
                 return False
 
@@ -212,11 +218,17 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 "INSERT OR IGNORE INTO user_seen_products (user_id, product_id) VALUES (?, ?)",
                 [(user_id, str(p["id"])) for p in new_products],
             )
+            # Seen-Pruning NUR innerhalb dieser Art: gesehene Produkte dieser Art,
+            # die nicht mehr lagernd sind, entfernen (damit erneut alarmiert wird,
+            # wenn sie zurückkommen). Produkte ANDERER Arten bleiben unangetastet –
+            # sonst würden sich mehrere Benachrichtigungen gegenseitig „entsehen"
+            # und alle 5 Minuten dieselben Produkte melden.
             current_ids = {str(p["id"]) for p in available}
+            stale_ids   = (seen_ids & species_ids) - current_ids
             await execute_many(
                 self.bot,
                 "DELETE FROM user_seen_products WHERE user_id=? AND product_id=?",
-                [(user_id, pid) for pid in (seen_ids - current_ids)],
+                [(user_id, pid) for pid in stale_ids],
             )
 
             await execute_db(
@@ -225,7 +237,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                    WHERE user_id=? AND species=? AND regions=?""",
                 (user_id, species, regions), commit=True,
             )
-            await self._ask_for_feedback(user, user_id, species, regions)
+            await self._ask_for_feedback(user, user_id, species, regions, species_ids)
             return True
 
         except Exception as e:
@@ -269,8 +281,10 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         except Exception as e:
             logger.error(f"❌ handle_dm_failure error: {e}")
 
-    async def _ask_for_feedback(self, user: discord.User, user_id: str, species: str, regions: str):
+    async def _ask_for_feedback(self, user: discord.User, user_id: str, species: str,
+                                regions: str, species_ids: set | None = None):
         """Sendet Feedback-Frage nach erfolgreicher Benachrichtigung."""
+        species_ids = species_ids or set()
         row = await execute_db(
             self.bot,
             "SELECT server_id FROM notifications WHERE user_id=? AND species=? AND regions=?",
@@ -301,10 +315,12 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         try:
             reaction, _ = await self.bot.wait_for("reaction_add", timeout=48 * 3600, check=check)
             if str(reaction.emoji) == "\U0001f44d":
-                await execute_db(
+                # Nur die gesehenen Produkte DIESER Art zurücksetzen – nicht die
+                # anderer aktiver Benachrichtigungen des Users.
+                await execute_many(
                     self.bot,
-                    "DELETE FROM user_seen_products WHERE user_id=?",
-                    (user_id,), commit=True,
+                    "DELETE FROM user_seen_products WHERE user_id=? AND product_id=?",
+                    [(user_id, pid) for pid in species_ids],
                 )
                 await execute_db(
                     self.bot,
