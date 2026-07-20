@@ -267,6 +267,8 @@ class DigestCog(commands.Cog, name="Digest"):
 
         shop_data = await load_shop_data(self.bot)
         pid_info, cur_species, cur_shops = {}, set(), {}
+        species_link: dict[str, str] = {}          # Artname -> repräsentative antcheck_url
+        species_link_instock: set[str] = set()     # Arten mit lagerndem Link (bevorzugt)
         for shop_id, shop in shop_data.items():
             name = shop.get("name") or str(shop_id)
             cur_shops[str(shop_id)] = name
@@ -275,6 +277,14 @@ class DigestCog(commands.Cog, name="Digest"):
                 pid = prod.get("id")
                 if sp:
                     cur_species.add(sp)
+                    url = (prod.get("antcheck_url") or "").strip()
+                    if url:
+                        ok = bool(prod.get("in_stock") and prod.get("is_active"))
+                        # Ersten Link je Art nehmen; auf lagerndes Produkt „upgraden".
+                        if sp not in species_link or (ok and sp not in species_link_instock):
+                            species_link[sp] = url
+                            if ok:
+                                species_link_instock.add(sp)
                 if pid is not None:
                     pid_info[int(pid)] = {
                         "species":  sp or f"#{pid}",
@@ -296,16 +306,20 @@ class DigestCog(commands.Cog, name="Digest"):
             uid = row["user_id"]
             try:
                 lang = await get_user_lang(self.bot, uid, None)
-                chunks = self._build_chunks(lang, drops, new_species, new_shops)
+                chunks = self._build_chunks(lang, drops, new_species, new_shops, species_link)
                 user = await self.bot.fetch_user(int(uid))
-                for chunk in chunks:
+                for i, chunk in enumerate(chunks):
                     await user.send(embed=discord.Embed(description=chunk, color=EMBED_COLOR))
+                    if i < len(chunks) - 1:
+                        await asyncio.sleep(0.7)   # kleine Pause gegen DM-Rate-Limits
             except discord.Forbidden:
                 logger.info("📪 Digest: DMs für User %s gesperrt – übersprungen", uid)
             except Exception as e:
                 logger.warning("⚠️ Digest an %s fehlgeschlagen: %s", uid, e)
 
-    def _build_chunks(self, lang: str, drops: list, new_species: list, new_shops: list) -> list:
+    def _build_chunks(self, lang: str, drops: list, new_species: list, new_shops: list,
+                      species_link: dict | None = None) -> list:
+        species_link = species_link or {}
         lines = [l10n.get("digest_title", lang)]
         has_content = False
 
@@ -325,19 +339,26 @@ class DigestCog(commands.Cog, name="Digest"):
         if new_species:
             lines.append("")
             lines.append(l10n.get("digest_new_species_header", lang))
-            for sp in new_species[:15]:
-                lines.append(l10n.get("digest_item", lang, name=sp))
-            if len(new_species) > 15:
-                lines.append(l10n.get("digest_more", lang, count=len(new_species) - 15))
+            # Nach Gattung (erstes Wort) gruppieren; alle Arten anzeigen (keine Kürzung).
+            by_genus: dict[str, list] = {}
+            for sp in new_species:
+                genus = sp.split()[0] if sp.split() else sp
+                by_genus.setdefault(genus, []).append(sp)
+            for genus in sorted(by_genus, key=str.lower):
+                lines.append(l10n.get("digest_genus", lang, genus=genus))
+                for sp in by_genus[genus]:
+                    url = species_link.get(sp)
+                    if url:
+                        lines.append(l10n.get("digest_species_link", lang, name=sp, url=url))
+                    else:
+                        lines.append(l10n.get("digest_item", lang, name=sp))
             has_content = True
 
         if new_shops:
             lines.append("")
             lines.append(l10n.get("digest_new_shops_header", lang))
-            for nm in new_shops[:15]:
+            for nm in new_shops:           # alle neuen Shops anzeigen (keine Kürzung)
                 lines.append(l10n.get("digest_item", lang, name=nm))
-            if len(new_shops) > 15:
-                lines.append(l10n.get("digest_more", lang, count=len(new_shops) - 15))
             has_content = True
 
         if not has_content:

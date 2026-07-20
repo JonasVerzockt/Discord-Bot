@@ -306,6 +306,8 @@
   "digest_new_species_header": "🐜 **Novaj specioj disponeblaj**",
   "digest_new_shops_header": "🏪 **Novaj vendejoj**",
   "digest_item": "• {name}",
+  "digest_genus": "**{genus}**",
+  "digest_species_link": "• [{name}]({url})",
   "digest_more": "… kaj {count} pliaj",
   "digest_nothing": "Ĉi-semajne neniuj notindaj ŝanĝoj. 🐜",
   "digest_footer": "Malaboni per /digest action:deaktivieren",

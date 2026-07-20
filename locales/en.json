@@ -306,6 +306,8 @@
   "digest_new_species_header": "🐜 **New species available**",
   "digest_new_shops_header": "🏪 **New shops**",
   "digest_item": "• {name}",
+  "digest_genus": "**{genus}**",
+  "digest_species_link": "• [{name}]({url})",
   "digest_more": "… and {count} more",
   "digest_nothing": "No notable changes this week. 🐜",
   "digest_footer": "Unsubscribe with /digest action:deaktivieren",
