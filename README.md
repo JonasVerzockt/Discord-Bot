@@ -115,10 +115,12 @@ DISCORD_TOKEN=dein_token_hier
 REVIEW_CHANNEL_ID=123456789012345678      # Kanal für Shopbewertungen
 BOT_OWNER_ID=123456789012345678           # Deine eigene Discord-User-ID
 SERVER_IDS=123456789012345678             # Kommagetrennte Server-IDs
+# ALLOWED_GUILD_ID=375031723601297409     # Guild-Lock: Bot läuft NUR auf diesem Server (Default: AAM); eigene Instanz -> eigene ID + eigener Token
 
 # ── Anthropic (KI-Parser) ─────────────────────────────────────
 ANTHROPIC_API_KEY=sk-ant-...
 # REVIEW_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Review-Extraktion
+# ACCUMULATION_DELAY=8                     # Sek. warten, um geteilte Review-Nachrichten zusammenzuführen
 
 # ── Google Sheets ─────────────────────────────────────────────
 GOOGLE_SPREADSHEET_ID=deine_spreadsheet_id_hier
@@ -127,6 +129,9 @@ GOOGLE_SPREADSHEET_ID=deine_spreadsheet_id_hier
 ANTCHECK_API_KEY=dein_api_key_hier
 ANTCHECK_API_URL=https://antcheck.info
 ANTCHECK_VERIFY_SSL=false                 # false bei self-signed Zertifikat
+# ANTCHECK_TIMEOUT=30                      # Timeout pro API-Anfrage in Sek. (Grabber)
+# ANTCHECK_RETRIES=3                       # Anzahl Wiederholungen bei API-Fehlern
+# ANTCHECK_RETRY_DELAY=5                   # Wartezeit zwischen Wiederholungen in Sek.
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────
 AI_CHAT_CHANNEL_IDS=123456789012345678   # Kanal-ID, in dem der Bot antwortet
@@ -135,6 +140,10 @@ AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
 # AI_CHAT_MODEL=claude-haiku-4-5-20251001          # Chat-Modell
 # AI_CHAT_CLASSIFY_MODEL=claude-haiku-4-5-20251001 # Modell für die Shop-Relevanz-Klassifikation
 AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + KI öffentlich zugänglich
+# AI_CHAT_MAX_INPUT_CHARS=1500             # Max. Eingabezeichen pro Anfrage
+# AI_CHAT_MAX_OUTPUT_TOKENS=800            # Max. Output-Tokens pro Antwort
+# AI_CHAT_MAX_HISTORY_TURNS=10             # Gespeicherte Gesprächsrunden pro Konversation
+# AI_CHAT_CONVERSATION_TTL_HOURS=24        # Aufbewahrung einer Konversation in Stunden
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
@@ -155,7 +164,7 @@ DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
 PYTHONUNBUFFERED=1
 ```
 
-Alle Limits (Eingabezeichenanzahl, Output-Tokens, Konversationsgedächtnis, TTL) haben sinnvolle Defaults und müssen nur gesetzt werden wenn sie angepasst werden sollen – siehe `.env.example`.
+Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block enthält alle unterstützten Variablen; dieselbe Liste steht auch in `.env.example`.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
