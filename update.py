@@ -16,14 +16,14 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-update.py – Auto-Deploy für den AAM Discord Bot (Python-Port von update.sh).
+update.py – Auto-Deploy für den AAM Discord Bot.
 
 Prüft origin/<BRANCH> auf neue Commits, zieht sie per Fast-Forward und startet
 den systemd-Dienst neu. Bei geänderter requirements.txt werden die Abhängigkeiten
 im venv nachinstalliert. Lokale, uncommittete Änderungen brechen den Deploy ab
 (werden nie überschrieben).
 
-Konfiguration über Umgebungsvariablen (mit denselben Defaults wie update.sh):
+Konfiguration über Umgebungsvariablen:
   REPO_DIR   (Default: /opt/discord-bot)
   BRANCH     (Default: main)
   SERVICE    (Default: aam-bot)
