@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.23` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.24` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -116,7 +116,6 @@ Kopiere `.env.example` nach `.env` und fülle alle Pflichtfelder aus:
 DISCORD_TOKEN=dein_token_hier
 REVIEW_CHANNEL_ID=123456789012345678      # Kanal für Shopbewertungen
 BOT_OWNER_ID=123456789012345678           # Deine eigene Discord-User-ID
-SERVER_IDS=123456789012345678             # Kommagetrennte Server-IDs
 # ALLOWED_GUILD_ID=375031723601297409     # Guild-Lock: Bot läuft NUR auf diesem Server (Default: AAM); eigene Instanz -> eigene ID + eigener Token
 
 # ── Anthropic (KI-Parser) ─────────────────────────────────────

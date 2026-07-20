@@ -28,16 +28,12 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.0.23"
+VERSION = "1.0.24"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
 REVIEW_CHANNEL_ID = int(os.getenv("REVIEW_CHANNEL_ID", "0"))
 BOT_OWNER         = int(os.getenv("BOT_OWNER_ID", "0"))
-# Server-IDs die Admin-Befehle nutzen duerfen (kommagetrennt in .env)
-SERVER_IDS = [
-    int(x) for x in os.getenv("SERVER_IDS", "").split(",") if x.strip()
-]
 
 # Google Sheets (Review-Bot)
 SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID")
