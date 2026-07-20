@@ -205,7 +205,7 @@ Für den Dauerbetrieb liegen drei systemd-Unit-Vorlagen im Repo:
 | `aam-bot-update.service` | Oneshot-Auto-Deploy – führt `update.py` aus (siehe unten). |
 | `aam-bot-update.timer` | Löst `aam-bot-update.service` alle 5 Minuten aus (`OnUnitActiveSec=5min`). |
 
-**`update.py`** (Python-Port von `update.sh`) prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben). Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`).
+**`update.py`** prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben). Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`).
 
 Installation (einmalig, als root):
 
@@ -880,7 +880,6 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── config.py                # Zentrale Konfiguration + Umgebungsvariablen
 ├── grabber.py               # AntCheck API → shops_data.json + price_history.db
 ├── update.py                # Auto-Deploy (git pull + venv-pip + Dienst-Neustart)
-├── update.sh                # Bash-Variante von update.py (Legacy)
 ├── aam-bot.service          # systemd: Bot-Dienst (main.py)
 ├── aam-bot-update.service   # systemd: Oneshot-Auto-Deploy (update.py)
 ├── aam-bot-update.timer     # systemd: löst den Auto-Deploy alle 5 Min aus
