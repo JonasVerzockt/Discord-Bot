@@ -23,6 +23,9 @@ shops_data.json
 antcheckbot.db
 antcheckbot.db-shm
 antcheckbot.db-wal
+price_history.db
+price_history.db-shm
+price_history.db-wal
 
 # ── Logs ───────────────────────────────────────────────────────────────────────
 *.log
