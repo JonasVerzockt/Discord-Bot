@@ -374,8 +374,8 @@ Optionaler wöchentlicher Überblick **per DM** – nur für User, die sich per 
 
 **Inhalt:**
 - **Größte Preisstürze der letzten 7 Tage** – aus `price_history.db` (Top 10, mit altem/neuem Preis und prozentualem Rückgang)
-- **Neue Arten im Angebot** – Diff gegen die Baseline-Tabelle `known_species`
-- **Neue Shops** – Diff gegen die Baseline-Tabelle `known_shops`
+- **Neue Arten im Angebot** – Diff gegen die Baseline-Tabelle `known_species`, **nach Gattung gruppiert** und mit **klickbarem Produktlink** je Art (antcheck.info; Klartext, falls ausnahmsweise keine URL vorliegt). Es werden **alle** neuen Arten angezeigt – bei vielen Einträgen verteilt sich der Digest automatisch auf mehrere DMs (nichts wird mehr mit „… und N weitere" gekürzt)
+- **Neue Shops** – Diff gegen die Baseline-Tabelle `known_shops` (ebenfalls vollständig, ohne Kürzung)
 
 Die Baseline-Tabellen (`known_species`, `known_shops`) werden beim **ersten Lauf** befüllt – in diesem Lauf gibt es daher noch keine „neu"-Meldung; echte Neuzugänge werden erst ab dem zweiten Lauf erkannt. Gibt es in einer Woche nichts Neues, bekommen Abonnenten trotzdem eine kurze „nichts Neues"-DM.
 
