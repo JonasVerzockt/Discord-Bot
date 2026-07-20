@@ -1,4 +1,4 @@
-# AAM Discord Bot
+Guild-Lock-Lockr-Bindungrheitrheitrheit Discord Bot
 
 **Aktuelle Version:** `1.0.22` · Lizenz: AGPL-3.0-or-later
 
@@ -14,7 +14,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 
 ---
 
-## 🔒 Sicherheit: Server-Bindung (Guild-Lock)
+## Sicherheit: Server-Bindung (Guild-Lock)
 
 > **Diese Bot-Instanz arbeitet ausschließlich auf einem einzigen, fest eingebauten Discord-Server:**
 > **`375031723601297409`** (*Ameisen an die Macht*).
