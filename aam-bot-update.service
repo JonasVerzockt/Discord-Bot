@@ -7,4 +7,4 @@ Wants=network-online.target
 Type=oneshot
 User=aam
 WorkingDirectory=/opt/discord-bot
-ExecStart=/opt/discord-bot/update.sh
+ExecStart=/opt/discord-bot/.venv/bin/python /opt/discord-bot/update.py
