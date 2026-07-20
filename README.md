@@ -32,7 +32,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 
 ## Inhaltsverzeichnis
 
-1. [🔒 Sicherheit: Server-Bindung (Guild-Lock)](#-sicherheit-server-bindung-guild-lock)
+1. [Sicherheit: Server-Bindung (Guild-Lock)](#sicherheit-server-bindung-guild-lock)
 2. [Voraussetzungen](#voraussetzungen)
 3. [Installation](#installation)
 4. [Konfiguration](#konfiguration)
