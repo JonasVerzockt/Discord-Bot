@@ -115,6 +115,7 @@ DISCORD_TOKEN=dein_token_hier
 REVIEW_CHANNEL_ID=123456789012345678      # Kanal für Shopbewertungen
 BOT_OWNER_ID=123456789012345678           # Deine eigene Discord-User-ID
 SERVER_IDS=123456789012345678             # Kommagetrennte Server-IDs
+# ALLOWED_GUILD_ID=375031723601297409     # Guild-Lock: Bot läuft NUR auf diesem Server (Default: AAM); eigene Instanz -> eigene ID + eigener Token
 
 # ── Anthropic (KI-Parser) ─────────────────────────────────────
 ANTHROPIC_API_KEY=sk-ant-...
