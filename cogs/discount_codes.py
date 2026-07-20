@@ -111,21 +111,6 @@ def _shop_display(shop: str | None, url: str | None) -> str:
     return _domain(url) or "?"
 
 
-def _chunks(text: str, max_len: int = 1990) -> list[str]:
-    """Teilt Text an Zeilenumbrüchen in Discord-taugliche Stücke."""
-    if len(text) <= max_len:
-        return [text]
-    out, cur = [], ""
-    for line in text.split("\n"):
-        if len(cur) + len(line) + 1 > max_len:
-            out.append(cur.rstrip())
-            cur = ""
-        cur += line + "\n"
-    if cur.strip():
-        out.append(cur.rstrip())
-    return out
-
-
 def _state(row, today: str, cutoff: str) -> str:
     """Gibt 'valid' | 'expired' | 'invalid' anhand Override + Datum + Alter."""
     ov = row["status_override"]

@@ -30,8 +30,8 @@ from utils.availability import load_shop_data, available_variants, strip_html, e
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
-from cogs.sells import _price_md, _chunks, _read_fetched_at, _has_price
-from utils.text_chunks import chunk_lines, chunk_paragraphs
+from cogs.sells import _price_md, _read_fetched_at, _has_price
+from utils.text_chunks import chunk_paragraphs
 from utils.embeds import EMBED_COLOR
 from utils.sheet import get_shop_warnings, warn_emoji
 

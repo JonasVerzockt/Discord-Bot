@@ -35,15 +35,13 @@ from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species, matches_species_query
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
-from utils.text_chunks import chunk_lines, chunk_paragraphs
+from utils.text_chunks import chunk_paragraphs
 from utils.embeds import EMBED_COLOR
 from utils.sheet import get_shop_warnings, warn_emoji
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
-
-_MAX_LEN = 2000
 
 
 def _read_fetched_at() -> str | None:
@@ -92,19 +90,6 @@ def _price_md(min_v, max_v, cur: str) -> str:
             else:
                 out += f" (*ca. {lo_eur:.2f}–{hi_eur:.2f} EUR*)"
     return out
-
-
-def _chunks(text: str, max_len: int = _MAX_LEN) -> list[str]:
-    """Teilt Text an Zeilenumbrüchen in Discord-taugliche Stücke (<= max_len)."""
-    out, cur = [], ""
-    for line in text.split("\n"):
-        if len(cur) + len(line) + 1 > max_len and cur:
-            out.append(cur.rstrip("\n"))
-            cur = ""
-        cur += line + "\n"
-    if cur.strip():
-        out.append(cur.rstrip("\n"))
-    return out or [text]
 
 
 class SellsCog(commands.Cog, name="Sells"):

@@ -39,20 +39,6 @@ from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
 
-# ── Hilfsfunktion ─────────────────────────────────────────────────────────────
-
-def _split_message(text: str, max_length: int = 2000) -> list[str]:
-    lines, blocks, current = text.split("\n"), [], ""
-    for line in lines:
-        if len(current) + len(line) + 1 > max_length:
-            blocks.append(current)
-            current = ""
-        current += line + "\n"
-    if current:
-        blocks.append(current)
-    return blocks
-
-
 # ── Cog ───────────────────────────────────────────────────────────────────────
 
 class UserSettingsCog(commands.Cog, name="UserSettings"):
