@@ -38,21 +38,22 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 2. [Installation](#installation)
 3. [Konfiguration](#konfiguration)
 4. [Erster Start & Server-Einrichtung](#erster-start--server-einrichtung)
-5. [Review-Bot](#review-bot)
-6. [AntCheck-Bot](#antcheck-bot)
-7. [Preis-Tracking](#preis-tracking)
-8. [Wochen-Digest](#wochen-digest)
-9. [Rabattcode-Tracker](#rabattcode-tracker)
-10. [AI-Chat-Bot](#ai-chat-bot)
-11. [iNat-Tracker](#inat-tracker)
-12. [Erfolge](#erfolge)
-13. [Slash Commands](#slash-commands)
-14. [Hintergrundaufgaben](#hintergrundaufgaben)
-15. [Grabber](#grabber)
-16. [Datenbank](#datenbank)
-17. [Projektstruktur](#projektstruktur)
-18. [Lokalisierung](#lokalisierung)
-19. [Credits & Danksagung](#credits--danksagung)
+5. [Betrieb als systemd-Dienst](#betrieb-als-systemd-dienst)
+6. [Review-Bot](#review-bot)
+7. [AntCheck-Bot](#antcheck-bot)
+8. [Preis-Tracking](#preis-tracking)
+9. [Wochen-Digest](#wochen-digest)
+10. [Rabattcode-Tracker](#rabattcode-tracker)
+11. [AI-Chat-Bot](#ai-chat-bot)
+12. [iNat-Tracker](#inat-tracker)
+13. [Erfolge](#erfolge)
+14. [Slash Commands](#slash-commands)
+15. [Hintergrundaufgaben](#hintergrundaufgaben)
+16. [Grabber](#grabber)
+17. [Datenbank](#datenbank)
+18. [Projektstruktur](#projektstruktur)
+19. [Lokalisierung](#lokalisierung)
+20. [Credits & Danksagung](#credits--danksagung)
 
 ---
 
@@ -189,6 +190,42 @@ Auf jedem Discord-Server muss einmalig `/startup` ausgeführt werden (Admin):
 ```
 
 Damit wird der Bot-Kanal festgelegt und die Serversprache gesetzt. Ohne `/startup` funktionieren alle Befehle, aber in jedem Kanal. Ist ein Bot-Kanal gesetzt und ein Befehl wird woanders genutzt, wird er für normale Mitglieder mit einem (nur für sie sichtbaren) Hinweis abgelehnt; Mitglieder mit **Nachrichten-verwalten/Admin**-Recht bekommen stattdessen eine ephemere **Ja/Nein-Rückfrage** und können den Befehl bei Bestätigung trotzdem dort ausführen (Ausgabe dann normal/öffentlich).
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Betrieb als systemd-Dienst
+
+Für den Dauerbetrieb liegen drei systemd-Unit-Vorlagen im Repo:
+
+| Datei | Zweck |
+|-------|-------|
+| `aam-bot.service` | Startet den Bot (`main.py`) als Dienst, lädt `.env` und startet bei Absturz automatisch neu. |
+| `aam-bot-update.service` | Oneshot-Auto-Deploy – führt `update.py` aus (siehe unten). |
+| `aam-bot-update.timer` | Löst `aam-bot-update.service` alle 5 Minuten aus (`OnUnitActiveSec=5min`). |
+
+**`update.py`** (Python-Port von `update.sh`) prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben). Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`).
+
+Installation (einmalig, als root):
+
+```bash
+sudo cp aam-bot.service aam-bot-update.service aam-bot-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now aam-bot.service        # Bot starten + Autostart beim Boot
+sudo systemctl enable --now aam-bot-update.timer   # Auto-Deploy alle 5 Minuten
+```
+
+Damit der Update-Dienst den Bot neu starten darf, braucht der Service-User (`aam`) eine passwortlose sudo-Regel:
+
+```
+# /etc/sudoers.d/aam-bot
+aam ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart aam-bot
+```
+
+Nach jeder Änderung an einer `.service`- oder `.timer`-Datei einmal `sudo systemctl daemon-reload` ausführen. Logs: `journalctl -u aam-bot -f` (Bot) bzw. `journalctl -u aam-bot-update -n 20` (letzter Deploy).
+
+> Hinweis: Der Auto-Deploy zieht aus `main`; die Entwicklung läuft auf `beta` und wird erst durch Merge nach `main` produktiv ausgerollt.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -839,9 +876,14 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 
 ```
 .
-├── main.py                  # Einstiegspunkt – lädt alle Cogs
+├── main.py                  # Einstiegspunkt – lädt alle Cogs (inkl. Guild-Lock)
 ├── config.py                # Zentrale Konfiguration + Umgebungsvariablen
 ├── grabber.py               # AntCheck API → shops_data.json + price_history.db
+├── update.py                # Auto-Deploy (git pull + venv-pip + Dienst-Neustart)
+├── update.sh                # Bash-Variante von update.py (Legacy)
+├── aam-bot.service          # systemd: Bot-Dienst (main.py)
+├── aam-bot-update.service   # systemd: Oneshot-Auto-Deploy (update.py)
+├── aam-bot-update.timer     # systemd: löst den Auto-Deploy alle 5 Min aus
 ├── service_account.json     # Google Service Account (nicht im Git)
 ├── .env                     # Umgebungsvariablen (nicht im Git)
 ├── .env.example             # Vorlage
