@@ -167,6 +167,10 @@ def _shops_diff_sync(current: dict) -> list:
         conn.close()
 
 
+# Embed-Beschreibungen erlauben bis 4096 Zeichen; 4000 lässt sicheren Abstand.
+_EMBED_DESC_LIMIT = 4000
+
+
 def _chunk_lines(lines: list, limit: int = 1990) -> list:
     """Fügt Zeilen zu Nachrichten <= limit Zeichen zusammen."""
     chunks, cur, cur_len = [], [], 0
@@ -400,7 +404,9 @@ class DigestCog(commands.Cog, name="Digest"):
             blocks.append("\n" + l10n.get("digest_nothing", lang))
 
         blocks.append("\n-# " + l10n.get("digest_footer", lang))
-        return _chunk_blocks(blocks)
+        # Versand erfolgt als Embed -> Beschreibung darf bis 4096 Zeichen (nicht die
+        # ~2000 einer Plain-Message). 4000 lässt sicheren Abstand und spart DMs.
+        return _chunk_blocks(blocks, _EMBED_DESC_LIMIT)
 
 
 def setup(bot: discord.Bot):
