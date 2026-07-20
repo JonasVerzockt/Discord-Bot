@@ -216,14 +216,14 @@ sudo systemctl enable --now aam-bot.service        # Bot starten + Autostart bei
 sudo systemctl enable --now aam-bot-update.timer   # Auto-Deploy alle 5 Minuten
 ```
 
-Damit der Update-Dienst den Bot neu starten darf, braucht der Service-User (`aam`) eine passwortlose sudo-Regel:
+Damit der Update-Dienst den Bot neu starten darf, braucht der Service-User (`aam`) eine passwortlose sudo-Regel (eng auf genau diesen Befehl als `root` begrenzt):
 
 ```
-# /etc/sudoers.d/aam-bot
-aam ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart aam-bot
+# /etc/sudoers.d/aam-bot-restart
+aam ALL=(root) NOPASSWD: /usr/bin/systemctl restart aam-bot
 ```
 
-Nach jeder Änderung an einer `.service`- oder `.timer`-Datei einmal `sudo systemctl daemon-reload` ausführen. Logs: `journalctl -u aam-bot -f` (Bot) bzw. `journalctl -u aam-bot-update -n 20` (letzter Deploy).
+Nach jeder Änderung an einer `.service`- oder `.timer`-Datei einmal `sudo systemctl daemon-reload` ausführen. **Wichtig:** Der Auto-Deploy (`git pull`) aktualisiert die Unit-Vorlagen nur im Projektordner – die aktiv geladenen Kopien in `/etc/systemd/system/` müssen bei Änderungen erneut per `sudo cp … /etc/systemd/system/` + `daemon-reload` übernommen werden. Logs: `journalctl -u aam-bot -f` (Bot) bzw. `journalctl -u aam-bot-update -n 20` (letzter Deploy).
 
 > Hinweis: Der Auto-Deploy zieht aus `main`; die Entwicklung läuft auf `beta` und wird erst durch Merge nach `main` produktiv ausgerollt.
 
