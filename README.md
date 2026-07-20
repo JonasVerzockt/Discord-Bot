@@ -1,5 +1,7 @@
 Guild-Lock-Lockr-Bindungrheitrheitrheit Discord Bot
 
+**Aktuelle Version:** `1.0.21` · Lizenz: AGPL-3.0-or-later
+
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
 - **Review-Bot** – erkennt Shopbewertungen in einem Discord-Kanal, parst sie automatisch mit Claude Haiku (KI) und schreibt sie strukturiert in ein Google Sheet
