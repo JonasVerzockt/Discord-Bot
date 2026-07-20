@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.21` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.22` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -34,28 +34,27 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 
 ## Inhaltsverzeichnis
 
-0. [Inhaltsverzeichnis](#inhaltsverzeichnis)
-0. [🔒 Sicherheit: Server-Bindung (Guild-Lock)](#-sicherheit-server-bindung-guild-lock)
-1. [Voraussetzungen](#voraussetzungen)
-2. [Installation](#installation)
-3. [Konfiguration](#konfiguration)
-4. [Erster Start & Server-Einrichtung](#erster-start--server-einrichtung)
-5. [Betrieb als systemd-Dienst](#betrieb-als-systemd-dienst)
-6. [Review-Bot](#review-bot)
-7. [AntCheck-Bot](#antcheck-bot)
-8. [Preis-Tracking](#preis-tracking)
-9. [Wochen-Digest](#wochen-digest)
-10. [Rabattcode-Tracker](#rabattcode-tracker)
-11. [AI-Chat-Bot](#ai-chat-bot)
-12. [iNat-Tracker](#inat-tracker)
-13. [Erfolge](#erfolge)
-14. [Slash Commands](#slash-commands)
-15. [Hintergrundaufgaben](#hintergrundaufgaben)
-16. [Grabber](#grabber)
-17. [Datenbank](#datenbank)
-18. [Projektstruktur](#projektstruktur)
-19. [Lokalisierung](#lokalisierung)
-20. [Credits & Danksagung](#credits--danksagung)
+1. [🔒 Sicherheit: Server-Bindung (Guild-Lock)](#-sicherheit-server-bindung-guild-lock)
+2. [Voraussetzungen](#voraussetzungen)
+3. [Installation](#installation)
+4. [Konfiguration](#konfiguration)
+5. [Erster Start & Server-Einrichtung](#erster-start--server-einrichtung)
+6. [Betrieb als systemd-Dienst](#betrieb-als-systemd-dienst)
+7. [Review-Bot](#review-bot)
+8. [AntCheck-Bot](#antcheck-bot)
+9. [Preis-Tracking](#preis-tracking)
+10. [Wochen-Digest](#wochen-digest)
+11. [Rabattcode-Tracker](#rabattcode-tracker)
+12. [AI-Chat-Bot](#ai-chat-bot)
+13. [iNat-Tracker](#inat-tracker)
+14. [Erfolge](#erfolge)
+15. [Slash Commands](#slash-commands)
+16. [Hintergrundaufgaben](#hintergrundaufgaben)
+17. [Grabber](#grabber)
+18. [Datenbank](#datenbank)
+19. [Projektstruktur](#projektstruktur)
+20. [Lokalisierung](#lokalisierung)
+21. [Credits & Danksagung](#credits--danksagung)
 
 ---
 
