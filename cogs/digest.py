@@ -182,6 +182,35 @@ def _chunk_lines(lines: list, limit: int = 1990) -> list:
     return chunks
 
 
+def _chunk_blocks(blocks: list, limit: int = 1990) -> list:
+    """Fügt ATOMARE Blöcke (mehrzeilige Strings) zu Nachrichten <= limit zusammen,
+    ohne einen Block zu zerteilen. Ein Genus-Block (Überschrift + seine Arten) wird
+    so nie über zwei Nachrichten getrennt. Nur falls ein einzelner Block für sich
+    das Limit sprengt, wird er als Fallback zeilenweise aufgeteilt."""
+    chunks, cur, cur_len = [], [], 0
+    for blk in blocks:
+        blk = blk.rstrip("\n")
+        if not blk:
+            continue
+        blen = len(blk)
+        need = blen + (1 if cur else 0)
+        if cur and cur_len + need > limit:
+            chunks.append("\n".join(cur))
+            cur, cur_len = [], 0
+            need = blen
+        if blen > limit:                       # einzelner Block zu groß -> zeilenweise
+            if cur:
+                chunks.append("\n".join(cur))
+                cur, cur_len = [], 0
+            chunks.extend(_chunk_lines(blk.split("\n"), limit))
+            continue
+        cur.append(blk)
+        cur_len += need
+    if cur:
+        chunks.append("\n".join(cur))
+    return chunks
+
+
 # ── Cog ────────────────────────────────────────────────────────────────────────
 
 class DigestCog(commands.Cog, name="Digest"):
@@ -320,54 +349,58 @@ class DigestCog(commands.Cog, name="Digest"):
     def _build_chunks(self, lang: str, drops: list, new_species: list, new_shops: list,
                       species_link: dict | None = None) -> list:
         species_link = species_link or {}
-        lines = [l10n.get("digest_title", lang)]
+        # Der Digest wird aus ATOMAREN Blöcken zusammengesetzt: jeder Genus-Block
+        # (Überschrift + seine Arten) bleibt zusammen und wird nie über zwei
+        # Nachrichten getrennt (siehe _chunk_blocks).
+        blocks: list[str] = [l10n.get("digest_title", lang)]
         has_content = False
 
         if drops:
-            lines.append("")
-            lines.append(l10n.get("digest_drops_header", lang))
+            db = ["", l10n.get("digest_drops_header", lang)]
             for d in drops:
-                lines.append(l10n.get(
+                db.append(l10n.get(
                     "digest_drops_line", lang,
                     species=d["species"], shop=d["shop"],
                     old=f"{d['old']:.2f} {d['currency']}",
                     new=f"{d['new']:.2f} {d['currency']}",
                     pct=f"{d['pct']:.0f}", url=d["url"] or "",
                 ))
+            blocks.append("\n".join(db))
             has_content = True
 
         if new_species:
-            lines.append("")
-            lines.append(l10n.get("digest_new_species_header", lang))
             # Nach Gattung (erstes Wort) gruppieren; alle Arten anzeigen (keine Kürzung).
             by_genus: dict[str, list] = {}
             for sp in new_species:
                 genus = sp.split()[0] if sp.split() else sp
                 by_genus.setdefault(genus, []).append(sp)
-            for genus in sorted(by_genus, key=str.lower):
-                lines.append(l10n.get("digest_genus", lang, genus=genus))
+            for idx, genus in enumerate(sorted(by_genus, key=str.lower)):
+                gb: list[str] = []
+                if idx == 0:                      # Abschnitts-Überschrift an 1. Genus-Block
+                    gb.append("")
+                    gb.append(l10n.get("digest_new_species_header", lang))
+                gb.append(l10n.get("digest_genus", lang, genus=genus))
                 for sp in by_genus[genus]:
                     url = species_link.get(sp)
                     if url:
-                        lines.append(l10n.get("digest_species_link", lang, name=sp, url=url))
+                        gb.append(l10n.get("digest_species_link", lang, name=sp, url=url))
                     else:
-                        lines.append(l10n.get("digest_item", lang, name=sp))
+                        gb.append(l10n.get("digest_item", lang, name=sp))
+                blocks.append("\n".join(gb))      # ein Genus = ein atomarer Block
             has_content = True
 
         if new_shops:
-            lines.append("")
-            lines.append(l10n.get("digest_new_shops_header", lang))
-            for nm in new_shops:           # alle neuen Shops anzeigen (keine Kürzung)
-                lines.append(l10n.get("digest_item", lang, name=nm))
+            sb = ["", l10n.get("digest_new_shops_header", lang)]
+            for nm in new_shops:               # alle neuen Shops anzeigen (keine Kürzung)
+                sb.append(l10n.get("digest_item", lang, name=nm))
+            blocks.append("\n".join(sb))
             has_content = True
 
         if not has_content:
-            lines.append("")
-            lines.append(l10n.get("digest_nothing", lang))
+            blocks.append("\n" + l10n.get("digest_nothing", lang))
 
-        lines.append("")
-        lines.append("-# " + l10n.get("digest_footer", lang))
-        return _chunk_lines(lines)
+        blocks.append("\n-# " + l10n.get("digest_footer", lang))
+        return _chunk_blocks(blocks)
 
 
 def setup(bot: discord.Bot):
