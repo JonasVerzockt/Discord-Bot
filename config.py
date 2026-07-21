@@ -28,7 +28,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.0.30"
+VERSION = "1.0.31"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -113,6 +113,23 @@ AI_CHAT_PUBLIC = os.getenv("AI_CHAT_PUBLIC", "false").lower() == "true"
 # System-Prompts: eine Datei pro Sprache (de/en/eo).
 # Dateiname: ai_chat_system_prompt_{lang}.txt
 # ai_chat_system_prompt_en.txt ist Pflicht und dient als Fallback für alle Sprachen.
+# ── Feedback-Board (öffentliches Ideen-/Bug-Board, eigener Webdienst) ──────────
+# Standardmäßig AUS: Ist BOARD_ENABLED nicht 'true', startet der Board-Cog nichts
+# und der Bot bleibt unberührt. Läuft im Bot-Prozess (aiohttp), eigene DB-Datei.
+BOARD_ENABLED     = os.getenv("BOARD_ENABLED", "false").lower() == "true"
+BOARD_BIND        = os.getenv("BOARD_BIND", "127.0.0.1")   # nur lokal binden -> Caddy davor
+BOARD_PORT        = int(os.getenv("BOARD_PORT", "8080"))
+# Öffentliche URL (für Links/Anzeige); darf zunächst leer sein.
+BOARD_PUBLIC_URL  = os.getenv("BOARD_PUBLIC_URL", "").strip().rstrip("/")
+# Owner-Login-Token (Pflicht wenn aktiviert) + Discord-User-ID für die Owner-DM
+# (darf zunächst leer/0 sein -> dann nur Log-Hinweis statt DM).
+BOARD_ADMIN_TOKEN = os.getenv("BOARD_ADMIN_TOKEN", "")
+BOARD_OWNER_ID    = int(os.getenv("BOARD_OWNER_ID", "0") or "0")
+# Eigene, separate DB-Datei (nicht die Haupt-Bot-DB).
+BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(BASE_DIR / "board.db"))
+# Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
+BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", "change-me-board-salt").encode()
+
 AI_CHAT_SYSTEM_PROMPTS: dict[str, str] = {}
 for _lang in ("de", "en", "eo"):
     _f = BASE_DIR / f"ai_chat_system_prompt_{_lang}.txt"

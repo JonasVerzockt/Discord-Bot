@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.30` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.31` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -11,6 +11,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 - **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
+- **Feedback-Board** *(optional, standardmäßig aus)* – öffentliches Ideen-/Bug-Board als eigener Webdienst im Bot-Prozess (aiohttp, **eigene DB**): jeder darf **anonym einreichen** und hochvoten (Moderations-Queue), der Owner bekommt bei jeder neuen Einreichung eine **private DM**
 
 ---
 
@@ -48,13 +49,14 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 12. [AI-Chat-Bot](#ai-chat-bot)
 13. [iNat-Tracker](#inat-tracker)
 14. [Erfolge](#erfolge)
-15. [Slash Commands](#slash-commands)
-16. [Hintergrundaufgaben](#hintergrundaufgaben)
-17. [Grabber](#grabber)
-18. [Datenbank](#datenbank)
-19. [Projektstruktur](#projektstruktur)
-20. [Lokalisierung](#lokalisierung)
-21. [Credits & Danksagung](#credits--danksagung)
+15. [Feedback-Board](#feedback-board)
+16. [Slash Commands](#slash-commands)
+17. [Hintergrundaufgaben](#hintergrundaufgaben)
+18. [Grabber](#grabber)
+19. [Datenbank](#datenbank)
+20. [Projektstruktur](#projektstruktur)
+21. [Lokalisierung](#lokalisierung)
+22. [Credits & Danksagung](#credits--danksagung)
 
 ---
 
@@ -155,6 +157,17 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # ── Command-Log (Moderation, optional) ────────────────────────
 # MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
 # COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
+
+# ── Feedback-Board (öffentliches Ideen-/Bug-Board, optional) ──
+# Standardmäßig AUS. Läuft im Bot-Prozess (aiohttp), eigene DB. Reverse-Proxy/HTTPS davor.
+# BOARD_ENABLED=false
+# BOARD_BIND=127.0.0.1                     # nur lokal binden (Caddy/nginx macht HTTPS)
+# BOARD_PORT=8080
+# BOARD_PUBLIC_URL=                        # öffentliche URL (für Links/DM) – darf leer bleiben
+# BOARD_ADMIN_TOKEN=                       # Owner-Login-Token (Pflicht wenn aktiv)
+# BOARD_OWNER_ID=                          # Discord-User-ID für die Einreichungs-DM (leer/0 = übersprungen)
+# BOARD_DB_FILE=/opt/discord-bot/board.db  # eigene DB-Datei (getrennt von der Haupt-DB)
+# BOARD_HASH_SALT=ein-langes-zufaelliges-salt   # IP-Hashing (keine Roh-IP gespeichert)
 
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
@@ -915,10 +928,12 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
 │   ├── command_log.py       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
-│   └── offers.py            # /offers: alle lagernden Angebote eines Shops
+│   ├── offers.py            # /offers: alle lagernden Angebote eines Shops
+│   └── board.py             # Feedback-Board (aiohttp-Webserver + Admin, nur wenn BOARD_ENABLED)
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
+│   ├── board_db.py          # Eigene SQLite fürs Feedback-Board (getrennt von der Haupt-DB)
 │   ├── availability.py      # Verfügbarkeitsprüfung gegen shops_data.json
 │   ├── currency.py          # Währungsumrechnung: Frankfurter (EZB) + fawazahmed0-Fallback (6h)
 │   ├── sheet.py             # Google Sheets Cache (SheetCache) + Rating-Sync
@@ -971,6 +986,25 @@ Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server
 3. **KI-Chat:** einen System-Prompt in der neuen Sprache als `ai_chat_system_prompt_<code>.txt` anlegen **und** den Sprachcode in `config.py` in die Lade-Schleife von `AI_CHAT_SYSTEM_PROMPTS` (aktuell `for _lang in ("de", "en", "eo")`) aufnehmen. Fehlt einer der beiden Schritte, wird der Prompt nicht geladen und die KI antwortet in dieser Sprache über den englischen Fallback-Prompt (`ai_chat_system_prompt_en.txt`). Der Platzhalter `{model}` im Prompt wird automatisch durch das konfigurierte Modell ersetzt.
 
 Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dagegen sofort über die neue `locales/<code>.json` – nur der KI-Chat braucht zusätzlich die eigene Prompt-Datei.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Feedback-Board
+
+Optionales, **öffentliches Ideen-/Bug-Board** als eigener Webdienst **im Bot-Prozess** (aiohttp), mit einer **eigenen Datenbank** (`BOARD_DB_FILE`, getrennt von der Haupt-Bot-DB). Standardmäßig **deaktiviert** – erst nach Konfiguration aktiv.
+
+**Funktionen:**
+- **Anonymes Einreichen** von Bugs/Features/Ideen → landet in einer **Moderations-Queue** (nicht sofort öffentlich).
+- **Upvotes** (ein Vote pro Browser/IP) zur Community-Priorisierung.
+- **Owner-Backend** (Login per `BOARD_ADMIN_TOKEN`): Queue freigeben/ablehnen, Status/Priorität/Komponente/Version setzen, löschen, **CSV-Import** der rückwirkenden Historie.
+- **Private DM an den Owner** (`BOARD_OWNER_ID`) bei jeder neuen Einreichung. Ist die ID leer/0, wird die DM übersprungen (nur Log-Hinweis) – kein Fehler.
+
+**Sicherheit/Betrieb:**
+- Bindet nur an `127.0.0.1` (`BOARD_BIND`) – ein **Reverse-Proxy (Caddy/nginx)** davor macht HTTPS und die öffentliche Domain (`BOARD_PUBLIC_URL`).
+- Moderations-Queue (nichts öffentlich ohne Freigabe), **Honeypot**, **Rate-Limits**, **CSRF-Schutz** auf Admin-Aktionen, **HMAC-gehashte IPs** (keine Roh-IP gespeichert, `BOARD_HASH_SALT`), Jinja2-Autoescape gegen XSS. Frontend ist **dark-mode-only**.
+- Läuft mit im bestehenden `aam-bot`-Dienst – kein zweiter Prozess. Aktivierung ausschließlich über die `BOARD_*`-Variablen in der `.env` (siehe [Konfiguration](#konfiguration)); solange `BOARD_ENABLED` nicht `true` ist, startet nichts.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 

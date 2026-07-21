@@ -26,6 +26,9 @@ antcheckbot.db-wal
 price_history.db
 price_history.db-shm
 price_history.db-wal
+board.db
+board.db-shm
+board.db-wal
 
 # ── Logs ───────────────────────────────────────────────────────────────────────
 *.log

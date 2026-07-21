@@ -29,3 +29,8 @@ davey
 
 # Ranking-Bild (iNat-Treppchen, lokal gerendert)
 matplotlib>=3.7.0
+
+# Feedback-Board (cogs/board.py): Webserver + Templates.
+# aiohttp ist ohnehin py-cord-Abhängigkeit; hier explizit + Jinja2 (Templates, Autoescape).
+aiohttp>=3.9.0
+Jinja2>=3.1.0
