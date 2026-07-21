@@ -37,7 +37,7 @@ import discord
 from discord.ext import commands, tasks
 
 from config import DATA_DIRECTORY
-from utils.db import execute_db
+from utils.db import execute_db, execute_many
 from utils.localization import l10n, get_user_lang
 from cogs.server_settings import allowed_channel
 from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants, strip_html
@@ -303,6 +303,26 @@ def _variant_size_summary(product) -> str:
         if tok and tok not in tokens:
             tokens.append(tok)
     return ", ".join(tokens)
+
+
+def _current_variant_map(product: dict) -> dict:
+    """{variant_id: (title, price_float, currency)} der lagernden, aktiven Varianten
+    mit echtem Preis (>0). Basis für den Pro-Variante-Vergleich der Arten-Beobachtung."""
+    out: dict[int, tuple] = {}
+    for v in available_variants(product):
+        vid = v.get("id")
+        if vid is None:
+            continue
+        try:
+            price = float(str(v.get("price")).replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+        title = strip_html(v.get("title") or v.get("description") or f"Variante {vid}")
+        cur   = v.get("currency_iso") or product.get("currency_iso") or "EUR"
+        out[int(vid)] = (title, price, cur)
+    return out
 
 
 def _variant_step_header(lang, current, total, product) -> str:
@@ -958,6 +978,12 @@ class UntrackView(_BaseView):
                     (user_id, species),
                     commit=True,
                 )
+                await execute_db(
+                    self.bot,
+                    "DELETE FROM user_species_watch_variant_seen WHERE user_id=? AND watched_species=?",
+                    (user_id, species),
+                    commit=True,
+                )
                 sw_removed += 1
             else:
                 # Einzelprodukt/Variante entfernen (Wert: "pid:vid")
@@ -1335,6 +1361,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         curr_ids = set(current_products.keys())
 
         # 1) Neue Produkte still zur Baseline hinzufügen (kein DM – dafür gibt es /notification)
+        #    Sowohl die Produkt-Spanne als auch die Pro-Variante-Baseline seeden.
         for new_pid in curr_ids - seen_ids:
             p = current_products[new_pid]
             try:
@@ -1351,12 +1378,27 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                  min_p or None, max_p or None, p.get("currency_iso") or "EUR"),
                 commit=True,
             )
+            await self._save_variant_baseline(
+                user_id, watched_species, new_pid, _current_variant_map(p)
+            )
 
         # 2) Preisänderungen bei bereits bekannten Produkten
+        #    2a) Produkte MIT Varianten -> Pro-Variante-Vergleich (listet ALLE
+        #        geänderten/neuen/entfallenen Varianten einzeln auf).
+        #    2b) Produkte OHNE Varianten -> aggregierter Min/Max-Vergleich (wie bisher).
         overlap_ids = list(curr_ids & seen_ids)
-        if overlap_ids:
-            hist = await asyncio.to_thread(_get_latest_prices_sync, overlap_ids)
-            for pid in overlap_ids:
+        plain_ids: list[int] = []
+        for pid in overlap_ids:
+            p = current_products.get(pid, {})
+            cvars = _current_variant_map(p)
+            if cvars:
+                await self._process_variant_watch(user_id, watched_species, pid, p, cvars)
+            else:
+                plain_ids.append(pid)
+
+        if plain_ids:
+            hist = await asyncio.to_thread(_get_latest_prices_sync, plain_ids)
+            for pid in plain_ids:
                 curr_price = hist.get(pid)
                 if not curr_price:
                     continue
@@ -1396,6 +1438,107 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                      user_id, watched_species, pid),
                     commit=True,
                 )
+
+    # ── Pro-Variante-Baseline (Arten-Beobachtung) ─────────────────────────────
+
+    async def _load_variant_baseline(self, user_id: str, species: str, pid: int) -> dict:
+        """{variant_id: (title, last_price, currency)} der gespeicherten Baseline."""
+        rows = await execute_db(
+            self.bot,
+            "SELECT variant_id, variant_title, last_price, currency "
+            "FROM user_species_watch_variant_seen "
+            "WHERE user_id=? AND watched_species=? AND product_id=?",
+            (user_id, species, int(pid)), fetch=True,
+        )
+        return {r["variant_id"]: (r["variant_title"], r["last_price"], r["currency"]) for r in rows}
+
+    async def _save_variant_baseline(self, user_id: str, species: str, pid: int, cvars: dict) -> None:
+        """Ersetzt die Varianten-Baseline eines Produkts durch den aktuellen Satz."""
+        await execute_db(
+            self.bot,
+            "DELETE FROM user_species_watch_variant_seen "
+            "WHERE user_id=? AND watched_species=? AND product_id=?",
+            (user_id, species, int(pid)), commit=True,
+        )
+        if not cvars:
+            return
+        await execute_many(
+            self.bot,
+            "INSERT OR REPLACE INTO user_species_watch_variant_seen "
+            "(user_id, watched_species, product_id, variant_id, variant_title, last_price, currency) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(user_id, species, int(pid), int(vid), t, pr, cur)
+             for vid, (t, pr, cur) in cvars.items()],
+        )
+
+    async def _process_variant_watch(self, user_id: str, species: str, pid: int,
+                                     product: dict, cvars: dict) -> None:
+        """Vergleicht den aktuellen Varianten-Satz eines Produkts gegen die Baseline
+        und meldet ALLE geänderten/neuen/entfallenen Varianten in einer DM."""
+        baseline = await self._load_variant_baseline(user_id, species, pid)
+        if not baseline:
+            # Erstmalig gesehen (z.B. vor diesem Feature angelegte Beobachtung) -> still seeden
+            await self._save_variant_baseline(user_id, species, pid, cvars)
+            return
+
+        changed, added, removed = [], [], []
+        for vid, (title, price, cur) in cvars.items():
+            if vid in baseline:
+                old = baseline[vid][1]
+                if old is not None and abs(price - old) > 1e-6:
+                    changed.append((title, old, price, cur))
+            else:
+                added.append((title, price, cur))
+        for vid, (title, old, cur) in baseline.items():
+            if vid not in cvars:
+                removed.append((title, old, cur))
+
+        if changed or added or removed:
+            await self._notify_species_variant_changes(
+                user_id, product, species, changed, added, removed
+            )
+            await self._save_variant_baseline(user_id, species, pid, cvars)
+
+    async def _notify_species_variant_changes(self, user_id: str, product: dict,
+                                              watched_species: str,
+                                              changed: list, added: list, removed: list) -> None:
+        """DM: listet je Variante die Preisänderung (alt→neu), neue und entfallene Varianten."""
+        try:
+            user = await self.bot.fetch_user(int(user_id))
+        except Exception as e:
+            logger.warning("⚠️ User %s nicht abrufbar: %s", user_id, e)
+            return
+        lang = await get_user_lang(self.bot, user_id, None)
+
+        lines = [l10n.get(
+            "pt_var_alert_header", lang,
+            shop=product.get("_shop_name") or "?",
+            title=strip_html(product.get("title") or product.get("species") or "?"),
+            species=watched_species,
+            url=product.get("antcheck_url") or "",
+        )]
+        for title, old, new, cur in changed:
+            key = "pt_var_line_down" if new < old else "pt_var_line_up"
+            lines.append(l10n.get(
+                key, lang, variant=title,
+                old=format_price(old, old, cur), new=format_price(new, new, cur),
+            ))
+        for title, price, cur in added:
+            lines.append(l10n.get("pt_var_line_new", lang, variant=title,
+                                  price=format_price(price, price, cur)))
+        for title, price, cur in removed:
+            lines.append(l10n.get("pt_var_line_gone", lang, variant=title,
+                                  price=format_price(price, price, cur)))
+
+        msg = "\n".join(lines)
+        try:
+            await send_embeds_to(user, msg)
+            logger.info("📩 Varianten-Preis-DM: user=%s changed=%d added=%d removed=%d",
+                        user_id, len(changed), len(added), len(removed))
+        except discord.Forbidden:
+            await self._fallback_server_message(user_id, msg)
+        except Exception as e:
+            logger.error("❌ _notify_species_variant_changes DM-Fehler: %s", e)
 
     async def _notify_species_price_change(
         self,
