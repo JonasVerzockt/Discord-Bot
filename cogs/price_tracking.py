@@ -1432,6 +1432,24 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             url=product.get("antcheck_url") or "",
         )
 
+        # Variantengrund anhängen: WELCHE Variante sich geändert hat (alt→neu) bzw.
+        # welche neu hinzukam – aus der vom Grabber gepflegten product_price_reason
+        # (gleiche Logik wie beim Einzelprodukt-Alert), damit die Spannen-Änderung
+        # konkret nachvollziehbar ist.
+        pid = product.get("id")
+        if pid is not None:
+            reason = await asyncio.to_thread(_get_price_reason_sync, int(pid))
+            if reason and (
+                (key == "pt_dm_dearer" and reason["direction"] == "up")
+                or (key == "pt_dm_cheaper" and reason["direction"] == "down")
+            ):
+                rkey = _REASON_KEYS.get(reason["code"])
+                if rkey:
+                    rcur = reason["currency"]
+                    op = f"{reason['old']:.2f} {rcur}" if reason["old"] is not None else ""
+                    np = f"{reason['new']:.2f} {rcur}" if reason["new"] is not None else ""
+                    msg += "\n" + l10n.get(rkey, lang, variant=reason["variant"], old=op, new=np)
+
         try:
             await send_embeds_to(user, msg)
         except discord.Forbidden:

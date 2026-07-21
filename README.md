@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.25` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.26` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -390,7 +390,7 @@ Beobachtet **alle** Produkte einer Art oder Gattung **shopübergreifend** – oh
 **Aktivieren:** Im Shop-Dropdown „🔭 Alle Shops beobachten" wählen → Bestätigung.
 
 **DM wird ausgelöst bei:**
-- **Preisänderung** an einem bekannten Produkt → 📉 / 📈
+- **Preisänderung** an einem bekannten Produkt → 📉 / 📈. Zusätzlich zur alten/neuen Preisspanne wird – sofern der Grabber den Grund erkannt hat – die **konkrete Variante** genannt (z. B. „Variante ‚Königin + 5-10 Arbeiterinnen' ist günstiger geworden (59.99 → 49.99 EUR)" oder „neue (teurere) Variante ‚Kolonie 20-30 Arbeiterinnen' hinzugekommen").
 
 Neue Produkte werden beim nächsten Check automatisch zur Baseline hinzugefügt und ab dann auf Preisänderungen beobachtet – ohne eigene DM (Neuerscheinungen deckt `/notification` ab).
 
