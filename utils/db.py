@@ -26,7 +26,8 @@ Schema:
   user_shop_blacklist, shop_name_mappings, server_user_mappings,
   user_seen_products, global_stats, server_info, eu_countries,
   review_tracking, review_pending, ch_delivery_shops, user_price_tracking,
-  user_species_watch, user_species_watch_seen, ai_chat_budget, ai_chat_history,
+  user_species_watch, user_species_watch_seen, user_species_watch_variant_seen,
+  pending_variant_removed, ai_chat_budget, ai_chat_history,
   discount_scanned, discount_codes
 """
 import sqlite3
@@ -252,6 +253,37 @@ CREATE TABLE IF NOT EXISTS user_species_watch_seen (
     last_max        REAL,
     currency        TEXT,
     PRIMARY KEY (user_id, watched_species, product_id)
+);
+
+-- Pro-Variante-Baseline für Arten-Beobachtungen: erlaubt dem Alert, ALLE
+-- geänderten/neuen/entfallenen Varianten eines Produkts einzeln aufzulisten
+-- (statt nur der aggregierten Min/Max-Spanne).
+CREATE TABLE IF NOT EXISTS user_species_watch_variant_seen (
+    user_id         TEXT    NOT NULL,
+    watched_species TEXT    NOT NULL,
+    product_id      INTEGER NOT NULL,
+    variant_id      INTEGER NOT NULL,
+    variant_title   TEXT,
+    last_price      REAL,
+    currency        TEXT,
+    PRIMARY KEY (user_id, watched_species, product_id, variant_id)
+);
+
+-- Entfallene Varianten (Arten-Beobachtung) werden hier gesammelt und EINMAL
+-- täglich zu fester Zeit als Übersicht verschickt (statt bei jedem Stundencheck).
+CREATE TABLE IF NOT EXISTS pending_variant_removed (
+    user_id         TEXT    NOT NULL,
+    watched_species TEXT    NOT NULL,
+    product_id      INTEGER NOT NULL,
+    variant_id      INTEGER NOT NULL,
+    variant_title   TEXT,
+    last_price      REAL,
+    currency        TEXT,
+    product_title   TEXT,
+    shop_name       TEXT,
+    antcheck_url    TEXT,
+    detected_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, watched_species, product_id, variant_id)
 );
 
 -- KI-Chat: Tagesbudget (user_id = 0 -> global) – vormals in utils/ai_chat.py

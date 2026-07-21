@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.25` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.28` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -390,7 +390,7 @@ Beobachtet **alle** Produkte einer Art oder Gattung **shopübergreifend** – oh
 **Aktivieren:** Im Shop-Dropdown „🔭 Alle Shops beobachten" wählen → Bestätigung.
 
 **DM wird ausgelöst bei:**
-- **Preisänderung** an einem bekannten Produkt → 📉 / 📈
+- **Preisänderung** an einem bekannten Produkt → 📉 / 📈. Bei Produkten **mit Varianten** listet die DM **jede betroffene Variante einzeln** auf (pro Variante eine eigene Baseline): geänderte Varianten mit alt→neu (📈/📉) und **neu hinzugekommene** Varianten (🆕) – auch wenn sich mehrere gleichzeitig ändern. **Entfallene** Varianten (⚫) werden nicht sofort gemeldet, sondern **einmal täglich um 10:00 (Berliner Zeit)** als Sammel-Übersicht verschickt (dämpft kurzlebiges Ausverkauft-Flackern; taucht eine entfallene Variante vorher wieder auf, entfällt ihre Meldung). Produkte **ohne Varianten** melden weiterhin die aggregierte Preisspanne alt→neu (plus, sofern erkannt, den vom Grabber ermittelten Grund).
 
 Neue Produkte werden beim nächsten Check automatisch zur Baseline hinzugefügt und ab dann auf Preisänderungen beobachtet – ohne eigene DM (Neuerscheinungen deckt `/notification` ab).
 
@@ -791,7 +791,8 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 |------|-----------|-------------|
 | Verfügbarkeitsprüfung | alle 5 Minuten | Prüft alle `active`-Benachrichtigungen gegen `shops_data.json` |
 | Preis-Check Einzelprodukte | alle ~65 Minuten | Vergleicht aktuelle Preise aus `price_history.db` mit gespeicherten Baselines; sendet DM bei Preisänderung |
-| Arten-Beobachtung alle Shops | alle ~67 Minuten | Prüft alle Arten-Beobachtungen shopübergreifend; sendet DM bei Preisänderung; neue Produkte werden still zur Baseline hinzugefügt |
+| Arten-Beobachtung alle Shops | alle ~67 Minuten | Prüft alle Arten-Beobachtungen shopübergreifend; sendet DM bei Preisänderung (pro Variante) und neuen Varianten; neue Produkte werden still zur Baseline hinzugefügt |
+| Entfallene Varianten (Sammel-DM) | täglich 10:00 (Berliner Zeit) | Verschickt die über den Tag gesammelten „nicht mehr verfügbar"-Varianten der Arten-Beobachtungen als eine Übersicht |
 | Shop-Daten-Reload | stündlich | Liest `shops_data.json` neu, schreibt Shops in DB (ohne `average_rating` und `url_override` zu überschreiben) |
 | Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` und sendet Abschluss-DM |
