@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.31` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.32` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -993,18 +993,72 @@ Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dageg
 
 ## Feedback-Board
 
-Optionales, **öffentliches Ideen-/Bug-Board** als eigener Webdienst **im Bot-Prozess** (aiohttp), mit einer **eigenen Datenbank** (`BOARD_DB_FILE`, getrennt von der Haupt-Bot-DB). Standardmäßig **deaktiviert** – erst nach Konfiguration aktiv.
+Ein **optionales, öffentlich einsehbares Ideen- und Bug-Board** für den Bot. Jede/r kann – auch **ohne Account, anonym** – Fehler melden, Feature-Wünsche und Ideen einreichen und bestehende Einträge **hochvoten**. Der Betreiber (Owner) verwaltet alles über ein Admin-Backend.
 
-**Funktionen:**
-- **Anonymes Einreichen** von Bugs/Features/Ideen → landet in einer **Moderations-Queue** (nicht sofort öffentlich).
-- **Upvotes** (ein Vote pro Browser/IP) zur Community-Priorisierung.
-- **Owner-Backend** (Login per `BOARD_ADMIN_TOKEN`): Queue freigeben/ablehnen, Status/Priorität/Komponente/Version setzen, löschen, **CSV-Import** der rückwirkenden Historie.
-- **Private DM an den Owner** (`BOARD_OWNER_ID`) bei jeder neuen Einreichung. Ist die ID leer/0, wird die DM übersprungen (nur Log-Hinweis) – kein Fehler.
+Technisch läuft das Board als **eigener Webdienst im selben Prozess wie der Bot** (aiohttp, kein zweiter Dienst) mit einer **eigenen, getrennten Datenbank** (`BOARD_DB_FILE`, nicht die Haupt-Bot-DB). Es ist **standardmäßig deaktiviert** und startet erst, wenn es per `.env` eingerichtet wird.
 
-**Sicherheit/Betrieb:**
-- Bindet nur an `127.0.0.1` (`BOARD_BIND`) – ein **Reverse-Proxy (Caddy/nginx)** davor macht HTTPS und die öffentliche Domain (`BOARD_PUBLIC_URL`).
-- Moderations-Queue (nichts öffentlich ohne Freigabe), **Honeypot**, **Rate-Limits**, **CSRF-Schutz** auf Admin-Aktionen, **HMAC-gehashte IPs** (keine Roh-IP gespeichert, `BOARD_HASH_SALT`), Jinja2-Autoescape gegen XSS. Frontend ist **dark-mode-only**.
-- Läuft mit im bestehenden `aam-bot`-Dienst – kein zweiter Prozess. Aktivierung ausschließlich über die `BOARD_*`-Variablen in der `.env` (siehe [Konfiguration](#konfiguration)); solange `BOARD_ENABLED` nicht `true` ist, startet nichts.
+### Was ist das Board?
+
+Ein leichtgewichtiges Kanban-artiges Board mit Karten in Spalten nach **Status**: `Offen/Backlog → Geplant → In Arbeit → Erledigt` (plus eine `Abgelehnt`-Liste). Jede Karte hat einen **Typ** (Bug / Feature / Idee), optional **Komponente**, **Priorität** und – bei erledigten – die **Version**, in der sie umgesetzt wurde. So ist für alle transparent nachvollziehbar, was gewünscht ist, woran gearbeitet wird und was bereits erledigt wurde.
+
+### Einreichen (öffentlich, anonym)
+
+1. Auf **„Einreichen"** klicken, **Art** wählen (Bug/Feature/Idee), **Titel** (Pflicht) und optional eine **Beschreibung** sowie einen **Namen** (freiwillig, unverifiziert) angeben.
+2. Absenden → die Einreichung landet in der **Moderations-Queue** und ist **noch nicht öffentlich** sichtbar.
+3. Der Owner bekommt eine **private Discord-DM** über die neue Einreichung.
+4. Nach **Freigabe** durch den Owner erscheint die Karte öffentlich im Board.
+
+**Upvotes:** Jede öffentliche Karte kann hochgevotet werden (ein Vote pro Browser/IP), um der Community-Priorisierung zu dienen. Ein Upvote ist kein Anspruch auf Umsetzung.
+
+### Moderation (Owner)
+
+Der Owner meldet sich unter `/admin/login` mit dem `BOARD_ADMIN_TOKEN` an und kann dann:
+
+- **Queue abarbeiten:** Einreichungen **freigeben** (→ öffentlich), **ablehnen** oder **löschen**.
+- Bei freigegebenen Karten **Status / Priorität / Komponente / Version** setzen und Titel/Text bearbeiten.
+- **CSV-Import** der rückwirkenden Projekthistorie (Spalten: `type,title,body,status,component,priority,version,created_at,source`).
+
+Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam-Schutz**.
+
+### Env-Variablen
+
+| Variable | Zweck | Default / Hinweis |
+|----------|-------|-------------------|
+| `BOARD_ENABLED` | Board an/aus | `false` – erst auf `true` setzen, wenn eingerichtet |
+| `BOARD_BIND` | Bind-Adresse | `127.0.0.1` (nur lokal; Reverse-Proxy davor) |
+| `BOARD_PORT` | interner Port | `8080` |
+| `BOARD_PUBLIC_URL` | öffentliche URL (für Links/DM) | darf zunächst **leer** bleiben |
+| `BOARD_ADMIN_TOKEN` | Owner-Login-Token | **Pflicht wenn aktiv** – sicheres Secret wählen |
+| `BOARD_OWNER_ID` | Discord-User-ID für die Einreichungs-DM | leer/0 = DM wird übersprungen (nur Log) |
+| `BOARD_DB_FILE` | eigene DB-Datei | Standard `board.db` im Projektordner |
+| `BOARD_HASH_SALT` | Salt fürs IP-Hashing | in Produktion setzen (keine Roh-IP gespeichert) |
+
+### Starten / Deployen
+
+Das Board läuft **im bestehenden `aam-bot`-Dienst** mit – kein zweiter Prozess, keine eigene Unit. Aktivierung ausschließlich über die `BOARD_*`-Variablen in der `.env` (siehe [Konfiguration](#konfiguration)).
+
+```bash
+# 1. In der .env setzen (Beispiel):
+#    BOARD_ENABLED=true
+#    BOARD_ADMIN_TOKEN=<langes-zufälliges-secret>
+#    BOARD_HASH_SALT=<langes-zufälliges-salt>
+#    BOARD_OWNER_ID=<deine-discord-user-id>      # optional, für die DM
+#    BOARD_PUBLIC_URL=https://board.example.com  # optional
+# 2. Reverse-Proxy (Caddy) für die öffentliche Domain → 127.0.0.1:8080, z.B.:
+#    board.example.com {
+#        reverse_proxy 127.0.0.1:8080
+#    }
+# 3. Deploy wie üblich (beta → main → update.py installiert aiohttp/Jinja2 mit).
+sudo systemctl restart aam-bot   # bzw. der Auto-Deploy startet neu
+```
+
+Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` selbst an.
+
+### Sicherheit & Datenschutz
+
+- Bindet nur an `127.0.0.1` – **HTTPS und öffentliche Domain macht der Reverse-Proxy** (Caddy/nginx); der aiohttp-Server wird nie direkt exponiert.
+- **Moderations-Queue** (nichts öffentlich ohne Freigabe), **Honeypot** und **Rate-Limits** gegen Spam, **CSRF-Schutz** auf Admin-Aktionen, **Jinja2-Autoescape** gegen XSS, Frontend **dark-mode-only**.
+- **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-Hash** (`BOARD_HASH_SALT`) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 

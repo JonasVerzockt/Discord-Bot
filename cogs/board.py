@@ -143,6 +143,9 @@ neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen
 SUBMIT = """{% extends "base" %}{% block body %}
 <h2>Idee oder Bug einreichen</h2>
 <p class=muted>Anonym möglich. Deine Einreichung wird zuerst geprüft und erscheint dann öffentlich.</p>
+<p class=muted>Mit dem Absenden akzeptierst du die Board-Nutzungsbedingungen: sachliche Ideen/Bugs zum Bot,
+<b>keine</b> persönlichen/sensiblen Daten und keine beleidigenden oder rechtswidrigen Inhalte.
+Der Betreiber kann Einträge ablehnen, bearbeiten oder löschen.</p>
 <form method=post action="/submit">
  <label>Art</label><select name=type>{% for t in types %}<option value="{{t}}">{{ t }}</option>{% endfor %}</select>
  <label>Titel *</label><input name=title maxlength=120 required>
