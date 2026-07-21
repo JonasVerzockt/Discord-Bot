@@ -52,6 +52,9 @@ _MARKDOWN_RE = re.compile(r'\[([^\]]*)\]\(https?://(?:www\.)?([^/)\s]+)[^)]*\)')
 _map_cache: dict | None = None   # None = noch nicht geladen
 
 
+_MENTION_RE = re.compile(r'^<@!?(\d+)>$')
+
+
 def _strip_markdown_url(s: str) -> str:
     """
     Wandelt Discord-Markdown-Links in saubere Domains um:
@@ -61,6 +64,21 @@ def _strip_markdown_url(s: str) -> str:
     """
     m = _MARKDOWN_RE.search(s)
     return m.group(2) if m else s
+
+
+def _normalize_identifier(s: str) -> str:
+    """Vereinheitlicht einen Identifier für Speichern UND Nachschlagen.
+
+    Eine Discord-Mention `<@123>`/`<@!123>` wird zur nackten ID `123` – genau so,
+    wie resolve_shop() sie beim Auflösen nachschlägt. Sonst wie _strip_markdown_url.
+    Verhindert, dass `/shopmap set <@123> …` unter `<@123>` landet, während die
+    Review-Auflösung `123` sucht (→ 🟡 Unaufgelöst).
+    """
+    s = (s or "").strip()
+    m = _MENTION_RE.match(s)
+    if m:
+        return m.group(1)
+    return _strip_markdown_url(s)
 
 
 def _is_url(s: str) -> bool:
@@ -87,7 +105,7 @@ def _read_csv() -> dict:
             raw_url = r.get("shop_url", "").strip()
             if not raw_url:
                 continue
-            identifier = _strip_markdown_url(r["identifier"].strip())
+            identifier = _normalize_identifier(r["identifier"])
             shop_url   = _strip_markdown_url(raw_url)
             result[identifier] = shop_url
         return result
@@ -95,10 +113,11 @@ def _read_csv() -> dict:
 
 def _write_csv_row(identifier: str, shop_url: str, msg_id: str, hint: str) -> bool:
     """Schreibt eine Zeile wenn Identifier noch nicht vorhanden. Gibt True bei Neueinträgen."""
+    identifier = _normalize_identifier(identifier)
     exists = Path(MAPPING_FILE).exists()
     if exists:
         with open(MAPPING_FILE, newline="", encoding="utf-8") as f:
-            if any(r.get("identifier", "").strip() == identifier for r in csv.DictReader(f)):
+            if any(_normalize_identifier(r.get("identifier", "")) == identifier for r in csv.DictReader(f)):
                 return False
     with open(MAPPING_FILE, "a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=_CSV_COLS)
@@ -154,13 +173,14 @@ def set_mapping(identifier: str, shop_url: str,
     Setzt/aktualisiert die Zuordnung identifier → shop_url (Upsert) und lädt
     den In-Memory-Cache neu, damit die Änderung sofort greift (ohne Neustart).
     """
-    identifier = _strip_markdown_url(identifier.strip())
+    identifier = _normalize_identifier(identifier)
     shop_url   = _strip_markdown_url(shop_url.strip())
     rows = _read_all_rows()
     for r in rows:
-        if r.get("identifier", "").strip() == identifier:
-            r["shop_url"] = shop_url
-            r["hinweis"]  = hint or r.get("hinweis", "")
+        if _normalize_identifier(r.get("identifier", "")) == identifier:
+            r["identifier"] = identifier          # ggf. alte `<@…>`-Schreibweise heilen
+            r["shop_url"]   = shop_url
+            r["hinweis"]    = hint or r.get("hinweis", "")
             break
     else:
         rows.append({"identifier": identifier, "shop_url": shop_url,
@@ -171,9 +191,9 @@ def set_mapping(identifier: str, shop_url: str,
 
 def remove_mapping(identifier: str) -> bool:
     """Entfernt eine Zuordnung. True wenn etwas entfernt wurde. Lädt Cache neu."""
-    identifier = _strip_markdown_url(identifier.strip())
+    identifier = _normalize_identifier(identifier)
     rows = _read_all_rows()
-    kept = [r for r in rows if r.get("identifier", "").strip() != identifier]
+    kept = [r for r in rows if _normalize_identifier(r.get("identifier", "")) != identifier]
     if len(kept) == len(rows):
         return False
     _write_all_rows(kept)
@@ -190,8 +210,8 @@ def all_mappings() -> list:
 def learn_shop(identifier: str, shop_url: str) -> None:
     """Aus Reconcile gelernt: Identifier → Shop dauerhaft speichern."""
     global _map_cache
-    # Markdown-Links vor dem Speichern bereinigen
-    identifier = _strip_markdown_url(identifier)
+    # Mention → nackte ID / Markdown-Links bereinigen (konsistent mit resolve_shop)
+    identifier = _normalize_identifier(identifier)
     shop_url   = _strip_markdown_url(shop_url)
     if not shop_url:
         return
