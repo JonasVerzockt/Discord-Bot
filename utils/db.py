@@ -27,7 +27,7 @@ Schema:
   user_seen_products, global_stats, server_info, eu_countries,
   review_tracking, review_pending, ch_delivery_shops, user_price_tracking,
   user_species_watch, user_species_watch_seen, user_species_watch_variant_seen,
-  ai_chat_budget, ai_chat_history,
+  pending_variant_removed, ai_chat_budget, ai_chat_history,
   discount_scanned, discount_codes
 """
 import sqlite3
@@ -266,6 +266,23 @@ CREATE TABLE IF NOT EXISTS user_species_watch_variant_seen (
     variant_title   TEXT,
     last_price      REAL,
     currency        TEXT,
+    PRIMARY KEY (user_id, watched_species, product_id, variant_id)
+);
+
+-- Entfallene Varianten (Arten-Beobachtung) werden hier gesammelt und EINMAL
+-- täglich zu fester Zeit als Übersicht verschickt (statt bei jedem Stundencheck).
+CREATE TABLE IF NOT EXISTS pending_variant_removed (
+    user_id         TEXT    NOT NULL,
+    watched_species TEXT    NOT NULL,
+    product_id      INTEGER NOT NULL,
+    variant_id      INTEGER NOT NULL,
+    variant_title   TEXT,
+    last_price      REAL,
+    currency        TEXT,
+    product_title   TEXT,
+    shop_name       TEXT,
+    antcheck_url    TEXT,
+    detected_at     TEXT    NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, watched_species, product_id, variant_id)
 );
 

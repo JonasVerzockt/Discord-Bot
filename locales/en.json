@@ -198,6 +198,8 @@
   "pt_var_line_down": "📉 {variant}: {old} → {new}",
   "pt_var_line_new": "🆕 new variant: {variant} – {price}",
   "pt_var_line_gone": "⚫ variant no longer available: {variant} (was {price})",
+  "pt_var_removed_digest_header": "🗓️ **Variants no longer available** (daily summary of your species watches)",
+  "pt_var_removed_product": "**{title}** at {shop} ({species})\n{url}",
   "help_ai_section": "\n\n**🤖 AI features** *(not publicly available)*\n{ai_commands}",
   "pt_watch_all_shops_label": "Watch all shops",
   "pt_watch_all_shops_desc": "Watch price changes across all shops",

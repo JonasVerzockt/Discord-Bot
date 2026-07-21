@@ -31,7 +31,10 @@ import asyncio
 import logging
 import re
 import sqlite3
+from collections import defaultdict
+from datetime import time as dtime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import discord
 from discord.ext import commands, tasks
@@ -49,6 +52,10 @@ from utils.achievements import log_event, check_and_grant
 logger = logging.getLogger(__name__)
 
 PRICE_HISTORY_DB = Path(DATA_DIRECTORY) / "price_history.db"
+
+# Entfallene Varianten werden gesammelt und einmal täglich zu dieser Zeit gemeldet.
+BERLIN = ZoneInfo("Europe/Berlin")
+_REMOVED_DIGEST_TIME = dtime(hour=10, minute=0, tzinfo=BERLIN)
 
 # Sentinel-Wert für "Alle Shops beobachten"-Option
 _ALL_SHOPS_SENTINEL = "__all__"
@@ -984,6 +991,12 @@ class UntrackView(_BaseView):
                     (user_id, species),
                     commit=True,
                 )
+                await execute_db(
+                    self.bot,
+                    "DELETE FROM pending_variant_removed WHERE user_id=? AND watched_species=?",
+                    (user_id, species),
+                    commit=True,
+                )
                 sw_removed += 1
             else:
                 # Einzelprodukt/Variante entfernen (Wert: "pid:vid")
@@ -1021,10 +1034,12 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         self.bot = bot
         self.check_price_changes.start()
         self.check_species_watches.start()
+        self.flush_removed_variants.start()
 
     def cog_unload(self):
         self.check_price_changes.cancel()
         self.check_species_watches.cancel()
+        self.flush_removed_variants.cancel()
 
     # ── /track_price ──────────────────────────────────────────────────────────
 
@@ -1488,21 +1503,58 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                 if old is not None and abs(price - old) > 1e-6:
                     changed.append((title, old, price, cur))
             else:
-                added.append((title, price, cur))
+                added.append((vid, title, price, cur))
         for vid, (title, old, cur) in baseline.items():
             if vid not in cvars:
-                removed.append((title, old, cur))
+                removed.append((vid, title, old, cur))
+
+        # Neu aufgetauchte Varianten heben eine ggf. hängende „entfallen"-Meldung auf.
+        if added:
+            await execute_many(
+                self.bot,
+                "DELETE FROM pending_variant_removed "
+                "WHERE user_id=? AND watched_species=? AND product_id=? AND variant_id=?",
+                [(user_id, species, int(pid), int(vid)) for vid, *_ in added],
+            )
+
+        # Entfallene Varianten NICHT sofort melden, sondern für den täglichen
+        # Sammel-Alert einreihen.
+        if removed:
+            await self._enqueue_removed(user_id, species, product, removed)
+
+        # Geänderte + neue Varianten weiterhin sofort melden.
+        added_simple = [(t, p, c) for _vid, t, p, c in added]
+        if changed or added_simple:
+            await self._notify_species_variant_changes(
+                user_id, product, species, changed, added_simple
+            )
 
         if changed or added or removed:
-            await self._notify_species_variant_changes(
-                user_id, product, species, changed, added, removed
-            )
             await self._save_variant_baseline(user_id, species, pid, cvars)
+
+    async def _enqueue_removed(self, user_id: str, species: str, product: dict, removed: list) -> None:
+        """Reiht entfallene Varianten für den täglichen Sammel-Alert ein."""
+        pid = product.get("id")
+        if pid is None or not removed:
+            return
+        await execute_many(
+            self.bot,
+            "INSERT OR REPLACE INTO pending_variant_removed "
+            "(user_id, watched_species, product_id, variant_id, variant_title, last_price, "
+            " currency, product_title, shop_name, antcheck_url) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [(user_id, species, int(pid), int(vid), title, old, cur,
+              strip_html(product.get("title") or product.get("species") or "?"),
+              product.get("_shop_name") or "?",
+              product.get("antcheck_url") or "")
+             for vid, title, old, cur in removed],
+        )
 
     async def _notify_species_variant_changes(self, user_id: str, product: dict,
                                               watched_species: str,
-                                              changed: list, added: list, removed: list) -> None:
-        """DM: listet je Variante die Preisänderung (alt→neu), neue und entfallene Varianten."""
+                                              changed: list, added: list) -> None:
+        """Sofort-DM: geänderte (alt→neu) und neu hinzugekommene Varianten.
+        Entfallene Varianten laufen separat über den täglichen Sammel-Alert."""
         try:
             user = await self.bot.fetch_user(int(user_id))
         except Exception as e:
@@ -1526,19 +1578,93 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         for title, price, cur in added:
             lines.append(l10n.get("pt_var_line_new", lang, variant=title,
                                   price=format_price(price, price, cur)))
-        for title, price, cur in removed:
-            lines.append(l10n.get("pt_var_line_gone", lang, variant=title,
-                                  price=format_price(price, price, cur)))
 
         msg = "\n".join(lines)
         try:
             await send_embeds_to(user, msg)
-            logger.info("📩 Varianten-Preis-DM: user=%s changed=%d added=%d removed=%d",
-                        user_id, len(changed), len(added), len(removed))
+            logger.info("📩 Varianten-Preis-DM: user=%s changed=%d added=%d",
+                        user_id, len(changed), len(added))
         except discord.Forbidden:
             await self._fallback_server_message(user_id, msg)
         except Exception as e:
             logger.error("❌ _notify_species_variant_changes DM-Fehler: %s", e)
+
+    # ── Täglicher Sammel-Alert für entfallene Varianten ───────────────────────
+
+    @tasks.loop(time=_REMOVED_DIGEST_TIME)
+    async def flush_removed_variants(self):
+        """Verschickt einmal täglich (feste Zeit) die gesammelten entfallenen Varianten."""
+        try:
+            rows = await execute_db(
+                self.bot,
+                "SELECT user_id, watched_species, product_id, variant_id, variant_title, "
+                "       last_price, currency, product_title, shop_name, antcheck_url "
+                "FROM pending_variant_removed "
+                "ORDER BY user_id, shop_name, product_title, variant_title",
+                fetch=True,
+            )
+            if not rows:
+                return
+            await ensure_rates()
+            by_user: dict[str, list] = defaultdict(list)
+            for r in rows:
+                by_user[r["user_id"]].append(r)
+
+            for uid, items in by_user.items():
+                try:
+                    await self._send_removed_digest(uid, items)
+                except Exception as e:
+                    logger.error("❌ removed-digest an %s fehlgeschlagen: %s", uid, e)
+                # Nur die verschickten Zeilen löschen (nicht später Hinzugekommenes).
+                await execute_many(
+                    self.bot,
+                    "DELETE FROM pending_variant_removed "
+                    "WHERE user_id=? AND watched_species=? AND product_id=? AND variant_id=?",
+                    [(r["user_id"], r["watched_species"], r["product_id"], r["variant_id"])
+                     for r in items],
+                )
+            logger.info("🗓️ Entfallene-Varianten-Digest: %d User, %d Einträge",
+                        len(by_user), len(rows))
+        except Exception as e:
+            logger.error("❌ flush_removed_variants error: %s", e, exc_info=True)
+
+    @flush_removed_variants.before_loop
+    async def before_flush_removed_variants(self):
+        await self.bot.wait_until_ready()
+
+    async def _send_removed_digest(self, user_id: str, items: list) -> None:
+        """Baut die Tages-Übersicht entfallener Varianten und schickt sie als DM."""
+        try:
+            user = await self.bot.fetch_user(int(user_id))
+        except Exception as e:
+            logger.warning("⚠️ User %s nicht abrufbar: %s", user_id, e)
+            return
+        lang = await get_user_lang(self.bot, user_id, None)
+
+        # Nach Produkt (Titel+Shop+Art+URL) gruppieren.
+        groups: dict[tuple, list] = defaultdict(list)
+        for r in items:
+            groups[(r["product_title"] or "?", r["shop_name"] or "?",
+                    r["watched_species"] or "?", r["antcheck_url"] or "")].append(r)
+
+        lines = [l10n.get("pt_var_removed_digest_header", lang)]
+        for (title, shop, species, url), rs in groups.items():
+            lines.append("")
+            lines.append(l10n.get("pt_var_removed_product", lang,
+                                  title=title, shop=shop, species=species, url=url))
+            for r in rs:
+                cur = r["currency"] or "EUR"
+                price = format_price(r["last_price"], r["last_price"], cur) if r["last_price"] is not None else "?"
+                lines.append(l10n.get("pt_var_line_gone", lang,
+                                      variant=r["variant_title"] or "?", price=price))
+
+        msg = "\n".join(lines)
+        try:
+            await send_embeds_to(user, msg)
+        except discord.Forbidden:
+            await self._fallback_server_message(user_id, msg)
+        except Exception as e:
+            logger.error("❌ _send_removed_digest DM-Fehler: %s", e)
 
     async def _notify_species_price_change(
         self,
