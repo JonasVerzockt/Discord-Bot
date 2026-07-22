@@ -70,7 +70,8 @@ def _rate(key: str, limit: int, window: int) -> bool:
 
 
 def _hmac(*parts: str) -> str:
-    return hmac.new(BOARD_HASH_SALT, "|".join(parts).encode(), hashlib.sha256).hexdigest()
+    # HMAC-SHA3-512 mit geheimem Salt als Schlüssel (IPs werden nie roh gespeichert).
+    return hmac.new(BOARD_HASH_SALT, "|".join(parts).encode(), hashlib.sha3_512).hexdigest()
 
 
 def _ip(req):

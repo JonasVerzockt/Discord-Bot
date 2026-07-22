@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.0.33` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.0.34` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -1058,7 +1058,7 @@ Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` s
 
 - Bindet nur an `127.0.0.1` – **HTTPS und öffentliche Domain macht der Reverse-Proxy** (Caddy/nginx); der aiohttp-Server wird nie direkt exponiert.
 - **Moderations-Queue** (nichts öffentlich ohne Freigabe), **Honeypot** und **Rate-Limits** gegen Spam, **CSRF-Schutz** auf Admin-Aktionen, **Jinja2-Autoescape** gegen XSS, Frontend **dark-mode-only**.
-- **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-Hash** (`BOARD_HASH_SALT`) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
+- **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-SHA3-512-Hash** (mit geheimem `BOARD_HASH_SALT` als Schlüssel) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
