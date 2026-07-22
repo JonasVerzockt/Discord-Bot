@@ -26,6 +26,9 @@ antcheckbot.db-wal
 price_history.db
 price_history.db-shm
 price_history.db-wal
+board.db
+board.db-shm
+board.db-wal
 
 # ── Logs ───────────────────────────────────────────────────────────────────────
 *.log
@@ -50,8 +53,9 @@ build/
 .DS_Store
 Thumbs.db
 
-# ── Lokale Planung (NICHT tracken – nur lokal auf der Platte) ──────────────────
+# ── Lokale Planung / Notizen (NICHT tracken – nur lokal auf der Platte) ────────
 board-planning/
+dev-notes/
 
 # ── Sonstiges ──────────────────────────────────────────────────────────────────
 C*.md

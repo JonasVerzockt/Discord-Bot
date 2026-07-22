@@ -16,6 +16,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Claude Sonnet) auf @-Erwähnung. Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht. Nach jeweils 15 eingetragenen Beobachtungen postet der Bot – nach einer kurzen Wartezeit von 5 Minuten, um kurz aufeinanderfolgende Einträge zu bündeln – automatisch ein aktuelles Ranking-Bild (aus dem Übersicht-Tab des Sheets) im Channel; das Bild trägt einen Zeitstempel des Datenstands, damit erkennbar ist, welche danach geposteten Links noch nicht enthalten sind. Durch das Schreiben von `Rangliste` im Channel kann das Ranking-Bild jederzeit manuell abgerufen werden (maximal einmal alle 3 Stunden).
 - **Rabattcode-Tracker** – liest im dafür vorgesehenen Kanal alle Nachrichten und extrahiert per KI (Claude Haiku) Rabattcodes inkl. Shop, Rabatthöhe und Gültigkeitszeitraum. Codes werden auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) erkannt. Jede Nachricht wird dabei nur einmal an die KI übermittelt; beim Start wird der gesamte Kanalverlauf einmalig verarbeitet. Über `/codes` rufen Mitglieder die aktuell gültigen Codes ab. Abgelaufene Codes werden automatisch ausgeblendet. **Alle** Textnachrichten sowie Bild-Anhänge dieses Kanals werden zur Auswertung an die Anthropic API übermittelt.
+- **Feedback-Board** *(optional)* – ein öffentlich einsehbares Ideen- und Bug-Board (eigener Webdienst). Jede/r kann – auch anonym ohne Account – Fehler, Feature-Wünsche und Ideen zum Bot einreichen und bestehende Einträge hochvoten. Einreichungen werden vor der Veröffentlichung geprüft (Moderation).
 
 ### Nutzung
 
@@ -25,6 +26,26 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
 - Der AI-Chat-Bot ist im AAM Discord aktuell nicht öffentlich zugänglich. Sobald er aktiviert wird, gilt: Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
 - Im Rabattcode-Kanal werden **alle** Textnachrichten sowie Bild-Anhänge zur automatischen Code-Erkennung an die Anthropic API übermittelt. Bitte auch dort keine sensiblen personenbezogenen Daten teilen.
+
+### Feedback-Board (öffentliches Ideen-/Bug-Board)
+
+Diese Regeln gelten für das optionale, öffentlich einsehbare Feedback-Board, sofern es aktiviert ist.
+
+**Was darf eingereicht werden:**
+
+- Sachliche **Fehlermeldungen (Bugs)**, **Feature-Wünsche** und **Ideen**, die den Bot betreffen.
+- Bitte **keine** personenbezogenen oder sensiblen Daten (weder eigene noch die Dritter). Der optionale Namenseintrag ist freiwillig und wird nicht überprüft – bitte dort keinen Klarnamen oder Kontaktdaten angeben.
+
+**Nicht erlaubt** sind insbesondere: Beleidigungen, Belästigung, Hassrede, Spam/Flooding, Werbung, rechtswidrige, jugendgefährdende oder urheberrechtsverletzende Inhalte sowie das Veröffentlichen personenbezogener Daten Dritter.
+
+**Moderation & Rechte des Betreibers:**
+
+- Einreichungen sind **anonym** möglich und erscheinen **erst nach Prüfung/Freigabe** durch den Betreiber öffentlich.
+- Der Betreiber darf Einreichungen **ohne Angabe von Gründen ablehnen, bearbeiten, zusammenführen, verschieben oder löschen**.
+- **Kein Anspruch:** Aus einer Einreichung oder aus Upvotes entsteht kein Anspruch auf Umsetzung, Beantwortung oder Veröffentlichung.
+- Bei **Missbrauch** (Spam, Flooding, verbotene Inhalte) können Einreichungen entfernt und einreichende Zugriffe (IP-basiert) vorübergehend gesperrt werden.
+
+**Ohne Gewähr:** Das Board wird ohne Gewähr betrieben; für Inhalte eingereichter Beiträge ist der jeweilige Einreichende verantwortlich.
 
 ### Haftung
 
@@ -147,6 +168,15 @@ Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar
 | Discord User-ID + Anzeigename, genutzter Befehl (Slash-Befehle + bekannte Text-Trigger wie `!hilfe`), Parameter, Kanal, Server, Zeitstempel, Erfolg/Fehler | Moderations- und Missbrauchskontrolle (nachvollziehen, wer welche Bot-Funktionen nutzt) | Lokale SQLite-Datenbank + optional ein Mod-only-Discord-Kanal |
 
 Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/command_log` (nach User-ID, optional Zeitfenster) abfragen.
+
+#### Feedback-Board (optional)
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Eingereichter **Inhalt** (Typ, Titel, Beschreibung), **optionaler Name** (freiwillig, unverifiziert) | Anzeige und Bearbeitung der eingereichten Idee/des Bugs | Eigene lokale SQLite-Datenbank (`BOARD_DB_FILE`, getrennt von der Haupt-DB) |
+| **Aus der IP-Adresse abgeleiteter Hash** (HMAC mit geheimem Salt) – beim Einreichen und beim Upvoten | Spam-Abwehr (Rate-Limit) und Dedupe der Upvotes | Eigene lokale SQLite-Datenbank |
+
+**Es wird keine rohe IP-Adresse gespeichert** – nur ein nicht direkt rückrechenbarer HMAC-Hash. Öffentlich sichtbar werden nach Freigabe ausschließlich: Typ, Titel, Beschreibung, ggf. der angegebene Name, Status und die Upvote-Anzahl. Die vollständigen **Nutzungsbedingungen fürs Board** (was eingereicht werden darf, Moderation) stehen weiter oben unter *Nutzungsbedingungen → Feedback-Board*.
 
 ### Drittanbieter
 
