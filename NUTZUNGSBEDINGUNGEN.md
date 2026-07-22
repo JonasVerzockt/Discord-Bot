@@ -62,7 +62,7 @@ Diese Bedingungen können jederzeit angepasst werden. Wesentliche Änderungen we
 ### Verantwortlicher
 
 Jonas Beier  
-📧 aam-bot@proton.me
+📧 webmaster@jonasants.de
 
 ### Welche Daten werden verarbeitet?
 
@@ -233,7 +233,7 @@ Du hast jederzeit das Recht auf **Auskunft, Berichtigung oder Löschung** deiner
 - Preis-Tracking-Einträge kannst du selbst per `/untrack_price` entfernen.
 - Eine von dir abgegebene Bewertung kannst du selbst entfernen, indem du deine Bewertungs-Nachricht im Review-Kanal löschst – der Bot leert dann automatisch die zugehörige Zeile in der Bewertungsübersicht.
 - Für alle weiteren Anfragen (Auskunft, manuelle Löschung) wende dich an:  
-  📧 aam-bot@proton.me
+  📧 webmaster@jonasants.de
 
 Da Bewertungen anonym erfasst werden, ist eine Zuordnung zu einzelnen Personen dort in der Regel nicht möglich.
 
