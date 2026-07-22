@@ -96,20 +96,6 @@ def _csrf_ok(form) -> bool:
     return bool(exp) and hmac.compare_digest(form.get("csrf", ""), exp)
 
 
-def _safe_local(url: str, default: str = "/") -> str:
-    """Nur seiteninterne (relative) Redirect-Ziele zulassen – gegen Open-Redirect.
-    Blockt absolute URLs (Host/Schema) und Backslash-Tricks, wie von CWE-601 empfohlen."""
-    if not url:
-        return default
-    p = urlparse(url.replace("\\", ""))
-    if p.netloc or p.scheme:               # externer Host oder Schema -> ablehnen
-        return default
-    path = p.path or default
-    if not path.startswith("/"):           # nur absolute lokale Pfade
-        return default
-    return path + (("?" + p.query) if p.query else "")
-
-
 # ── Templates (Dark-Mode-ONLY) ────────────────────────────────────────────────
 BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width, initial-scale=1">
@@ -277,7 +263,14 @@ async def h_submit(req):
 
 async def h_upvote(req):
     sid = int(req.match_info["id"])
-    resp = web.HTTPFound(_safe_local(req.headers.get("Referer", "/")))
+    # Open-Redirect-Schutz (CWE-601): Referer nur als Redirect-Ziel zulassen, wenn
+    # er KEINEN Host/kein Schema enthält (also seitenintern ist). Backslashes werden
+    # entfernt und der geprüfte Originalstring durchgereicht – exakt das von CodeQL
+    # empfohlene urlparse-Muster (py/url-redirection).
+    target = (req.headers.get("Referer") or "/").replace("\\", "")
+    if urlparse(target).netloc or urlparse(target).scheme or not target.startswith("/"):
+        target = "/"
+    resp = web.HTTPFound(target)
     if not _rate("vote:" + _ip(req), 30, 300):
         raise resp
     sub = await _one(sid)
