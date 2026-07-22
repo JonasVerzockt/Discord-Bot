@@ -34,6 +34,7 @@ import logging
 import secrets
 import time
 from collections import defaultdict
+from urllib.parse import urlparse
 
 import discord
 from aiohttp import web
@@ -55,7 +56,7 @@ COMPONENTS  = ["", "Preis-Tracking", "Benachrichtigungen", "Shop-Suche/Grabber",
                "Digest", "iNat", "Rabattcodes", "Review-Bot", "Erfolge", "Moderation",
                "Infra/Deploy", "UI", "Lokalisierung", "Doku", "Sonstiges"]
 RATE_SUBMIT_PER_H = 5
-_ADMIN_COOKIE, _VOTER_COOKIE, _CSRF_COOKIE = "board_admin", "board_vid", "board_csrf"
+_ADMIN_COOKIE, _VOTER_COOKIE = "board_admin", "board_vid"
 
 _hits: dict[str, list] = defaultdict(list)
 
@@ -84,9 +85,29 @@ def _is_admin(req) -> bool:
     return bool(exp) and hmac.compare_digest(req.cookies.get(_ADMIN_COOKIE, ""), exp)
 
 
-def _csrf_ok(req, form) -> bool:
-    c = req.cookies.get(_CSRF_COOKIE, "")
-    return bool(c) and hmac.compare_digest(c, form.get("csrf", ""))
+def _csrf_token() -> str:
+    """CSRF-Token serverseitig aus dem Admin-Token abgeleitet (kein User-Input,
+    kein separater Cookie). Nur wer eingeloggt ist, bekommt es in die Formulare."""
+    return _hmac("csrf", BOARD_ADMIN_TOKEN) if BOARD_ADMIN_TOKEN else ""
+
+
+def _csrf_ok(form) -> bool:
+    exp = _csrf_token()
+    return bool(exp) and hmac.compare_digest(form.get("csrf", ""), exp)
+
+
+def _safe_local(url: str, default: str = "/") -> str:
+    """Nur seiteninterne (relative) Redirect-Ziele zulassen – gegen Open-Redirect.
+    Blockt absolute URLs (Host/Schema) und Backslash-Tricks, wie von CWE-601 empfohlen."""
+    if not url:
+        return default
+    p = urlparse(url.replace("\\", ""))
+    if p.netloc or p.scheme:               # externer Host oder Schema -> ablehnen
+        return default
+    path = p.path or default
+    if not path.startswith("/"):           # nur absolute lokale Pfade
+        return default
+    return path + (("?" + p.query) if p.query else "")
 
 
 # ── Templates (Dark-Mode-ONLY) ────────────────────────────────────────────────
@@ -256,7 +277,7 @@ async def h_submit(req):
 
 async def h_upvote(req):
     sid = int(req.match_info["id"])
-    resp = web.HTTPFound(req.headers.get("Referer", "/"))
+    resp = web.HTTPFound(_safe_local(req.headers.get("Referer", "/")))
     if not _rate("vote:" + _ip(req), 30, 300):
         raise resp
     sub = await _one(sid)
@@ -289,7 +310,6 @@ async def h_login(req):
         resp = web.HTTPFound("/admin")
         resp.set_cookie(_ADMIN_COOKIE, _hmac("owner", BOARD_ADMIN_TOKEN),
                         max_age=604800, httponly=True, samesite="Lax")
-        resp.set_cookie(_CSRF_COOKIE, secrets.token_hex(16), max_age=604800, samesite="Lax")
         raise resp
     return _render(req, "login", title="Login", flash="Falsches Token.")
 
@@ -305,19 +325,15 @@ async def h_admin(req):
         raise web.HTTPFound("/admin/login")
     items = await _rows("ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC")
     queue = [c for c in items if c["status"] == "pending"]
-    csrf = req.cookies.get(_CSRF_COOKIE) or secrets.token_hex(16)
-    resp = _render(req, "admin", title="Admin", items=items, queue=queue, csrf=csrf,
+    return _render(req, "admin", title="Admin", items=items, queue=queue, csrf=_csrf_token(),
                    statuses=STATUSES, priorities=PRIORITIES, components=COMPONENTS)
-    if not req.cookies.get(_CSRF_COOKIE):
-        resp.set_cookie(_CSRF_COOKIE, csrf, max_age=604800, samesite="Lax")
-    return resp
 
 
 async def _admin_guard(req):
     if not _is_admin(req):
         raise web.HTTPFound("/admin/login")
     d = await req.post()
-    if not _csrf_ok(req, d):
+    if not _csrf_ok(d):
         raise web.HTTPForbidden(text="CSRF-Token ungültig")
     return d
 
