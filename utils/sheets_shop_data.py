@@ -93,6 +93,9 @@ def _parse_haendler_az(rows: list[list[str]]) -> str:
     - Kompaktes Format: "shopname ⭐9.97 (63x)" statt verbose Key:Value.
     """
     MIN_REVIEWS = 4
+    # Google-Sheets-Fehlerwerte (z.B. durch kaputte QUERY-Formel / manuellen Eintrag
+    # im Spill-Bereich -> #REF!). Werden erkannt, um still leere Daten zu vermeiden.
+    _ERROR_TOKENS = {"#REF!", "#N/A", "#ERROR!", "#VALUE!", "#NAME?", "#DIV/0!", "#NULL!", "#NUM!"}
 
     # Header normalisieren (Zeilenumbrueche aus mehrzeiligen Zellen entfernen)
     headers = [h.strip().replace("\n", " ").replace("\r", "") for h in rows[0]]
@@ -107,14 +110,28 @@ def _parse_haendler_az(rows: list[list[str]]) -> str:
 
     idx_anzahl = _find_col("anzahl", "count", "reviews")
     idx_rating  = _find_col("durchschnitt", "average", "rating")
+    if idx_anzahl is None:
+        logger.warning(
+            f"⚠️ [ShopData] 'Haendler A-Z': Anzahl-Spalte nicht erkannt "
+            f"(Header: {headers}) – es werden KEINE Shops übernommen."
+        )
 
     lines: list[str] = []
+    data_rows = 0
+    error_hit = False
 
     for row in rows[1:]:
-        if not row[0].strip():
+        if not row or not row[0].strip():
             continue  # Leere Zeile
+        data_rows += 1
+
+        # Fehlerwerte im Sheet erkennen (kaputte QUERY-Formel etc.)
+        if any(c.strip() in _ERROR_TOKENS for c in row):
+            error_hit = True
 
         shop = row[0].strip()
+        if shop in _ERROR_TOKENS:
+            continue
 
         # Anzahl-Filter
         anzahl = 0
@@ -135,6 +152,28 @@ def _parse_haendler_az(rows: list[list[str]]) -> str:
                 lines.append(f"{shop} ⭐{raw_rating} ({anzahl}x)")
         else:
             lines.append(shop)
+
+    # Sichtbarkeit: still leere A-Z-Daten (z.B. #REF!) im Log melden statt zu verschlucken
+    if not lines:
+        if error_hit:
+            logger.warning(
+                "⚠️ [ShopData] 'Haendler A-Z' enthält Fehlerwerte (z.B. #REF!) – "
+                "vermutlich kaputte QUERY-Formel oder manueller Eintrag im Spill-Bereich. "
+                "KEINE Bewertungen übernommen!"
+            )
+        elif data_rows == 0:
+            logger.warning("⚠️ [ShopData] 'Haendler A-Z' enthält keine Datenzeilen.")
+        else:
+            logger.warning(
+                f"⚠️ [ShopData] 'Haendler A-Z': {data_rows} Zeile(n), aber 0 mit "
+                f">= {MIN_REVIEWS} Bewertungen (oder Anzahl-Spalte nicht erkannt)."
+            )
+    else:
+        logger.info(
+            f"📋 [ShopData] 'Haendler A-Z': {len(lines)} Shop(s) mit >= {MIN_REVIEWS} "
+            f"Bewertungen übernommen."
+            + (" (Achtung: Sheet enthält zusätzlich Fehlerwerte!)" if error_hit else "")
+        )
 
     return (
         "[Haendler A-Z – Community-Bewertungen (mind. 4 Bewertungen)]\n"
