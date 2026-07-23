@@ -164,8 +164,18 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ system error: {e}")
             await ctx.respond(l10n.get("system_error", lang), ephemeral=True)
 
-    def _build_help_text(self, lang: str) -> str:
-        """Baut den vollständigen Hilfetext (genutzt von /help und !help)."""
+    @staticmethod
+    def _member_is_admin(member) -> bool:
+        """True, wenn das Mitglied 'Administrator' oder 'Nachrichten verwalten' hat
+        (gleiche Definition wie admin_or_manage_messages())."""
+        perms = getattr(member, "guild_permissions", None)
+        return bool(perms and (perms.administrator or perms.manage_messages))
+
+    def _build_help_text(self, lang: str, is_admin: bool = False) -> str:
+        """Baut den vollständigen Hilfetext (genutzt von /help und !help).
+
+        Der Admin-Abschnitt wird nur eingefügt, wenn ``is_admin`` True ist –
+        normale Mitglieder sehen ihn nicht."""
         user_keys = [
             "help_notification", "help_history", "help_test", "help_delete",
             "help_usersetting", "help_ch_delivery",
@@ -193,7 +203,11 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_ai_prompt",
         ]
         user_commands  = "\n".join(l10n.get(k, lang) for k in user_keys)
-        admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)
+        if is_admin:
+            admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)
+            admin_section  = l10n.get("help_admin_section", lang, admin_commands=admin_commands)
+        else:
+            admin_section = ""
         if AI_CHAT_PUBLIC:
             ai_commands = "\n".join(l10n.get(k, lang) for k in ai_keys)
             ai_section  = l10n.get("help_ai_section", lang, ai_commands=ai_commands)
@@ -202,7 +216,7 @@ class StatsCog(commands.Cog, name="Stats"):
         return l10n.get(
             "help_full", lang,
             user_commands=user_commands,
-            admin_commands=admin_commands,
+            admin_section=admin_section,
             ai_section=ai_section,
         )
 
@@ -219,9 +233,9 @@ class StatsCog(commands.Cog, name="Stats"):
             chunks.append(cur.rstrip("\n"))
         return chunks or [text]
 
-    def _build_help_embeds(self, lang: str) -> list:
+    def _build_help_embeds(self, lang: str, is_admin: bool = False) -> list:
         """Baut die Hilfe als eine oder mehrere Embeds (umgeht das 2000-Zeichen-Limit)."""
-        text = self._build_help_text(lang)
+        text = self._build_help_text(lang, is_admin)
         return [
             discord.Embed(description=chunk, color=EMBED_COLOR)
             for chunk in self._help_chunks(text)
@@ -231,10 +245,13 @@ class StatsCog(commands.Cog, name="Stats"):
     @allowed_channel()
     async def help_cmd(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        embeds = self._build_help_embeds(lang)
-        await ctx.respond(embed=embeds[0])
+        is_admin = self._member_is_admin(ctx.author)
+        embeds = self._build_help_embeds(lang, is_admin)
+        # Für Admins ephemer (die Admin-Liste soll nicht öffentlich im Kanal
+        # landen); für normale Mitglieder wie gehabt öffentlich sichtbar.
+        await ctx.respond(embed=embeds[0], ephemeral=is_admin)
         for embed in embeds[1:]:
-            await ctx.followup.send(embed=embed)
+            await ctx.followup.send(embed=embed, ephemeral=is_admin)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -255,7 +272,8 @@ class StatsCog(commands.Cog, name="Stats"):
             if rows and rows[0]["channel_id"] is not None and message.channel.id != rows[0]["channel_id"]:
                 return
             lang = await get_user_lang(self.bot, message.author.id, message.guild.id)
-            embeds = self._build_help_embeds(lang)
+            is_admin = self._member_is_admin(message.author)
+            embeds = self._build_help_embeds(lang, is_admin)
             try:
                 await message.reply(embed=embeds[0], mention_author=False)
             except discord.HTTPException:
