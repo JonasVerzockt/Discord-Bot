@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 _RATES: dict[str, float] = {}   # {ISO-Code → Faktor X→EUR, z.B. "CAD": 0.681}
 _LAST_FETCH: datetime | None = None
 _CACHE_TTL       = timedelta(hours=6)
+# Verhindert doppelte/parallele Abrufe beim Start (mehrere Cogs rufen ensure_rates
+# quasi gleichzeitig auf, bevor _LAST_FETCH gesetzt ist -> sonst mehrfaches Laden).
+_fetch_lock = asyncio.Lock()
 # Primärquelle: EZB-Referenzkurse (Frankfurter), ~31 große Währungen.
 _FRANKFURTER_URL = "https://api.frankfurter.app/latest?from=EUR"
 # Breite, komplett offene & key-lose Fallback-Quelle (fawazahmed0), deckt 150+
@@ -48,11 +51,21 @@ _FAWAZ_URLS = (
 )
 
 
+def _needs_refresh() -> bool:
+    return _LAST_FETCH is None or datetime.now(timezone.utc) - _LAST_FETCH > _CACHE_TTL
+
+
 async def ensure_rates() -> None:
-    """Lädt Kurse falls Cache abgelaufen oder noch leer ist."""
-    global _LAST_FETCH
-    if _LAST_FETCH is None or datetime.now(timezone.utc) - _LAST_FETCH > _CACHE_TTL:
-        await asyncio.to_thread(_fetch_rates_sync)
+    """Lädt Kurse falls Cache abgelaufen oder noch leer ist.
+
+    Mit Lock + Double-Check: rufen mehrere Cogs beim Start gleichzeitig auf, laedt
+    nur der erste; die uebrigen warten und nutzen dann den frischen Cache."""
+    if not _needs_refresh():
+        return
+    async with _fetch_lock:
+        # Nach dem Warten erneut pruefen – evtl. hat ein anderer Aufruf schon geladen.
+        if _needs_refresh():
+            await asyncio.to_thread(_fetch_rates_sync)
 
 
 def _invert_eur_to_x(eur_to_x: dict) -> dict[str, float]:
