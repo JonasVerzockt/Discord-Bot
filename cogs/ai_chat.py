@@ -197,16 +197,22 @@ class AiChatCog(commands.Cog):
         # Menge der fuer den API-Key verfuegbaren Modelle (None = noch nicht geprueft
         # bzw. Abruf fehlgeschlagen -> Dropdown zeigt fail-open alle 4).
         self._available_models: "set[str] | None" = None
+        self._models_checked = False  # Einmal-Guard fuer on_ready
         # ai_chat_budget / ai_chat_history werden zentral in utils/db.py:init_db() angelegt.
         # Hintergrundtasks starten
         self.cleanup_loop.start()
         self.shop_data_loop.start()
         logger.info("✅ AiChatCog geladen")
 
-    async def cog_load(self) -> None:
-        """Beim Laden die vom API-Key freigeschalteten Modelle abrufen, damit das
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """Einmalig die vom API-Key freigeschalteten Modelle abrufen, damit das
         Dropdown nicht verfuegbare Modelle ausblendet (statt erst beim Absenden zu
-        scheitern). Schlaegt der Abruf fehl, bleibt es bei 'alle zeigen'."""
+        scheitern). py-cord ruft KEIN async cog_load -> daher hier via on_ready.
+        Schlaegt der Abruf fehl, bleibt es bei 'alle zeigen' (fail open)."""
+        if self._models_checked:
+            return
+        self._models_checked = True
         try:
             self._available_models = await list_available_models()
             if self._available_models is not None:
