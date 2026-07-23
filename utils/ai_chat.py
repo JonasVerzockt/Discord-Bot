@@ -591,7 +591,8 @@ async def chat(
     budget_ok, budget_msg = check_budget(user_id, estimated, user_lang)
     if not budget_ok:
         return {"ok": False, "answer": budget_msg, "cost": 0.0,
-                "history": [], "is_error": False}
+                "history": [], "is_error": False,
+                "budget_exceeded": True, "estimated": estimated, "model": model}
 
     # 4. Nachrichten für API zusammenstellen
     import base64 as _b64

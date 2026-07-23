@@ -47,6 +47,7 @@ from utils.ai_chat import (
     get_user_model,
     load_conversation,
     load_conversation_model,
+    prices_for,
     save_conversation,
     set_user_model,
 )
@@ -96,6 +97,19 @@ def _model_footer(model_id: str, lang: str) -> str:
     """Footer-Baustein: 'Modellname · 🟡 Kostenstufe'."""
     meta = _resolve_model_meta(model_id)
     return f"🤖 {meta['label']} · {meta['emoji']} {l10n.get(meta['tier_key'], lang)}"
+
+
+def _model_price_overview(lang: str) -> str:
+    """Übersicht aller Modelle mit Kostenstufe und Preis (pro Mio. Tokens),
+    sortiert billig->teuer. Wird bei Budget-Überschreitung angezeigt."""
+    lines = [l10n.get("ai_budget_overview_header", lang)]
+    for m in AI_MODELS:
+        p_in, p_out = prices_for(m["id"])
+        lines.append(
+            f"{m['emoji']} {m['label']} — {l10n.get(m['tier_key'], lang)}: "
+            f"${p_in * 1_000_000:g}/${p_out * 1_000_000:g}"
+        )
+    return "\n".join(lines)
 
 
 class ModelSelectView(discord.ui.View):
@@ -377,14 +391,24 @@ class AiChatCog(commands.Cog):
                 model=model,
             )
 
-        # Disclaimer (inkl. Modell-Kennzeichnung + tatsächliche Kosten) anhaengen
         used_model = result.get("model") or model
-        cost_str   = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
-        cost_part  = f" · {_model_footer(used_model, lang)}"
-        if cost_str:
-            cost_part += f" · 💰 {cost_str}"
-        disclaimer = l10n.get("ai_disclaimer", lang, cost_part=cost_part)
-        answer_with_disclaimer = result["answer"] + disclaimer
+
+        if result.get("budget_exceeded"):
+            # Budget erschöpft: Grundmeldung + Preisübersicht aller Modelle +
+            # Bitte, mit günstigerem Modell oder morgen erneut zu versuchen.
+            answer_with_disclaimer = (
+                result["answer"]
+                + "\n\n" + _model_price_overview(lang)
+                + "\n\n" + l10n.get("ai_budget_retry_hint", lang)
+            )
+        else:
+            # Disclaimer (inkl. Modell-Kennzeichnung + tatsächliche Kosten) anhaengen
+            cost_str   = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
+            cost_part  = f" · {_model_footer(used_model, lang)}"
+            if cost_str:
+                cost_part += f" · 💰 {cost_str}"
+            disclaimer = l10n.get("ai_disclaimer", lang, cost_part=cost_part)
+            answer_with_disclaimer = result["answer"] + disclaimer
 
         # Antwort in Discord-Chunks senden (max. 2000 Zeichen pro Nachricht)
         chunks   = chunk_discord(answer_with_disclaimer)

@@ -173,6 +173,8 @@
   "ai_model_picker_prompt": "🤖 Welches Modell soll antworten? *(nach 60 s automatisch mit der Vorauswahl)*",
   "ai_model_picker_placeholder": "Modell wählen …",
   "ai_model_not_yours": "Diese Modellauswahl gehört nicht dir.",
+  "ai_budget_overview_header": "💸 Preise der Modelle (pro Mio. Tokens · Input/Output):",
+  "ai_budget_retry_hint": "➡️ Bitte stelle deine Anfrage mit einem **günstigeren Modell** neu – oder versuche es **morgen** wieder (Budget-Reset täglich 00:00 UTC).",
   "ai_status_title": "🤖 KI-Chat Budget-Status",
   "ai_status_description": "ℹ️ Budgets werden täglich um **00:00 UTC** (01:00 MEZ / 02:00 MESZ) zurückgesetzt.",
   "ai_status_global_field": "🌍 Globales Tagesbudget",

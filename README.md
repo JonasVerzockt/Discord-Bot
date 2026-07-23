@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.2.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.2.1` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -514,7 +514,7 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 | 🟠 Opus 4.8 (`claude-opus-4-8`) | Teuer | Komplexe Projekte · Agenten · Programmierung |
 | 🔴 Fable 5 (`claude-fable-5`) | Sehr teuer | Leistungsstärkste · Recherche · Mehrtägige Aufgaben |
 
-Das in `AI_CHAT_MODEL` gesetzte Modell (bzw. die **zuletzt vom User gewählte** Wahl) ist **vorausgewählt**; nach **60 s ohne Auswahl** läuft die Anfrage automatisch damit. Beim **Antworten (Reply)** auf eine Bot-Nachricht wird **dasselbe Modell** wie in der Ursprungsantwort genutzt (kein erneutes Dropdown). Am Ende jeder Antwort steht im Footer, **welches Modell** geschrieben hat und dessen Kostenstufe, z. B. `🤖 Sonnet 5 · 🟡 Günstig · 💰 $0.0021`. Alle Modelle stehen allen Nutzern im Rahmen des normalen Tagesbudgets frei zur Verfügung; teurere Modelle verbrauchen es schneller. Die Stufe-2-Klassifikation (Shop-Relevanz) läuft separat über `AI_CHAT_CLASSIFY_MODEL` (Standard Haiku), der Review-Parser über `REVIEW_PARSER_MODEL`.
+Das in `AI_CHAT_MODEL` gesetzte Modell (bzw. die **zuletzt vom User gewählte** Wahl) ist **vorausgewählt**; nach **60 s ohne Auswahl** läuft die Anfrage automatisch damit. Beim **Antworten (Reply)** auf eine Bot-Nachricht wird **dasselbe Modell** wie in der Ursprungsantwort genutzt (kein erneutes Dropdown). Am Ende jeder Antwort steht im Footer, **welches Modell** geschrieben hat und dessen Kostenstufe, z. B. `🤖 Sonnet 5 · 🟡 Günstig · 💰 $0.0021`. Alle Modelle stehen allen Nutzern im Rahmen des normalen Tagesbudgets frei zur Verfügung; teurere Modelle verbrauchen es schneller. Übersteigt die **geschätzte Anfrage** das (globale oder persönliche) Tagesbudget, wird die Anfrage **nicht** ausgeführt – stattdessen erhält der User einen Hinweis mit einer **Preisübersicht aller Modelle** und der Bitte, es mit einem **günstigeren Modell** oder **morgen** erneut zu versuchen. Die Stufe-2-Klassifikation (Shop-Relevanz) läuft separat über `AI_CHAT_CLASSIFY_MODEL` (Standard Haiku), der Review-Parser über `REVIEW_PARSER_MODEL`.
 
 **Kosten:** Die Preistabelle kennt u. a. `claude-sonnet-5` zum Standardtarif ($3/Mio. Input, $15/Mio. Output, ohne Einführungsrabatt). Adaptives Denken muss nicht separat berechnet werden – Denk-Tokens werden als Output-Tokens abgerechnet und sind über `response.usage.output_tokens` bereits in den Kosten enthalten.
 
