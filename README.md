@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.1.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.1.1` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -654,6 +654,8 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Antwort ist **öffentlich** sichtbar im Kanal. | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
+
+> Diese Befehle werden im Discord-Befehlsmenü (`/`) **nur Mitgliedern mit dem Recht „Nachrichten verwalten" oder „Administrator" angezeigt** – für normale Mitglieder tauchen sie gar nicht erst auf. Umgesetzt über Discords `default_member_permissions`; zusätzlich prüft weiterhin der interne Check `admin_or_manage_messages()` bei jeder Ausführung (die Sichtbarkeit ist nur ein Discord-*Default* und könnte serverseitig überschrieben werden). Zur einheitlichen Kennzeichnung tragen alle Admin-Befehle das Präfix **`🔒 [Admin]`** in ihrer Beschreibung. Discord bietet keine Möglichkeit, die Reihenfolge im Menü selbst festzulegen (immer alphabetisch) – durch das Ausblenden stören sie normale Nutzer aber ohnehin nicht mehr.
 
 | Befehl | Parameter | Beschreibung | Beispiel |
 |--------|-----------|--------------|----------|

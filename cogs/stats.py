@@ -49,7 +49,8 @@ class StatsCog(commands.Cog, name="Stats"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="stats", description="Show bot statistics (Admin/Mod)", description_localizations={"de": "Bot-Statistiken anzeigen (Admin/Mod)"})
+    @discord.slash_command(name="stats", description="🔒 [Admin] Show bot statistics", description_localizations={"de": "🔒 [Admin] Bot-Statistiken anzeigen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def stats(self, ctx: discord.ApplicationContext):
@@ -93,7 +94,8 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ stats error: {e}")
             await ctx.respond(l10n.get("stats_error", lang))
 
-    @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)", description_localizations={"de": "System- und Bot-Status anzeigen (Admin/Mod)"})
+    @discord.slash_command(name="system", description="🔒 [Admin] Show system and bot status", description_localizations={"de": "🔒 [Admin] System- und Bot-Status anzeigen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def system(self, ctx: discord.ApplicationContext):

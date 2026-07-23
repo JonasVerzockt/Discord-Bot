@@ -53,7 +53,8 @@ class AdminCog(commands.Cog, name="Admin"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="status", description="Show review bot status (Admin/Mod)", description_localizations={"de": "Review-Bot-Status anzeigen (Admin/Mod)"})
+    @discord.slash_command(name="status", description="🔒 [Admin] Show review bot status", description_localizations={"de": "🔒 [Admin] Review-Bot-Status anzeigen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def cmd_status(self, ctx: discord.ApplicationContext):
@@ -71,7 +72,8 @@ class AdminCog(commands.Cog, name="Admin"):
             logger.error(f"❌ status error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
-    @discord.slash_command(name="pending", description="List pending messages (Admin/Mod)", description_localizations={"de": "Ausstehende Nachrichten auflisten (Admin/Mod)"})
+    @discord.slash_command(name="pending", description="🔒 [Admin] List pending messages", description_localizations={"de": "🔒 [Admin] Ausstehende Nachrichten auflisten"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def cmd_pending(self, ctx: discord.ApplicationContext):
@@ -99,7 +101,8 @@ class AdminCog(commands.Cog, name="Admin"):
             ephemeral=True, color=ADMIN_COLOR,
         )
 
-    @discord.slash_command(name="test", description="Test AI parser without writing to sheet (Admin/Mod)", description_localizations={"de": "KI-Parser ohne Sheet-Eintrag testen (Admin/Mod)"})
+    @discord.slash_command(name="test", description="🔒 [Admin] Test AI parser without writing to sheet", description_localizations={"de": "🔒 [Admin] KI-Parser ohne Sheet-Eintrag testen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def cmd_test(
@@ -119,7 +122,8 @@ class AdminCog(commands.Cog, name="Admin"):
             logger.error(f"❌ test error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
-    @discord.slash_command(name="rescan", description="Manually re-reconcile last N days (Admin/Mod)", description_localizations={"de": "Letzte N Tage manuell neu abgleichen (Admin/Mod)"})
+    @discord.slash_command(name="rescan", description="🔒 [Admin] Manually re-reconcile last N days", description_localizations={"de": "🔒 [Admin] Letzte N Tage manuell neu abgleichen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def cmd_rescan(self, ctx: discord.ApplicationContext):
@@ -150,7 +154,8 @@ class AdminCog(commands.Cog, name="Admin"):
             ephemeral=True,
         )
 
-    @discord.slash_command(name="export", description="Export DB data as JSON (Admin/Mod)", description_localizations={"de": "DB-Daten als JSON exportieren (Admin/Mod)"})
+    @discord.slash_command(name="export", description="🔒 [Admin] Export DB data as JSON", description_localizations={"de": "🔒 [Admin] DB-Daten als JSON exportieren"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def cmd_export(
@@ -312,8 +317,9 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @discord.slash_command(
         name="reprocess",
-        description="Re-process one or more review messages by ID (Admin/Mod) – separate multiple IDs with spaces", description_localizations={"de": "Bewertungsnachricht(en) per ID neu verarbeiten (mehrere durch Leerzeichen trennen, Admin/Mod)"},
+        description="🔒 [Admin] Re-process review message(s) by ID – separate multiple IDs with spaces", description_localizations={"de": "🔒 [Admin] Bewertungsnachricht(en) per ID neu verarbeiten (mehrere per Leerzeichen)"},
     )
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def cmd_reprocess(

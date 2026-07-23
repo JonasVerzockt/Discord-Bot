@@ -43,8 +43,9 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
 
     shopmap = discord.SlashCommandGroup(
         "shopmap",
-        "Review-Bot: Shop-Text einer URL zuordnen (löst 🟡 auf)",
-        description_localizations={"de": "Review-Bot: Shop-Text einer URL zuordnen (löst 🟡 auf)"},
+        "🔒 [Admin] Review-Bot: Shop-Text einer URL zuordnen (löst 🟡 auf)",
+        description_localizations={"de": "🔒 [Admin] Review-Bot: Shop-Text einer URL zuordnen (löst 🟡 auf)"},
+        default_member_permissions=discord.Permissions(manage_messages=True),
     )
 
     @shopmap.command(
