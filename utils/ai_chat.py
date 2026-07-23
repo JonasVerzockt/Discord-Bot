@@ -258,6 +258,35 @@ def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0,
     )
 
 
+async def count_input_tokens(model: str, system: str, messages: list) -> Optional[int]:
+    """Exakte Input-Token-Anzahl via Anthropic count_tokens-Endpoint (kostenlos).
+    Gibt None zurück, wenn der Aufruf fehlschlaegt (dann Heuristik als Fallback)."""
+    try:
+        client = _get_client()
+        r = await client.messages.count_tokens(model=model, system=system, messages=messages)
+        return int(r.input_tokens)
+    except Exception as e:
+        logger.debug(f"[AI-Chat] count_tokens fehlgeschlagen ({e}) – nutze Heuristik")
+        return None
+
+
+async def list_available_models() -> Optional[set[str]]:
+    """Menge der fuer diesen API-Key verfuegbaren Modell-IDs (GET /v1/models).
+    None bei Fehler -> Aufrufer soll 'fail open' behandeln (alle zeigen)."""
+    try:
+        client = _get_client()
+        ids: set[str] = set()
+        page = await client.models.list(limit=1000)
+        for m in getattr(page, "data", []) or []:
+            mid = getattr(m, "id", None)
+            if mid:
+                ids.add(mid)
+        return ids or None
+    except Exception as e:
+        logger.warning(f"[AI-Chat] Modell-Liste konnte nicht geladen werden: {e}")
+        return None
+
+
 # ── Budget-Tracking ───────────────────────────────────────────────────────────
 
 def get_global_cost_today() -> float:
@@ -604,17 +633,10 @@ async def chat(
                 f"({len(history)} Einträge)"
             )
 
-    # 3. Pre-Budget-Check
     history_chars = sum(len(m.get("content", "") if isinstance(m.get("content"), str) else "") for m in history)
     num_images    = len(images) if images else 0
-    estimated     = estimate_cost(len(user_message), history_chars, num_images, model)
-    budget_ok, budget_msg = check_budget(user_id, estimated, user_lang)
-    if not budget_ok:
-        return {"ok": False, "answer": budget_msg, "cost": 0.0,
-                "history": [], "is_error": False,
-                "budget_exceeded": True, "estimated": estimated, "model": model}
 
-    # 4. Nachrichten für API zusammenstellen
+    # 3. Nachrichten für API zusammenstellen
     import base64 as _b64
     if images:
         user_content: list = []
@@ -672,8 +694,28 @@ async def chat(
         base_prompt
     )
 
-    # 6. API-Call (kein Prompt Caching: Haiku 4.5 benötigt min. 4.096 Tokens,
-    #    ein typischer System-Prompt hat ~50-200 Tokens – Minimum nie erreicht)
+    # 5. Pre-Budget-Check mit EXAKTER Token-Zählung (count_tokens); Fallback auf
+    #    die Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist. Output
+    #    wird konservativ mit dem Maximum angesetzt.
+    price_in, price_out = prices_for(model)
+    input_tokens = await count_input_tokens(model, system_prompt, messages)
+    if input_tokens is not None:
+        estimated = (
+            input_tokens * price_in
+            + cfg.AI_CHAT_MAX_OUTPUT_TOKENS * price_out
+            + precheck_cost
+        )
+    else:
+        estimated = estimate_cost(len(user_message), history_chars, num_images, model) + precheck_cost
+    budget_ok, budget_msg = check_budget(user_id, estimated, user_lang)
+    if not budget_ok:
+        if precheck_cost:
+            add_cost(user_id, precheck_cost)   # bereits verbrauchte Haiku-Vorklassifikation abrechnen
+        return {"ok": False, "answer": budget_msg, "cost": precheck_cost,
+                "history": [], "is_error": False,
+                "budget_exceeded": True, "estimated": estimated, "model": model}
+
+    # 6. API-Call (kein Prompt Caching: bei geringer Nutzung teurer als ohne)
     try:
         client   = _get_client()
         response = await client.messages.create(

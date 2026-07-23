@@ -45,6 +45,7 @@ from utils.ai_chat import (
     cleanup_expired_conversations,
     get_budget_status,
     get_user_model,
+    list_available_models,
     load_conversation,
     load_conversation_model,
     prices_for,
@@ -119,17 +120,27 @@ class ModelSelectView(discord.ui.View):
     ``timeout`` Sekunden ohne Auswahl loest der Aufrufer automatisch mit der
     Vorauswahl aus (``chosen`` bleibt = preselect)."""
 
-    def __init__(self, author_id: int, preselect_id: str, lang: str, timeout: float = 60):
+    def __init__(self, author_id: int, preselect_id: str, lang: str, timeout: float = 60,
+                 available: "set[str] | None" = None):
         super().__init__(timeout=timeout)
         self.author_id = author_id
         self.lang = lang
-        self.chosen = preselect_id      # Default (bei Timeout genutzt)
+        # Nur Registry-Modelle zeigen, die der API-Key wirklich freigeschaltet hat.
+        # available=None (Abruf fehlgeschlagen) -> fail open: alle zeigen.
+        shown = [m for m in AI_MODELS if not available or m["id"] in available] or AI_MODELS
         pre_meta = _resolve_model_meta(preselect_id)
+        if available and pre_meta["id"] not in available:
+            pre_meta = shown[0]
+        # Timeout-Default: konfigurierte/zuletzt gewaehlte Wahl, sofern verfuegbar,
+        # sonst erstes verfuegbares Modell.
+        self.chosen = (
+            preselect_id if (not available or preselect_id in available) else shown[0]["id"]
+        )
         select = discord.ui.Select(
             placeholder=l10n.get("ai_model_picker_placeholder", lang),
             min_values=1, max_values=1,
         )
-        for m in AI_MODELS:
+        for m in shown:
             select.add_option(
                 label=f"{m['label']} · {l10n.get(m['tier_key'], lang)}",
                 value=m["id"],
@@ -168,11 +179,27 @@ class AiChatCog(commands.Cog):
 
     def __init__(self, bot: discord.Bot) -> None:
         self.bot = bot
+        # Menge der fuer den API-Key verfuegbaren Modelle (None = noch nicht geprueft
+        # bzw. Abruf fehlgeschlagen -> Dropdown zeigt fail-open alle 4).
+        self._available_models: "set[str] | None" = None
         # ai_chat_budget / ai_chat_history werden zentral in utils/db.py:init_db() angelegt.
         # Hintergrundtasks starten
         self.cleanup_loop.start()
         self.shop_data_loop.start()
         logger.info("✅ AiChatCog geladen")
+
+    async def cog_load(self) -> None:
+        """Beim Laden die vom API-Key freigeschalteten Modelle abrufen, damit das
+        Dropdown nicht verfuegbare Modelle ausblendet (statt erst beim Absenden zu
+        scheitern). Schlaegt der Abruf fehl, bleibt es bei 'alle zeigen'."""
+        try:
+            self._available_models = await list_available_models()
+            if self._available_models is not None:
+                usable = [m["label"] for m in AI_MODELS if m["id"] in self._available_models]
+                logger.info(f"🤖 [AI-Chat] Verfügbare Modelle im Dropdown: {', '.join(usable) or '—'}")
+        except Exception as e:
+            logger.warning(f"[AI-Chat] Modell-Verfügbarkeit nicht ermittelbar: {e}")
+            self._available_models = None
 
     def cog_unload(self) -> None:
         self.cleanup_loop.cancel()
@@ -364,7 +391,10 @@ class AiChatCog(commands.Cog):
             # gewaehltes Modell des Users, sonst .env-Standard. Nach 60 s ohne
             # Auswahl läuft es automatisch mit der Vorauswahl.
             preselect = get_user_model(message.author.id) or cfg.AI_CHAT_MODEL
-            view = ModelSelectView(message.author.id, preselect, lang, timeout=60)
+            view = ModelSelectView(
+                message.author.id, preselect, lang, timeout=60,
+                available=self._available_models,
+            )
             picker = await message.reply(
                 l10n.get("ai_model_picker_prompt", lang), view=view
             )
