@@ -143,11 +143,19 @@ class ModelSelectView(discord.ui.View):
         # Kein Discord-'default' setzen: eine bereits vorausgewaehlte Option loest
         # beim Anklicken KEIN Event aus (man muesste sonst 60 s warten). Stattdessen
         # die Vorauswahl nur mit ⭐ hervorheben – jeder Klick loest dann sofort aus.
-        hint = l10n.get("ai_model_preselect_hint", lang)
+        # Zusaetzlich das empfohlene Modell (unabhaengig von der Vorauswahl) mit 👍.
+        hint     = l10n.get("ai_model_preselect_hint", lang)
+        rec_hint = l10n.get("ai_model_recommended_hint", lang)
+        rec_id   = cfg.AI_CHAT_RECOMMENDED_MODEL
         for m in shown:
             label = f"{m['label']} · {l10n.get(m['tier_key'], lang)}"
+            marks = []
             if m["id"] == pre_meta["id"]:
-                label += f" · ⭐ {hint}"
+                marks.append(f"⭐ {hint}")
+            if rec_id and m["id"] == rec_id:
+                marks.append(f"👍 {rec_hint}")
+            if marks:
+                label += " · " + " · ".join(marks)
             select.add_option(
                 label=label,
                 value=m["id"],

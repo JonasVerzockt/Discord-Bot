@@ -28,7 +28,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.2.6"
+VERSION = "1.2.7"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -87,6 +87,9 @@ COMMAND_LOG_RETENTION_DAYS = int(os.getenv("COMMAND_LOG_RETENTION_DAYS", "365"))
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)
 AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-4-5-20251001")
+# Im Modell-Dropdown mit 👍 als Empfehlung markiertes Modell – unabhängig von der
+# Vorauswahl (AI_CHAT_MODEL / zuletzt gewählt). Leer = keine Empfehlung anzeigen.
+AI_CHAT_RECOMMENDED_MODEL = os.getenv("AI_CHAT_RECOMMENDED_MODEL", "claude-sonnet-5")
 # Modell für die Stufe-2-Shop-Relevanz-Klassifikation (günstiges Haiku).
 AI_CHAT_CLASSIFY_MODEL = os.getenv("AI_CHAT_CLASSIFY_MODEL", "claude-haiku-4-5-20251001")
 
