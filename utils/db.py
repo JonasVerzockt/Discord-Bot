@@ -301,11 +301,19 @@ CREATE TABLE IF NOT EXISTS ai_chat_history (
     channel_id   INTEGER NOT NULL,
     history_json TEXT    NOT NULL,
     created_at   TEXT    NOT NULL,
-    expires_at   TEXT    NOT NULL
+    expires_at   TEXT    NOT NULL,
+    model        TEXT    DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_history_expires
     ON ai_chat_history (expires_at);
+
+-- KI-Chat: zuletzt gewaehltes Modell pro User (fuer Vorauswahl im Dropdown)
+CREATE TABLE IF NOT EXISTS ai_chat_user_model (
+    user_id    INTEGER PRIMARY KEY,
+    model      TEXT    NOT NULL,
+    updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 
 -- Rabattcode-Tracker: bereits an Haiku geschickte Nachrichten (nur einmal parsen)
 CREATE TABLE IF NOT EXISTS discount_scanned (
@@ -408,6 +416,7 @@ _MIGRATIONS = [
     ("discount_codes", "status_override", "ALTER TABLE discount_codes ADD COLUMN status_override TEXT"),
     ("user_price_tracking", "target_price", "ALTER TABLE user_price_tracking ADD COLUMN target_price REAL"),
     ("user_price_tracking", "target_mode",  "ALTER TABLE user_price_tracking ADD COLUMN target_mode TEXT"),
+    ("ai_chat_history",     "model",         "ALTER TABLE ai_chat_history ADD COLUMN model TEXT DEFAULT ''"),
 ]
 
 

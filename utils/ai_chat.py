@@ -81,25 +81,32 @@ _MODEL_PRICES: dict[str, tuple[float, float]] = {
     "claude-opus-4-6":           (5.00 / 1_000_000, 25.00 / 1_000_000),
     "claude-opus-4-7":           (5.00 / 1_000_000, 25.00 / 1_000_000),
     "claude-opus-4-8":           (5.00 / 1_000_000, 25.00 / 1_000_000),
+    # Fable 5 (Top-Tier, $10/$50 lt. offizieller Preisliste)
+    "claude-fable-5":            (10.00 / 1_000_000, 50.00 / 1_000_000),
     # Opus 4.1 (deprecated) + Opus 4 (retired) – alte Preisstruktur: $15/$75
     "claude-opus-4-1":           (15.00 / 1_000_000, 75.00 / 1_000_000),
     "claude-opus-4":             (15.00 / 1_000_000, 75.00 / 1_000_000),
 }
-# Fallback: passendes Preisniveau anhand Modellname erraten
-def _get_prices() -> tuple[float, float]:
-    model = cfg.AI_CHAT_MODEL.lower()
-    if model in _MODEL_PRICES:
-        return _MODEL_PRICES[model]
-    if "opus" in model:
-        # Opus 4.5+ kostet $5/$25 – aeltere Versionen $15/$75
-        # Im Zweifel neuere Preise nehmen (konservativ für Budget-Check)
+
+
+def prices_for(model: str) -> tuple[float, float]:
+    """Preis (Input, Output) pro Token für ein Modell. Fallback ueber Namensfamilie
+    (konservativ = teureres Niveau), damit der Budget-Check nie zu niedrig schaetzt."""
+    m = (model or "").lower()
+    if m in _MODEL_PRICES:
+        return _MODEL_PRICES[m]
+    if "fable" in m or "mythos" in m:
+        return (10.00 / 1_000_000, 50.00 / 1_000_000)
+    if "opus" in m:
         return (5.00 / 1_000_000, 25.00 / 1_000_000)
-    if "sonnet" in model:
+    if "sonnet" in m:
         return (3.00 / 1_000_000, 15.00 / 1_000_000)
-    # Default: Haiku-Preise
     return (1.00 / 1_000_000, 5.00 / 1_000_000)
 
-PRICE_INPUT,  PRICE_OUTPUT = _get_prices()
+
+# Preis des in der .env konfigurierten Standardmodells (Default, wenn kein Modell
+# explizit uebergeben wird). Pro-Anfrage wird immer prices_for(model) genutzt.
+PRICE_INPUT,  PRICE_OUTPUT = prices_for(cfg.AI_CHAT_MODEL)
 
 # ── Anthropic-Client (Singleton) ──────────────────────────────────────────────
 _client: Optional[anthropic.AsyncAnthropic] = None
@@ -213,36 +220,41 @@ def _db() -> sqlite3.Connection:
     return con
 
 
-def calculate_cost(usage) -> float:
+def calculate_cost(usage, model: str | None = None) -> float:
     """
     Berechnet die tatsächlichen Kosten aus dem Anthropic-Usage-Objekt.
     Kein explizites Caching aktiv – nur regulaere Input- und Output-Tokens.
     Cache-Felder werden defensiv mitgelesen falls Anthropic intern etwas cachet.
+    ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
+    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
     cache_write = getattr(usage, "cache_creation_input_tokens", 0)
     cache_hit   = getattr(usage, "cache_read_input_tokens", 0)
     regular_in  = max(0, usage.input_tokens - cache_write - cache_hit)
     # Alle Input-Varianten zum gleichen Preis (kein Cache aktiv)
     return (
-        (regular_in + cache_write + cache_hit) * PRICE_INPUT
-        + usage.output_tokens * PRICE_OUTPUT
+        (regular_in + cache_write + cache_hit) * price_in
+        + usage.output_tokens * price_out
     )
 
 
-def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0) -> float:
+def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0,
+                  model: str | None = None) -> float:
     """
     Grobe Kostenschaetzung VOR dem API-Call.
     Wird für den Pre-Budget-Check verwendet (konservativ: 3.5 Zeichen = 1 Token).
     Kein Caching – System-Prompt wird als normaler Input gezaehlt.
     Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
+    ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
+    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
     # Konservative Schaetzung: laengsten verfügbaren Prompt nehmen
     system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=0) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
     image_tokens  = num_images * 1500
     return (
-        (system_tokens + input_tokens + image_tokens) * PRICE_INPUT
-        + cfg.AI_CHAT_MAX_OUTPUT_TOKENS               * PRICE_OUTPUT
+        (system_tokens + input_tokens + image_tokens) * price_in
+        + cfg.AI_CHAT_MAX_OUTPUT_TOKENS               * price_out
     )
 
 
@@ -373,10 +385,12 @@ def save_conversation(
     user_id: int,
     channel_id: int,
     history: list,
+    model: str = "",
 ) -> None:
     """
     Speichert die Konversations-Historie für eine Bot-Message-ID.
     Wird NACH dem Senden der Bot-Antwort aufgerufen (dann kennen wir die ID).
+    ``model`` = das für diese Antwort genutzte Modell (fuer Reply-Fortsetzung).
     """
     expires = (
         datetime.now(timezone.utc)
@@ -385,8 +399,8 @@ def save_conversation(
     with _db() as con:
         con.execute(
             """INSERT OR REPLACE INTO ai_chat_history
-               (message_id, user_id, channel_id, history_json, created_at, expires_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (message_id, user_id, channel_id, history_json, created_at, expires_at, model)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 bot_message_id,
                 user_id,
@@ -394,6 +408,7 @@ def save_conversation(
                 json.dumps(history, ensure_ascii=False),
                 datetime.now(timezone.utc).isoformat(),
                 expires,
+                model or "",
             ),
         )
 
@@ -411,6 +426,43 @@ def load_conversation(bot_message_id: int) -> Optional[list]:
             (bot_message_id, now),
         ).fetchone()
     return json.loads(row[0]) if row else None
+
+
+def load_conversation_model(bot_message_id: int) -> Optional[str]:
+    """
+    Gibt das für eine Bot-Antwort verwendete Modell zurück (fuer Reply-Fortsetzung
+    mit demselben Modell). None, wenn keine/abgelaufene Historie oder kein Modell.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    with _db() as con:
+        row = con.execute(
+            """SELECT model FROM ai_chat_history
+               WHERE message_id=? AND expires_at > ?""",
+            (bot_message_id, now),
+        ).fetchone()
+    return (row[0] or None) if row else None
+
+
+def get_user_model(user_id: int) -> Optional[str]:
+    """Zuletzt vom User gewaehltes Modell (fuer die Dropdown-Vorauswahl)."""
+    with _db() as con:
+        row = con.execute(
+            "SELECT model FROM ai_chat_user_model WHERE user_id=?",
+            (user_id,),
+        ).fetchone()
+    return (row[0] or None) if row else None
+
+
+def set_user_model(user_id: int, model: str) -> None:
+    """Merkt sich das zuletzt gewaehlte Modell eines Users."""
+    with _db() as con:
+        con.execute(
+            """INSERT INTO ai_chat_user_model (user_id, model, updated_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                   model=excluded.model, updated_at=excluded.updated_at""",
+            (user_id, model, datetime.now(timezone.utc).isoformat()),
+        )
 
 
 def cleanup_expired_conversations() -> int:
@@ -481,6 +533,7 @@ async def chat(
     channel_id: int = 0,
     images: Optional[list[tuple[bytes, str]]] = None,
     user_lang: str = "en",
+    model: Optional[str] = None,
 ) -> dict:
     """
     Sendet eine Nachricht an das konfigurierte Claude-Modell.
@@ -509,11 +562,14 @@ async def chat(
         is_error (bool)  – True bei technischem Fehler (nicht Budget-Problem)
     """
 
+    # 0. Modell bestimmen (Default: konfiguriertes .env-Modell)
+    model = model or cfg.AI_CHAT_MODEL
+
     # 1. Eingabe validieren
     ok, _reason = validate_input(user_message)
     if not ok:
         return {"ok": False, "answer": l10n.get("ai_err_empty", user_lang), "cost": 0.0,
-                "history": [], "is_error": False}
+                "history": [], "is_error": False, "model": model}
 
     user_message = user_message.strip()
 
@@ -531,7 +587,7 @@ async def chat(
     # 3. Pre-Budget-Check
     history_chars = sum(len(m.get("content", "") if isinstance(m.get("content"), str) else "") for m in history)
     num_images    = len(images) if images else 0
-    estimated     = estimate_cost(len(user_message), history_chars, num_images)
+    estimated     = estimate_cost(len(user_message), history_chars, num_images, model)
     budget_ok, budget_msg = check_budget(user_id, estimated, user_lang)
     if not budget_ok:
         return {"ok": False, "answer": budget_msg, "cost": 0.0,
@@ -600,7 +656,7 @@ async def chat(
     try:
         client   = _get_client()
         response = await client.messages.create(
-            model=cfg.AI_CHAT_MODEL,
+            model=model,
             max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
             system=system_prompt,
             messages=messages,
@@ -633,8 +689,8 @@ async def chat(
         block.text for block in response.content if hasattr(block, "text")
     ) or l10n.get("ai_no_answer", user_lang)
 
-    # 8. Tatsächliche Kosten tracken (Sonnet-Call + Haiku-Precheck falls vorhanden)
-    actual_cost = calculate_cost(response.usage) + precheck_cost
+    # 8. Tatsächliche Kosten tracken (gewaehltes Modell + Haiku-Precheck falls vorhanden)
+    actual_cost = calculate_cost(response.usage, model) + precheck_cost
     add_cost(user_id, actual_cost)
 
     logger.info(
@@ -658,4 +714,5 @@ async def chat(
         "cost":     actual_cost,
         "history":  new_history,
         "is_error": False,
+        "model":    model,
     }

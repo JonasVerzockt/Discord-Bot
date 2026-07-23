@@ -44,8 +44,11 @@ from utils.ai_chat import (
     chunk_discord,
     cleanup_expired_conversations,
     get_budget_status,
+    get_user_model,
     load_conversation,
+    load_conversation_model,
     save_conversation,
+    set_user_model,
 )
 from utils.sheets_shop_data import refresh as refresh_shop_data
 
@@ -58,6 +61,87 @@ def _bar(pct: float, width: int = 10) -> str:
     """Erzeugt einen einfachen Textfortschrittsbalken."""
     filled = round(min(100.0, max(0.0, pct)) / 100 * width)
     return "█" * filled + "░" * (width - filled)
+
+
+# ── Modell-Auswahl (Dropdown) ─────────────────────────────────────────────────
+# Reihenfolge: billig -> teuer. Farbe signalisiert die Kostenstufe.
+# tier_key/desc_key sind l10n-Schluessel (uebersetzt in de/en/eo).
+AI_MODELS = [
+    {"id": "claude-haiku-4-5-20251001", "label": "Haiku 4.5", "emoji": "🟢",
+     "tier_key": "ai_tier_very_cheap",     "desc_key": "ai_model_desc_haiku"},
+    {"id": "claude-sonnet-5",           "label": "Sonnet 5", "emoji": "🟡",
+     "tier_key": "ai_tier_cheap",          "desc_key": "ai_model_desc_sonnet"},
+    {"id": "claude-opus-4-8",           "label": "Opus 4.8", "emoji": "🟠",
+     "tier_key": "ai_tier_expensive",      "desc_key": "ai_model_desc_opus"},
+    {"id": "claude-fable-5",            "label": "Fable 5",  "emoji": "🔴",
+     "tier_key": "ai_tier_very_expensive", "desc_key": "ai_model_desc_fable"},
+]
+_AI_MODELS_BY_ID = {m["id"]: m for m in AI_MODELS}
+
+
+def _resolve_model_meta(model_id: str) -> dict:
+    """Registry-Eintrag zu einem Modell. Familien-Fallback fuer .env-Werte, die
+    nicht exakt einer der vier IDs entsprechen (z. B. aeltere Sonnet-Version)."""
+    if model_id in _AI_MODELS_BY_ID:
+        return _AI_MODELS_BY_ID[model_id]
+    m = (model_id or "").lower()
+    for key, mid in (("fable", "claude-fable-5"), ("opus", "claude-opus-4-8"),
+                     ("sonnet", "claude-sonnet-5"), ("haiku", "claude-haiku-4-5-20251001")):
+        if key in m:
+            return _AI_MODELS_BY_ID[mid]
+    return AI_MODELS[0]  # Fallback: guenstigstes Modell
+
+
+def _model_footer(model_id: str, lang: str) -> str:
+    """Footer-Baustein: 'Modellname · 🟡 Kostenstufe'."""
+    meta = _resolve_model_meta(model_id)
+    return f"🤖 {meta['label']} · {meta['emoji']} {l10n.get(meta['tier_key'], lang)}"
+
+
+class ModelSelectView(discord.ui.View):
+    """Loeschendes Dropdown zur Modellwahl (nur der Fragesteller darf waehlen).
+
+    Vorauswahl = zuletzt gewaehltes Modell des Users bzw. .env-Standard. Nach
+    ``timeout`` Sekunden ohne Auswahl loest der Aufrufer automatisch mit der
+    Vorauswahl aus (``chosen`` bleibt = preselect)."""
+
+    def __init__(self, author_id: int, preselect_id: str, lang: str, timeout: float = 60):
+        super().__init__(timeout=timeout)
+        self.author_id = author_id
+        self.lang = lang
+        self.chosen = preselect_id      # Default (bei Timeout genutzt)
+        pre_meta = _resolve_model_meta(preselect_id)
+        select = discord.ui.Select(
+            placeholder=l10n.get("ai_model_picker_placeholder", lang),
+            min_values=1, max_values=1,
+        )
+        for m in AI_MODELS:
+            select.add_option(
+                label=f"{m['label']} · {l10n.get(m['tier_key'], lang)}",
+                value=m["id"],
+                description=l10n.get(m["desc_key"], lang),
+                emoji=m["emoji"],
+                default=(m["id"] == pre_meta["id"]),
+            )
+        select.callback = self._on_select
+        self._select = select
+        self.add_item(select)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message(
+                l10n.get("ai_model_not_yours", self.lang), ephemeral=True
+            )
+            return False
+        return True
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        self.chosen = self._select.values[0]
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        self.stop()
 
 
 # ── Cog ───────────────────────────────────────────────────────────────────────
@@ -253,6 +337,34 @@ class AiChatCog(commands.Cog):
         # Vorherige Bot-Antwort-ID (für Konversations-Fortsetzung)
         prev_id = self._get_prev_bot_msg_id(message)
 
+        # ── Modell bestimmen ────────────────────────────────────────────────
+        if prev_id:
+            # Fortsetzung (Reply): dasselbe Modell wie die Ursprungsantwort.
+            model = (
+                load_conversation_model(prev_id)
+                or get_user_model(message.author.id)
+                or cfg.AI_CHAT_MODEL
+            )
+        else:
+            # Neue Anfrage: löschendes Dropdown zeigen. Vorauswahl = zuletzt
+            # gewaehltes Modell des Users, sonst .env-Standard. Nach 60 s ohne
+            # Auswahl läuft es automatisch mit der Vorauswahl.
+            preselect = get_user_model(message.author.id) or cfg.AI_CHAT_MODEL
+            view = ModelSelectView(message.author.id, preselect, lang, timeout=60)
+            picker = await message.reply(
+                l10n.get("ai_model_picker_prompt", lang), view=view
+            )
+            await view.wait()
+            model = view.chosen or preselect
+            try:
+                set_user_model(message.author.id, model)   # Wahl merken
+            except Exception:
+                pass
+            try:
+                await picker.delete()                       # Dropdown aufräumen
+            except Exception:
+                pass
+
         # Typing-Indikator waehrend der API-Call laeuft
         async with message.channel.typing():
             result = await chat(
@@ -262,11 +374,15 @@ class AiChatCog(commands.Cog):
                 channel_id=message.channel.id,
                 images=images or None,
                 user_lang=lang,
+                model=model,
             )
 
-        # Disclaimer (inkl. tatsächliche Kosten) an Antwort anhaengen
-        cost_str  = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
-        cost_part = f" · 💰 {cost_str}" if cost_str else ""
+        # Disclaimer (inkl. Modell-Kennzeichnung + tatsächliche Kosten) anhaengen
+        used_model = result.get("model") or model
+        cost_str   = f"${result['cost']:.5f}" if result["cost"] > 0 else ""
+        cost_part  = f" · {_model_footer(used_model, lang)}"
+        if cost_str:
+            cost_part += f" · 💰 {cost_str}"
         disclaimer = l10n.get("ai_disclaimer", lang, cost_part=cost_part)
         answer_with_disclaimer = result["answer"] + disclaimer
 
@@ -297,6 +413,7 @@ class AiChatCog(commands.Cog):
                 user_id=message.author.id,
                 channel_id=message.channel.id,
                 history=result["history"],
+                model=used_model,
             )
 
     # ── Slash Commands ────────────────────────────────────────────────────────
