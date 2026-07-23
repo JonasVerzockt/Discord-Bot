@@ -301,11 +301,31 @@ CREATE TABLE IF NOT EXISTS ai_chat_history (
     channel_id   INTEGER NOT NULL,
     history_json TEXT    NOT NULL,
     created_at   TEXT    NOT NULL,
-    expires_at   TEXT    NOT NULL
+    expires_at   TEXT    NOT NULL,
+    model        TEXT    DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_history_expires
     ON ai_chat_history (expires_at);
+
+-- KI-Chat: zuletzt gewaehltes Modell pro User (fuer Vorauswahl im Dropdown)
+CREATE TABLE IF NOT EXISTS ai_chat_user_model (
+    user_id    INTEGER PRIMARY KEY,
+    model      TEXT    NOT NULL,
+    updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- KI-Chat: kumulierte Ausgaben pro User je Zeitraum (Tag/Woche/Monat/Jahr).
+-- Reines Ledger fuer den DSGVO-Datenexport – KEINE Abfrage-Befehle darauf.
+-- period_type: 'day'|'week'|'month'|'year'; period_key z.B. 2026-07-23 / 2026-W30 / 2026-07 / 2026
+CREATE TABLE IF NOT EXISTS ai_chat_user_spend (
+    user_id     INTEGER NOT NULL,
+    period_type TEXT    NOT NULL,
+    period_key  TEXT    NOT NULL,
+    cost_usd    REAL    NOT NULL DEFAULT 0,
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, period_type, period_key)
+);
 
 -- Rabattcode-Tracker: bereits an Haiku geschickte Nachrichten (nur einmal parsen)
 CREATE TABLE IF NOT EXISTS discount_scanned (
@@ -408,6 +428,7 @@ _MIGRATIONS = [
     ("discount_codes", "status_override", "ALTER TABLE discount_codes ADD COLUMN status_override TEXT"),
     ("user_price_tracking", "target_price", "ALTER TABLE user_price_tracking ADD COLUMN target_price REAL"),
     ("user_price_tracking", "target_mode",  "ALTER TABLE user_price_tracking ADD COLUMN target_mode TEXT"),
+    ("ai_chat_history",     "model",         "ALTER TABLE ai_chat_history ADD COLUMN model TEXT DEFAULT ''"),
 ]
 
 

@@ -111,6 +111,8 @@ Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Da
 | Daten | Zweck | Speicherort |
 |-------|-------|-------------|
 | Discord User-ID | Budget-Tracking (Tagesbudget pro User) | Lokale SQLite-Datenbank auf dem Server |
+| KI-Ausgaben-Ledger (User-ID + Kosten pro Tag/Woche/Monat/Jahr) | Nachvollziehbarkeit der eigenen KI-Nutzungskosten (nur im persönlichen Datenexport einsehbar) | Lokale SQLite-Datenbank auf dem Server |
+| Zuletzt gewähltes KI-Modell | Vorauswahl im Modell-Dropdown | Lokale SQLite-Datenbank auf dem Server |
 | Gesprächsverlauf (Nachrichten und KI-Antworten) | Konversationsgedächtnis für Anschlussfragen (per Discord-Reply) | Lokale SQLite-Datenbank auf dem Server, automatisch gelöscht nach 24 Stunden |
 | Bildanhänge (jpg, png, gif, webp, max. 4 MB) | Bildanalyse durch die KI | Werden einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
 | Textdateianhänge (txt, md, csv, log, max. 10 KB) | Analyse durch die KI | Inhalt wird einmalig an Anthropic API übermittelt, nicht lokal gespeichert |
