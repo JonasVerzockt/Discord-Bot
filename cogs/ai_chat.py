@@ -140,13 +140,20 @@ class ModelSelectView(discord.ui.View):
             placeholder=l10n.get("ai_model_picker_placeholder", lang),
             min_values=1, max_values=1,
         )
+        # Kein Discord-'default' setzen: eine bereits vorausgewaehlte Option loest
+        # beim Anklicken KEIN Event aus (man muesste sonst 60 s warten). Stattdessen
+        # die Vorauswahl nur mit ⭐ hervorheben – jeder Klick loest dann sofort aus.
+        hint = l10n.get("ai_model_preselect_hint", lang)
         for m in shown:
+            label = f"{m['label']} · {l10n.get(m['tier_key'], lang)}"
+            if m["id"] == pre_meta["id"]:
+                label += f" · ⭐ {hint}"
             select.add_option(
-                label=f"{m['label']} · {l10n.get(m['tier_key'], lang)}",
+                label=label,
                 value=m["id"],
                 description=l10n.get(m["desc_key"], lang),
                 emoji=m["emoji"],
-                default=(m["id"] == pre_meta["id"]),
+                default=False,
             )
         select.callback = self._on_select
         self._select = select

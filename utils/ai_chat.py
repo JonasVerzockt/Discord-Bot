@@ -698,13 +698,12 @@ async def chat(
     #    die Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist. Output
     #    wird konservativ mit dem Maximum angesetzt.
     price_in, price_out = prices_for(model)
+    # Output realistisch ansetzen (Antworten liegen meist unter dem Maximum) statt
+    # immer das Maximum -> vermeidet stark ueberhoehte Schaetzungen / Fehl-Blocks.
+    est_output_tokens = cfg.AI_CHAT_MAX_OUTPUT_TOKENS * cfg.AI_CHAT_BUDGET_OUTPUT_RATIO
     input_tokens = await count_input_tokens(model, system_prompt, messages)
     if input_tokens is not None:
-        estimated = (
-            input_tokens * price_in
-            + cfg.AI_CHAT_MAX_OUTPUT_TOKENS * price_out
-            + precheck_cost
-        )
+        estimated = input_tokens * price_in + est_output_tokens * price_out + precheck_cost
     else:
         estimated = estimate_cost(len(user_message), history_chars, num_images, model) + precheck_cost
     budget_ok, budget_msg = check_budget(user_id, estimated, user_lang)
