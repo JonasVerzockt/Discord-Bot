@@ -49,7 +49,8 @@ class StatsCog(commands.Cog, name="Stats"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="stats", description="Show bot statistics (Admin/Mod)", description_localizations={"de": "Bot-Statistiken anzeigen (Admin/Mod)"})
+    @discord.slash_command(name="stats", description="🔒 [Admin] Show bot statistics", description_localizations={"de": "🔒 [Admin] Bot-Statistiken anzeigen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def stats(self, ctx: discord.ApplicationContext):
@@ -93,7 +94,8 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ stats error: {e}")
             await ctx.respond(l10n.get("stats_error", lang))
 
-    @discord.slash_command(name="system", description="Show system and bot status (Admin/Mod)", description_localizations={"de": "System- und Bot-Status anzeigen (Admin/Mod)"})
+    @discord.slash_command(name="system", description="🔒 [Admin] Show system and bot status", description_localizations={"de": "🔒 [Admin] System- und Bot-Status anzeigen"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def system(self, ctx: discord.ApplicationContext):
@@ -162,47 +164,62 @@ class StatsCog(commands.Cog, name="Stats"):
             logger.error(f"❌ system error: {e}")
             await ctx.respond(l10n.get("system_error", lang), ephemeral=True)
 
+    @staticmethod
+    def _member_is_admin(member) -> bool:
+        """True, wenn das Mitglied 'Administrator' oder 'Nachrichten verwalten' hat
+        (gleiche Definition wie admin_or_manage_messages())."""
+        perms = getattr(member, "guild_permissions", None)
+        return bool(perms and (perms.administrator or perms.manage_messages))
+
+    _HELP_USER_KEYS = [
+        "help_notification", "help_history", "help_test", "help_delete",
+        "help_usersetting", "help_ch_delivery",
+        "help_sells",
+        "help_offers",
+        "help_track_price", "help_my_price_tracking", "help_untrack_price",
+        "help_price_history",
+        "help_set_target",
+        "help_achievements",
+        "help_codes",
+        "help_digest",
+    ]
+    _HELP_ADMIN_KEYS = [
+        "help_startup", "help_status", "help_pending",
+        "help_rescan", "help_reprocess", "help_export",
+        "help_stats", "help_system",
+        "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
+        "help_codes_set", "help_codes_rescan",
+        "help_command_log",
+    ]
+    _HELP_AI_KEYS = [
+        "help_ai_chat",
+        "help_test_admin",
+        "help_ai_reset",
+        "help_ai_prompt",
+    ]
+
     def _build_help_text(self, lang: str) -> str:
-        """Baut den vollständigen Hilfetext (genutzt von /help und !help)."""
-        user_keys = [
-            "help_notification", "help_history", "help_test", "help_delete",
-            "help_usersetting", "help_ch_delivery",
-            "help_sells",
-            "help_offers",
-            "help_track_price", "help_my_price_tracking", "help_untrack_price",
-            "help_price_history",
-            "help_set_target",
-            "help_achievements",
-            "help_codes",
-            "help_digest",
-        ]
-        admin_keys = [
-            "help_startup", "help_status", "help_pending",
-            "help_rescan", "help_reprocess", "help_export",
-            "help_stats", "help_system",
-            "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
-            "help_codes_set", "help_codes_rescan",
-            "help_command_log",
-        ]
-        ai_keys = [
-            "help_ai_chat",
-            "help_test_admin",
-            "help_ai_reset",
-            "help_ai_prompt",
-        ]
-        user_commands  = "\n".join(l10n.get(k, lang) for k in user_keys)
-        admin_commands = "\n".join(l10n.get(k, lang) for k in admin_keys)
+        """Baut den öffentlichen Hilfetext (User-Befehle + ggf. KI-Sektion).
+
+        Enthält bewusst KEINEN Admin-Abschnitt – der wird separat und nur
+        ephemer an Berechtigte ausgeliefert (siehe ``_build_admin_help_text``)."""
+        user_commands = "\n".join(l10n.get(k, lang) for k in self._HELP_USER_KEYS)
         if AI_CHAT_PUBLIC:
-            ai_commands = "\n".join(l10n.get(k, lang) for k in ai_keys)
+            ai_commands = "\n".join(l10n.get(k, lang) for k in self._HELP_AI_KEYS)
             ai_section  = l10n.get("help_ai_section", lang, ai_commands=ai_commands)
         else:
             ai_section = ""
         return l10n.get(
             "help_full", lang,
             user_commands=user_commands,
-            admin_commands=admin_commands,
+            admin_section="",
             ai_section=ai_section,
         )
+
+    def _build_admin_help_text(self, lang: str) -> str:
+        """Baut nur den Admin-Abschnitt (für ephemere Auslieferung an Berechtigte)."""
+        admin_commands = "\n".join(l10n.get(k, lang) for k in self._HELP_ADMIN_KEYS)
+        return l10n.get("help_admin_section", lang, admin_commands=admin_commands).lstrip("\n")
 
     @staticmethod
     def _help_chunks(text: str, limit: int = 4000) -> list[str]:
@@ -218,10 +235,18 @@ class StatsCog(commands.Cog, name="Stats"):
         return chunks or [text]
 
     def _build_help_embeds(self, lang: str) -> list:
-        """Baut die Hilfe als eine oder mehrere Embeds (umgeht das 2000-Zeichen-Limit)."""
+        """Baut die öffentliche Hilfe als eine oder mehrere Embeds (2000er-Limit)."""
         text = self._build_help_text(lang)
         return [
             discord.Embed(description=chunk, color=EMBED_COLOR)
+            for chunk in self._help_chunks(text)
+        ]
+
+    def _build_admin_help_embeds(self, lang: str) -> list:
+        """Baut den Admin-Abschnitt als Embeds (für ephemere Auslieferung)."""
+        text = self._build_admin_help_text(lang)
+        return [
+            discord.Embed(description=chunk, color=ADMIN_COLOR)
             for chunk in self._help_chunks(text)
         ]
 
@@ -229,10 +254,15 @@ class StatsCog(commands.Cog, name="Stats"):
     @allowed_channel()
     async def help_cmd(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        # Öffentlicher Teil (User-Befehle) – für alle im Kanal sichtbar.
         embeds = self._build_help_embeds(lang)
         await ctx.respond(embed=embeds[0])
         for embed in embeds[1:]:
             await ctx.followup.send(embed=embed)
+        # Admin-Befehle NUR ephemer und NUR an Berechtigte (nicht öffentlich).
+        if self._member_is_admin(ctx.author):
+            for embed in self._build_admin_help_embeds(lang):
+                await ctx.followup.send(embed=embed, ephemeral=True)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -253,6 +283,8 @@ class StatsCog(commands.Cog, name="Stats"):
             if rows and rows[0]["channel_id"] is not None and message.channel.id != rows[0]["channel_id"]:
                 return
             lang = await get_user_lang(self.bot, message.author.id, message.guild.id)
+            # Text-Befehl kann nicht ephemer antworten -> nur der öffentliche Teil
+            # (User-Befehle). Admin-Befehle bleiben dem /help-Befehl vorbehalten.
             embeds = self._build_help_embeds(lang)
             try:
                 await message.reply(embed=embeds[0], mention_author=False)

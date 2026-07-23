@@ -50,7 +50,8 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         self.bot = bot
 
     # ── /reloadshops ──────────────────────────────────────────────────────────
-    @discord.slash_command(name="reloadshops", description="Reload shop data from JSON file (Admin/Mod)", description_localizations={"de": "Shop-Daten aus JSON-Datei neu laden (Admin/Mod)"})
+    @discord.slash_command(name="reloadshops", description="🔒 [Admin] Reload shop data from JSON file", description_localizations={"de": "🔒 [Admin] Shop-Daten aus JSON-Datei neu laden"})
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def reloadshops(self, ctx: discord.ApplicationContext):
@@ -79,7 +80,8 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     # ── /shopmapping ──────────────────────────────────────────────────────────
     shopmapping = discord.SlashCommandGroup(
         name="shopmapping",
-        description="Manage shop name mappings for Google Sheets imports", description_localizations={"de": "Shopnamen-Zuordnungen für Google-Sheets-Importe verwalten"},
+        description="🔒 [Admin] Manage shop name mappings for Google Sheets imports", description_localizations={"de": "🔒 [Admin] Shopnamen-Zuordnungen für Google-Sheets-Importe verwalten"},
+        default_member_permissions=discord.Permissions(manage_messages=True),
     )
 
     @shopmapping.command(name="add", description="Add an external shop name → shop ID mapping", description_localizations={"de": "Externen Shopnamen einer internen Shop-ID zuordnen"})
@@ -262,7 +264,8 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     # ── /shopurl ──────────────────────────────────────────────────────────────
     shopurl = discord.SlashCommandGroup(
         name="shopurl",
-        description="Manually override a shop URL (when the API returns a wrong URL)", description_localizations={"de": "Shop-URL manuell überschreiben (wenn die API eine falsche URL liefert)"},
+        description="🔒 [Admin] Manually override a shop URL (when the API returns a wrong URL)", description_localizations={"de": "🔒 [Admin] Shop-URL manuell überschreiben (wenn die API eine falsche URL liefert)"},
+        default_member_permissions=discord.Permissions(manage_messages=True),
     )
 
     @shopurl.command(name="set", description="Set a manual URL for a shop", description_localizations={"de": "Manuelle URL für einen Shop setzen"})

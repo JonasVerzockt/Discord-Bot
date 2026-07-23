@@ -344,8 +344,9 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_reset",
-        description="(Admin) Reset a user or the global budget", description_localizations={"de": "(Admin) Budget eines Users oder global zurücksetzen"},
+        description="🔒 [Admin] Reset a user or the global budget", description_localizations={"de": "🔒 [Admin] Budget eines Users oder global zurücksetzen"},
     )
+    @discord.default_permissions(manage_messages=True)
     @commands.has_permissions(manage_messages=True)
     @commands.guild_only()
     @allowed_channel()
@@ -381,8 +382,9 @@ class AiChatCog(commands.Cog):
 
     @discord.slash_command(
         name="ai_prompt",
-        description="(Admin) Show the current AI chat system prompt", description_localizations={"de": "(Admin) Aktuellen System-Prompt des KI-Chats anzeigen"},
+        description="🔒 [Admin] Show the current AI chat system prompt", description_localizations={"de": "🔒 [Admin] Aktuellen System-Prompt des KI-Chats anzeigen"},
     )
+    @discord.default_permissions(manage_messages=True)
     @commands.has_permissions(manage_messages=True)
     @commands.guild_only()
     @allowed_channel()

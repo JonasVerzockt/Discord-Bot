@@ -82,9 +82,10 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
 
     @discord.slash_command(
         name="command_log",
-        description="(Admin) Show a user's command usage log",
-        description_localizations={"de": "(Admin) Befehls-Nutzungsprotokoll eines Users anzeigen"},
+        description="🔒 [Admin] Show a user's command usage log",
+        description_localizations={"de": "🔒 [Admin] Befehls-Nutzungsprotokoll eines Users anzeigen"},
     )
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def command_log_cmd(
