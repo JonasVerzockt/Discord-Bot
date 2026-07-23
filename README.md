@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.1.2` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.1.3` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -651,7 +651,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, **AAM-Bewertung** (falls vorhanden), Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/offers shop:Antstore` |
 | `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge und **AAM-Bewertung** (falls vorhanden), **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/sells species:aethiops` |
-| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Der **Admin-Abschnitt erscheint nur** für Mitglieder mit „Nachrichten verwalten"/„Administrator". Für normale Mitglieder ist die Antwort **öffentlich** im Kanal; für Admins ist sie **ephemer** (nur für sie sichtbar), damit die Admin-Liste nicht öffentlich gepostet wird. | `/help` |
+| `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Der **User-Teil ist immer öffentlich** im Kanal sichtbar. Der **Admin-Abschnitt** wird nur Mitgliedern mit „Nachrichten verwalten"/„Administrator" gezeigt und kommt separat **ephemer** (nur für sie sichtbar), damit er nicht öffentlich gepostet wird. *(`!help` als Textbefehl kann nicht ephemer antworten und zeigt daher nur den öffentlichen User-Teil.)* | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
 
