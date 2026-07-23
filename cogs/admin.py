@@ -209,11 +209,37 @@ class AdminCog(commands.Cog, name="Admin"):
                 except Exception:
                     data["ai_budget_last30"] = []
 
+                # KI-Ausgaben-Ledger (Tag/Woche/Monat/Jahr) – vollstaendig
+                try:
+                    data["ai_spend_ledger"] = [dict(r) for r in await execute_db(
+                        self.bot,
+                        "SELECT * FROM ai_chat_user_spend WHERE user_id=? "
+                        "ORDER BY period_type, period_key DESC",
+                        (int(uid),), fetch=True,
+                    )]
+                except Exception:
+                    data["ai_spend_ledger"] = []
+
+                # Zuletzt gewaehltes KI-Modell (Vorauswahl)
+                try:
+                    data["ai_model_preference"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM ai_chat_user_model WHERE user_id=?",
+                        (int(uid),), fetch=True,
+                    )]
+                except Exception:
+                    data["ai_model_preference"] = []
+
                 data["species_watch"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM user_species_watch WHERE user_id=?", (uid,), fetch=True)]
 
                 data["species_watch_seen"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM user_species_watch_seen WHERE user_id=?", (uid,), fetch=True)]
+
+                data["species_watch_variant_seen"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM user_species_watch_variant_seen WHERE user_id=?", (uid,), fetch=True)]
+
+                data["pending_variant_removed"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM pending_variant_removed WHERE user_id=?", (uid,), fetch=True)]
 
                 data["digest_subscription"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM digest_subscribers WHERE user_id=?", (uid,), fetch=True)]
@@ -277,10 +303,14 @@ class AdminCog(commands.Cog, name="Admin"):
                 "user_price_tracking",
                 "user_species_watch",
                 "user_species_watch_seen",
+                "user_species_watch_variant_seen",
+                "pending_variant_removed",
                 "server_user_mappings",
                 "ch_delivery_shops",
                 "ai_chat_budget",
                 "ai_chat_history",
+                "ai_chat_user_model",
+                "ai_chat_user_spend",
                 "digest_subscribers",
                 "achievements",
                 "user_events",

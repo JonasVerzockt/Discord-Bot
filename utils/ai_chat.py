@@ -286,6 +286,7 @@ def add_cost(user_id: int, cost: float) -> None:
     Wird NACH dem API-Call mit den tatsächlichen Kosten aufgerufen.
     """
     today = _today()
+    now   = datetime.now(timezone.utc)
     with _db() as con:
         for uid in (0, user_id):
             con.execute(
@@ -295,6 +296,25 @@ def add_cost(user_id: int, cost: float) -> None:
                    DO UPDATE SET cost_usd = cost_usd + excluded.cost_usd""",
                 (today, uid, cost),
             )
+        # Historisches Ausgaben-Ledger pro User (Tag/Woche/Monat/Jahr).
+        # Nur echte User (nicht der globale Sammel-Eintrag user_id=0).
+        if user_id and user_id != 0:
+            periods = (
+                ("day",   now.strftime("%Y-%m-%d")),
+                ("week",  now.strftime("%G-W%V")),   # ISO-Jahr + ISO-Kalenderwoche
+                ("month", now.strftime("%Y-%m")),
+                ("year",  now.strftime("%Y")),
+            )
+            for ptype, pkey in periods:
+                con.execute(
+                    """INSERT INTO ai_chat_user_spend
+                           (user_id, period_type, period_key, cost_usd, updated_at)
+                       VALUES (?, ?, ?, ?, ?)
+                       ON CONFLICT(user_id, period_type, period_key)
+                       DO UPDATE SET cost_usd  = cost_usd + excluded.cost_usd,
+                                     updated_at = excluded.updated_at""",
+                    (user_id, ptype, pkey, cost, now.isoformat()),
+                )
 
 
 def _reset_time_str() -> str:
