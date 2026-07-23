@@ -64,7 +64,7 @@ def _shop_name_variants(raw: str) -> set[str]:
     return variants
 
 # Nur diese Tabs werden eingelesen
-_ALLOWED_TABS = {"Übersicht", "Händler A-Z"}
+_ALLOWED_TABS = {"Übersicht", "Händler A-Z", "Prüfung", "Close"}
 
 # Gecachter Shop-Daten-Block (wird vom Cog aktualisiert)
 _cached_block: Optional[str] = None
@@ -246,6 +246,60 @@ def _parse_uebersicht(rows: list[list[str]]) -> str:
     return "\n\n".join(parts)
 
 
+def _parse_pruefung(rows: list[list[str]]) -> str:
+    """
+    Parst den Tab 'Pruefung': Shop-Kategorien (was fuer ein Shop es ist).
+    Layout: Kopfzeile mit Kategoriespalten (ameisenshop, aquaristikshop, futtershop,
+    pflanzenshop, sonstiges, terraristikshop); Spalte A = Shop, 'x' markiert Kategorie.
+    Ausgabe kompakt: 'shopname: ameisenshop, futtershop'.
+    """
+    if not rows:
+        return ""
+    headers = [h.strip() for h in rows[0]]
+    # Kategorie-Spalten = alle Spalten ab Index 1 mit nicht-leerem Kopf
+    cat_cols = [(i, h) for i, h in enumerate(headers) if i > 0 and h]
+    if not cat_cols:
+        logger.warning(f"⚠️ [ShopData] 'Pruefung': keine Kategorie-Spalten erkannt (Header: {headers})")
+        return ""
+
+    lines: list[str] = []
+    for row in rows[1:]:
+        if not row or not row[0].strip():
+            continue
+        shop = row[0].strip()
+        if shop.startswith("#"):          # Fehlerwert (#REF! o.ae.)
+            continue
+        cats = [h for i, h in cat_cols if i < len(row) and row[i].strip().lower() == "x"]
+        if cats:
+            lines.append(f"{shop}: {', '.join(cats)}")
+
+    if not lines:
+        logger.warning("⚠️ [ShopData] 'Pruefung': keine Shop-Kategorien uebernommen (leer/Fehlerwerte?).")
+        return ""
+    logger.info(f"📋 [ShopData] 'Pruefung': {len(lines)} Shop-Kategorie(n) übernommen.")
+    return "[Shop-Kategorien – was fuer ein Shop es ist]\n" + "\n".join(lines)
+
+
+def _parse_close(rows: list[list[str]]) -> str:
+    """
+    Parst den Tab 'Close': Shops die NICHT MEHR aktiv verkaufen (nur Spalte A, Liste).
+    """
+    shops: list[str] = []
+    for row in rows:
+        if not row:
+            continue
+        name = row[0].strip()
+        if name and not name.startswith("#"):
+            shops.append(name)
+    if not shops:
+        return ""
+    logger.info(f"📋 [ShopData] 'Close': {len(shops)} inaktive(r) Shop(s) übernommen.")
+    return (
+        "[Nicht mehr aktiv verkaufende Shops (verkaufen aktuell NICHT mehr)]\n"
+        + ", ".join(shops)
+    )
+
+
 # ── Haupt-Ladefunktion ────────────────────────────────────────────────────────
 
 def load_shop_data() -> Optional[str]:
@@ -290,6 +344,16 @@ def load_shop_data() -> Optional[str]:
                         shop_names.update(_shop_name_variants(row[0]))
             elif ws.title == "Übersicht":
                 section = _parse_uebersicht(rows)
+            elif ws.title == "Prüfung":
+                section = _parse_pruefung(rows)
+                for row in rows[1:]:
+                    if row and row[0].strip() and not row[0].strip().startswith("#"):
+                        shop_names.update(_shop_name_variants(row[0]))
+            elif ws.title == "Close":
+                section = _parse_close(rows)
+                for row in rows:
+                    if row and row[0].strip() and not row[0].strip().startswith("#"):
+                        shop_names.update(_shop_name_variants(row[0]))
             else:
                 continue
 
