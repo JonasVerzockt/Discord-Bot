@@ -28,7 +28,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -105,6 +105,11 @@ AI_CHAT_USER_DAILY_BUDGET_USD = float(os.getenv("AI_CHAT_USER_DAILY_BUDGET_USD",
 AI_CHAT_MAX_INPUT_CHARS   = int(os.getenv("AI_CHAT_MAX_INPUT_CHARS",   "1500"))
 AI_CHAT_MAX_OUTPUT_TOKENS = int(os.getenv("AI_CHAT_MAX_OUTPUT_TOKENS", "800"))
 AI_CHAT_MAX_HISTORY_TURNS = int(os.getenv("AI_CHAT_MAX_HISTORY_TURNS", "10"))
+# Anteil der max. Output-Tokens, mit dem die Budget-VORAB-Schätzung rechnet.
+# Antworten liegen real meist deutlich unter dem Maximum -> 1.0 (immer Maximum)
+# überschätzt stark und blockt Anfragen unnötig. 0.5 = realistischer Mittelwert
+# mit Sicherheitsreserve. Die TATSÄCHLICHEN Kosten werden danach exakt abgerechnet.
+AI_CHAT_BUDGET_OUTPUT_RATIO = float(os.getenv("AI_CHAT_BUDGET_OUTPUT_RATIO", "0.5"))
 
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
