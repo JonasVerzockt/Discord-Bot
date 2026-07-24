@@ -43,6 +43,7 @@ from utils.ai_chat import (
     chat,
     chunk_discord,
     cleanup_expired_conversations,
+    count_input_tokens,
     get_budget_status,
     get_user_model,
     list_available_models,
