@@ -28,6 +28,7 @@ Verwendung:
 """
 import re
 import csv
+import logging
 from pathlib import Path
 
 import discord
@@ -35,6 +36,8 @@ from rapidfuzz import process as fuzz_proc, fuzz
 
 from config import MAPPING_FILE, FUZZY_THRESHOLD
 from utils.sheet import sheet
+
+logger = logging.getLogger(__name__)
 
 
 # ── Eigene Exception ──────────────────────────────────────────────────────────
@@ -91,7 +94,7 @@ def _fuzzy(identifier: str) -> str | None:
         scorer=fuzz.WRatio, score_cutoff=FUZZY_THRESHOLD, processor=str.casefold,
     )
     if result:
-        print(f"🔍 Fuzzy: '{identifier}' → '{result[0]}' ({result[1]:.0f}%)")
+        logger.info(f"🔍 Fuzzy: '{identifier}' → '{result[0]}' ({result[1]:.0f}%)")
         return result[0]
     return None
 
@@ -147,7 +150,7 @@ def reload_mapping() -> dict:
 def add_to_csv(identifier: str, msg_id: str, hint: str = "") -> None:
     """Unbekannter Shop: leer eintragen zum manuellen Ausfüllen."""
     if _write_csv_row(identifier, "", msg_id, hint):
-        print(f"📋 CSV: '{identifier}' zum Ausfüllen hinzugefügt")
+        logger.info(f"📋 CSV: '{identifier}' zum Ausfüllen hinzugefügt")
 
 
 def _read_all_rows() -> list:
@@ -220,7 +223,7 @@ def learn_shop(identifier: str, shop_url: str) -> None:
         return
     if _write_csv_row(identifier, shop_url, "auto", "auto-gelernt"):
         mapping[identifier] = shop_url
-        print(f"📚 Gelernt: '{identifier}' → '{shop_url}'")
+        logger.info(f"📚 Gelernt: '{identifier}' → '{shop_url}'")
 
 
 def extract_identifier(content: str) -> str | None:
