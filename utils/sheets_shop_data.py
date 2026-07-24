@@ -251,18 +251,25 @@ def _parse_pruefung(rows: list[list[str]]) -> str:
     Parst den Tab 'Pruefung': Shop-Kategorien (was fuer ein Shop es ist).
     Layout: Kopfzeile mit Kategoriespalten (ameisenshop, aquaristikshop, futtershop,
     pflanzenshop, sonstiges, terraristikshop); Spalte A = Shop, 'x' markiert Kategorie.
-    Ausgabe kompakt: 'shopname: ameisenshop, futtershop'.
+
+    Kompakt & platzsparend: Die haeufigste Kategorie wird als Standard deklariert und
+    ihre reinen Eintraege NICHT einzeln gelistet – nur davon abweichende Shops werden
+    (gruppiert nach Kategorie) ausgegeben. Bei einem Ameisen-Bot ist der Standard
+    typischerweise 'ameisenshop' -> spart die grosse Mehrheit der Zeilen.
     """
     if not rows:
         return ""
+    from collections import defaultdict, Counter
+
     headers = [h.strip() for h in rows[0]]
-    # Kategorie-Spalten = alle Spalten ab Index 1 mit nicht-leerem Kopf
     cat_cols = [(i, h) for i, h in enumerate(headers) if i > 0 and h]
     if not cat_cols:
         logger.warning(f"⚠️ [ShopData] 'Pruefung': keine Kategorie-Spalten erkannt (Header: {headers})")
         return ""
 
-    lines: list[str] = []
+    by_combo: dict[str, list[str]] = defaultdict(list)
+    counts: Counter = Counter()
+    total = 0
     for row in rows[1:]:
         if not row or not row[0].strip():
             continue
@@ -270,14 +277,31 @@ def _parse_pruefung(rows: list[list[str]]) -> str:
         if shop.startswith("#"):          # Fehlerwert (#REF! o.ae.)
             continue
         cats = [h for i, h in cat_cols if i < len(row) and row[i].strip().lower() == "x"]
-        if cats:
-            lines.append(f"{shop}: {', '.join(cats)}")
+        if not cats:
+            continue
+        total += 1
+        by_combo[", ".join(cats)].append(shop)
+        for c in cats:
+            counts[c] += 1
 
-    if not lines:
+    if not by_combo:
         logger.warning("⚠️ [ShopData] 'Pruefung': keine Shop-Kategorien uebernommen (leer/Fehlerwerte?).")
         return ""
-    logger.info(f"📋 [ShopData] 'Pruefung': {len(lines)} Shop-Kategorie(n) übernommen.")
-    return "[Shop-Kategorien – was fuer ein Shop es ist]\n" + "\n".join(lines)
+
+    default_cat = counts.most_common(1)[0][0]
+    lines = [f'[Shop-Kategorien – Standard ist "{default_cat}"; unten nur davon abweichende Shops]']
+    shown = 0
+    for combo in sorted(by_combo, key=lambda k: (-len(by_combo[k]), k)):
+        if combo == default_cat:          # reine Standard-Kategorie weglassen
+            continue
+        lines.append(f"{combo}: {', '.join(sorted(by_combo[combo]))}")
+        shown += 1
+
+    logger.info(
+        f"📋 [ShopData] 'Pruefung': {total} Shops, Standard '{default_cat}' "
+        f"({counts[default_cat]}) impliziert, {shown} abweichende Gruppe(n)."
+    )
+    return "\n".join(lines)
 
 
 def _parse_close(rows: list[list[str]]) -> str:

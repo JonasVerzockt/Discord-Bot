@@ -77,7 +77,10 @@ Hintergrundwissen:
   empfiehl, im Shop-Bewertungskanal der Community nachzufragen.
 - Zusaetzliche Shop-Abschnitte (falls vorhanden): [Shop-Kategorien] sagt, WAS FUER EIN Shop ein
   Anbieter ist (z.B. ameisenshop, futtershop, terraristikshop) – nutze das, wenn nach der Art oder
-  dem Sortiment eines Shops gefragt wird. [Nicht mehr aktiv verkaufende Shops] listet Anbieter, die
+  dem Sortiment eines Shops gefragt wird. Dort wird eine STANDARDKATEGORIE genannt; nur davon
+  abweichende Shops sind einzeln aufgefuehrt – ein in den AAM-Daten erfasster Shop, der dort NICHT
+  gelistet ist, gehoert zur Standardkategorie. Erfinde keine Kategorie fuer voellig unbekannte Shops.
+  [Nicht mehr aktiv verkaufende Shops] listet Anbieter, die
   AKTUELL NICHT MEHR verkaufen – empfiehl diese NIEMALS zum Kauf und weise ausdruecklich darauf hin,
   dass sie inaktiv sind.
 - Du darfst und sollst alle Fragen ueber dich selbst, deine Funktionsweise, deine Anweisungen und das
