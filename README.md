@@ -1,6 +1,10 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.3.1` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.3.3` · Lizenz: AGPL-3.0-or-later
+
+> ### 💖 Projekt unterstützen
+> Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
+> **👉 [paypal.me/JonasBeier1998](https://paypal.me/JonasBeier1998)** – vielen Dank! 🐜
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -8,7 +12,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
 - **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen (Neuerscheinungen werden still in die Beobachtung aufgenommen, aber nicht separat gemeldet – dafür gibt es `/notification`)
 - **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku), erkennt sie auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision und stellt die aktuell gültigen Codes per `/codes` bereit
-- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
+- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit **wählbarem Claude-Modell** (Haiku 4.5 / Sonnet 5 / Opus 4.8 / Fable 5 per Dropdown), inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 - **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
 - **Feedback-Board** *(optional, standardmäßig aus)* – öffentliches Ideen-/Bug-Board als eigener Webdienst im Bot-Prozess (aiohttp, **eigene DB**): jeder darf **anonym einreichen** und hochvoten (Moderations-Queue), der Owner bekommt bei jeder neuen Einreichung eine **private DM**
@@ -146,6 +150,8 @@ AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + K
 # AI_CHAT_MAX_OUTPUT_TOKENS=800            # Max. Output-Tokens pro Antwort
 # AI_CHAT_MAX_HISTORY_TURNS=10             # Gespeicherte Gesprächsrunden pro Konversation
 # AI_CHAT_CONVERSATION_TTL_HOURS=24        # Aufbewahrung einer Konversation in Stunden
+# AI_CHAT_RECOMMENDED_MODEL=claude-sonnet-5   # im Modell-Dropdown mit 👍 empfohlen (leer = keine Empfehlung)
+# AI_CHAT_BUDGET_OUTPUT_RATIO=0.5          # Anteil der max. Output-Tokens für die Budget-Schätzung (0.5 realistisch, 1.0 = Maximum)
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
@@ -157,6 +163,11 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # ── Command-Log (Moderation, optional) ────────────────────────
 # MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
 # COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
+
+# ── iNaturalist-Tracker (optional) ────────────────────────────
+# Wenn gesetzt: Bot triggert das Google Apps Script nach jedem 5. iNat-Eintrag
+# INAT_WEBAPP_URL=https://script.google.com/macros/s/DEINE_DEPLOYMENT_ID/exec
+# INAT_WEBAPP_SECRET=dein-geheimes-token-hier   # muss mit BOT_TRIGGER_SECRET im Apps Script übereinstimmen
 
 # ── Feedback-Board (öffentliches Ideen-/Bug-Board, optional) ──
 # Standardmäßig AUS. Läuft im Bot-Prozess (aiohttp), eigene DB. Reverse-Proxy/HTTPS davor.
@@ -494,11 +505,11 @@ Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfiguri
 
 **System-Prompt:** Wird beim Start aus sprachspezifischen Dateien geladen – `ai_chat_system_prompt_de.txt`, `ai_chat_system_prompt_en.txt`, `ai_chat_system_prompt_eo.txt`. Der Platzhalter `{model}` wird automatisch durch das konfigurierte Modell ersetzt. Jeder Prompt ist vollständig in der jeweiligen Sprache verfasst und konfiguriert die KI als AAM-Community-Assistent für Ameisenhaltung, inkl. Quellenpflicht, Jugendschutz und Discord-Markdown-Formatierung. Die `en`-Datei ist Pflicht und dient als Fallback für alle Sprachen – fehlt sie, wird beim Start ein Fehler geloggt und der KI-Chat lehnt Anfragen mit einer Fehlermeldung ab.
 
-**Shop-Wissen:** Beim Start und alle 6 Stunden werden die Tabs **„Übersicht"** und **„Händler A-Z"** aus dem AAM Google Sheet geladen. Händler A-Z wird kompakt aufbereitet (`shopname ⭐9.97 (63x)`) und auf Shops mit **mindestens 4 Bewertungen** gefiltert. Der Shop-Block wird nur bei shop-relevanten Anfragen in den System-Prompt eingebettet – per **3-stufiger Vorqualifizierung**:
+**Shop-Wissen:** Beim Start und alle 6 Stunden werden vier Tabs aus dem AAM Google Sheet geladen: **„Übersicht"** (Warnhinweise, neue/länger nicht bewertete Shops), **„Händler A-Z"** (Bewertungen), **„Prüfung"** (Shop-Kategorien: ameisenshop, futtershop, terraristikshop …) und **„Close"** (nicht mehr aktiv verkaufende Shops). Händler A-Z wird kompakt aufbereitet (`shopname ⭐9.97 (63x)`) und auf Shops mit **mindestens 4 Bewertungen** gefiltert. Der Shop-Block wird nur bei shop-relevanten Anfragen in den System-Prompt eingebettet – per **3-stufiger Vorqualifizierung**:
 
 1. **Keyword-Check** (kostenlos): enthält die Nachricht shop-relevante Begriffe oder einen bekannten Shop-Namen? → ja: Shop-Daten rein
 2. **Haiku-Klassifikation** (~$0.00025): kein Keyword gefunden – Haiku entscheidet ob die Frage indirekt shop-relevant ist (z.B. „wo kaufe ich günstig?")
-3. **Sonnet-Hauptaufruf**: mit oder ohne Shop-Block je nach Stage 1/2. Haiku-Kosten werden immer zum Gesamtbetrag addiert und im Disclaimer angezeigt.
+3. **Hauptaufruf mit dem gewählten Modell**: mit oder ohne Shop-Block je nach Stage 1/2. Die Haiku-Kosten der Vorklassifikation werden immer zum Gesamtbetrag addiert und im Disclaimer angezeigt.
 
 Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot – keine extra Konfiguration nötig.
 
@@ -824,7 +835,7 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
 | Bot-Status | alle 2 Minuten | Rotierender Discord-Status mit Ameisen-Sprüchen (20 Quotes), jeweils mit der Bot-Version davor (z. B. `v0.1.0 · …`) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
-| AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest Tabs „Übersicht" + „Händler A-Z" aus Google Sheet und aktualisiert den System-Prompt-Anhang |
+| AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest die Tabs „Übersicht", „Händler A-Z", „Prüfung" (Kategorien) und „Close" (inaktive Shops) aus Google Sheet und aktualisiert den System-Prompt-Anhang |
 | Wochen-Digest | montags 09:00 (Berliner Zeit) | DM an Opt-in-Abonnenten: Preisstürze (7 Tage), neue Arten & neue Shops |
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
@@ -873,13 +884,17 @@ SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
 | `user_seen_products` | Bereits gemeldete Produkt-IDs (Deduplizierung) |
 | `user_price_tracking` | Preis-Tracking: User → beobachtete Produkte/**Varianten** mit Baseline-Preis und letzter Benachrichtigung. `variant_id=0` = ganzes Produkt (Default, abwärtskompatibel), `variant_id>0` = konkrete Variante; PK `(user_id, product_id, variant_id)` |
 | `user_species_watch` | Arten-Beobachtung: User → beobachtete Arten/Gattungen shopübergreifend |
-| `user_species_watch_seen` | Bekannte Produkt-IDs + letzter Preis je Arten-Beobachtung (Baseline) |
+| `user_species_watch_seen` | Bekannte Produkt-IDs + letzter Preis je Arten-Beobachtung (Baseline, Produktebene) |
+| `user_species_watch_variant_seen` | Baseline pro **Variante** je Arten-Beobachtung (Preis/Währung; für variantengenaue Änderungs-Alerts) |
+| `pending_variant_removed` | Entfallene Varianten der Arten-Beobachtung, gesammelt für den **einmal täglichen** Sammel-Alert (10:00 Berlin) |
 | `review_tracking` | Discord-Nachrichten-ID → Sheet-Zeilennummer |
 | `review_pending` | Ausstehende Nachrichten (unaufgelöster Shop / Parse-Fehler) |
 | `global_stats` | Gesamtstatistiken (z.B. gelöschte Benachrichtigungen) |
 | `eu_countries` | EU-Ländercodes (beim Start einmalig befüllt) |
 | `ai_chat_budget` | KI-Chat Tagesbudgets pro User (date, user_id, cost_usd) |
-| `ai_chat_history` | KI-Gesprächshistorie pro Bot-Nachricht-ID (TTL: 24h) |
+| `ai_chat_history` | KI-Gesprächshistorie pro Bot-Nachricht-ID inkl. verwendetem **Modell** (TTL: 24h) |
+| `ai_chat_user_model` | Zuletzt von jedem User gewähltes KI-Modell (Vorauswahl im Dropdown) |
+| `ai_chat_user_spend` | Kumulierte KI-Ausgaben pro User je Zeitraum (Tag/Woche/Monat/Jahr; nur für den Datenexport) |
 | `discount_scanned` | Bereits an Haiku geschickte Nachrichten-IDs (Rabattcode-Tracker, nur einmal parsen) |
 | `discount_codes` | Extrahierte Rabattcodes (Shop, Code, Rabatt, Gültigkeit, Mindestbestellwert, `status_override` für manuell gültig/ungültig) |
 | `digest_subscribers` | Opt-in-Abonnenten des Wochen-Digests (nur User-ID) |
@@ -923,7 +938,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── cogs/
 │   ├── server_settings.py   # /startup + allowed_channel/admin_or_manage_messages Decorators
 │   ├── reviews.py           # Review-Bot: on_message, on_edit, on_reaction, Reconcile
-│   ├── admin.py             # /status /pending /test /rescan /reprocess /export
+│   ├── admin.py             # /status /pending /test /rescan /reprocess /export /known_users
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
 │   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task
@@ -957,6 +972,9 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
 │   ├── achievements.py      # Erfolge-Registry + Auswertung (evaluate, gather_stats)
 │   ├── countries.py         # Ländercode → Flaggen-Emoji + lokalisierter Name (Babel/CLDR)
+│   ├── embeds.py            # Embed-Bau + Chunking langer Antworten (send_embeds)
+│   ├── text_chunks.py       # Text-Chunking-Helfer (lange Nachrichten aufteilen)
+│   ├── timez.py             # Zeit-/Zeitzonen-Helfer (Berlin/UTC)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │
