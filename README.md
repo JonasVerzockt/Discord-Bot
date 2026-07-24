@@ -1,6 +1,10 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.3.2` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.3.3` · Lizenz: AGPL-3.0-or-later
+
+> ### 💖 Projekt unterstützen
+> Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
+> **👉 [paypal.me/JonasBeier1998](https://paypal.me/JonasBeier1998)** – vielen Dank! 🐜
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -8,7 +12,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
 - **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen (Neuerscheinungen werden still in die Beobachtung aufgenommen, aber nicht separat gemeldet – dafür gibt es `/notification`)
 - **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku), erkennt sie auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision und stellt die aktuell gültigen Codes per `/codes` bereit
-- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit Claude Sonnet, inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
+- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit **wählbarem Claude-Modell** (Haiku 4.5 / Sonnet 5 / Opus 4.8 / Fable 5 per Dropdown), inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
 - **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
 - **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
 - **Feedback-Board** *(optional, standardmäßig aus)* – öffentliches Ideen-/Bug-Board als eigener Webdienst im Bot-Prozess (aiohttp, **eigene DB**): jeder darf **anonym einreichen** und hochvoten (Moderations-Queue), der Owner bekommt bei jeder neuen Einreichung eine **private DM**

@@ -123,10 +123,15 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .hp{position:absolute;left:-9999px} .flash{background:#1f6feb22;border:1px solid #1f6feb;border-radius:6px;padding:10px 12px;margin-bottom:14px}
 </style></head><body>
 <header><h1>🐜 AAM-Bot · Ideen &amp; Bugs</h1>
- <a href="/">Board</a><a href="/submit">Einreichen</a><span class=grow></span>
+ <a href="/">Board</a><a href="/submit">Einreichen</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">💖 Unterstützen</a><span class=grow></span>
  {% if admin %}<span class=muted>Owner</span> <a href="/admin">Admin</a> <a href="/admin/logout">Logout</a>
  {% else %}<a href="/admin/login">Owner-Login</a>{% endif %}</header>
 <div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
+<footer style="max-width:1100px;margin:28px auto 12px;padding:14px 20px;border-top:1px solid #30363d;color:#8b949e;font-size:13px;text-align:center;line-height:1.6">
+  💖 <strong>Dieses Board &amp; der Bot werden privat betrieben.</strong> Wer die Serverkosten und die Weiterentwicklung unterstützen möchte:
+  <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
+  · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">Quellcode</a>
+</footer>
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
