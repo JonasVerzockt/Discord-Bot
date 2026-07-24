@@ -221,6 +221,39 @@ class AiChatCog(commands.Cog):
         except Exception as e:
             logger.warning(f"[AI-Chat] Modell-Verfügbarkeit nicht ermittelbar: {e}")
             self._available_models = None
+        # Token-Check aller pro-Anfrage mitgeschickten Bestandteile
+        await self._log_token_report()
+
+    async def _log_token_report(self) -> None:
+        """Loggt beim Start die exakte Token-Anzahl der pro Anfrage mitgeschickten
+        Bestandteile: System-Prompt je Sprache + aktueller Shop-Block (via
+        count_tokens; Basis-Envelope wird abgezogen). Nur zur Überwachung."""
+        from utils.sheets_shop_data import get_cached_block
+        model = cfg.AI_CHAT_MODEL
+        dummy = [{"role": "user", "content": "."}]
+
+        async def _tok(system: str) -> str:
+            try:
+                n = await count_input_tokens(model, system, dummy)
+                return str(n - base) if n is not None else "?"
+            except Exception:
+                return "?"
+
+        try:
+            base = await count_input_tokens(model, "", dummy) or 0
+        except Exception:
+            base = 0
+
+        parts = [f"System-Prompt[{lang}]={await _tok(p)}"
+                 for lang, p in cfg.AI_CHAT_SYSTEM_PROMPTS.items()]
+        block = get_cached_block()
+        if block:
+            parts.append(f"Shop-Block={await _tok(block)}")
+        parts.append(
+            f"(Verlauf bis {cfg.AI_CHAT_MAX_HISTORY_TURNS} Runden, "
+            f"Output max {cfg.AI_CHAT_MAX_OUTPUT_TOKENS})"
+        )
+        logger.info("🔢 [AI-Chat] Token-Check (Modell %s): %s", model, " · ".join(parts))
 
     def cog_unload(self) -> None:
         self.cleanup_loop.cancel()
