@@ -38,6 +38,7 @@ from urllib.parse import urlparse
 
 import discord
 from aiohttp import web
+from aiohttp.abc import AbstractAccessLogger
 from discord.ext import commands
 from jinja2 import Environment, DictLoader, select_autoescape
 
@@ -100,7 +101,7 @@ def _csrf_ok(form) -> bool:
 BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>{{ title }} · AAM-Bot Board</title><style>
+<title>{{ title }} · AAM-Bot Board</title><link rel="icon" type="image/svg+xml" href="/favicon.ico"><style>
  :root{color-scheme:only dark} html,body{background:#0d1117}
  body{color:#e6edf3;font:15px/1.5 system-ui,Segoe UI,Arial;margin:0}
  option{background:#0d1117;color:#e6edf3} ::placeholder{color:#6e7681;opacity:1}
@@ -416,11 +417,35 @@ async def notify_owner(app, sub: dict) -> None:
         logger.error("❌ Owner-DM fehlgeschlagen: %s", ex)
 
 
+class _DebugAccessLogger(AbstractAccessLogger):
+    """Access-Log auf DEBUG statt INFO – haelt das normale (INFO-)Log frei vom
+    HTTP-Grundrauschen (Scanner/Bots). Sichtbar nur, wenn der Loglevel DEBUG ist."""
+    def log(self, request, response, time):
+        self.logger.debug(
+            '%s "%s %s" %s %s "%s"',
+            getattr(request, "remote", "-"), request.method, request.path_qs,
+            response.status, response.body_length,
+            request.headers.get("User-Agent", "-"),
+        )
+
+
+# Kleines SVG-Ameisen-Favicon (verhindert die staendigen /favicon.ico-404).
+_FAVICON = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+    '<text y=".9em" font-size="90">🐜</text></svg>'
+)
+
+
+async def h_favicon(req):
+    return web.Response(text=_FAVICON, content_type="image/svg+xml")
+
+
 def build_app(bot) -> web.Application:
     app = web.Application(client_max_size=1024*1024)
     app["bot"] = bot
     app.add_routes([
-        web.get("/", h_board), web.get("/submit", h_submit_form), web.post("/submit", h_submit),
+        web.get("/", h_board), web.get("/favicon.ico", h_favicon),
+        web.get("/submit", h_submit_form), web.post("/submit", h_submit),
         web.post("/upvote/{id}", h_upvote), web.get("/submission/{id}", h_detail),
         web.get("/admin/login", h_login_form), web.post("/admin/login", h_login),
         web.get("/admin/logout", h_logout), web.get("/admin", h_admin),
@@ -446,7 +471,8 @@ class BoardCog(commands.Cog, name="Board"):
             logger.warning("⚠️ Board aktiv, aber BOARD_OWNER_ID=0 – Owner-DMs werden übersprungen.")
         try:
             await board_init()
-            self.runner = web.AppRunner(build_app(self.bot))
+            self.runner = web.AppRunner(build_app(self.bot),
+                                        access_log_class=_DebugAccessLogger)
             await self.runner.setup()
             await web.TCPSite(self.runner, BOARD_BIND, BOARD_PORT).start()
             logger.info("🌐 Feedback-Board läuft auf http://%s:%d (öffentlich: %s)",
