@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.3.3` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.3.4` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
