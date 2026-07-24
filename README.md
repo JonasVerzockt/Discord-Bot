@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.3.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.3.1` · Lizenz: AGPL-3.0-or-later
 
 Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert mehrere eigenständige Funktionen in einem Bot:
 
@@ -689,6 +689,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
 | `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
+| `/known_users` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/known_users` |
 | `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
 | `/shopmap list` | – | Alle Shop-Zuordnungen anzeigen (inkl. noch offener). | `/shopmap list` |
 | `/shopmap remove` | `identifier` | Eine Shop-Zuordnung entfernen. | `/shopmap remove identifier:Home of Insects` |

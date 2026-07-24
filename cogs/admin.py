@@ -428,5 +428,86 @@ class AdminCog(commands.Cog, name="Admin"):
             await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
 
 
+    # ── /known_users ─────────────────────────────────────────────────────────
+    @discord.slash_command(
+        name="known_users",
+        description="🔒 [Admin] List all users who ever used the bot (ID → name)",
+        description_localizations={"de": "🔒 [Admin] Alle je aktiven Nutzer auflisten (ID → Name)"},
+    )
+    @discord.default_permissions(manage_messages=True)
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def cmd_known_users(self, ctx: discord.ApplicationContext):
+        """Sammelt distinct User-IDs aus ALLEN User-Tabellen und loest sie zu Namen auf.
+
+        Vollstaendigste Quelle = Union aller Tabellen mit User-IDs (nicht nur das
+        Command-Log, das eine Retention hat und nur Slash-Befehle erfasst).
+        discount_codes speichert nur Usernamen (keine ID) und das Feedback-Board
+        nur HMAC-Hashes (nicht rueckrechenbar) -> beide bleiben aussen vor.
+        """
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        from utils.db import execute_db
+
+        sources = [
+            ("user_settings", "user_id"), ("notifications", "user_id"),
+            ("user_shop_blacklist", "user_id"), ("server_user_mappings", "user_id"),
+            ("user_seen_products", "user_id"), ("ch_delivery_shops", "added_by"),
+            ("user_price_tracking", "user_id"), ("user_species_watch", "user_id"),
+            ("user_species_watch_seen", "user_id"),
+            ("user_species_watch_variant_seen", "user_id"),
+            ("pending_variant_removed", "user_id"), ("ai_chat_budget", "user_id"),
+            ("ai_chat_history", "user_id"), ("ai_chat_user_model", "user_id"),
+            ("ai_chat_user_spend", "user_id"), ("digest_subscribers", "user_id"),
+            ("achievements", "user_id"), ("user_events", "user_id"),
+            ("command_log", "user_id"),
+        ]
+
+        ids: set[int] = set()
+        for tbl, col in sources:
+            try:
+                rows = await execute_db(
+                    self.bot, f"SELECT DISTINCT {col} AS uid FROM {tbl}", fetch=True
+                )
+            except Exception:
+                continue  # Tabelle (noch) nicht vorhanden
+            for r in rows or []:
+                v = r["uid"]
+                if v is None:
+                    continue
+                s = str(v).strip()
+                if s.isdigit() and s != "0":     # 0 = globaler AI-Budget-Sammeleintrag
+                    ids.add(int(s))
+
+        if not ids:
+            await ctx.respond(l10n.get("known_users_none", lang), ephemeral=True)
+            return
+
+        guild      = ctx.guild
+        left       = l10n.get("known_users_left", lang)
+        unresolved = l10n.get("known_users_unresolved", lang)
+
+        lines: list[str] = []
+        for uid in sorted(ids):
+            member = guild.get_member(uid) if guild else None
+            if member:                                   # noch auf dem Server (Cache)
+                lines.append(f"`{uid}` – {member.display_name} (@{member.name})")
+                continue
+            user = self.bot.get_user(uid)                # globaler User-Cache
+            if user is None:
+                try:
+                    user = await self.bot.fetch_user(uid)   # API-Fallback
+                except Exception:
+                    user = None
+            if user:
+                lines.append(f"`{uid}` – @{user.name} {left}")
+            else:
+                lines.append(f"`{uid}` – {unresolved}")
+
+        header = l10n.get("known_users_header", lang, count=len(ids))
+        await send_embeds(ctx, header + "\n" + "\n".join(lines),
+                          ephemeral=True, color=ADMIN_COLOR)
+
+
 def setup(bot: discord.Bot):
     bot.add_cog(AdminCog(bot))
