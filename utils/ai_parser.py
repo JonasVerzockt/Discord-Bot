@@ -48,6 +48,26 @@ bewertung→0-10 (X/10=X, X/5=X×2, cap 10), null wenn unklar
 positiv→positive Aspekte semikolon-sep., ""=keine
 negativ→Kritikpunkte semikolon-sep., ""=keine"""
 
+# JSON-Schema für Structured Outputs: garantiert valides, vollständiges JSON
+# (alle Felder present, korrekte Typen) -> keine Parse-Fehler/Retries mehr.
+_REVIEW_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "datum":           {"type": "string"},
+        "benutzername":    {"type": "string"},
+        "shop_name":       {"type": "string"},
+        "shop_typ":        {"type": "string"},
+        "produkte":        {"type": "string"},
+        "geld_ausgegeben": {"type": ["number", "null"]},
+        "bewertung":       {"type": ["number", "null"]},
+        "positiv":         {"type": "string"},
+        "negativ":         {"type": "string"},
+    },
+    "required": ["datum", "benutzername", "shop_name", "shop_typ", "produkte",
+                 "geld_ausgegeben", "bewertung", "positiv", "negativ"],
+    "additionalProperties": False,
+}
+
 
 def looks_like_review(content: str) -> bool:
     """Schnell-Check: Sieht diese Nachricht wie eine Bewertung aus?"""
@@ -67,6 +87,7 @@ def parse_with_ai(content: str, shop: str, date: str) -> dict:
         messages=[{"role": "user", "content": _PROMPT.format(
             shop_name=shop, date=date, message=content
         )}],
+        output_config={"format": {"type": "json_schema", "schema": _REVIEW_SCHEMA}},
     )
     text = resp.content[0].text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
