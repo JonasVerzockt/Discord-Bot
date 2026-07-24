@@ -28,8 +28,11 @@ Verwendung:
     sheet.update(row_num, [...])
 """
 import os
+import logging
 import gspread
 from config import SPREADSHEET_ID, SHEET_NAME
+
+logger = logging.getLogger(__name__)
 
 # Google-Service-Account einmalig initialisieren
 _gc = gspread.service_account(filename="service_account.json")
@@ -60,7 +63,7 @@ class SheetCache:
             if row and row[0].strip():   # nur Spalte A (Datum) zählt
                 last = i + 1
         self._rows = all_rows[:last]
-        print(f"📥 Sheet geladen: {len(self._rows) - 1} Einträge (von {len(all_rows)} Zeilen)")
+        logger.info(f"📥 Sheet geladen: {len(self._rows) - 1} Einträge (von {len(all_rows)} Zeilen)")
 
     # ── Lese-Helfer ───────────────────────────────────────────────────────────
     @property
