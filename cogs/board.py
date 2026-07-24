@@ -429,10 +429,17 @@ class _DebugAccessLogger(AbstractAccessLogger):
         )
 
 
-# Kleines SVG-Ameisen-Favicon (verhindert die staendigen /favicon.ico-404).
+# Kleines SVG-Ameisen-Favicon (gezeichnet, keine Emoji-Glyphe -> rendert in allen
+# Browsern; Emoji-in-SVG bleibt z.B. in Chrome leer). Verhindert die favicon-404.
 _FAVICON = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
-    '<text y=".9em" font-size="90">🐜</text></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+    '<rect width="64" height="64" rx="14" fill="#e9a23b"/>'
+    '<g stroke="#1b1b1b" stroke-width="3" stroke-linecap="round" fill="none">'
+    '<path d="M28 34 L16 24 M28 36 L14 36 M28 38 L16 48"/>'
+    '<path d="M36 34 L48 24 M36 36 L50 36 M36 38 L48 48"/>'
+    '<path d="M46 30 L55 22 M46 32 L57 28"/></g>'
+    '<g fill="#1b1b1b"><circle cx="20" cy="36" r="9"/>'
+    '<circle cx="32" cy="36" r="6"/><circle cx="44" cy="34" r="7"/></g></svg>'
 )
 
 
