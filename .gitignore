@@ -59,3 +59,5 @@ dev-notes/
 
 # ── Sonstiges ──────────────────────────────────────────────────────────────────
 C*.md
+# ── Git-Credentials (Token, NIEMALS committen) ──────────────────────────────────
+.git-credentials
