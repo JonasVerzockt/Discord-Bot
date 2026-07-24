@@ -47,8 +47,8 @@ Die Nachricht kann Text UND/ODER Bilder (Screenshots, Flyer, Shop-Werbung) entha
 Erkenne Rabattcodes auch dann, wenn sie NUR im Bild stehen (z.B. auf einem Werbebanner).
 Nachrichtendatum (Referenz für relative Datumsangaben): {date}
 
-Gib AUSSCHLIESSLICH ein JSON-Array zurück (kein weiterer Text, kein Markdown).
-Jedes Element beschreibt GENAU EINEN Rabattcode:
+Gib ein JSON-Objekt {{"codes": [ ... ]}} zurück. Jedes Array-Element beschreibt
+GENAU EINEN Rabattcode:
 {{"shop": "Shopname", "shop_url": "URL oder null", "code": "DERCODE",
   "discount": "z.B. 20% oder 10€", "valid_from": "YYYY-MM-DD oder null",
   "valid_until": "YYYY-MM-DD oder null", "permanent": true/false,
@@ -74,10 +74,35 @@ Regeln:
 - discount möglichst angeben (z.B. "20%", "10€"); nur null, wenn wirklich nicht erkennbar.
 - Unbekanntes Datum => null.
 - Code in Originalschreibweise uebernehmen.
-- Kein echter Rabattcode in der Nachricht => leeres Array [].
+- Kein echter Rabattcode in der Nachricht => {{"codes": []}}.
 
 Nachricht:
 {message}"""
+
+# JSON-Schema für Structured Outputs: garantiert ein Objekt {"codes":[...]} mit
+# vollständigen, typkorrekten Einträgen -> keine Parse-Fehler mehr.
+_CODE_ITEM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "shop":        {"type": "string"},
+        "shop_url":    {"type": ["string", "null"]},
+        "code":        {"type": "string"},
+        "discount":    {"type": ["string", "null"]},
+        "valid_from":  {"type": ["string", "null"]},
+        "valid_until": {"type": ["string", "null"]},
+        "permanent":   {"type": "boolean"},
+        "min_order":   {"type": ["string", "null"]},
+    },
+    "required": ["shop", "shop_url", "code", "discount",
+                 "valid_from", "valid_until", "permanent", "min_order"],
+    "additionalProperties": False,
+}
+_DISCOUNT_SCHEMA = {
+    "type": "object",
+    "properties": {"codes": {"type": "array", "items": _CODE_ITEM_SCHEMA}},
+    "required": ["codes"],
+    "additionalProperties": False,
+}
 
 
 def _norm_date(v) -> str | None:
@@ -123,11 +148,14 @@ def parse_codes(
         model=DISCOUNT_PARSER_MODEL,
         max_tokens=700,
         messages=api_messages,
+        output_config={"format": {"type": "json_schema", "schema": _DISCOUNT_SCHEMA}},
     )
     text = resp.content[0].text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
-    data = json.loads(text)
+    parsed = json.loads(text)
+    # Structured Outputs liefert {"codes":[...]}; alte Antworten evtl. noch als Array.
+    data = parsed.get("codes", []) if isinstance(parsed, dict) else parsed
     if not isinstance(data, list):
         return []
 

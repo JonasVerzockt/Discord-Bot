@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.1` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.4.2` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -270,7 +270,7 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 3. Fuzzy-Match gegen bekannte Sheet-Shopnamen (≥81 % Ähnlichkeit)
 4. → 🟡 Reaktion: Shop konnte nicht aufgelöst werden
 
-**KI-Parsing:** Claude Haiku extrahiert aus dem Freitext strukturierte Felder:
+**KI-Parsing:** Claude Haiku extrahiert aus dem Freitext strukturierte Felder. Dabei kommt **Structured Outputs** (`output_config.format` mit JSON-Schema) zum Einsatz – die Antwort ist damit garantiert valides, vollständiges JSON (alle Felder vorhanden, korrekte Typen), ohne Parse-Fehler oder Reparatur-Heuristik:
 
 | Feld | Beispiel |
 |------|---------|
@@ -456,7 +456,7 @@ An-/Abmelden und Status prüfen über `/digest` (`aktivieren` / `deaktivieren` /
 
 ## Rabattcode-Tracker
 
-Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatthöhe, Gültigkeitszeitraum, ggf. Mindestbestellwert) und speichert sie in der Datenbank. Codes werden dabei sowohl aus dem Text als auch – sofern `DISCOUNT_VISION_ENABLED` (Standard an) – aus geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision erkannt. Ist kein Kanal gesetzt, bleibt das Feature inaktiv.
+Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatthöhe, Gültigkeitszeitraum, ggf. Mindestbestellwert) und speichert sie in der Datenbank. Die Extraktion nutzt **Structured Outputs** (JSON-Schema `{codes:[…]}`) – die KI liefert damit garantiert valides JSON, kein Parse-Fehler-Risiko. Codes werden dabei sowohl aus dem Text als auch – sofern `DISCOUNT_VISION_ENABLED` (Standard an) – aus geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision erkannt. Ist kein Kanal gesetzt, bleibt das Feature inaktiv.
 
 ### Funktionsweise
 
