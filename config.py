@@ -28,7 +28,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -113,6 +113,10 @@ AI_CHAT_MAX_HISTORY_TURNS = int(os.getenv("AI_CHAT_MAX_HISTORY_TURNS", "10"))
 # überschätzt stark und blockt Anfragen unnötig. 0.5 = realistischer Mittelwert
 # mit Sicherheitsreserve. Die TATSÄCHLICHEN Kosten werden danach exakt abgerechnet.
 AI_CHAT_BUDGET_OUTPUT_RATIO = float(os.getenv("AI_CHAT_BUDGET_OUTPUT_RATIO", "0.5"))
+# Prompt-Caching (5-Min) fuer den stabilen System+Shop-Praefix – NUR bei
+# Reply-Fortsetzungen (aktive Gespraeche), wo Folge-Turns den Cache lesen.
+# Kalte Einzelfragen bleiben ungecacht. false = Caching komplett aus.
+AI_CHAT_PROMPT_CACHE = os.getenv("AI_CHAT_PROMPT_CACHE", "true").lower() == "true"
 
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))

@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.4.1` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -488,6 +488,8 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 Der AI-Chat-Bot reagiert ausschließlich auf **@-Erwähnungen** in den konfigurierten `AI_CHAT_CHANNEL_IDS`. Slash-Commands und eigene Bot-Nachrichten werden ignoriert.
 
 **Konversationsgedächtnis:** Wenn ein User auf eine Bot-Antwort antwortet (Discord-Reply), wird die gespeicherte Gesprächshistorie geladen und der Kontext fortgeführt. Die KI „erinnert sich" bis zu `AI_CHAT_MAX_HISTORY_TURNS` Gesprächsrunden (Standard: 10) oder bis zur TTL-Grenze (Standard: 24 Stunden).
+
+**Prompt-Caching (nur in Gesprächen):** Bei **Reply-Fortsetzungen** wird der stabile System+Shop-Präfix per 5-Minuten-Prompt-Caching markiert (`AI_CHAT_PROMPT_CACHE`, Standard an). Folge-Turns lesen den Cache zu 10 % des Input-Preises statt ihn voll zu bezahlen – das senkt die Kosten spürbar bei Mehr-Turn-Chats, besonders mit teuren Modellen. **Kalte Einzelfragen bleiben ungecacht** (kein Write-Aufschlag ohne Nutzen); ist der Präfix unter der Modell-Mindestlänge, ignoriert Anthropic das Caching kostenneutral. Die Kostenabrechnung berücksichtigt Cache-Write (1,25×) und Cache-Read (0,1×) exakt.
 
 **Budget-Kontrolle (Tagesreset 00:00 UTC / 01:00 MEZ / 02:00 MESZ):**
 - Globales Tagesbudget (`AI_CHAT_DAILY_BUDGET_USD`, Standard: $0,50) – gemeinsamer Pool aller User

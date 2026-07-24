@@ -222,18 +222,20 @@ def _db() -> sqlite3.Connection:
 
 def calculate_cost(usage, model: str | None = None) -> float:
     """
-    Berechnet die tatsächlichen Kosten aus dem Anthropic-Usage-Objekt.
-    Kein explizites Caching aktiv – nur regulaere Input- und Output-Tokens.
-    Cache-Felder werden defensiv mitgelesen falls Anthropic intern etwas cachet.
+    Berechnet die tatsächlichen Kosten aus dem Anthropic-Usage-Objekt – inkl.
+    Prompt-Caching-Preislogik: Cache-Write kostet 1,25× (5-Min-Cache), Cache-Read
+    0,10× des Input-Preises. ``usage.input_tokens`` enthaelt bereits NUR die
+    ungecachten Tokens (Cache-Write/Read werden separat gefuehrt).
     ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
     price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
-    cache_write = getattr(usage, "cache_creation_input_tokens", 0)
-    cache_hit   = getattr(usage, "cache_read_input_tokens", 0)
-    regular_in  = max(0, usage.input_tokens - cache_write - cache_hit)
-    # Alle Input-Varianten zum gleichen Preis (kein Cache aktiv)
+    cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cache_read  = getattr(usage, "cache_read_input_tokens", 0) or 0
+    regular_in  = getattr(usage, "input_tokens", 0) or 0
     return (
-        (regular_in + cache_write + cache_hit) * price_in
+        regular_in   * price_in
+        + cache_write * price_in * 1.25   # 5-Min-Cache-Write-Aufschlag
+        + cache_read  * price_in * 0.10   # Cache-Read (10 % des Input-Preises)
         + usage.output_tokens * price_out
     )
 
@@ -714,13 +716,27 @@ async def chat(
                 "history": [], "is_error": False,
                 "budget_exceeded": True, "estimated": estimated, "model": model}
 
-    # 6. API-Call (kein Prompt Caching: bei geringer Nutzung teurer als ohne)
+    # 6. API-Call. Prompt-Caching NUR bei Reply-Fortsetzung (aktives Gespraech):
+    #    dann kommen weitere Turns schnell und mit identischem System+Shop-Praefix
+    #    -> Folge-Turns lesen den 5-Min-Cache (0,1x) statt ihn voll zu bezahlen.
+    #    Kalte Einzelfragen bleiben ungecacht (kein Write-Aufschlag ohne Nutzen).
+    #    Ist der Praefix unter der Modell-Mindestlaenge, ignoriert Anthropic das
+    #    cache_control kostenneutral.
+    use_cache = cfg.AI_CHAT_PROMPT_CACHE and bool(prev_bot_message_id)
+    if use_cache:
+        system_param = [{
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},   # 5-Min-Cache
+        }]
+    else:
+        system_param = system_prompt
     try:
         client   = _get_client()
         response = await client.messages.create(
             model=model,
             max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
-            system=system_prompt,
+            system=system_param,
             messages=messages,
         )
 
