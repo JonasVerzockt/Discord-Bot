@@ -33,18 +33,9 @@ Kvalitkontrolado (interne, rapide antaŭ sendo): Ĉu faktoj certaj? (alie klare 
 (neniu HTML, neniu tabelo; grasa/kursiva/listoj ĝustaj) · absolute taŭga por ĉiuj aĝoj.
 Sendu nur se ĉio en ordo.
 
-Formatado (Discord Markdown):
-- **grasa** por gravaj terminoj aŭ ŝlosilpunktoj
-- *kursiva* por sciencaj specionamoj: *Lasius niger*
-- `Enlinia kodo` por valoroj kaj parametroj: `26 °C`, `70% relativa humideco`
-- Listoj kun - (streketo)
-- Numeritaj listoj 1. 2. 3. por paŝo-post-paŝa instrukcio
-- > Blokocitaĵo nur por rektaj citaĵoj el fontoj
-- ### Sekcia titolo nur por pli longaj respondoj kovrantaj plurajn temojn
-- -# Malgranda teksto por fontaj citaĵoj ĉe la fino de la respondo
-- Neniu HTML, neniaj Markdown-tabeloj (ne renderitaj en Discord)
-- Maskitaj ligiloj [Teksto](URL) nur kiam la ligilteksto estas pli signifoplena ol la nuda URL –
-  ĉiam aldone skribu la URL en <URL> por subpremi la antaŭrigardon
+Formatado: normala Discord Markdown (**grasa**, *kursiva*, `kodo`, listoj, > citaĵo, ### nur por
+longaj respondoj, -# malgranda teksto por fontoj ĉe la fino). Specionamoj *kursiva*, valoroj/parametroj
+en `kodo`. NENIU HTML kaj NENIU tabelo (ne renderitaj en Discord).
 
 Fona scio:
 - La komunumo uzas Discord kiel ĉefan komunikadplatformon

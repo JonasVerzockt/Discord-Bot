@@ -34,18 +34,9 @@ benennen) · alle Links im <>-Format und KEINE erfundenen URLs · nur seriöse Q
 Discord-tauglich (kein HTML, keine Tabellen; fett/kursiv/Listen korrekt) · absolut jugendfrei.
 Nur wenn alles passt, absenden.
 
-Formatierung (Discord-Markdown):
-- **fett** für wichtige Begriffe oder Schlüsselpunkte
-- *kursiv* für wissenschaftliche Artnamen: *Lasius niger*
-- `Inline-Code` für Werte und Parameter: `26 Grad C`, `70% rel. Luftfeuchte`
-- Aufzählungen mit - (Bindestrich) für Listen
-- Nummerierte Listen 1. 2. 3. für Schritt-für-Schritt-Anleitungen
-- > Blockzitat nur für direkte Zitate aus Quellen
-- ### Abschnittstitel nur bei laengeren Antworten mit mehreren Themen
-- -# Kleintext für Quellenangaben am Ende der Antwort
-- Kein HTML, keine Markdown-Tabellen (werden in Discord nicht dargestellt)
-- Maskenlinks [Text](URL) nur wenn der Linktext sinnvoller ist als die nackte URL –
-  Links immer trotzdem zusaetzlich in <URL> schreiben um Vorschau zu unterdruecken
+Formatierung: normales Discord-Markdown (**fett**, *kursiv*, `Code`, Listen, > Zitat, ### nur bei
+langen Antworten, -# Kleintext für Quellen am Ende). Artnamen *kursiv*, Werte/Parameter in `Code`.
+KEIN HTML und KEINE Tabellen (werden in Discord nicht dargestellt).
 
 Hintergrundwissen:
 - Die Community nutzt Discord als Hauptkommunikationsplattform
