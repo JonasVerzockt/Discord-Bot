@@ -552,6 +552,55 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         logger.info(f"🏷️ codes_date: '{code}' (shop={shop or '*'}) → {'; '.join(changes)} ({rc} Zeilen) von {ctx.author.id}")
 
     @discord.slash_command(
+        name="codes_fix_links",
+        description="(Admin) Resolve short links in already-stored codes to the real shop URL",
+        description_localizations={"de": "(Admin) Kurzlinks in bereits gespeicherten Codes zur echten Shop-URL auflösen"},
+    )
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def codes_fix_links(self, ctx: discord.ApplicationContext):
+        """Einmal-Migration: geht alle gespeicherten shop_url durch, löst Kurzlinks
+        auf und entfernt Tracking-Parameter. Kann jederzeit erneut laufen
+        (idempotent – bereits saubere Links bleiben unverändert)."""
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        rows = await execute_db(
+            self.bot,
+            "SELECT DISTINCT shop_url FROM discount_codes "
+            "WHERE shop_url IS NOT NULL AND shop_url <> ''",
+            fetch=True,
+        )
+        if not rows:
+            await ctx.followup.send(l10n.get("discount_fix_none", lang), ephemeral=True)
+            return
+
+        await ctx.followup.send(l10n.get("discount_fix_start", lang, count=len(rows)), ephemeral=True)
+
+        changed = 0
+        for r in rows:
+            old = r["shop_url"]
+            try:
+                new = await asyncio.to_thread(resolve_shop_url, old)
+            except Exception as e:
+                logger.warning(f"🔗 codes_fix_links: '{old}' nicht auflösbar: {e}")
+                continue
+            if new and new != old:
+                await execute_db(
+                    self.bot,
+                    "UPDATE discount_codes SET shop_url=? WHERE shop_url=?",
+                    (new, old), commit=True,
+                )
+                changed += 1
+                await asyncio.sleep(0.3)  # bei echten Netzwerk-Auflösungen kurz bremsen
+
+        await ctx.followup.send(
+            l10n.get("discount_fix_done", lang, checked=len(rows), changed=changed),
+            ephemeral=True,
+        )
+        logger.info(f"🔗 codes_fix_links: {len(rows)} Links geprüft, {changed} aktualisiert (von {ctx.author.id})")
+
+    @discord.slash_command(
         name="codes_rescan",
         description="(Admin) Scan the discount channel for new messages",
         description_localizations={"de": "(Admin) Rabattcode-Kanal nach neuen Nachrichten scannen"},

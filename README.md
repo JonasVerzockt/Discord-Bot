@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.4` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.4.5` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -705,6 +705,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
 | `/codes_date` | `code`, `gueltig_bis` (`JJJJ-MM-TT`/`TT.MM.JJJJ` oder `-` zum Löschen), `gueltig_ab` (optional), `shop` (optional) | Gültigkeitsdatum eines Rabattcodes nachträglich anpassen (z. B. wenn die KI ein Enddatum falsch/gar nicht erkannt hat). Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_date code:ANT10 gueltig_bis:31.12.2026` |
+| `/codes_fix_links` | – | Einmal-Migration: löst Kurzlinks in **bereits gespeicherten** Codes zur echten Shop-URL auf und entfernt Tracking-Parameter. Idempotent (bereits saubere Links bleiben unverändert). | `/codes_fix_links` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
 | `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
 | `/known_users` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/known_users` |
