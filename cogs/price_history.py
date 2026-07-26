@@ -40,6 +40,7 @@ import matplotlib.dates as mdates
 from config import DATA_DIRECTORY
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
+from utils.availability import load_shop_data, normalize_species_name, strip_html
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,27 @@ def _get_variant_history_sync(variant_id: int):
         points.append((ts, float(pr), float(pr)))
         currency = cur_iso or currency
     return (points, currency) if points else None
+
+
+def _product_ids_with_history_sync(product_ids: list[int]) -> set[int]:
+    """Teilmenge der IDs, für die es mindestens eine Zeile in
+    product_price_history gibt (damit nur zeichenbare Produkte gelistet werden)."""
+    if not product_ids or not PRICE_HISTORY_DB.exists():
+        return set()
+    conn = sqlite3.connect(PRICE_HISTORY_DB)
+    try:
+        cur = conn.cursor()
+        found: set[int] = set()
+        for pid in product_ids:
+            cur.execute(
+                "SELECT 1 FROM product_price_history WHERE product_id=? LIMIT 1",
+                (pid,),
+            )
+            if cur.fetchone():
+                found.add(pid)
+        return found
+    finally:
+        conn.close()
 
 
 def _ph_title(row) -> str:
@@ -267,6 +289,48 @@ class PriceHistoryCog(commands.Cog, name="PriceHistory"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
+    async def _species_watch_rows(self, sw_rows: list, tracked_rows: list) -> list[dict]:
+        """Baut aus den Arten-Beobachtungen (user_species_watch) auswählbare
+        Zeilen: alle aktuell passenden Produkte mit vorhandenem Preisverlauf,
+        die nicht schon als Einzel-Tracking (Produkt-Ebene) vorhanden sind."""
+        already = {r["product_id"] for r in tracked_rows if (r["variant_id"] or 0) == 0}
+        try:
+            shop_data = await load_shop_data(self.bot)
+        except Exception:
+            return []
+
+        candidates: dict[int, dict] = {}
+        for sw in sw_rows:
+            watched  = sw["species"]
+            is_genus = bool(sw["is_genus"])
+            for shop_id, shop_info in shop_data.items():
+                for product in shop_info.get("products", []):
+                    norm = normalize_species_name((product.get("species") or "").strip())
+                    match = norm.startswith(watched + " ") if is_genus else norm == watched
+                    if not match:
+                        continue
+                    pid = product.get("id")
+                    if pid is None or int(pid) in already or int(pid) in candidates:
+                        continue
+                    candidates[int(pid)] = {
+                        "product_id":   int(pid),
+                        "variant_id":   0,
+                        "variant_title": "",
+                        "product_title": strip_html(product.get("title") or product.get("species") or ""),
+                        "species":      (product.get("species") or "").strip(),
+                        "shop_name":    shop_info.get("name", shop_id),
+                        "currency_iso": product.get("currency_iso") or "EUR",
+                    }
+
+        if not candidates:
+            return []
+        with_hist = await asyncio.to_thread(
+            _product_ids_with_history_sync, list(candidates.keys())
+        )
+        rows = [c for pid, c in candidates.items() if pid in with_hist]
+        rows.sort(key=lambda r: (r["shop_name"].lower(), r["product_title"].lower()))
+        return rows[:25]
+
     @discord.slash_command(
         name="price_history",
         description="Show the price history of a tracked product as a chart.",
@@ -283,11 +347,27 @@ class PriceHistoryCog(commands.Cog, name="PriceHistory"):
             (str(ctx.author.id),),
             fetch=True,
         )
-        if not rows:
-            await ctx.respond(l10n.get("ph_no_tracking", lang), ephemeral=True)
+        rows = list(rows or [])
+
+        # Zusätzlich Produkte aus Arten-Beobachtungen (alle Shops) anbieten –
+        # sonst hieße es fälschlich „keine Produkte", obwohl der User Arten beobachtet.
+        sw_rows = await execute_db(
+            self.bot,
+            "SELECT species, is_genus FROM user_species_watch WHERE user_id=?",
+            (str(ctx.author.id),),
+            fetch=True,
+        )
+        watch_rows = await self._species_watch_rows(sw_rows, rows) if sw_rows else []
+        combined = rows + watch_rows
+
+        if not combined:
+            # Unterscheide: gar nichts beobachtet vs. Arten beobachtet, aber (noch)
+            # kein Preisverlauf für passende Produkte vorhanden.
+            key = "ph_watch_no_history" if sw_rows else "ph_no_tracking"
+            await ctx.respond(l10n.get(key, lang), ephemeral=True)
             return
 
-        view = PriceHistoryView(ctx.author.id, rows, lang)
+        view = PriceHistoryView(ctx.author.id, combined, lang)
         await ctx.respond(l10n.get("ph_select", lang), view=view, ephemeral=True)
 
 

@@ -129,9 +129,11 @@ class StatsCog(commands.Cog, name="Stats"):
                 age   = datetime.utcnow() - datetime.utcfromtimestamp(mtime)
                 ah, ar = divmod(int(age.total_seconds()), 3600)
                 am    = ar // 60
+                # %Z liefert CET/CEST → für die Anzeige klar als MEZ/MESZ kennzeichnen.
+                _mod = datetime.fromtimestamp(mtime, tz=BERLIN).strftime("%d.%m.%Y %H:%M %Z")
                 file_status = l10n.get(
                     "system_file_status", lang,
-                    modified=datetime.fromtimestamp(mtime, tz=BERLIN).strftime("%d.%m.%Y %H:%M %Z"),
+                    modified=_mod.replace("CEST", "MESZ").replace("CET", "MEZ"),
                     age=f"{ah}h {am}m",
                 )
             except FileNotFoundError:
@@ -188,7 +190,7 @@ class StatsCog(commands.Cog, name="Stats"):
         "help_rescan", "help_reprocess", "help_export",
         "help_stats", "help_system",
         "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
-        "help_codes_set", "help_codes_rescan",
+        "help_codes_set", "help_codes_date", "help_codes_rescan",
         "help_command_log", "help_known_users",
     ]
     _HELP_AI_KEYS = [

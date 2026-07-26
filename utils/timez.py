@@ -29,9 +29,24 @@ BERLIN = ZoneInfo("Europe/Berlin")
 _DEFAULT_FMT = "%d.%m.%Y %H:%M %Z"
 
 
+def _fmt_berlin(dt: datetime, fmt: str) -> str:
+    """Formatiert eine (tz-bewusste) Berliner Zeit und stellt sicher, dass die
+    Zeitzone klar als deutsches Kürzel MEZ/MESZ erscheint.
+
+    - Enthält fmt ein %Z, wird das (locale-abhängige) CET/CEST durch MEZ/MESZ ersetzt.
+    - Enthält fmt kein %Z, wird das passende Kürzel angehängt.
+    So ist in JEDER in Discord geposteten Zeitausgabe erkennbar, dass es sich um
+    MEZ (Winter) bzw. MESZ (Sommer) handelt."""
+    label = "MESZ" if dt.dst() else "MEZ"
+    s = dt.strftime(fmt)
+    if "%Z" in fmt:
+        return s.replace("CEST", "MESZ").replace("CET", "MEZ")
+    return f"{s} {label}"
+
+
 def now_berlin(fmt: str = _DEFAULT_FMT) -> str:
-    """Aktuelle Zeit in Berliner Zeit als String."""
-    return datetime.now(BERLIN).strftime(fmt)
+    """Aktuelle Zeit in Berliner Zeit als String (inkl. MEZ/MESZ-Kennzeichnung)."""
+    return _fmt_berlin(datetime.now(BERLIN), fmt)
 
 
 def berlin_from_iso(iso, fmt: str = _DEFAULT_FMT) -> str | None:
@@ -43,7 +58,7 @@ def berlin_from_iso(iso, fmt: str = _DEFAULT_FMT) -> str | None:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(BERLIN).strftime(fmt)
+    return _fmt_berlin(dt.astimezone(BERLIN), fmt)
 
 
 def berlin_from_utc_naive(value, in_fmt: str, fmt: str = _DEFAULT_FMT) -> str:
@@ -55,4 +70,4 @@ def berlin_from_utc_naive(value, in_fmt: str, fmt: str = _DEFAULT_FMT) -> str:
         dt = datetime.strptime(str(value), in_fmt).replace(tzinfo=timezone.utc)
     except (TypeError, ValueError):
         return str(value)
-    return dt.astimezone(BERLIN).strftime(fmt)
+    return _fmt_berlin(dt.astimezone(BERLIN), fmt)
