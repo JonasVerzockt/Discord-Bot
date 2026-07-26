@@ -64,6 +64,7 @@ from utils.availability import ensure_url_scheme
 from utils.embeds import send_embeds
 from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
+from utils.link_resolver import resolve_shop_url
 from cogs.server_settings import allowed_channel, admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
@@ -233,6 +234,11 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 codes = []
 
             for c in codes:
+                # Kurzlinks (share.google, bit.ly, …) und Google-Weiterleitungen
+                # zur echten Shop-Adresse auflösen + Tracking-Parameter entfernen.
+                shop_url = c["shop_url"]
+                if shop_url:
+                    shop_url = await asyncio.to_thread(resolve_shop_url, shop_url)
                 await execute_db(
                     self.bot,
                     """INSERT OR IGNORE INTO discount_codes
@@ -240,7 +246,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                         valid_until, is_permanent, min_order, message_date, author)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        mid, c["shop"], c["shop_url"], c["code"], c["discount"],
+                        mid, c["shop"], shop_url, c["code"], c["discount"],
                         c["valid_from"], c["valid_until"], 1 if c["permanent"] else 0,
                         c["min_order"], anchor.created_at.strftime("%Y-%m-%d %H:%M"),
                         getattr(anchor.author, "name", ""),
@@ -544,6 +550,55 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             ephemeral=True,
         )
         logger.info(f"🏷️ codes_date: '{code}' (shop={shop or '*'}) → {'; '.join(changes)} ({rc} Zeilen) von {ctx.author.id}")
+
+    @discord.slash_command(
+        name="codes_fix_links",
+        description="(Admin) Resolve short links in already-stored codes to the real shop URL",
+        description_localizations={"de": "(Admin) Kurzlinks in bereits gespeicherten Codes zur echten Shop-URL auflösen"},
+    )
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def codes_fix_links(self, ctx: discord.ApplicationContext):
+        """Einmal-Migration: geht alle gespeicherten shop_url durch, löst Kurzlinks
+        auf und entfernt Tracking-Parameter. Kann jederzeit erneut laufen
+        (idempotent – bereits saubere Links bleiben unverändert)."""
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        rows = await execute_db(
+            self.bot,
+            "SELECT DISTINCT shop_url FROM discount_codes "
+            "WHERE shop_url IS NOT NULL AND shop_url <> ''",
+            fetch=True,
+        )
+        if not rows:
+            await ctx.followup.send(l10n.get("discount_fix_none", lang), ephemeral=True)
+            return
+
+        await ctx.followup.send(l10n.get("discount_fix_start", lang, count=len(rows)), ephemeral=True)
+
+        changed = 0
+        for r in rows:
+            old = r["shop_url"]
+            try:
+                new = await asyncio.to_thread(resolve_shop_url, old)
+            except Exception as e:
+                logger.warning(f"🔗 codes_fix_links: '{old}' nicht auflösbar: {e}")
+                continue
+            if new and new != old:
+                await execute_db(
+                    self.bot,
+                    "UPDATE discount_codes SET shop_url=? WHERE shop_url=?",
+                    (new, old), commit=True,
+                )
+                changed += 1
+                await asyncio.sleep(0.3)  # bei echten Netzwerk-Auflösungen kurz bremsen
+
+        await ctx.followup.send(
+            l10n.get("discount_fix_done", lang, checked=len(rows), changed=changed),
+            ephemeral=True,
+        )
+        logger.info(f"🔗 codes_fix_links: {len(rows)} Links geprüft, {changed} aktualisiert (von {ctx.author.id})")
 
     @discord.slash_command(
         name="codes_rescan",

@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.3` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.4.5` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -475,6 +475,8 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 
 **Geteilte Nachrichten:** Wie beim Review-Bot werden mehrere aufeinanderfolgende Nachrichten desselben Users zusammengeführt: Der Bot wartet nach der letzten Nachricht `ACCUMULATION_DELAY` Sekunden (Standard: 8) und schickt Text + Bilder gebündelt an die KI. So werden Nachfolge-Infos („gilt nur bis morgen", ein zweiter Code) mit erfasst.
 
+**Kurzlink-Auflösung:** Geteilte Kurzlinks (`share.google`, `bit.ly`, `goo.gl`, `t.co`, …) und Google-Weiterleitungen (`…/url?q=`) werden beim Speichern automatisch zur echten Shop-Adresse aufgelöst und um Tracking-Parameter (`srsltid`, `utm_*`, `gclid`, …) bereinigt – aus `https://share.google/Ctvpg…` wird so z. B. `https://www.estheticants.com/`. Normale Links lösen keinen Netzwerk-Aufruf aus (sie werden nur von Tracking-Parametern befreit); Auflösungen werden zwischengespeichert.
+
 **Manuelle Steuerung:** Admins können mit `/codes_set <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_date <code> <gueltig_bis> [gueltig_ab] [shop]` lässt sich das Gültigkeitsdatum eines Codes nachträglich anpassen (Datum als `JJJJ-MM-TT` oder `TT.MM.JJJJ`, `-` löscht das Datum). Mit `/codes_rescan` lässt sich der Kanal nach noch nicht gescannten Nachrichten durchsuchen (bereits Gescanntes wird übersprungen). Ein kompletter Neuaufbau erfolgt bewusst nicht per Befehl – dafür die Tabellen `discount_codes`/`discount_scanned` manuell leeren.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
@@ -703,6 +705,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
 | `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
 | `/codes_date` | `code`, `gueltig_bis` (`JJJJ-MM-TT`/`TT.MM.JJJJ` oder `-` zum Löschen), `gueltig_ab` (optional), `shop` (optional) | Gültigkeitsdatum eines Rabattcodes nachträglich anpassen (z. B. wenn die KI ein Enddatum falsch/gar nicht erkannt hat). Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_date code:ANT10 gueltig_bis:31.12.2026` |
+| `/codes_fix_links` | – | Einmal-Migration: löst Kurzlinks in **bereits gespeicherten** Codes zur echten Shop-URL auf und entfernt Tracking-Parameter. Idempotent (bereits saubere Links bleiben unverändert). | `/codes_fix_links` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
 | `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
 | `/known_users` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/known_users` |
@@ -972,6 +975,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
 │   ├── discount_parser.py   # Claude Haiku Parser (Rabattcodes)
+│   ├── link_resolver.py     # Kurzlinks auflösen + Tracking-Parameter entfernen
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
