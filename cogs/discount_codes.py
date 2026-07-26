@@ -56,6 +56,7 @@ from discord.ext import commands
 from config import (
     DISCOUNT_CHANNEL_ID, DISCOUNT_VISION_ENABLED,
     DISCOUNT_VISION_MAX_IMAGES, DISCOUNT_VISION_MAX_BYTES,
+    ACCUMULATION_DELAY,
 )
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
@@ -86,6 +87,28 @@ def _fmt_date(iso: str | None) -> str:
         return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
     except ValueError:
         return iso
+
+
+_CLEAR_TOKENS = {"-", "none", "clear", "auto", "kein", "keins", "leer", ""}
+
+
+def _parse_date_arg(s: str) -> tuple[str, str | None]:
+    """Parst eine Datumseingabe für /codes_date.
+
+    Rückgabe:
+      ("clear", None)  → Datum löschen (auf NULL setzen)
+      ("ok", "YYYY-MM-DD") → gültiges ISO-Datum
+      ("invalid", None) → nicht interpretierbar
+    Akzeptiert JJJJ-MM-TT und TT.MM.JJJJ."""
+    v = (s or "").strip().lower()
+    if v in _CLEAR_TOKENS:
+        return ("clear", None)
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
+        try:
+            return ("ok", datetime.strptime(v, fmt).strftime("%Y-%m-%d"))
+        except ValueError:
+            continue
+    return ("invalid", None)
 
 
 def _domain(url: str | None) -> str:
@@ -136,6 +159,10 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         self.bot = bot
         self._backfill_done = False
         self._lock = asyncio.Lock()   # serialisiert Backfill/Live-Verarbeitung
+        # Nachrichtenakkumulation: geteilte Codes/Nachfolge-Infos desselben Users
+        # zusammenführen (gleiche Wartezeit wie beim Review-Bot, ACCUMULATION_DELAY).
+        self._acc_buffer: dict[int, list[discord.Message]] = {}
+        self._acc_tasks:  dict[int, asyncio.Task]          = {}
 
     # ── Verarbeitung ───────────────────────────────────────────────────────────
     async def _is_scanned(self, message_id: str) -> bool:
@@ -171,22 +198,34 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 logger.warning(f"🏷️ Bild-Download fehlgeschlagen ({att.filename}): {e}")
         return images
 
-    async def _process_message(self, msg: discord.Message) -> tuple[int, bool]:
+    async def _process_messages(self, messages: list[discord.Message]) -> tuple[int, bool]:
         """
-        Schickt Text und/oder Bild-Anhänge einer Nachricht an Haiku und speichert
-        gefundene Codes. Nachrichten ganz ohne Text und ohne verwertbare Bilder
-        lösen keinen API-Call aus (werden nur als gescannt markiert).
-        Gibt (neue_codes, api_aufgerufen) zurück. Caller stellt sicher, dass die
-        Nachricht noch nicht gescannt wurde.
+        Schickt den (zusammengeführten) Text und die Bild-Anhänge einer oder
+        mehrerer aufeinanderfolgender Nachrichten desselben Users an Haiku und
+        speichert gefundene Codes. Die erste Nachricht ist der Anker (message_id,
+        Datum, Autor). ALLE übergebenen Nachrichten werden als gescannt markiert.
+        Nachrichten ganz ohne Text und ohne verwertbare Bilder lösen keinen
+        API-Call aus. Gibt (neue_codes, api_aufgerufen) zurück.
         """
-        mid     = str(msg.id)
-        content = (msg.content or "").strip()
-        images  = await self._collect_images(msg)
+        anchor  = messages[0]
+        mid     = str(anchor.id)
+        content = "\n".join(
+            (m.content or "").strip() for m in messages if (m.content or "").strip()
+        )
+        # Bilder über alle Nachrichten hinweg sammeln (bis zum Gesamt-Limit).
+        images: list[tuple[bytes, str]] = []
+        for m in messages:
+            if len(images) >= DISCOUNT_VISION_MAX_IMAGES:
+                break
+            for img in await self._collect_images(m):
+                images.append(img)
+                if len(images) >= DISCOUNT_VISION_MAX_IMAGES:
+                    break
         found   = 0
         api_called = bool(content) or bool(images)
 
         if api_called:
-            date_str = msg.created_at.strftime("%Y-%m-%d")
+            date_str = anchor.created_at.strftime("%Y-%m-%d")
             try:
                 codes = await asyncio.to_thread(parse_codes, content, date_str, images)
             except Exception as e:
@@ -203,17 +242,18 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                     (
                         mid, c["shop"], c["shop_url"], c["code"], c["discount"],
                         c["valid_from"], c["valid_until"], 1 if c["permanent"] else 0,
-                        c["min_order"], msg.created_at.strftime("%Y-%m-%d %H:%M"),
-                        getattr(msg.author, "name", ""),
+                        c["min_order"], anchor.created_at.strftime("%Y-%m-%d %H:%M"),
+                        getattr(anchor.author, "name", ""),
                     ),
                     commit=True,
                 )
                 found += 1
 
-        await execute_db(
-            self.bot, "INSERT OR IGNORE INTO discount_scanned (message_id) VALUES (?)",
-            (mid,), commit=True,
-        )
+        for m in messages:
+            await execute_db(
+                self.bot, "INSERT OR IGNORE INTO discount_scanned (message_id) VALUES (?)",
+                (str(m.id),), commit=True,
+            )
         return found, api_called
 
     async def _backfill(self, channel: discord.TextChannel) -> tuple[int, int]:
@@ -228,7 +268,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             async for msg in channel.history(limit=None, oldest_first=True):
                 if msg.author.bot or str(msg.id) in scanned:
                     continue
-                f, api_called = await self._process_message(msg)
+                # Backfill verarbeitet historische Nachrichten einzeln – keine
+                # Akkumulation nötig (Nachfolge-Infos stehen schon vollständig da).
+                f, api_called = await self._process_messages([msg])
                 found  += f
                 checked += 1
                 if api_called:
@@ -258,16 +300,44 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             return
         if await self._is_scanned(str(message.id)):
             return
+
+        # Nachrichten desselben Users sammeln und erst nach ACCUMULATION_DELAY
+        # Sekunden Ruhe zusammengeführt verarbeiten (analog Review-Bot): so werden
+        # Nachfolge-Infos ("gilt nur bis morgen", zweiter Code, …) mit erfasst.
+        uid = message.author.id
+        self._acc_buffer.setdefault(uid, []).append(message)
+        if uid in self._acc_tasks:
+            self._acc_tasks[uid].cancel()
+        self._acc_tasks[uid] = asyncio.create_task(self._flush_accumulation(uid))
+
+    async def _flush_accumulation(self, uid: int) -> None:
+        """Wartet ACCUMULATION_DELAY Sekunden, dann alle gesammelten Nachrichten
+        des Users zusammengeführt verarbeiten."""
+        try:
+            await asyncio.sleep(ACCUMULATION_DELAY)
+        except asyncio.CancelledError:
+            return
+
+        messages = self._acc_buffer.pop(uid, [])
+        self._acc_tasks.pop(uid, None)
+        if not messages:
+            return
+
         async with self._lock:
-            found, _ = await self._process_message(message)
+            found, _ = await self._process_messages(messages)
+
         if found:
+            anchor = messages[0]
             try:
-                await message.add_reaction("🏷️")
+                await anchor.add_reaction("🏷️")
             except discord.HTTPException:
                 pass
             try:
-                lang = await get_user_lang(self.bot, message.author.id, message.guild.id if message.guild else None)
-                await check_and_grant(self.bot, message.author, lang)
+                lang = await get_user_lang(
+                    self.bot, anchor.author.id,
+                    anchor.guild.id if anchor.guild else None,
+                )
+                await check_and_grant(self.bot, anchor.author, lang)
             except Exception:
                 pass
 
@@ -402,6 +472,78 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             ephemeral=True,
         )
         logger.info(f"🏷️ codes_set: '{code}' (shop={shop or '*'}) → {override} ({rc} Zeilen) von {ctx.author.id}")
+
+    @discord.slash_command(
+        name="codes_date",
+        description="(Admin) Adjust the valid-until (and optional valid-from) date of a code",
+        description_localizations={"de": "(Admin) Gültig-bis- (und optional Gültig-ab-) Datum eines Codes anpassen"},
+    )
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def codes_date(
+        self,
+        ctx: discord.ApplicationContext,
+        code: discord.Option(str, "The discount code", description_localizations={"de": 'Der Rabattcode', "en-US": 'The discount code'}, required=True),
+        until: discord.Option(
+            str, "Valid until: YYYY-MM-DD or DD.MM.YYYY (use '-' to clear)",
+            name_localizations={"de": "gueltig_bis"},
+            description_localizations={"de": "Gültig bis: JJJJ-MM-TT oder TT.MM.JJJJ ('-' zum Löschen)"},
+            required=True,
+        ),
+        valid_from: discord.Option(
+            str, "Optional valid from: YYYY-MM-DD or DD.MM.YYYY (use '-' to clear)",
+            name_localizations={"de": "gueltig_ab"},
+            description_localizations={"de": "Optional gültig ab: JJJJ-MM-TT oder TT.MM.JJJJ ('-' zum Löschen)"},
+            required=False, default=None,
+        ),
+        shop: discord.Option(str, "Limit to this shop (optional)", description_localizations={"de": 'Auf diesen Shop begrenzen (optional)', "en-US": 'Limit to this shop (optional)'}, required=False, default=None),
+    ):
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        set_parts: list[str] = []
+        params: list = []
+        changes: list[str] = []
+
+        u_kind, u_val = _parse_date_arg(until)
+        if u_kind == "invalid":
+            await ctx.followup.send(l10n.get("discount_date_invalid", lang, value=until), ephemeral=True)
+            return
+        set_parts.append("valid_until=?")
+        params.append(u_val)
+        changes.append(
+            l10n.get("discount_date_until_set", lang, date=_fmt_date(u_val)) if u_val
+            else l10n.get("discount_date_until_cleared", lang)
+        )
+
+        if valid_from is not None:
+            f_kind, f_val = _parse_date_arg(valid_from)
+            if f_kind == "invalid":
+                await ctx.followup.send(l10n.get("discount_date_invalid", lang, value=valid_from), ephemeral=True)
+                return
+            set_parts.append("valid_from=?")
+            params.append(f_val)
+            changes.append(
+                l10n.get("discount_date_from_set", lang, date=_fmt_date(f_val)) if f_val
+                else l10n.get("discount_date_from_cleared", lang)
+            )
+
+        query = f"UPDATE discount_codes SET {', '.join(set_parts)} WHERE lower(code)=lower(?)"
+        params.append(code.strip())
+        if shop:
+            query += " AND lower(shop)=lower(?)"
+            params.append(shop.strip())
+
+        rc = await execute_db(self.bot, query, tuple(params), commit=True)
+        if not rc:
+            await ctx.followup.send(l10n.get("discount_set_none", lang, code=code), ephemeral=True)
+            return
+
+        await ctx.followup.send(
+            l10n.get("discount_date_done", lang, count=rc, code=code, changes="; ".join(changes)),
+            ephemeral=True,
+        )
+        logger.info(f"🏷️ codes_date: '{code}' (shop={shop or '*'}) → {'; '.join(changes)} ({rc} Zeilen) von {ctx.author.id}")
 
     @discord.slash_command(
         name="codes_rescan",

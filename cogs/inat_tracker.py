@@ -74,6 +74,7 @@ from google.oauth2.service_account import Credentials
 
 from config import BASE_DIR
 from utils.localization import l10n, get_guild_lang
+from utils.timez import now_berlin
 
 GOOGLE_CREDS_FILE = str(BASE_DIR / "service_account.json")
 
@@ -450,7 +451,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
             data    = await asyncio.to_thread(lambda: ws_ue.get(f"A1:C{last_row}"))
             # Datenschnitt-Zeit: Links, die NACH diesem Zeitpunkt gepostet werden,
             # sind in diesem Ranking noch nicht enthalten.
-            snapshot_ts = datetime.now(tz=BERLIN).strftime("%d.%m.%Y %H:%M:%S")
+            snapshot_ts = now_berlin("%d.%m.%Y %H:%M:%S")
             entries = _parse_ranking(data)
             if not entries:
                 logger.warning("⚠️ Ranking-Snapshot: keine Einträge – Text-Fallback")
@@ -502,7 +503,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         except Exception as e:
             logger.error(f"❌ Text-Fallback: Sheet-Lesefehler: {e}")
             return
-        snapshot_ts = datetime.now(tz=BERLIN).strftime("%d.%m.%Y %H:%M:%S")
+        snapshot_ts = now_berlin("%d.%m.%Y %H:%M:%S")
 
         channel = self.bot.get_channel(INAT_CHANNEL_ID)
         if channel is None:

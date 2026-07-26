@@ -25,6 +25,8 @@ gruppiert nach Art → Shop. Optionaler Länderfilter.
 import asyncio
 import json
 import logging
+import re
+from collections import Counter
 from datetime import datetime
 
 import discord
@@ -55,6 +57,22 @@ def _read_fetched_at() -> str | None:
     except Exception:
         pass
     return None
+
+
+def _canon_species(sp: str) -> str:
+    """Gruppierungs-Schlüssel: Whitespace normalisiert + case-insensitiv, damit
+    „Lasius niger", „lasius niger" und „Lasius Niger" zu EINER Gruppe werden."""
+    return re.sub(r"\s+", " ", (sp or "").strip()).casefold()
+
+
+def _pick_display(names: Counter) -> str:
+    """Wählt aus mehreren Schreibweisen desselben Artnamens den Anzeigenamen:
+    bevorzugt eine saubere Binomial-Schreibweise (Erstes Wort groß, Rest klein),
+    danach die häufigste Schreibweise."""
+    def score(name: str):
+        proper = bool(name) and name[0].isupper() and name[1:] == name[1:].lower()
+        return (proper, names[name])
+    return max(names, key=score)
 
 
 def _fnum(v):
@@ -131,9 +149,15 @@ class SellsCog(commands.Cog, name="Sells"):
 
         def _collect(match_fn):
             """Sammelt Arten + Angebote aus allen (Länder-gefilterten) Shops für
-            Produkte, deren species-Feld match_fn erfüllt."""
+            Produkte, deren species-Feld match_fn erfüllt.
+
+            Gruppiert case-insensitiv nach kanonischem Artnamen (siehe
+            _canon_species), damit reine Schreibweise-Varianten keine getrennten
+            Gruppen erzeugen. Rückgabe: (keys, offers_by_key, display_by_key).
+            """
             fs: set[str] = set()
             off: dict[str, list] = {}
+            names: dict[str, Counter] = {}
             for shop in shop_data.values():
                 scountry = (shop.get("country") or "").strip().lower()
                 if cc and scountry != cc:
@@ -142,10 +166,12 @@ class SellsCog(commands.Cog, name="Sells"):
                     sp = (p.get("species") or "").strip()
                     if not sp or not match_fn(sp):
                         continue
-                    fs.add(sp)
+                    key = _canon_species(sp)
+                    fs.add(key)
+                    names.setdefault(key, Counter())[sp] += 1
                     if not (p.get("in_stock") and p.get("is_active")):
                         continue
-                    off.setdefault(sp, []).append({
+                    off.setdefault(key, []).append({
                         "shop_name":   shop.get("name", "?"),
                         "country":     scountry,
                         "rating":      shop.get("average_rating"),
@@ -158,16 +184,17 @@ class SellsCog(commands.Cog, name="Sells"):
                         "url":         (p.get("antcheck_url") or p.get("shop_url") or "").strip(),
                         "shop_web":    (shop.get("url") or "").strip(),
                     })
-            return fs, off
+            display = {k: _pick_display(c) for k, c in names.items()}
+            return fs, off, display
 
         # 1) Primär: exakter/Gattungs-Anker-Match wie bei den Notifications –
         #    schließt Merch/Präparate zuverlässig aus (kein Keyword-Blacklisting).
-        found_species, offers = _collect(lambda sp: matches_species_query(sp, query))
+        found_species, offers, display = _collect(lambda sp: matches_species_query(sp, query))
         # 2) Fallback nur, wenn exakt nichts gefunden wurde: Teilsuche (z.B. reines
         #    Epitheton „aethiops"), strukturell auf saubere Binomen begrenzt, damit
         #    weiterhin kein Merch durchrutscht.
         if not found_species:
-            found_species, offers = _collect(
+            found_species, offers, display = _collect(
                 lambda sp: is_live_ant_species(sp) and search in normalize_species_name(sp)
             )
 
@@ -230,17 +257,17 @@ class SellsCog(commands.Cog, name="Sells"):
             await ctx.followup.send(l10n.get("sells_no_stock", lang, query=query))
             return
 
-        shown_species = sorted(species_blocks)
+        shown_species = sorted(species_blocks, key=lambda k: display.get(k, k).lower())
         parts: list[str] = []
         if len(found_species) > len(shown_species):
             parts.append(l10n.get(
                 "sells_multi_hint", lang,
                 query=query, found=len(found_species),
-                offered=", ".join(shown_species),
+                offered=", ".join(display.get(k, k) for k in shown_species),
             ))
             parts.append("")
         for sp in shown_species:
-            parts.append(f"***{sp}***")
+            parts.append(f"***{display.get(sp, sp)}***")
             parts.append(l10n.get("sells_source", lang))
             parts.append(l10n.get("sells_disclaimer", lang))
             parts.extend(species_blocks[sp])
