@@ -64,6 +64,7 @@ from utils.availability import ensure_url_scheme
 from utils.embeds import send_embeds
 from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
+from utils.link_resolver import resolve_shop_url
 from cogs.server_settings import allowed_channel, admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
@@ -233,6 +234,11 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 codes = []
 
             for c in codes:
+                # Kurzlinks (share.google, bit.ly, …) und Google-Weiterleitungen
+                # zur echten Shop-Adresse auflösen + Tracking-Parameter entfernen.
+                shop_url = c["shop_url"]
+                if shop_url:
+                    shop_url = await asyncio.to_thread(resolve_shop_url, shop_url)
                 await execute_db(
                     self.bot,
                     """INSERT OR IGNORE INTO discount_codes
@@ -240,7 +246,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                         valid_until, is_permanent, min_order, message_date, author)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        mid, c["shop"], c["shop_url"], c["code"], c["discount"],
+                        mid, c["shop"], shop_url, c["code"], c["discount"],
                         c["valid_from"], c["valid_until"], 1 if c["permanent"] else 0,
                         c["min_order"], anchor.created_at.strftime("%Y-%m-%d %H:%M"),
                         getattr(anchor.author, "name", ""),

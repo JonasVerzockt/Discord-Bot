@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.3` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.4.4` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -474,6 +474,8 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 `/codes` listet standardmäßig nur gültige Codes: permanente, solche ohne Enddatum, alle mit `valid_until` ≥ heute sowie manuell als gültig markierte. Abgelaufene werden ausgeblendet, Duplikate (gleicher Shop + Code) zusammengefasst. Mit der Option `show_expired:true` werden zusätzlich abgelaufene (⌛) und manuell deaktivierte (🚫) Codes angezeigt.
 
 **Geteilte Nachrichten:** Wie beim Review-Bot werden mehrere aufeinanderfolgende Nachrichten desselben Users zusammengeführt: Der Bot wartet nach der letzten Nachricht `ACCUMULATION_DELAY` Sekunden (Standard: 8) und schickt Text + Bilder gebündelt an die KI. So werden Nachfolge-Infos („gilt nur bis morgen", ein zweiter Code) mit erfasst.
+
+**Kurzlink-Auflösung:** Geteilte Kurzlinks (`share.google`, `bit.ly`, `goo.gl`, `t.co`, …) und Google-Weiterleitungen (`…/url?q=`) werden beim Speichern automatisch zur echten Shop-Adresse aufgelöst und um Tracking-Parameter (`srsltid`, `utm_*`, `gclid`, …) bereinigt – aus `https://share.google/Ctvpg…` wird so z. B. `https://www.estheticants.com/`. Normale Links lösen keinen Netzwerk-Aufruf aus (sie werden nur von Tracking-Parametern befreit); Auflösungen werden zwischengespeichert.
 
 **Manuelle Steuerung:** Admins können mit `/codes_set <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_date <code> <gueltig_bis> [gueltig_ab] [shop]` lässt sich das Gültigkeitsdatum eines Codes nachträglich anpassen (Datum als `JJJJ-MM-TT` oder `TT.MM.JJJJ`, `-` löscht das Datum). Mit `/codes_rescan` lässt sich der Kanal nach noch nicht gescannten Nachrichten durchsuchen (bereits Gescanntes wird übersprungen). Ein kompletter Neuaufbau erfolgt bewusst nicht per Befehl – dafür die Tabellen `discount_codes`/`discount_scanned` manuell leeren.
 
@@ -972,6 +974,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── shop.py              # Shop-Auflösung + CSV-Mapping (Review-Bot)
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
 │   ├── discount_parser.py   # Claude Haiku Parser (Rabattcodes)
+│   ├── link_resolver.py     # Kurzlinks auflösen + Tracking-Parameter entfernen
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
