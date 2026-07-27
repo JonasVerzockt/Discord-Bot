@@ -69,37 +69,58 @@ def _two(name: str) -> bool:
     """True bei einem Binomen (genau zwei Tokens)."""
     return len((name or "").split()) == 2
 
-
 def _fetch_all() -> list[dict]:
-    """Zieht alle Taxa seitenweise aus der AntCat-API."""
+    """Zieht alle Taxa seitenweise aus der AntCat-API via starts_at."""
     sess = requests.Session()
     sess.headers.update({"User-Agent": UA, "Accept": "application/json"})
     records: list[dict] = []
+    last_id = 0
+
     print("🐜 Lade AntCat /v1/taxa …")
-    for page in range(1, MAX_PAGES + 1):
+    while True:
         data = None
+        params = {"starts_at": last_id} if last_id > 0 else {}
         for attempt in range(1, 5):
             try:
-                r = sess.get(API, params={"page": page}, timeout=60)
+                r = sess.get(API, params=params, timeout=60)
                 r.raise_for_status()
                 data = r.json()
                 break
             except Exception as e:
-                print(f"  ⚠️ Seite {page} Versuch {attempt} fehlgeschlagen: {e}")
+                print(f"  ⚠️ Abruf ab ID {last_id} Versuch {attempt} fehlgeschlagen: {e}")
                 time.sleep(3 * attempt)
-        if data is None:
-            raise RuntimeError(f"AntCat-Abruf endgültig fehlgeschlagen bei Seite {page}")
+
         if not data:
             break
+
         records.extend(data)
-        if page % 50 == 0:
-            print(f"   … {len(records)} Taxa (Seite {page})")
+
+        # Höchste ID aus diesem Batch ermitteln
+        max_id = last_id
+        for item in data:
+            if not item:
+                continue
+            _, obj = next(iter(item.items()))
+            tid = obj.get("id")
+            if tid and tid > max_id:
+                max_id = tid
+
+        # Wenn keine höhere ID mehr zurückkam, sind wir am Ende
+        if max_id == last_id:
+            break
+
+        last_id = max_id
+
+        if len(records) % 5000 < PAGE_SIZE:
+            print(f"   … {len(records)} Taxa geladen (letzte ID: {last_id})")
+
         if len(data) < PAGE_SIZE:
             break
-        time.sleep(0.15)   # höflich zur API
+
+        time.sleep(0.15)  # höflich zur API
+
     print(f"   {len(records)} Taxa geladen.")
     return records
-
 
 def main() -> int:
     records = _fetch_all()
