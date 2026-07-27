@@ -31,9 +31,11 @@ import hashlib
 import hmac
 import io
 import logging
+import os
 import secrets
 import time
 from collections import defaultdict
+from pathlib import Path
 from urllib.parse import urlparse
 
 import discord
@@ -43,15 +45,18 @@ from discord.ext import commands
 from jinja2 import Environment, DictLoader, select_autoescape
 
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
-                    BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT)
+                    BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT,
+                    SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC)
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
+from utils.db import execute_db
 
 logger = logging.getLogger(__name__)
 
 TYPES       = ["bug", "feature", "idea"]
 STATUSES    = ["pending", "open", "planned", "in_progress", "done", "rejected", "duplicate"]
 PUBLIC_COLS = [("open", "🗳️ Offen / Backlog"), ("planned", "📌 Geplant"),
-               ("in_progress", "🔧 In Arbeit"), ("done", "✅ Erledigt")]
+               ("in_progress", "🔧 In Arbeit"), ("done", "✅ Erledigt"),
+               ("rejected", "🚫 Abgelehnt")]
 PRIORITIES  = ["", "P0", "P1", "P2", "P3"]
 COMPONENTS  = ["", "Preis-Tracking", "Benachrichtigungen", "Shop-Suche/Grabber", "KI-Chat",
                "Digest", "iNat", "Rabattcodes", "Review-Bot", "Erfolge", "Moderation",
@@ -111,10 +116,27 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .wrap{max-width:1100px;margin:0 auto;padding:20px}
  .btn{background:#238636;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px}
  .btn.grey{background:#30363d} .btn.red{background:#8b2b2b} .btn.small{padding:3px 8px;font-size:13px}
- .cols{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
- .col h2{font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:#8b949e;margin:0 0 8px}
+ .cols{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:start}
+ .col{display:flex;flex-direction:column;min-height:0;background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:10px 8px 8px}
+ .col h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#8b949e;margin:0 0 8px;padding:0 2px}
+ .col-body{max-height:68vh;overflow-y:auto;overflow-x:hidden;padding:0 4px 2px;scrollbar-width:thin;scrollbar-color:#30363d transparent}
+ .col-body::-webkit-scrollbar{width:8px}
+ .col-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:4px}
+ .col-body::-webkit-scrollbar-thumb:hover{background:#3d444d}
+ .col-body::-webkit-scrollbar-track{background:transparent}
  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 12px;margin-bottom:10px}
- .card .t{font-weight:600} .muted{color:#8b949e;font-size:13px}
+ .status-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px;margin-bottom:18px}
+ .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:12px}
+ .status-badge{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:20px;font-size:14px;font-weight:600}
+ .status-badge::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+ .s-ok{background:#3fb95022;border:1px solid #3fb95066;color:#3fb950} .s-warn{background:#d2992222;border:1px solid #d2992266;color:#d29922} .s-down{background:#f8514922;border:1px solid #f8514966;color:#f85149}
+ .status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px}
+ .hc{display:flex;align-items:flex-start;gap:9px;background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
+ .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:0 0 auto}
+ .dot.ok{background:#3fb950} .dot.warn{background:#d29922} .dot.down{background:#f85149} .dot.off{background:#6e7681}
+ .hc .n{font-weight:600;font-size:13px} .hc .d{color:#8b949e;font-size:12px;margin-top:1px}
+ @media(max-width:820px){.cols{grid-template-columns:1fr} .col-body{max-height:none}}
+ .card .t{font-weight:600;overflow-wrap:anywhere} .muted{color:#8b949e;font-size:13px}
  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid #30363d;margin-right:5px}
  .bug{color:#ff7b72;border-color:#ff7b72} .feature{color:#7ee787;border-color:#7ee787} .idea{color:#d2a8ff;border-color:#d2a8ff}
  .up{background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:20px;padding:3px 10px;cursor:pointer}
@@ -136,22 +158,33 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
+<div class="status-panel">
+ <div class="status-head">🩺 Bot- &amp; Server-Status
+  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span></div>
+ <div class="status-grid">
+ {% for hc in checks %}
+  <div class=hc><span class="dot {{ hc.state }}"></span>
+   <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></div>
+ {% endfor %}
+ </div>
+</div>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
 <div class=cols>{% for key,label in cols %}
  <div class=col><h2>{{ label }}</h2>
- {% for c in items if c.status==key %}
-  <div class=card><span class="tag {{c.type}}">{{ c.type }}</span>
-   {% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
-   {% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}
-   <div class=t><a href="/submission/{{c.id}}">{{ c.title }}</a></div>
-   {% if c.version %}<div class=muted>erledigt in {{ c.version }}</div>{% endif %}
-   <form method=post action="/upvote/{{c.id}}" style="margin-top:6px"><button class=up>▲ {{ c.upvotes }}</button></form>
+  <div class=col-body>
+  {% for c in items if c.status==key %}
+   <div class=card><span class="tag {{c.type}}">{{ c.type }}</span>
+    {% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
+    {% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}
+    <div class=t><a href="/submission/{{c.id}}">{{ c.title }}</a></div>
+    {% if c.version %}<div class=muted>erledigt in {{ c.version }}</div>{% endif %}
+    <form method=post action="/upvote/{{c.id}}" style="margin-top:6px"><button class=up>▲ {{ c.upvotes }}</button></form>
+   </div>
+  {% else %}<div class=muted>—</div>{% endfor %}
   </div>
- {% else %}<div class=muted>—</div>{% endfor %}</div>
+ </div>
 {% endfor %}</div>
-{% set rej = items|selectattr('status','equalto','rejected')|list %}
-{% if rej %}<h2 style="color:#8b949e;margin-top:24px">🚫 Abgelehnt</h2>{% for c in rej %}<div class=muted>• {{ c.title }}</div>{% endfor %}{% endif %}
 {% endblock %}"""
 
 SUBMIT = """{% extends "base" %}{% block body %}
@@ -233,10 +266,159 @@ async def _one(sid):
     return dict(r) if r else None
 
 
+# ── Status-Dashboard / Health-Checks ──────────────────────────────────────────
+def _file_age_seconds(path) -> float | None:
+    """Alter der Datei in Sekunden (mtime) oder None, wenn sie fehlt/unlesbar ist."""
+    try:
+        return max(0.0, time.time() - os.path.getmtime(path))
+    except OSError:
+        return None
+
+
+def _fmt_age(sec: float | None) -> str:
+    """Menschlich lesbares Alter, z.B. 'vor 2 h 14 min' / 'vor 3 Tagen'."""
+    if sec is None:
+        return "unbekannt"
+    sec = int(sec)
+    if sec < 90:
+        return "gerade eben"
+    m = sec // 60
+    if m < 60:
+        return f"vor {m} min"
+    h = m // 60
+    if h < 24:
+        rem = m % 60
+        return f"vor {h} h {rem} min" if rem else f"vor {h} h"
+    d = h // 24
+    return f"vor {d} {'Tag' if d == 1 else 'Tagen'}"
+
+
+def _loop_next(loop) -> str:
+    """Nächster geplanter Lauf eines tasks.loop in lokaler Zeit (HH:MM) oder ''."""
+    try:
+        nxt = loop.next_iteration
+        return nxt.astimezone().strftime("%H:%M") if nxt else ""
+    except Exception:
+        return ""
+
+
+async def _collect_health(app):
+    """Sammelt alle Health-Checks. Jeder Check ist gekapselt (ein Fehler bricht die
+    Seite nicht ab). Rückgabe: (overall, checks) mit state ∈ ok|warn|down|off.
+    'off' (grau) = bewusst deaktiviert/optional und zählt NICHT gegen den Gesamtstatus."""
+    bot = app.get("bot")
+    checks: list[dict] = []
+
+    # 1) Discord-Bot: online + WebSocket-Latenz
+    try:
+        if bot is None:
+            checks.append(dict(name="Discord-Bot", state="down", detail="Bot-Objekt nicht verfügbar"))
+        elif not bot.is_ready():
+            checks.append(dict(name="Discord-Bot", state="warn", detail="verbindet …"))
+        else:
+            lat = bot.latency  # Sekunden; kann inf/nan sein, bevor der erste Heartbeat kam
+            if lat != lat or lat in (float("inf"), 0):
+                checks.append(dict(name="Discord-Bot", state="warn", detail="online · Latenz unbekannt"))
+            else:
+                ms = round(lat * 1000)
+                checks.append(dict(name="Discord-Bot",
+                                   state="ok" if ms < 500 else "warn",
+                                   detail=f"online · {ms} ms Latenz"))
+    except Exception as e:
+        checks.append(dict(name="Discord-Bot", state="down", detail=str(e)[:80]))
+
+    # 2) Hauptdatenbank erreichbar (SELECT 1)
+    try:
+        await execute_db(bot, "SELECT 1", fetch=True)
+        checks.append(dict(name="Hauptdatenbank", state="ok", detail="erreichbar"))
+    except Exception as e:
+        checks.append(dict(name="Hauptdatenbank", state="down", detail=str(e)[:80]))
+
+    # 3) Board-Datenbank erreichbar
+    try:
+        await board_query("SELECT 1")
+        checks.append(dict(name="Board-Datenbank", state="ok", detail="erreichbar"))
+    except Exception as e:
+        checks.append(dict(name="Board-Datenbank", state="down", detail=str(e)[:80]))
+
+    # 4) Grabber: Frische der Shop-Daten (stündlicher Cronjob → ok<3h, warn<24h, sonst down)
+    age = _file_age_seconds(SHOPS_DATA_FILE)
+    if age is None:
+        checks.append(dict(name="Grabber (Shop-Daten)", state="down", detail="shops_data.json fehlt"))
+    else:
+        state = "ok" if age < 3 * 3600 else ("warn" if age < 24 * 3600 else "down")
+        checks.append(dict(name="Grabber (Shop-Daten)", state=state,
+                           detail=f"aktualisiert {_fmt_age(age)}"))
+
+    # 5) Preis-Historie-DB (der Grabber schreibt sie im selben Lauf)
+    agep = _file_age_seconds(Path(DATA_DIRECTORY) / "price_history.db")
+    if agep is None:
+        checks.append(dict(name="Preis-Historie", state="warn", detail="price_history.db fehlt"))
+    else:
+        state = "ok" if agep < 3 * 3600 else ("warn" if agep < 24 * 3600 else "down")
+        checks.append(dict(name="Preis-Historie", state=state,
+                           detail=f"aktualisiert {_fmt_age(agep)}"))
+
+    # 6) Preis-Tracking-Job (tasks.loop läuft?)
+    try:
+        cog = bot.get_cog("PriceTracking") if bot else None
+        loop = getattr(cog, "check_price_changes", None) if cog else None
+        if loop is None:
+            checks.append(dict(name="Preis-Tracking-Job", state="down", detail="Cog nicht geladen"))
+        elif loop.is_running() and not loop.failed():
+            nxt = _loop_next(loop)
+            checks.append(dict(name="Preis-Tracking-Job", state="ok",
+                               detail="läuft" + (f" · nächster Lauf {nxt}" if nxt else "")))
+        else:
+            checks.append(dict(name="Preis-Tracking-Job", state="down",
+                               detail="gestoppt" if loop and not loop.is_running() else "fehlerhaft"))
+    except Exception as e:
+        checks.append(dict(name="Preis-Tracking-Job", state="warn", detail=str(e)[:80]))
+
+    # 7) Wochen-Digest-Job (tasks.loop läuft?)
+    try:
+        dcog = bot.get_cog("Digest") if bot else None
+        dloop = getattr(dcog, "weekly_digest", None) if dcog else None
+        if dloop is None:
+            checks.append(dict(name="Wochen-Digest-Job", state="warn", detail="Cog nicht geladen"))
+        elif dloop.is_running() and not dloop.failed():
+            nxt = _loop_next(dloop)
+            checks.append(dict(name="Wochen-Digest-Job", state="ok",
+                               detail="läuft" + (f" · nächste Prüfung {nxt}" if nxt else "")))
+        else:
+            checks.append(dict(name="Wochen-Digest-Job", state="warn", detail="gestoppt"))
+    except Exception as e:
+        checks.append(dict(name="Wochen-Digest-Job", state="warn", detail=str(e)[:80]))
+
+    # 8) Artenliste (AntCat) – optionales Feature (monatlicher Cronjob)
+    ages = _file_age_seconds(SPECIES_CATALOG_FILE)
+    if ages is None:
+        checks.append(dict(name="Artenliste (AntCat)", state="off", detail="nicht erzeugt (optional)"))
+    else:
+        checks.append(dict(name="Artenliste (AntCat)",
+                           state="ok" if ages < 40 * 86400 else "warn",
+                           detail=f"gebaut {_fmt_age(ages)}"))
+
+    # 9) KI-Chat – nur relevant, wenn öffentlich aktiviert
+    checks.append(dict(name="KI-Chat", state="ok" if AI_CHAT_PUBLIC else "off",
+                       detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
+
+    states = {c["state"] for c in checks}
+    if "down" in states:
+        overall = ("down", "Teilweise ausgefallen")
+    elif "warn" in states:
+        overall = ("warn", "Läuft mit Einschränkungen")
+    else:
+        overall = ("ok", "Alles läuft")
+    return overall, checks
+
+
 # ── Handlers ──────────────────────────────────────────────────────────────────
 async def h_board(req):
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
-    return _render(req, "board", items=items, cols=PUBLIC_COLS, flash=req.query.get("m", ""))
+    overall, checks = await _collect_health(req.app)
+    return _render(req, "board", items=items, cols=PUBLIC_COLS,
+                   overall=overall, checks=checks, flash=req.query.get("m", ""))
 
 
 async def h_submit_form(req):
