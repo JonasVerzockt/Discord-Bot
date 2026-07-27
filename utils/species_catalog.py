@@ -36,13 +36,13 @@ import logging
 from pathlib import Path
 from difflib import get_close_matches
 
-from config import BASE_DIR
+from config import SPECIES_CATALOG_FILE
 from utils.localization import l10n
 from utils.availability import normalize_species_name
 
 logger = logging.getLogger(__name__)
 
-CATALOG_FILE = Path(os.getenv("SPECIES_CATALOG_FILE", str(BASE_DIR / "data" / "ant_species.json")))
+CATALOG_FILE = Path(SPECIES_CATALOG_FILE)
 
 _FUZZY_CUTOFF = 0.82
 

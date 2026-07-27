@@ -65,9 +65,25 @@ API_TIMEOUT     = int(os.getenv("ANTCHECK_TIMEOUT", "30"))
 API_RETRIES     = int(os.getenv("ANTCHECK_RETRIES", "3"))
 API_RETRY_DELAY = float(os.getenv("ANTCHECK_RETRY_DELAY", "5"))
 API_VERIFY_SSL  = os.getenv("ANTCHECK_VERIFY_SSL", "true").lower() not in ("0", "false", "no")
-DATA_DIRECTORY    = os.getenv("DATA_DIRECTORY", str(Path(__file__).parent))
+# Datenordner: zentral in data/ (wie der Bot). Über DATA_DIR/DATA_DIRECTORY
+# verlegbar; DATA_DIR=. behält das alte Root-Layout.
+_BASE_DIR         = Path(__file__).parent
+DATA_DIRECTORY    = os.getenv("DATA_DIRECTORY", os.getenv("DATA_DIR", str(_BASE_DIR / "data")))
+Path(DATA_DIRECTORY).mkdir(parents=True, exist_ok=True)
 OUTPUT_FILE       = Path(DATA_DIRECTORY) / "shops_data.json"
 PRICE_HISTORY_DB  = Path(DATA_DIRECTORY) / "price_history.db"
+
+# Bestehende Root-Dateien einmalig nach data/ verschieben (idempotent), damit
+# der Grabber unabhängig vom Bot-Start dieselben (historischen) Daten nutzt.
+try:
+    from utils.paths import migrate_legacy_files as _migrate_grabber
+    _migrate_grabber({
+        _BASE_DIR / "shops_data.json":  OUTPUT_FILE,
+        _BASE_DIR / "price_history.db": PRICE_HISTORY_DB,
+        _BASE_DIR / "ant_species.json": Path(DATA_DIRECTORY) / "ant_species.json",
+    })
+except Exception as _e:
+    logging.warning("⚠️ Grabber-Daten-Migration übersprungen: %s", _e)
 
 SHOPS_URL    = f"{API_BASE}/api/v2/ecommerce/shops?online=true&crawler_active=true&page=0&limit=-1&api_key={API_KEY}"
 PRODUCTS_URL = f"{API_BASE}/api/v2/ecommerce/products?shop_id={{shop_id}}&product_type=ants&page=0&limit=-1&api_key={API_KEY}"
@@ -96,7 +112,7 @@ def _strip_html(text) -> str:
 # Lädt data/ant_species.json (von tools/build_ant_species.py erzeugt) eigenständig
 # – bewusst OHNE den Bot-Stack zu importieren. Fehlt die Datei, bleibt
 # canonical_species schlicht None (kein Fehler).
-_SPECIES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ant_species.json")
+_SPECIES_FILE = str(Path(DATA_DIRECTORY) / "ant_species.json")
 _SP_LOADED = False
 _SP_ACCEPTED: dict[str, str] = {}
 _SP_SYNONYMS: dict[str, str] = {}

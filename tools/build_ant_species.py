@@ -36,6 +36,7 @@ Erzeugte Struktur (alles kleingeschrieben als Schlüssel, Anzeigename im Wert):
       "synonyms":  {"iridomyrmex humilis": "Linepithema humile", ...}  # syn -> akzeptiert
     }
 """
+import os
 import sys
 import json
 import time
@@ -50,7 +51,9 @@ FORMICIDAE_KEY = 4342
 PAGE = 1000
 UA = "AntCheckBot-speciesbuilder/1.0 (+https://antcheck.info)"
 
-OUT = Path(__file__).resolve().parent.parent / "data" / "ant_species.json"
+_ROOT = Path(__file__).resolve().parent.parent
+_DATA_DIR = Path(os.getenv("DATA_DIR", str(_ROOT / "data")))
+OUT = Path(os.getenv("SPECIES_CATALOG_FILE", str(_DATA_DIR / "ant_species.json")))
 
 
 def _fetch_page(offset: int) -> dict:

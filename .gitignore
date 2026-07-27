@@ -13,14 +13,14 @@ credentials.json
 bot.py
 backup_*.zip
 
-# ── Bot-Laufzeitdaten ──────────────────────────────────────────────────────────
+# ── Bot-Laufzeitdaten (liegen zentral in data/; ältere Root-Pfade zur Sicherheit) ──
+data/
 processed_messages.json
 pending_messages.json
 shop_mapping.csv
 dm_blocked_users.json
 shops_ch_delivery.json
 shops_data.json
-data/ant_species.json
 antcheckbot.db
 antcheckbot.db-shm
 antcheckbot.db-wal

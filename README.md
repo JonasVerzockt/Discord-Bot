@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.9` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -893,9 +893,11 @@ Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` – Tab
 
 ## Datenbank
 
+> **Datenordner:** Alle Laufzeitdaten liegen zentral in **`data/`** – `antcheckbot.db`, `board.db`, `price_history.db`, `shops_data.json`, `shop_mapping.csv` und `ant_species.json`. Über die Env-Variable `DATA_DIR` verlegbar (`DATA_DIR=.` behält das alte Root-Layout). Beim Start werden vorhandene Dateien aus dem alten Root-Layout **automatisch nach `data/` migriert** (idempotent, inkl. SQLite-`-wal`/`-shm`; nur wenn das Ziel noch fehlt) – kein manuelles Verschieben nötig. Der Ordner ist gitignored.
+
 ### `antcheckbot.db` (Bot-Datenbank)
 
-SQLite-Datei, wird beim Start automatisch angelegt. Wichtige Tabellen:
+SQLite-Datei (in `data/`), wird beim Start automatisch angelegt. Wichtige Tabellen:
 
 | Tabelle | Inhalt |
 |---------|--------|
@@ -996,6 +998,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── discount_parser.py   # Claude Haiku Parser (Rabattcodes)
 │   ├── link_resolver.py     # Kurzlinks auflösen + Tracking-Parameter entfernen
 │   ├── species_catalog.py   # GBIF-Artenliste: Namensprüfung/Tippfehler/Synonyme
+│   ├── paths.py             # Datenordner-Migration (Root → data/)
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)

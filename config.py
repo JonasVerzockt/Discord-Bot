@@ -27,8 +27,13 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).parent
 
+# Alle Laufzeit-/Datendateien liegen zentral in DATA_DIR (Standard: data/).
+# Über die Env-Variable DATA_DIR verlegbar; DATA_DIR=. behält das alte Root-Layout.
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.4.9"
+VERSION = "1.5.0"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -39,14 +44,17 @@ SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID")
 SHEET_NAME     = "Rohdaten"
 
 # Datenbank
-DB_FILE = BASE_DIR / "antcheckbot.db"
+DB_FILE = Path(os.getenv("DB_FILE", str(DATA_DIR / "antcheckbot.db")))
 
 # AntCheck API / Shop-Daten
-DATA_DIRECTORY  = os.getenv("DATA_DIRECTORY", str(BASE_DIR))
-SHOPS_DATA_FILE = os.getenv("SHOPS_DATA_FILE", str(BASE_DIR / "shops_data.json"))
+DATA_DIRECTORY  = os.getenv("DATA_DIRECTORY", str(DATA_DIR))
+SHOPS_DATA_FILE = os.getenv("SHOPS_DATA_FILE", str(Path(DATA_DIRECTORY) / "shops_data.json"))
+
+# Ameisen-Artenliste (GBIF) – siehe tools/build_ant_species.py
+SPECIES_CATALOG_FILE = Path(os.getenv("SPECIES_CATALOG_FILE", str(DATA_DIR / "ant_species.json")))
 
 # Review-Bot
-MAPPING_FILE = str(BASE_DIR / "shop_mapping.csv")
+MAPPING_FILE = str(DATA_DIR / "shop_mapping.csv")
 
 # Lokalisierung
 LOCALES_DIR = BASE_DIR / "locales"
@@ -138,7 +146,7 @@ BOARD_PUBLIC_URL  = os.getenv("BOARD_PUBLIC_URL", "").strip().rstrip("/")
 BOARD_ADMIN_TOKEN = os.getenv("BOARD_ADMIN_TOKEN", "")
 BOARD_OWNER_ID    = int(os.getenv("BOARD_OWNER_ID", "0") or "0")
 # Eigene, separate DB-Datei (nicht die Haupt-Bot-DB).
-BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(BASE_DIR / "board.db"))
+BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(DATA_DIR / "board.db"))
 # Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
 BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", "change-me-board-salt").encode()
 
@@ -157,3 +165,20 @@ if "en" not in AI_CHAT_SYSTEM_PROMPTS:
         "❌ ai_chat_system_prompt_en.txt fehlt – KI-Chat hat keinen "
         "Fallback-System-Prompt und wird Anfragen mit Fehlermeldung ablehnen."
     )
+
+# ── Einmalige Daten-Migration (altes Root-Layout → data/) ──────────────────────
+# Verschiebt bestehende Laufzeitdaten beim Start automatisch nach DATA_DIR, damit
+# vorhandene Installationen ohne manuelles Verschieben weiterlaufen (idempotent,
+# nur wenn Quelle da und Ziel frei; SQLite-Begleitdateien werden mitgezogen).
+try:
+    from utils.paths import migrate_legacy_files as _migrate
+    _migrate({
+        BASE_DIR / "antcheckbot.db":  DB_FILE,
+        BASE_DIR / "board.db":        Path(BOARD_DB_FILE),
+        BASE_DIR / "shop_mapping.csv": Path(MAPPING_FILE),
+        BASE_DIR / "shops_data.json":  Path(SHOPS_DATA_FILE),
+        BASE_DIR / "price_history.db": Path(DATA_DIRECTORY) / "price_history.db",
+        BASE_DIR / "ant_species.json": SPECIES_CATALOG_FILE,
+    })
+except Exception as _e:  # Migration darf den Start nie verhindern
+    logging.getLogger(__name__).warning("⚠️ Daten-Migration übersprungen: %s", _e)
