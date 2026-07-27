@@ -187,7 +187,7 @@ class StatsCog(commands.Cog, name="Stats"):
         "help_digest",
     ]
     _HELP_ADMIN_KEYS = [
-        "help_startup", "help_status", "help_pending",
+        "help_startup", "help_status", "help_pending", "help_test_admin",
         "help_rescan", "help_reprocess", "help_export",
         "help_stats", "help_system",
         "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
@@ -197,7 +197,6 @@ class StatsCog(commands.Cog, name="Stats"):
     ]
     _HELP_AI_KEYS = [
         "help_ai_chat",
-        "help_test_admin",
         "help_ai_reset",
         "help_ai_prompt",
     ]
