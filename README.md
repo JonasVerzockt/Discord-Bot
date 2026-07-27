@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.5.2` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.3` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -527,6 +527,20 @@ Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahi
 
 ---
 
+## Custom Commands (Info-Einträge)
+
+Admins können beliebig viele benannte Text-Bausteine („Info-Einträge") anlegen, die dann per `/info name:<…>` (mit Autocomplete) abgerufen werden – ideal für FAQ, Regeln, wiederkehrende Antworten.
+
+- **Anlegen/Bearbeiten** über ein **mehrzeiliges Popup (Modal)** – der Inhalt inkl. **Markdown und Zeilenumbrüchen** wird 1:1 gespeichert und beim Abruf **unverändert** gepostet.
+- **Sichtbarkeit je Eintrag:** `nur_admin:true` → nur Admins dürfen den Eintrag nutzen, die Antwort ist dann **ephemer** (nur für den Aufrufer); für normale User ist ein solcher Eintrag **komplett unsichtbar** (Autocomplete, Liste und Direktaufruf verraten seine Existenz nicht). Öffentliche Einträge sind **für alle sichtbar**.
+- **Ausgabeform automatisch:** ab **1000 Zeichen** als Embed (fasst bis ~4000 Zeichen), darunter als reiner Text.
+- **Sicherheit:** Ausgaben mit `allowed_mentions=none` – aus dem Text kann kein `@everyone`/Rollen-Ping ausgelöst werden. Anlegen/Ändern/Löschen ist Admins vorbehalten.
+- **Technik:** Bewusst **keine** zur Laufzeit registrierten Slash-Commands (Discord-100er-Limit, Namensregeln) – ein einziger `/info`-Command mit Autocomplete bedient alle Einträge aus der Tabelle `custom_commands`. Verwaltung: `/info_add`, `/info_edit`, `/info_remove`, `/info_raw`, Übersicht: `/info_list`.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
 ## AI-Chat-Bot
 
 > **Hinweis:** Der AI-Chat-Bot ist im AAM Discord aktuell **nicht öffentlich verfügbar**. Die Funktion ist vollständig implementiert und kann jederzeit aktiviert werden, wird aber momentan nur intern genutzt. Hintergrund: Die Community setzt bewusst auf echte Antworten von erfahrenen Haltern statt auf KI – viele Mitglieder schätzen den persönlichen Austausch und stehen KI-generierten Antworten skeptisch gegenüber. Der Bot bleibt als optionales Feature erhalten, das bei Bedarf aktiviert werden kann.
@@ -717,6 +731,8 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/ch_delivery list` | – | CH-Lieferliste anzeigen: automatisch erkannte Shops (aus API) und manuell hinzugefügte. | `/ch_delivery list` |
 | `/ai_status` | – | Eigenen KI-Chat Budget-Status anzeigen: aktuell verbrauchte Kosten, verbleibendes persönliches und globales Tagesbudget sowie Uhrzeit des nächsten Resets. | `/ai_status` |
 | `/codes` | `show_expired` (optional) | Aktuell gültige Rabattcodes anzeigen (permanente, ohne Enddatum, noch nicht abgelaufene sowie manuell gültig markierte). Pro Shop+Code nur ein Eintrag. Mit `show_expired:true` werden auch abgelaufene (⌛) und manuell deaktivierte (🚫) Codes mit angezeigt. | `/codes show_expired:true` |
+| `/info` | `name` (Autocomplete) | Einen benutzerdefinierten Info-Eintrag anzeigen. Inhalt wird **1:1 inkl. Markdown** gepostet. **Öffentliche** Einträge sind für alle sichtbar, **admin-only** Einträge nur für den Aufrufer (ephemer) und für normale User komplett unsichtbar. Ab **1000 Zeichen** automatisch als Embed (sonst reiner Text). @-Pings aus dem Text sind deaktiviert. | `/info name:regeln` |
+| `/info_list` | – | Verfügbare Info-Einträge auflisten (Admins sehen auch admin-only Einträge, markiert mit 🔒). | `/info_list` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, **AAM-Bewertung** (falls vorhanden), Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/offers shop:Antstore` |
@@ -751,6 +767,10 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes_date` | `code`, `gueltig_bis` (`JJJJ-MM-TT`/`TT.MM.JJJJ` oder `-` zum Löschen), `gueltig_ab` (optional), `shop` (optional) | Gültigkeitsdatum eines Rabattcodes nachträglich anpassen (z. B. wenn die KI ein Enddatum falsch/gar nicht erkannt hat). Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_date code:ANT10 gueltig_bis:31.12.2026` |
 | `/codes_fix_links` | – | Einmal-Migration: löst Kurzlinks in **bereits gespeicherten** Codes zur echten Shop-URL auf und entfernt Tracking-Parameter. Idempotent (bereits saubere Links bleiben unverändert). | `/codes_fix_links` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
+| `/info_add` | `name`, `nur_admin` (optional) | Info-Eintrag anlegen. Der Text wird in einem **mehrzeiligen Popup (Modal)** eingegeben – Markdown/Zeilenumbrüche werden 1:1 übernommen. `nur_admin:true` = nur für Admins nutzbar (Antwort dann ephemer). Ausgabe automatisch als Embed ab 1000 Zeichen. | `/info_add name:regeln` |
+| `/info_edit` | `name` (Autocomplete), `nur_admin` (optional) | Info-Eintrag bearbeiten (Text im Modal, vorausgefüllt; Nur-Admin-Flag optional ändern). | `/info_edit name:regeln` |
+| `/info_remove` | `name` (Autocomplete) | Info-Eintrag löschen. | `/info_remove name:regeln` |
+| `/info_raw` | `name` (Autocomplete) | Quelltext eines Info-Eintrags als Codeblock anzeigen (ephemer). | `/info_raw name:regeln` |
 | `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
 | `/known_users` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/known_users` |
 | `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
@@ -976,6 +996,7 @@ SQLite-Datei (in `data/`), wird beim Start automatisch angelegt. Wichtige Tabell
 | `achievements` | Freigeschaltete Erfolge pro User (user_id, achievement_id, Datum) |
 | `user_events` | Leichtes Event-Log (Befehlsnutzung, Zielpreis-Treffer) für Aktions-/Versteckt-Erfolge |
 | `command_log` | Befehls-Nutzungsprotokoll (User, Befehl, Parameter, Kanal, Zeit, Erfolg/Fehler) für Moderation; sensible Parameter ausgeblendet, DB-Retention 12 Monate |
+| `custom_commands` | Benutzerdefinierte Info-Einträge (`/info`): Name, Inhalt (Markdown), admin_only, as_embed, Ersteller, Aufrufzähler |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -1029,6 +1050,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── command_log.py       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   ├── offers.py            # /offers: alle lagernden Angebote eines Shops
+│   ├── custom_commands.py   # /info: benutzerdefinierte Text-Befehle (Info-Einträge)
 │   └── board.py             # Feedback-Board (aiohttp-Webserver + Admin, nur wenn BOARD_ENABLED)
 │
 ├── utils/

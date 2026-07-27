@@ -183,6 +183,7 @@ class StatsCog(commands.Cog, name="Stats"):
         "help_set_target",
         "help_achievements",
         "help_codes",
+        "help_info", "help_info_list",
         "help_digest",
     ]
     _HELP_ADMIN_KEYS = [
@@ -191,6 +192,7 @@ class StatsCog(commands.Cog, name="Stats"):
         "help_stats", "help_system",
         "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
         "help_codes_set", "help_codes_date", "help_codes_fix_links", "help_codes_rescan",
+        "help_info_add", "help_info_edit", "help_info_remove", "help_info_raw",
         "help_command_log", "help_known_users",
     ]
     _HELP_AI_KEYS = [

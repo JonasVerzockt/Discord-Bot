@@ -146,6 +146,15 @@ Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten we
 
 > **Hinweis:** **Alle** Textnachrichten und Bild-Anhänge im Rabattcode-Kanal werden zur Verarbeitung an die Anthropic API (USA) übermittelt. Teile dort daher keine sensiblen personenbezogenen Daten. Anders als bei Bewertungen wird hier der Discord-Username des Verfassers gespeichert (zur Quellenangabe der Codes).
 
+#### Custom Commands (Info-Einträge)
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Name und Inhalt des Info-Eintrags (von Admins angelegter Text) | Abruf über `/info` | Lokale SQLite-Datenbank auf dem Server |
+| Discord-User-ID des anlegenden Admins | Nachvollziehbarkeit (wer hat den Eintrag erstellt) | Lokale SQLite-Datenbank auf dem Server |
+
+> Info-Einträge werden ausschließlich von Berechtigten (Admin/„Nachrichten verwalten") angelegt und enthalten nur bewusst eingegebenen Text. Es findet keine KI-Verarbeitung statt; die Inhalte verlassen den Server nicht.
+
 #### Wochen-Digest
 
 | Daten | Zweck | Speicherort |
