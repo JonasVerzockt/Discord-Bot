@@ -114,8 +114,12 @@ _MERCH_TOKENS = frozenset({
 
 def is_merch(species: str) -> bool:
     """True, wenn das species/Titel-Feld auf Merch/Präparat statt eine lebende
-    Kolonie hindeutet (charakteristisches Nomen aus _MERCH_TOKENS)."""
-    return any(w in _MERCH_TOKENS for w in normalize_species_name(species or "").split())
+    Kolonie hindeutet (charakteristisches Nomen aus _MERCH_TOKENS).
+
+    Tokenisiert an allen Nicht-Wort-Zeichen (auch Bindestrich), damit auch
+    zusammengesetzte Merch-Begriffe wie „Aufkleber-Set" erkannt werden."""
+    toks = re.findall(r"[a-z0-9äöüßà-ÿ]+", normalize_species_name(species or ""))
+    return any(w in _MERCH_TOKENS for w in toks)
 
 
 def matches_species_query(field_species: str, query: str) -> bool:
@@ -312,7 +316,10 @@ async def species_exists(bot, search_term: str) -> bool:
 
     for shop in shops.values():
         for product in shop.get("products", []):
-            title = normalize_species_name(product.get("species", ""))
+            sp = product.get("species", "")
+            if is_merch(sp):                     # Merch/Präparate ignorieren
+                continue
+            title = normalize_species_name(sp)
             if is_genus:
                 if title.startswith(normalized + " "):
                     return True
@@ -377,6 +384,8 @@ async def check_availability_for_species(
 
         for product in shop_info.get("products", []):
             species = product.get("species", "").strip()
+            if is_merch(species):                # Merch/Präparate nie als „verfügbar" melden
+                continue
             norm_title = normalize_species_name(species)
 
             match = False

@@ -152,7 +152,6 @@ class SellsCog(commands.Cog, name="Sells"):
         force: discord.Option(  # type: ignore[valid-type]
             bool,
             "Skip name validation (allow unknown / variant spellings)",
-            name_localizations={"de": "trotzdem"},
             description_localizations={"de": "Namensprüfung überspringen (unbekannte/abweichende Schreibweisen zulassen)"},
             required=False,
             default=False,

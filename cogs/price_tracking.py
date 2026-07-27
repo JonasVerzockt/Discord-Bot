@@ -1055,7 +1055,7 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         self,
         ctx: discord.ApplicationContext,
         species: discord.Option(str, "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')", description_localizations={"de": "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')", "en-US": "Species or genus (e.g. 'Oecophylla smaragdina' or 'Camponotus')"}),  # type: ignore[valid-type]
-        force: discord.Option(bool, "Skip name validation (allow unknown / variant spellings)", name_localizations={"de": "trotzdem"}, description_localizations={"de": "Namensprüfung überspringen (unbekannte/abweichende Schreibweisen zulassen)"}, required=False, default=False),  # type: ignore[valid-type]
+        force: discord.Option(bool, "Skip name validation (allow unknown / variant spellings)", description_localizations={"de": "Namensprüfung überspringen (unbekannte/abweichende Schreibweisen zulassen)"}, required=False, default=False),  # type: ignore[valid-type]
     ):
         await ctx.defer(ephemeral=True)
 
