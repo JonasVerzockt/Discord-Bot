@@ -408,6 +408,20 @@ CREATE TABLE IF NOT EXISTS command_log (
 CREATE INDEX IF NOT EXISTS idx_command_log_created ON command_log (created_at);
 CREATE INDEX IF NOT EXISTS idx_command_log_user ON command_log (user_id);
 
+-- Benutzerdefinierte Text-Befehle ("Tags"): von Admins angelegt, per /tag abrufbar.
+-- content = Rohtext inkl. Markdown; admin_only = nur Admins dürfen abrufen;
+-- as_embed = als Embed statt Klartext posten.
+CREATE TABLE IF NOT EXISTS custom_commands (
+    name        TEXT    PRIMARY KEY,   -- kleingeschrieben, eindeutig
+    content     TEXT    NOT NULL,
+    admin_only  INTEGER NOT NULL DEFAULT 0,
+    as_embed    INTEGER NOT NULL DEFAULT 0,
+    created_by  TEXT,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT,
+    uses        INTEGER NOT NULL DEFAULT 0
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
