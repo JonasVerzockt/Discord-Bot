@@ -195,14 +195,23 @@ class SellsCog(commands.Cog, name="Sells"):
                     continue
                 for p in shop.get("products", []):
                     sp = (p.get("species") or "").strip()
-                    if not sp or not match_fn(sp):
+                    if not sp:
+                        continue
+                    # Der GBIF-kanonische Artname (vom Grabber gesetzt) wird sowohl
+                    # beim Matching ALS AUCH beim Gruppieren berücksichtigt: so findet
+                    # eine Suche nach dem akzeptierten Namen auch synonym benannte
+                    # Angebote, und diese landen shopübergreifend in EINER Gruppe.
+                    canon = (p.get("canonical_species") or "").strip()
+                    if not (match_fn(sp) or (canon and match_fn(canon))):
                         continue
                     if collapse_key is not None:
                         # Binomen-Suche: alle Treffer unter EINER Art bündeln.
                         key, disp = collapse_key, (collapse_disp or collapse_key)
+                    elif canon:
+                        disp = canon
+                        key = _canon_species(canon)
                     else:
-                        # Anzeigenamen der Art von HTML befreien + Entities dekodieren
-                        # (z.B. „&#8211;" -> „–"); auf dieser dekodierten Form gruppieren.
+                        # Fallback: dekodiertes Rohfeld (Entities raus, z.B. „&#8211;" -> „–").
                         disp = strip_html(sp)
                         key = _canon_species(disp)
                     fs.add(key)
