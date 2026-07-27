@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.5.1` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.2` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -249,6 +249,50 @@ aam ALL=(root) NOPASSWD: /usr/bin/systemctl restart aam-bot
 Nach jeder Änderung an einer `.service`- oder `.timer`-Datei einmal `sudo systemctl daemon-reload` ausführen. **Wichtig:** Der Auto-Deploy (`git pull`) aktualisiert die Unit-Vorlagen nur im Projektordner – die aktiv geladenen Kopien in `/etc/systemd/system/` müssen bei Änderungen erneut per `sudo cp … /etc/systemd/system/` + `daemon-reload` übernommen werden. Logs: `journalctl -u aam-bot -f` (Bot) bzw. `journalctl -u aam-bot-update -n 20` (letzter Deploy).
 
 > Hinweis: Der Auto-Deploy zieht aus `main`; die Entwicklung läuft auf `beta` und wird erst durch Merge nach `main` produktiv ausgerollt.
+
+### Cronjobs (Grabber & Artenliste)
+
+Zwei wiederkehrende Aufgaben laufen per Cron – **in der Crontab des Bot-Users** (`sudo -u aam crontab -e`), damit die erzeugten Dateien dem Bot-User gehören:
+
+```cron
+# Shop-Daten stündlich aktualisieren (schreibt shops_data.json + price_history.db nach data/)
+0  * * * *  cd /opt/discord-bot && .venv/bin/python grabber.py                 >> /var/log/antcheck/grabber.log 2>&1
+# Ameisen-Artenliste (GBIF) monatlich neu bauen (schreibt data/ant_species.json)
+30 4 1 * *  cd /opt/discord-bot && .venv/bin/python tools/build_ant_species.py >> /var/log/antcheck/species_build.log 2>&1
+```
+
+Hinweise:
+
+- **Als `aam` einrichten**, nicht als root – sonst gehören `shops_data.json`/`price_history.db`/`data/*` root und der Bot (User `aam`) kann sie nicht mehr schreiben.
+- Das `cd /opt/discord-bot` sorgt dafür, dass der Grabber die `.env` findet (`DATA_DIRECTORY`, API-Key). `build_ant_species.py` braucht keinen API-Key (GBIF ist offen).
+- Monatlich reicht für die Artenliste (das GBIF-Backbone ändert sich nur wenige Male im Jahr); der stündliche Grabber übernimmt die frische Liste beim nächsten Lauf automatisch (`canonical_species`).
+
+### Logging & Logrotate
+
+Der Bot schreibt seine Logs nach **`LOG_DIR`** (Standard `logs/` im Projektordner, per `.env` verlegbar – z. B. `LOG_DIR=/var/log/antcheck`). Bestehende Logs im Projekt-Root werden beim Start automatisch dorthin verschoben. Legt man alles nach `/var/log/antcheck`, muss der Ordner dem Bot-User gehören:
+
+```bash
+sudo mkdir -p /var/log/antcheck
+sudo chown aam:aam /var/log/antcheck
+```
+
+Rotation über logrotate – `/etc/logrotate.d/antcheck`:
+
+```
+/var/log/antcheck/*.log {
+    weekly
+    rotate 8
+    maxage 60
+    compress
+    delaycompress
+    copytruncate
+    missingok
+    notifempty
+    create 644 aam aam
+}
+```
+
+Wichtig: `copytruncate`, weil der Bot seine Logdatei dauerhaft geöffnet hält (ohne würde nach der Rotation in die alte Datei weitergeschrieben). `create 644 aam aam` stellt sicher, dass die neue Datei wieder dem Bot-User gehört. Test: `logrotate -d /etc/logrotate.d/antcheck` (Dry-Run).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
