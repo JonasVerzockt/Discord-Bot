@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.6.5` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.6.6` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1131,7 +1131,13 @@ Technisch läuft das Board als **eigener Webdienst im selben Prozess wie der Bot
 
 Ein leichtgewichtiges Kanban-artiges Board mit Karten in **fünf Status-Spalten**: `Offen/Backlog → Geplant → In Arbeit → Erledigt → Abgelehnt`. Jede Spalte ist **unabhängig scrollbar** (eigener Scroll-Container mit fester Maximalhöhe), sodass sich lange Spalten füllen lassen, ohne die ganze Seite scrollen zu müssen. Jede Karte hat einen **Typ** (Bug / Feature / Idee), optional **Komponente**, **Priorität** und – bei erledigten – die **Version**, in der sie umgesetzt wurde. So ist für alle transparent nachvollziehbar, was gewünscht ist, woran gearbeitet wird und was bereits erledigt wurde.
 
-Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Übersicht (grün/gelb/rot) zu Bot und Server: **Discord-Verbindung** (online + WebSocket-Latenz), **Haupt- und Board-Datenbank** (erreichbar), **Grabber** (Alter der Shop-Daten), **Preis-Historie**, **Preis-Tracking-** und **Wochen-Digest-Job** (laufen die `tasks.loop`?), **Artenliste** (AntCat, optional) sowie **KI-Chat** (aktiv/deaktiviert). Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Daten stammen aus der Bot-Instanz (Latenz/Jobs), aus `SELECT 1`-Checks gegen beide DBs und aus dem Änderungszeitpunkt der Datendateien (`shops_data.json`, `price_history.db`, `ant_species.json`).
+Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Übersicht (grün/gelb/rot) zu Bot und Server, gegliedert in drei Sektionen:
+
+- **🧩 Kern** – **Discord-Verbindung** (online + WebSocket-Latenz), **Haupt- und Board-Datenbank** (`SELECT 1`-Check) sowie **KI-Chat** (aktiv/deaktiviert).
+- **⚙️ Hintergrund-Jobs im Bot** – **alle** `discord.ext.tasks`-Loops des Bot-Prozesses mit Zustand (läuft / gestoppt / fehlerhaft), Intervall und – wo sinnvoll – nächstem Lauf in Berliner Zeit (MEZ/MESZ): Verfügbarkeits-Check, Shop-Cache-Reload, Preis-Tracking (Produkte + Arten), Sammel-DM entfallener Varianten, Wochen-Digest, Shop-Bewertungs-Sync, Ablauf alter Benachrichtigungen, DB-Optimierung (VACUUM), Bot-Statusanzeige, Command-Log schreiben/aufräumen und die beiden KI-Chat-Wartungsloops.
+- **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron: **Grabber** (Shop-Daten + Preis-Historie, stündlich) und **Artenliste/AntCat-Build** (monatlich, optional). Ihr Status wird aus der Aktualität der erzeugten Dateien (`shops_data.json`, `price_history.db`, `ant_species.json`) abgeleitet.
+
+Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.
 
 ### Einreichen (öffentlich, anonym)
 
