@@ -32,8 +32,13 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# Bot-Logdateien (bot_log_YYYYMMDD.log) liegen in LOG_DIR (Standard: logs/).
+# Über LOG_DIR verlegbar (z.B. /var/log/antcheck, sofern für den Bot-User beschreibbar).
+LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")

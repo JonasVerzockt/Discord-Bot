@@ -29,15 +29,27 @@ Verwendung:
     logging.warning("Warnung!")
     logging.error("Fehler!")
 """
+import shutil
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
-from config import BASE_DIR
+from config import BASE_DIR, LOG_DIR
 
 
 def setup_logging(level: int = logging.INFO) -> None:
     """Konfiguriert Root-Logger mit Datei- und Console-Handler."""
-    log_file = BASE_DIR / f"bot_log_{datetime.now().strftime('%Y%m%d')}.log"
+    # Bestehende Bot-Logs einmalig aus dem Projekt-Root nach LOG_DIR verschieben
+    # (Konsolidierung, analog zum data/-Ordner; idempotent, nur wenn Ziel fehlt).
+    try:
+        if LOG_DIR.resolve() != BASE_DIR.resolve():
+            for old in BASE_DIR.glob("bot_log_*.log*"):
+                dest = LOG_DIR / old.name
+                if not dest.exists():
+                    shutil.move(str(old), str(dest))
+    except Exception:
+        pass
+
+    log_file = LOG_DIR / f"bot_log_{datetime.now().strftime('%Y%m%d')}.log"
 
     logger = logging.getLogger()
     logger.setLevel(level)
