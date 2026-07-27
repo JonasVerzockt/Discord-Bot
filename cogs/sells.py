@@ -166,9 +166,12 @@ class SellsCog(commands.Cog, name="Sells"):
                     sp = (p.get("species") or "").strip()
                     if not sp or not match_fn(sp):
                         continue
-                    key = _canon_species(sp)
+                    # Anzeigenamen der Art von HTML befreien + Entities dekodieren
+                    # (z.B. „&#8211;" -> „–"); auf dieser dekodierten Form gruppieren.
+                    disp = strip_html(sp)
+                    key = _canon_species(disp)
                     fs.add(key)
-                    names.setdefault(key, Counter())[sp] += 1
+                    names.setdefault(key, Counter())[disp] += 1
                     if not (p.get("in_stock") and p.get("is_active")):
                         continue
                     off.setdefault(key, []).append({
