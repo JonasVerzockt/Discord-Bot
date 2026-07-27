@@ -28,8 +28,9 @@ Netzzugang nötig:
 
     python3 tools/build_ant_species.py
 
-Wichtig: antcat.org steht hinter Cloudflare; der REST-Pfad /v1 ist frei, aber ein
-Browser-User-Agent ist nötig (sonst 403). Wird hier gesetzt.
+Hinweis: antcat.org steht hinter Cloudflare; der REST-Pfad /v1 ist aber frei
+zugänglich (getestet: auch mit curl-/python-requests-Default-UA -> HTTP 200).
+Wir setzen trotzdem einen ehrlichen, identifizierenden User-Agent (API-Etikette).
 
 Erzeugte Struktur (Schlüssel klein, Anzeigename im Wert) – identisch zum bisherigen
 Format, daher KEINE Änderung am Bot nötig:
@@ -52,8 +53,10 @@ from pathlib import Path
 import requests
 
 API = "https://antcat.org/v1/taxa"
-# Browser-User-Agent ist Pflicht (Cloudflare blockt sonst mit 403 auf /v1).
-UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+# Der /v1-REST-Pfad wird von Cloudflare NICHT UA-basiert geblockt (getestet: curl-
+# und python-requests-Default-UA liefern 200). Wir setzen dennoch einen ehrlichen,
+# identifizierenden UA – gute API-Etikette (kein vorgetäuschter Browser).
+UA = "AntCheckBot/1.0 (+https://antcheck.info; ant species list builder)"
 PAGE_SIZE = 100          # AntCat liefert 100 Taxa pro Seite
 MAX_PAGES = 5000         # Sicherheitslimit
 

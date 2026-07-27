@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.5.7` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.8` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -264,7 +264,7 @@ Zwei wiederkehrende Aufgaben laufen per Cron – **in der Crontab des Bot-Users*
 Hinweise:
 
 - **Als `aam` einrichten**, nicht als root – sonst gehören `shops_data.json`/`price_history.db`/`data/*` root und der Bot (User `aam`) kann sie nicht mehr schreiben.
-- Das `cd /opt/discord-bot` sorgt dafür, dass der Grabber die `.env` findet (`DATA_DIRECTORY`, API-Key). `build_ant_species.py` braucht keinen API-Key (AntCat REST ist offen; ein Browser-User-Agent wird gesetzt, da antcat.org hinter Cloudflare liegt).
+- Das `cd /opt/discord-bot` sorgt dafür, dass der Grabber die `.env` findet (`DATA_DIRECTORY`, API-Key). `build_ant_species.py` braucht keinen API-Key (AntCat REST `/v1` ist offen zugänglich; ein identifizierender User-Agent wird als Etikette gesetzt, ist aber technisch nicht nötig).
 - Monatlich reicht für die Artenliste (die Ameisentaxonomie ändert sich langsam); der stündliche Grabber übernimmt die frische Liste beim nächsten Lauf automatisch (`canonical_species`).
 
 ### Logging & Logrotate
