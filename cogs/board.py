@@ -127,7 +127,13 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .col-body::-webkit-scrollbar-track{background:transparent}
  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 12px;margin-bottom:10px}
  .status-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px;margin-bottom:18px}
- .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:12px}
+ summary.status-head{cursor:pointer;list-style:none;user-select:none}
+ summary.status-head::-webkit-details-marker{display:none}
+ .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:0}
+ details[open]>.status-head{margin-bottom:4px}
+ .status-toggle{margin-left:auto;color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
+ .status-toggle::after{content:"▸";display:inline-block;margin-left:6px;transition:transform .15s}
+ details[open] .status-toggle::after{transform:rotate(90deg)}
  .status-badge{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:20px;font-size:14px;font-weight:600}
  .status-badge::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
  .s-ok{background:#3fb95022;border:1px solid #3fb95066;color:#3fb950} .s-warn{background:#d2992222;border:1px solid #d2992266;color:#d29922} .s-down{background:#f8514922;border:1px solid #f8514966;color:#f85149}
@@ -161,9 +167,11 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
-<div class="status-panel">
- <div class="status-head">🩺 Bot- &amp; Server-Status
-  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span></div>
+<details class="status-panel">
+ <summary class="status-head">🩺 Bot- &amp; Server-Status
+  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
+  <span class="status-toggle">Details</span></summary>
+ <div class="status-body">
  {% for sec in sections %}
  <div class="status-section">
   <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
@@ -175,7 +183,8 @@ BOARD = """{% extends "base" %}{% block body %}
   </div>
  </div>
  {% endfor %}
-</div>
+ </div>
+</details>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
 <div class=cols>{% for key,label in cols %}

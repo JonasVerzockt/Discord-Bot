@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.6.6` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.6.7` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1131,7 +1131,7 @@ Technisch läuft das Board als **eigener Webdienst im selben Prozess wie der Bot
 
 Ein leichtgewichtiges Kanban-artiges Board mit Karten in **fünf Status-Spalten**: `Offen/Backlog → Geplant → In Arbeit → Erledigt → Abgelehnt`. Jede Spalte ist **unabhängig scrollbar** (eigener Scroll-Container mit fester Maximalhöhe), sodass sich lange Spalten füllen lassen, ohne die ganze Seite scrollen zu müssen. Jede Karte hat einen **Typ** (Bug / Feature / Idee), optional **Komponente**, **Priorität** und – bei erledigten – die **Version**, in der sie umgesetzt wurde. So ist für alle transparent nachvollziehbar, was gewünscht ist, woran gearbeitet wird und was bereits erledigt wurde.
 
-Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Übersicht (grün/gelb/rot) zu Bot und Server, gegliedert in drei Sektionen:
+Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Übersicht (grün/gelb/rot) zu Bot und Server. Standardmäßig ist es **eingeklappt** und zeigt nur den Gesamtstatus; per Klick (natives `<details>`/`<summary>`, funktioniert auch ohne JavaScript) klappen die Detail-Kacheln auf. Es ist gegliedert in drei Sektionen:
 
 - **🧩 Kern** – **Discord-Verbindung** (online + WebSocket-Latenz), **Haupt- und Board-Datenbank** (`SELECT 1`-Check) sowie **KI-Chat** (aktiv/deaktiviert).
 - **⚙️ Hintergrund-Jobs im Bot** – **alle** `discord.ext.tasks`-Loops des Bot-Prozesses mit Zustand (läuft / gestoppt / fehlerhaft), Intervall und – wo sinnvoll – nächstem Lauf in Berliner Zeit (MEZ/MESZ): Verfügbarkeits-Check, Shop-Cache-Reload, Preis-Tracking (Produkte + Arten), Sammel-DM entfallener Varianten, Wochen-Digest, Shop-Bewertungs-Sync, Ablauf alter Benachrichtigungen, DB-Optimierung (VACUUM), Bot-Statusanzeige, Command-Log schreiben/aufräumen und die beiden KI-Chat-Wartungsloops.
