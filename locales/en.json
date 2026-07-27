@@ -170,7 +170,7 @@
   "shopurl_list_entry": "- **{shop}** (ID `{id}`): {url}",
   "shopurl_list_none": "ℹ️ No manual URL overrides set.",
   "ch_delivery_remove_no_permission": "❌ You can only remove entries you added yourself.",
-  "help_ch_delivery": "🇨🇭 `/ch_delivery` – Manage and view shops delivering to Switzerland",
+  "help_ch_delivery": "🇨🇭 `/ch_delivery` – Manage shops that deliver to Switzerland (used by `/notification swiss_only`)",
   "help_status": "📊 `/status` – Review count / processed / pending",
   "help_pending": "🟡 `/pending` – List pending messages (🟡)",
   "help_test_admin": "🧪 `/test` – Test AI parser without writing to sheet",

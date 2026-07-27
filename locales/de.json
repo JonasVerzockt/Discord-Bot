@@ -170,7 +170,7 @@
   "shopurl_list_entry": "- **{shop}** (ID `{id}`): {url}",
   "shopurl_list_none": "ℹ️ Keine manuellen URL-Overrides gesetzt.",
   "ch_delivery_remove_no_permission": "❌ Du kannst nur Einträge entfernen, die du selbst hinzugefügt hast.",
-  "help_ch_delivery": "🇨🇭 `/ch_delivery` – Shops die nach CH liefern verwalten und anzeigen",
+  "help_ch_delivery": "🇨🇭 `/ch_delivery` – Shops verwalten, die in die Schweiz liefern (fließen in `/notification swiss_only` ein)",
   "help_status": "📊 `/status` – Bewertungsanzahl / verarbeitet / ausstehend",
   "help_pending": "🟡 `/pending` – Ausstehende Nachrichten anzeigen (🟡)",
   "help_test_admin": "🧪 `/test` – KI-Parser testen ohne Sheet-Eintrag",

@@ -176,10 +176,11 @@ class StatsCog(commands.Cog, name="Stats"):
     # Thematisch gruppierte Hilfe: (Gruppen-Header-Key, [Befehl-Keys]).
     _HELP_USER_GROUPS = [
         ("help_grp_notifications", [
-            "help_notification", "help_history", "help_delete", "help_test", "help_digest",
+            "help_notification", "help_ch_delivery",
+            "help_history", "help_delete", "help_test", "help_digest",
         ]),
         ("help_grp_offers", [
-            "help_sells", "help_offers", "help_ch_delivery",
+            "help_sells", "help_offers",
         ]),
         ("help_grp_pricetracking", [
             "help_track_price", "help_my_price_tracking", "help_untrack_price",
