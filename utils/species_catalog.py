@@ -16,7 +16,7 @@
 
 """
 utils/species_catalog.py – Prüfung/Kanonisierung von Ameisen-Namen gegen eine
-lokale GBIF-Artenliste (data/ant_species.json, erzeugt von
+lokale AntCat-Artenliste (data/ant_species.json, erzeugt von
 tools/build_ant_species.py).
 
 Kernidee:
