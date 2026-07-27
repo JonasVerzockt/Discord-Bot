@@ -17,23 +17,30 @@
 
 """
 tools/build_ant_species.py – erzeugt die lokale Ameisen-Artenliste
-(data/ant_species.json) aus dem GBIF-Backbone (Familie Formicidae).
+(data/ant_species.json) aus der AntCat REST-API (antcat.org/v1).
 
-EINMALIG bzw. gelegentlich auf dem Server ausführen (Netzzugang nötig):
+AntCat ist die maßgebliche taxonomische Autorität für Ameisen (Formicidae) – im
+Gegensatz zum allgemeinen GBIF-Backbone sind hier Gültig/Synonym und die
+akzeptierten Namen aktuell (z. B. Camponotus ligniperda, Neoponera apicalis).
+
+EINMALIG bzw. gelegentlich (z. B. monatlich per Cron) auf dem Server ausführen –
+Netzzugang nötig:
 
     python3 tools/build_ant_species.py
 
-Quelle: GBIF Backbone Taxonomy (datasetKey d7dddbf4-2cf0-4f39-9b2a-bb099caae36c),
-Familie Formicidae (familyKey 4342). GBIF-Daten stehen unter CC-BY –
-Attributionshinweis: „Taxonomie: GBIF Backbone Taxonomy (https://www.gbif.org)".
+Hinweis: antcat.org steht hinter Cloudflare; der REST-Pfad /v1 ist aber frei
+zugänglich (getestet: auch mit curl-/python-requests-Default-UA -> HTTP 200).
+Wir setzen trotzdem einen ehrlichen, identifizierenden User-Agent (API-Etikette).
 
-Erzeugte Struktur (alles kleingeschrieben als Schlüssel, Anzeigename im Wert):
+Erzeugte Struktur (Schlüssel klein, Anzeigename im Wert) – identisch zum bisherigen
+Format, daher KEINE Änderung am Bot nötig:
     {
-      "_meta":     {"source": "...", "generated": "ISO", "count_accepted": N, ...},
-      "genera":    {"camponotus": "Camponotus", ...},
-      "accepted":  {"camponotus nicobarensis": "Camponotus nicobarensis", ...},
-      "epithets":  ["nicobarensis", "niger", ...],           # akzeptierte Epitheta
-      "synonyms":  {"iridomyrmex humilis": "Linepithema humile", ...}  # syn -> akzeptiert
+      "_meta":    {"source": "AntCat REST API (antcat.org/v1)", ...},
+      "genera":   {"camponotus": "Camponotus", ...},
+      "accepted": {"camponotus ligniperda": "Camponotus ligniperda", ...},
+      "epithets": ["ligniperda", "niger", ...],
+      "synonyms": {"camponotus ligniperdus": "Camponotus ligniperda",
+                   "pachycondyla apicalis":  "Neoponera apicalis", ...}
     }
 """
 import os
@@ -45,87 +52,122 @@ from pathlib import Path
 
 import requests
 
-GBIF_SEARCH = "https://api.gbif.org/v1/species/search"
-BACKBONE_DATASET = "d7dddbf4-2cf0-4f39-9b2a-bb099caae36c"
-FORMICIDAE_KEY = 4342
-PAGE = 1000
-UA = "AntCheckBot-speciesbuilder/1.0 (+https://antcheck.info)"
+API = "https://antcat.org/v1/taxa"
+# Der /v1-REST-Pfad wird von Cloudflare NICHT UA-basiert geblockt (getestet: curl-
+# und python-requests-Default-UA liefern 200). Wir setzen dennoch einen ehrlichen,
+# identifizierenden UA – gute API-Etikette (kein vorgetäuschter Browser).
+UA = "AntCheckBot/1.0 (+https://antcheck.info; ant species list builder)"
+PAGE_SIZE = 100          # AntCat liefert 100 Taxa pro Seite
+MAX_PAGES = 5000         # Sicherheitslimit
 
 _ROOT = Path(__file__).resolve().parent.parent
 _DATA_DIR = Path(os.getenv("DATA_DIR", str(_ROOT / "data")))
 OUT = Path(os.getenv("SPECIES_CATALOG_FILE", str(_DATA_DIR / "ant_species.json")))
 
 
-def _fetch_page(offset: int) -> dict:
-    params = {
-        "datasetKey": BACKBONE_DATASET,
-        "highertaxonKey": FORMICIDAE_KEY,
-        "rank": "SPECIES",
-        "limit": PAGE,
-        "offset": offset,
-    }
-    for attempt in range(1, 5):
-        try:
-            r = requests.get(GBIF_SEARCH, params=params, timeout=60,
-                             headers={"User-Agent": UA})
-            r.raise_for_status()
-            return r.json()
-        except Exception as e:
-            print(f"  ⚠️ Seite offset={offset} Versuch {attempt} fehlgeschlagen: {e}")
-            time.sleep(3 * attempt)
-    raise RuntimeError(f"GBIF-Abruf endgültig fehlgeschlagen bei offset={offset}")
+def _two(name: str) -> bool:
+    """True bei einem Binomen (genau zwei Tokens)."""
+    return len((name or "").split()) == 2
+
+
+def _fetch_all() -> list[dict]:
+    """Zieht alle Taxa seitenweise aus der AntCat-API."""
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": UA, "Accept": "application/json"})
+    records: list[dict] = []
+    print("🐜 Lade AntCat /v1/taxa …")
+    for page in range(1, MAX_PAGES + 1):
+        data = None
+        for attempt in range(1, 5):
+            try:
+                r = sess.get(API, params={"page": page}, timeout=60)
+                r.raise_for_status()
+                data = r.json()
+                break
+            except Exception as e:
+                print(f"  ⚠️ Seite {page} Versuch {attempt} fehlgeschlagen: {e}")
+                time.sleep(3 * attempt)
+        if data is None:
+            raise RuntimeError(f"AntCat-Abruf endgültig fehlgeschlagen bei Seite {page}")
+        if not data:
+            break
+        records.extend(data)
+        if page % 50 == 0:
+            print(f"   … {len(records)} Taxa (Seite {page})")
+        if len(data) < PAGE_SIZE:
+            break
+        time.sleep(0.15)   # höflich zur API
+    print(f"   {len(records)} Taxa geladen.")
+    return records
 
 
 def main() -> int:
-    accepted: dict[str, str] = {}    # "genus epithet" (lower) -> Display
-    synonyms: dict[str, str] = {}    # syn binomial (lower)    -> akzeptiertes Display
-    genera: dict[str, str] = {}      # genus (lower)           -> Display
+    records = _fetch_all()
 
-    offset, total = 0, None
-    print("🐜 Lade Formicidae aus dem GBIF-Backbone …")
-    while True:
-        data = _fetch_page(offset)
-        if total is None:
-            total = data.get("count")
-            print(f"   Datensätze gesamt (rank=SPECIES): {total}")
-        results = data.get("results", [])
-        for rec in results:
-            canonical = (rec.get("canonicalName") or "").strip()
-            toks = canonical.split()
-            if len(toks) != 2:            # nur echte Binomen (keine Trinomen/Fragmente)
-                continue
-            status  = (rec.get("taxonomicStatus") or "").upper()
-            is_syn  = bool(rec.get("synonym"))
-            acc_disp = (rec.get("species") or "").strip()   # akzeptierter Name
-            low = canonical.lower()
-            if is_syn or status in ("SYNONYM", "HETEROTYPIC_SYNONYM", "HOMOTYPIC_SYNONYM"):
-                if acc_disp and len(acc_disp.split()) == 2 and low != acc_disp.lower():
-                    synonyms[low] = acc_disp
-            elif status == "ACCEPTED":
-                accepted[low] = canonical
-                genera[toks[0].lower()] = toks[0]
+    # ── Index über alle Taxa (für die Synonym-Auflösung) ──────────────────────
+    id_name: dict[int, str] = {}
+    id_status: dict[int, str] = {}
+    id_target: dict[int, int] = {}   # current_taxon_id bzw. homonym_replaced_by_id
+    id_rank: dict[int, str] = {}
+    for rec in records:
+        if not rec:
+            continue
+        rank, obj = next(iter(rec.items()))
+        tid = obj.get("id")
+        if tid is None:
+            continue
+        id_name[tid] = (obj.get("name_cache") or "").strip()
+        id_status[tid] = (obj.get("status") or "").lower()
+        id_target[tid] = obj.get("current_taxon_id") or obj.get("homonym_replaced_by_id")
+        id_rank[tid] = rank
 
-        if data.get("endOfRecords") or not results:
-            break
-        offset += PAGE
-        if total and offset >= total:
-            break
-        time.sleep(0.2)   # höflich zur API
+    def resolve(target_id, hops: int = 8):
+        """Folgt current_taxon_id/homonym-Kette bis zu einem gültigen Taxon."""
+        seen = set()
+        tid = target_id
+        while tid is not None and tid not in seen and hops > 0:
+            seen.add(tid)
+            hops -= 1
+            if id_status.get(tid) == "valid":
+                return id_name.get(tid)
+            tid = id_target.get(tid)
+        return None
 
-    # Synonyme, deren Ziel nicht als akzeptiert bekannt ist, entfernen (Konsistenz).
-    acc_lower = set(accepted)
-    synonyms = {k: v for k, v in synonyms.items() if v.lower() in acc_lower}
+    accepted: dict[str, str] = {}
+    synonyms: dict[str, str] = {}
+    genera: dict[str, str] = {}
+
+    for tid, rank in id_rank.items():
+        name = id_name.get(tid, "")
+        status = id_status.get(tid)
+        if not name:
+            continue
+        if rank == "genus" and status == "valid":
+            genera.setdefault(name.lower(), name)
+        elif rank == "species" and _two(name):
+            if status == "valid":
+                accepted[name.lower()] = name
+                genera.setdefault(name.split()[0].lower(), name.split()[0])
+        # Synonyme/Homonyme/obsolete Kombinationen etc. → auf den aktuell gültigen
+        # Namen abbilden (nur Art-Binomen, deren Ziel ebenfalls ein Binomen ist).
+        if rank in ("species", "subspecies") and _two(name) and status != "valid":
+            tgt = resolve(id_target.get(tid))
+            if tgt and _two(tgt) and tgt.lower() != name.lower():
+                synonyms[name.lower()] = tgt
+
+    # Konsistenz: Synonyme nur behalten, wenn ihr Ziel als akzeptiert bekannt ist.
+    synonyms = {k: v for k, v in synonyms.items() if v.lower() in accepted}
     epithets = sorted({k.split()[1] for k in accepted})
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "_meta": {
-            "source": "GBIF Backbone Taxonomy (CC-BY, https://www.gbif.org)",
-            "family": "Formicidae", "familyKey": FORMICIDAE_KEY,
+            "source": "AntCat REST API (antcat.org/v1, CC-BY-SA)",
             "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "count_accepted": len(accepted),
             "count_synonyms": len(synonyms),
             "count_genera": len(genera),
+            "count_taxa_raw": len(records),
         },
         "genera": dict(sorted(genera.items())),
         "accepted": dict(sorted(accepted.items())),

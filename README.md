@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.5.6` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.9` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -257,15 +257,15 @@ Zwei wiederkehrende Aufgaben laufen per Cron – **in der Crontab des Bot-Users*
 ```cron
 # Shop-Daten stündlich aktualisieren (schreibt shops_data.json + price_history.db nach data/)
 0  * * * *  cd /opt/discord-bot && .venv/bin/python grabber.py                 >> /var/log/antcheck/grabber.log 2>&1
-# Ameisen-Artenliste (GBIF) monatlich neu bauen (schreibt data/ant_species.json)
+# Ameisen-Artenliste (AntCat) monatlich neu bauen (schreibt data/ant_species.json)
 30 4 1 * *  cd /opt/discord-bot && .venv/bin/python tools/build_ant_species.py >> /var/log/antcheck/species_build.log 2>&1
 ```
 
 Hinweise:
 
 - **Als `aam` einrichten**, nicht als root – sonst gehören `shops_data.json`/`price_history.db`/`data/*` root und der Bot (User `aam`) kann sie nicht mehr schreiben.
-- Das `cd /opt/discord-bot` sorgt dafür, dass der Grabber die `.env` findet (`DATA_DIRECTORY`, API-Key). `build_ant_species.py` braucht keinen API-Key (GBIF ist offen).
-- Monatlich reicht für die Artenliste (das GBIF-Backbone ändert sich nur wenige Male im Jahr); der stündliche Grabber übernimmt die frische Liste beim nächsten Lauf automatisch (`canonical_species`).
+- Das `cd /opt/discord-bot` sorgt dafür, dass der Grabber die `.env` findet (`DATA_DIRECTORY`, API-Key). `build_ant_species.py` braucht keinen API-Key (AntCat REST `/v1` ist offen zugänglich; ein identifizierender User-Agent wird als Etikette gesetzt, ist aber technisch nicht nötig).
+- Monatlich reicht für die Artenliste (die Ameisentaxonomie ändert sich langsam); der stündliche Grabber übernimmt die frische Liste beim nächsten Lauf automatisch (`canonical_species`).
 
 ### Logging & Logrotate
 
@@ -922,11 +922,11 @@ Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Läd
 2. `GET /api/v2/ecommerce/products?shop_id={id}&product_type=ants` → Produkte pro Shop
 3. `GET /api/v2/ecommerce/variants?limit=-1` → **alle Varianten global**, nach `product_id` gruppiert und dem jeweiligen Produkt zugeordnet
 
-Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, GBIF-akzeptierten Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde.
+Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, **AntCat-akzeptierten** Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde.
 
-### Artenliste & Namensprüfung (GBIF)
+### Artenliste & Namensprüfung (AntCat)
 
-Eine optionale lokale Ameisen-Artenliste ermöglicht **Namensprüfung**, **Tippfehler-Vorschläge** und **Synonym-Auflösung**. Quelle ist die [GBIF Backbone Taxonomy](https://www.gbif.org) (Familie Formicidae, ~17.600 Arten, CC-BY).
+Eine optionale lokale Ameisen-Artenliste ermöglicht **Namensprüfung**, **Tippfehler-Vorschläge** und **Synonym-Auflösung**. Quelle ist die [AntCat REST API](https://antcat.org/api_docs) (`antcat.org/v1`) – die maßgebliche taxonomische Autorität für Ameisen (Formicidae). Anders als der allgemeine GBIF-Backbone ist AntCat bei Gültig/Synonym aktuell (z. B. **Camponotus ligniperda**, **Neoponera apicalis**). Der Generator zieht alle Taxa und baut daraus akzeptierte Arten, Gattungen und die **Synonym→akzeptiert**-Zuordnung (über `current_taxon_id`).
 
 Erzeugung (einmalig/gelegentlich auf dem Server, Netzzugang nötig):
 
@@ -941,7 +941,9 @@ Nutzung im Bot: Bei `/sells`, `/track_price` und `/notification` wird der eingeg
 - **Unbekannt** → Hinweis, Schreibweise zu prüfen.
 - Mit `force: True` wird die Prüfung übersprungen (für Handelsnamen/sehr neue Arten, die (noch) nicht im Katalog stehen).
 
-Fehlt `data/ant_species.json`, ist die Prüfung **inaktiv** – alle Eingaben werden dann unverändert akzeptiert (kein Feature-Bruch). Die Datei ist gitignored und wird auf dem Server erzeugt (analog `shops_data.json`).
+**Synonym-Vereinheitlichung überall:** `/sells`, `/notification` und `/track_price` matchen Shop-Angebote gegen **Rohname UND `canonical_species`** und lösen zusätzlich den Suchbegriff bzw. die gespeicherte Beobachtung auf den akzeptierten Namen auf. Dadurch findet/beobachtet man eine Art unabhängig davon, ob der Shop den aktuellen oder einen veralteten Namen führt (z. B. Suche „Neoponera apicalis" trifft auch ein als „Pachycondyla apicalis" gelistetes Angebot). Das gilt auch für **bestehende** Beobachtungen/Notifications (Kanonisierung zur Laufzeit, keine DB-Migration nötig). Einzelprodukt-Trackings laufen über die Produkt-ID und sind ohnehin unberührt.
+
+Fehlt `data/ant_species.json`, ist die Prüfung **inaktiv** – alle Eingaben werden dann unverändert akzeptiert und das Matching fällt automatisch auf den Rohnamen zurück (kein Feature-Bruch). Die Datei ist gitignored und wird auf dem Server erzeugt (analog `shops_data.json`).
 
 Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` – Tabelle `product_price_history` (Produkt-min/max) und `variant_price_history` (Einzelpreis pro Variante). Diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
 
@@ -1063,7 +1065,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
 │   ├── discount_parser.py   # Claude Haiku Parser (Rabattcodes)
 │   ├── link_resolver.py     # Kurzlinks auflösen + Tracking-Parameter entfernen
-│   ├── species_catalog.py   # GBIF-Artenliste: Namensprüfung/Tippfehler/Synonyme
+│   ├── species_catalog.py   # AntCat-Artenliste: Namensprüfung/Tippfehler/Synonyme
 │   ├── paths.py             # Datenordner-Migration (Root → data/)
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
@@ -1201,7 +1203,7 @@ Dieser Bot steht auf den Schultern anderer – vielen Dank an:
 - **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise, EZB-Kurse).
 - **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api)** – offene, key-lose Wechselkurse als Fallback (150+ Währungen inkl. TWD).
 - **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
-- **[GBIF – Global Biodiversity Information Facility](https://www.gbif.org)** – GBIF Backbone Taxonomy (Familie Formicidae) als Datenquelle für die Ameisen-Artenliste (Namensprüfung, Tippfehler-Vorschläge, Synonym-Auflösung, `canonical_species`). Daten unter **CC-BY**.
+- **[AntCat](https://antcat.org)** – World Catalog of Ants (REST-API `antcat.org/v1`) als **maßgebliche** Datenquelle für die Ameisen-Artenliste (Namensprüfung, Tippfehler-Vorschläge, Synonym-Auflösung, `canonical_species`). Danke an Brian Fisher & das AntCat-Team.
 - **[Anthropic Claude](https://www.anthropic.com)** – KI (Claude Haiku) für den Review- und Rabattcode-Parser sowie den optionalen KI-Chat.
 - **[Google Sheets / gspread](https://github.com/burnash/gspread)** – Ablage der Shopbewertungen und iNat-Ranglisten.
 - **[py-cord](https://pycord.dev)** – Discord-Bibliothek (Slash Commands, Interaktionen).

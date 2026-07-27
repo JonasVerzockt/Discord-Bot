@@ -16,7 +16,7 @@
 
 """
 utils/species_catalog.py – Prüfung/Kanonisierung von Ameisen-Namen gegen eine
-lokale GBIF-Artenliste (data/ant_species.json, erzeugt von
+lokale AntCat-Artenliste (data/ant_species.json, erzeugt von
 tools/build_ant_species.py).
 
 Kernidee:
@@ -185,6 +185,30 @@ def resolve_field(species_str: str) -> str | None:
             return _accepted[cand]
         if cand in _synonyms:   # auch Synonym-Gattungen (z.B. „Iridomyrmex humilis")
             return _synonyms[cand]
+    return None
+
+
+def canonical(name: str) -> str | None:
+    """
+    Akzeptierter Anzeigename für einen SAUBEREN Gattungs-/Artnamen (nicht verrauscht):
+      • Art-Binomen: accepted → sich selbst; Synonym → aktueller Name; sonst None
+      • Gattung (ein Token): akzeptierte Gattung → Anzeigename; sonst None
+    None, wenn unbekannt oder keine Liste geladen. Für die Kanonisierung von
+    Nutzereingaben und gespeicherten Beobachtungen (Synonym-Vereinheitlichung).
+    """
+    _load()
+    if not _accepted and not _genera:
+        return None
+    toks = _alpha_tokens(name)
+    if len(toks) >= 2:
+        key = f"{toks[0]} {toks[1]}"
+        if key in _accepted:
+            return _accepted[key]
+        if key in _synonyms:
+            return _synonyms[key]
+        return None
+    if len(toks) == 1:
+        return _genera.get(toks[0])
     return None
 
 

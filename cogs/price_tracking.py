@@ -208,6 +208,11 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
     shop_data = await load_shop_data(bot)
     normalized = normalize_species_name(species_query)
     is_genus = " " not in normalized.strip()
+    # Suchbegriffe inkl. AntCat-kanonischer Form (Synonym→akzeptiert).
+    search_terms = {normalized}
+    _cq = species_catalog.canonical(species_query)
+    if _cq:
+        search_terms.add(normalize_species_name(_cq))
 
     candidates: dict[str, list] = {}
     zero_price_ids: list[int] = []
@@ -215,12 +220,16 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
     for shop_id, shop_info in shop_data.items():
         for product in shop_info.get("products", []):
             species = (product.get("species") or "").strip()
-            norm = normalize_species_name(species)
+            # Rohfeld + canonical_species (falls Grabber es gesetzt hat) matchen.
+            cand_names = [normalize_species_name(species)]
+            _cs = (product.get("canonical_species") or "").strip()
+            if _cs:
+                cand_names.append(normalize_species_name(_cs))
 
             if is_genus:
-                match = norm.startswith(normalized + " ")
+                match = any(c.startswith(t + " ") for c in cand_names for t in search_terms)
             else:
-                match = norm == normalized
+                match = any(c in search_terms for c in cand_names)
 
             if not match:
                 continue
@@ -463,7 +472,10 @@ class SpeciesWatchConfirmView(_BaseView):
 
     @discord.ui.button(label="🔭 Beobachten", style=discord.ButtonStyle.success, custom_id="sw_watch")
     async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
-        normalized = self.species_normalized
+        # Beobachtung auf den akzeptierten (AntCat-)Namen normalisieren, damit die
+        # Baseline sauber ist und Synonyme shopübergreifend vereinheitlicht werden.
+        _canon = species_catalog.canonical(self.species_raw)
+        normalized = normalize_species_name(_canon) if _canon else self.species_normalized
         is_genus   = 1 if " " not in normalized.strip() else 0
 
         rc = await execute_db(
@@ -502,15 +514,20 @@ class SpeciesWatchConfirmView(_BaseView):
     async def _init_seen_products(self, normalized: str, is_genus: int):
         """Lädt alle aktuellen Produkte und speichert sie als Baseline."""
         try:
+            # normalized ist bereits der akzeptierte Name; zusätzlich Roh+canonical
+            # der Produkte prüfen (gleiche Logik wie im Check-Loop).
             shop_data = await load_shop_data(self.bot)
             for shop_id, shop_info in shop_data.items():
                 for product in shop_info.get("products", []):
                     species = (product.get("species") or "").strip()
-                    norm    = normalize_species_name(species)
+                    cand_names = [normalize_species_name(species)]
+                    _cs = (product.get("canonical_species") or "").strip()
+                    if _cs:
+                        cand_names.append(normalize_species_name(_cs))
                     if is_genus:
-                        match = norm.startswith(normalized + " ")
+                        match = any(c.startswith(normalized + " ") for c in cand_names)
                     else:
-                        match = norm == normalized
+                        match = normalized in cand_names
                     if not match:
                         continue
                     pid = product.get("id")
@@ -1353,17 +1370,26 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         user_id         = watch["user_id"]
         watched_species = watch["species"]
         is_genus        = bool(watch["is_genus"])
+        # Auch die kanonische Form der (evtl. veraltet gespeicherten) Beobachtung
+        # berücksichtigen → alte DB-Einträge greifen ohne Migration.
+        watch_terms = {watched_species}
+        _cw = species_catalog.canonical(watched_species)
+        if _cw:
+            watch_terms.add(normalize_species_name(_cw))
 
         # Alle aktuell passenden Produkte sammeln
         current_products: dict[int, dict] = {}
         for shop_id, shop_info in shop_data.items():
             for product in shop_info.get("products", []):
                 species = (product.get("species") or "").strip()
-                norm    = normalize_species_name(species)
+                cand_names = [normalize_species_name(species)]
+                _cs = (product.get("canonical_species") or "").strip()
+                if _cs:
+                    cand_names.append(normalize_species_name(_cs))
                 if is_genus:
-                    match = norm.startswith(watched_species + " ")
+                    match = any(c.startswith(t + " ") for c in cand_names for t in watch_terms)
                 else:
-                    match = norm == watched_species
+                    match = any(c in watch_terms for c in cand_names)
                 if not match:
                     continue
                 pid = product.get("id")

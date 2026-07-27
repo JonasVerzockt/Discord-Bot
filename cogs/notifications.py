@@ -392,6 +392,11 @@ class NotificationsCog(commands.Cog, name="Notifications"):
                 return
 
         search_term = species or genus
+        # Auf den akzeptierten (AntCat-)Namen normalisieren, damit Synonyme
+        # vereinheitlicht werden und der Verfügbarkeits-Check konsistent greift.
+        _canon = species_catalog.canonical(search_term)
+        if _canon:
+            search_term = _canon
         excluded_str = exclude_species.strip().lower() if (genus and exclude_species) else None
 
         # Regionen validieren
