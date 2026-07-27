@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.5.3` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.4` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1201,5 +1201,14 @@ Dieser Bot steht auf den Schultern anderer – vielen Dank an:
 - **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise, EZB-Kurse).
 - **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api)** – offene, key-lose Wechselkurse als Fallback (150+ Währungen inkl. TWD).
 - **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
+- **[GBIF – Global Biodiversity Information Facility](https://www.gbif.org)** – GBIF Backbone Taxonomy (Familie Formicidae) als Datenquelle für die Ameisen-Artenliste (Namensprüfung, Tippfehler-Vorschläge, Synonym-Auflösung, `canonical_species`). Daten unter **CC-BY**.
+- **[Anthropic Claude](https://www.anthropic.com)** – KI (Claude Haiku) für den Review- und Rabattcode-Parser sowie den optionalen KI-Chat.
+- **[Google Sheets / gspread](https://github.com/burnash/gspread)** – Ablage der Shopbewertungen und iNat-Ranglisten.
+- **[py-cord](https://pycord.dev)** – Discord-Bibliothek (Slash Commands, Interaktionen).
+- **[Babel](https://babel.pocoo.org) (CLDR)** – lokalisierte Länder-/Sprachnamen.
+- **[matplotlib](https://matplotlib.org)** – lokal gerenderte Preisverlauf- und Ranking-Diagramme.
+- **[aiohttp](https://docs.aiohttp.org)** + **[Jinja2](https://jinja.palletsprojects.com)** – Webserver und Templates des Feedback-Boards.
+
+> Alle genannten Dienste/Bibliotheken gehören ihren jeweiligen Rechteinhabern; die Nennung erfolgt als Dank und Quellennachweis, nicht als Anspruch auf eine Zugehörigkeit.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
