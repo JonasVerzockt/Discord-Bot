@@ -173,41 +173,71 @@ class StatsCog(commands.Cog, name="Stats"):
         perms = getattr(member, "guild_permissions", None)
         return bool(perms and (perms.administrator or perms.manage_messages))
 
-    _HELP_USER_KEYS = [
-        "help_notification", "help_history", "help_test", "help_delete",
-        "help_usersetting", "help_ch_delivery",
-        "help_sells",
-        "help_offers",
-        "help_track_price", "help_my_price_tracking", "help_untrack_price",
-        "help_price_history",
-        "help_set_target",
-        "help_achievements",
-        "help_codes",
-        "help_info", "help_info_list",
-        "help_digest",
+    # Thematisch gruppierte Hilfe: (Gruppen-Header-Key, [Befehl-Keys]).
+    _HELP_USER_GROUPS = [
+        ("help_grp_notifications", [
+            "help_notification", "help_ch_delivery",
+            "help_history", "help_delete", "help_test", "help_digest",
+        ]),
+        ("help_grp_offers", [
+            "help_sells", "help_offers",
+        ]),
+        ("help_grp_pricetracking", [
+            "help_track_price", "help_my_price_tracking", "help_untrack_price",
+            "help_price_history", "help_set_target",
+        ]),
+        ("help_grp_codes", [
+            "help_codes",
+        ]),
+        ("help_grp_info", [
+            "help_info", "help_info_list",
+        ]),
+        ("help_grp_personal", [
+            "help_achievements", "help_usersetting",
+        ]),
     ]
-    _HELP_ADMIN_KEYS = [
-        "help_startup", "help_status", "help_pending",
-        "help_rescan", "help_reprocess", "help_export",
-        "help_stats", "help_system",
-        "help_reloadshops", "help_shopmapping", "help_shopmap", "help_shopurl",
-        "help_codes_set", "help_codes_date", "help_codes_fix_links", "help_codes_rescan",
-        "help_info_add", "help_info_edit", "help_info_remove", "help_info_raw",
-        "help_command_log", "help_known_users",
+    _HELP_ADMIN_GROUPS = [
+        ("help_grp_server", [
+            "help_startup", "help_reloadshops",
+            "help_shopmapping", "help_shopmap", "help_shopurl",
+        ]),
+        ("help_grp_reviews", [
+            "help_status", "help_pending", "help_test_admin",
+            "help_rescan", "help_reprocess",
+        ]),
+        ("help_grp_codes_admin", [
+            "help_codes_set", "help_codes_date", "help_codes_fix_links", "help_codes_rescan",
+        ]),
+        ("help_grp_infoentries", [
+            "help_info_add", "help_info_edit", "help_info_remove", "help_info_raw",
+        ]),
+        ("help_grp_sysmod", [
+            "help_stats", "help_system", "help_export",
+            "help_command_log", "help_known_users",
+        ]),
     ]
     _HELP_AI_KEYS = [
         "help_ai_chat",
-        "help_test_admin",
         "help_ai_reset",
         "help_ai_prompt",
     ]
+
+    @staticmethod
+    def _render_help_groups(groups, lang: str) -> str:
+        """Rendert gruppierte Hilfe: fetter Gruppen-Header + zugehörige Befehle."""
+        blocks = []
+        for header_key, cmd_keys in groups:
+            header = l10n.get(header_key, lang)
+            body   = "\n".join(l10n.get(k, lang) for k in cmd_keys)
+            blocks.append(f"{header}\n{body}")
+        return "\n\n".join(blocks)
 
     def _build_help_text(self, lang: str) -> str:
         """Baut den öffentlichen Hilfetext (User-Befehle + ggf. KI-Sektion).
 
         Enthält bewusst KEINEN Admin-Abschnitt – der wird separat und nur
         ephemer an Berechtigte ausgeliefert (siehe ``_build_admin_help_text``)."""
-        user_commands = "\n".join(l10n.get(k, lang) for k in self._HELP_USER_KEYS)
+        user_commands = self._render_help_groups(self._HELP_USER_GROUPS, lang)
         if AI_CHAT_PUBLIC:
             ai_commands = "\n".join(l10n.get(k, lang) for k in self._HELP_AI_KEYS)
             ai_section  = l10n.get("help_ai_section", lang, ai_commands=ai_commands)
@@ -222,7 +252,7 @@ class StatsCog(commands.Cog, name="Stats"):
 
     def _build_admin_help_text(self, lang: str) -> str:
         """Baut nur den Admin-Abschnitt (für ephemere Auslieferung an Berechtigte)."""
-        admin_commands = "\n".join(l10n.get(k, lang) for k in self._HELP_ADMIN_KEYS)
+        admin_commands = self._render_help_groups(self._HELP_ADMIN_GROUPS, lang)
         return l10n.get("help_admin_section", lang, admin_commands=admin_commands).lstrip("\n")
 
     @staticmethod
