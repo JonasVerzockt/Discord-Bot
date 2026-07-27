@@ -40,7 +40,7 @@ from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_paragraphs
 from utils.embeds import EMBED_COLOR
 from utils.sheet import get_shop_warnings, warn_emoji
-from utils.countries import flag_emoji
+from utils.countries import flag_emoji, country_name, country_label
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,17 @@ def _canon_species(sp: str) -> str:
     """Gruppierungs-Schlüssel: Whitespace normalisiert + case-insensitiv, damit
     „Lasius niger", „lasius niger" und „Lasius Niger" zu EINER Gruppe werden."""
     return re.sub(r"\s+", " ", (sp or "").strip()).casefold()
+
+
+def _binomial_display(normalized: str) -> str:
+    """Sauberer Binomial-Anzeigename aus dem normalisierten Suchbegriff:
+    Gattung groß, Epitheton(e) klein – z.B. „camponotus nicobarensis" → „Camponotus
+    nicobarensis". Wird als Sammel-Überschrift genutzt, wenn die Suche ein Binomen
+    ist und alle Treffer unter dieser einen Art gebündelt werden."""
+    parts = normalized.split()
+    if not parts:
+        return normalized
+    return " ".join([parts[0].capitalize()] + [p.lower() for p in parts[1:]])
 
 
 def _pick_display(names: Counter) -> str:
@@ -147,13 +158,16 @@ class SellsCog(commands.Cog, name="Sells"):
         await ensure_rates()
         shop_data = await load_shop_data(self.bot)
 
-        def _collect(match_fn):
+        def _collect(match_fn, collapse_key: str | None = None, collapse_disp: str | None = None):
             """Sammelt Arten + Angebote aus allen (Länder-gefilterten) Shops für
             Produkte, deren species-Feld match_fn erfüllt.
 
             Gruppiert case-insensitiv nach kanonischem Artnamen (siehe
             _canon_species), damit reine Schreibweise-Varianten keine getrennten
-            Gruppen erzeugen. Rückgabe: (keys, offers_by_key, display_by_key).
+            Gruppen erzeugen. Ist collapse_key gesetzt (Binomen-Suche), werden ALLE
+            Treffer unter genau diesem Schlüssel/Anzeigenamen zusammengefasst –
+            sicher, weil match_fn den Suchbegriff bereits als Anker bestätigt hat.
+            Rückgabe: (keys, offers_by_key, display_by_key).
             """
             fs: set[str] = set()
             off: dict[str, list] = {}
@@ -166,10 +180,14 @@ class SellsCog(commands.Cog, name="Sells"):
                     sp = (p.get("species") or "").strip()
                     if not sp or not match_fn(sp):
                         continue
-                    # Anzeigenamen der Art von HTML befreien + Entities dekodieren
-                    # (z.B. „&#8211;" -> „–"); auf dieser dekodierten Form gruppieren.
-                    disp = strip_html(sp)
-                    key = _canon_species(disp)
+                    if collapse_key is not None:
+                        # Binomen-Suche: alle Treffer unter EINER Art bündeln.
+                        key, disp = collapse_key, (collapse_disp or collapse_key)
+                    else:
+                        # Anzeigenamen der Art von HTML befreien + Entities dekodieren
+                        # (z.B. „&#8211;" -> „–"); auf dieser dekodierten Form gruppieren.
+                        disp = strip_html(sp)
+                        key = _canon_species(disp)
                     fs.add(key)
                     names.setdefault(key, Counter())[disp] += 1
                     if not (p.get("in_stock") and p.get("is_active")):
@@ -192,7 +210,16 @@ class SellsCog(commands.Cog, name="Sells"):
 
         # 1) Primär: exakter/Gattungs-Anker-Match wie bei den Notifications –
         #    schließt Merch/Präparate zuverlässig aus (kein Keyword-Blacklisting).
-        found_species, offers, display = _collect(lambda sp: matches_species_query(sp, query))
+        #    Ist die Suche ein Binomen (Gattung+Art), werden alle Treffer unter
+        #    dieser einen Art gebündelt (Varianten/Bundles als Unterpunkte) –
+        #    sonst wie bisher pro (dekodiertem) Artnamen gruppiert.
+        if " " in search:
+            found_species, offers, display = _collect(
+                lambda sp: matches_species_query(sp, query),
+                collapse_key=search, collapse_disp=_binomial_display(search),
+            )
+        else:
+            found_species, offers, display = _collect(lambda sp: matches_species_query(sp, query))
         # 2) Fallback nur, wenn exakt nichts gefunden wurde: Teilsuche (z.B. reines
         #    Epitheton „aethiops"), strukturell auf saubere Binomen begrenzt, damit
         #    weiterhin kein Merch durchrutscht.
@@ -208,51 +235,71 @@ class SellsCog(commands.Cog, name="Sells"):
             await ctx.followup.send(l10n.get("sells_no_stock", lang, query=query))
             return
 
-        # Angebote je Art aufbauen. Angebote ohne echten Preis (0 €/unbekannt)
-        # werden übersprungen; Arten ohne gültiges Angebot ganz weggelassen.
+        # Baut die Zeilen EINES Angebots (Shop-Header + Warnungen + Titel + Link +
+        # Preiszeilen). Leere Liste = kein echter Preis (Angebot überspringen).
+        def _offer_block(o) -> list[str]:
+            vs = [
+                v for v in o["variants"]
+                if v.get("in_stock") and v.get("is_active") and _has_price(v.get("price"))
+            ]
+            price_lines: list[str] = []
+            if vs:
+                for i, v in enumerate(vs, 1):
+                    label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
+                    vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or o["cur"])
+                    price_lines.append(f"{label}: {vprice}")
+            elif _has_price(o["min"]) or _has_price(o["max"]):
+                price = _price_md(o["min"], o["max"], o["cur"])
+                if o["description"] and len(o["description"]) <= 60 and o["description"].lower() != o["title"].lower():
+                    price_lines.append(f"{o['description']}: {price}")
+                else:
+                    price_lines.append(price)
+            if not price_lines:
+                return []
+            lines = ["", f"{flag_emoji(o['country'])} **{o['shop_name']}**"
+                     + (f" · {format_rating(o['rating'])}" if o["rating"] is not None else "")]
+            for w in get_shop_warnings(o.get("shop_web", ""), o["shop_name"]):
+                lines.append(l10n.get(
+                    "warn_shop_line", lang,
+                    emoji=warn_emoji(w["level"]), level=w["level"], text=w["text"],
+                ))
+            if o["title"]:
+                lines.append(o["title"])
+            if o.get("url"):
+                lines.append(l10n.get("sells_product_link", lang, url=o["url"]))
+            lines.extend(price_lines)
+            return lines
+
+        _rating_key = lambda o: (o["rating"] is None, -(o["rating"] or 0), o["shop_name"].lower())
+
+        # Angebote je Art aufbauen. Ohne Länderfilter werden die Angebote je Art
+        # zusätzlich nach Shop-Region (Land) gruppiert – mit Regions-Unterüberschrift.
         species_blocks: dict[str, list] = {}
         for sp in sorted(offers.keys()):
-            shops_sorted = sorted(
-                offers[sp],
-                key=lambda o: (o["rating"] is None, -(o["rating"] or 0), o["shop_name"].lower()),
-            )
-            sp_parts: list[str] = []
-            for o in shops_sorted:
-                vs = [
-                    v for v in o["variants"]
-                    if v.get("in_stock") and v.get("is_active") and _has_price(v.get("price"))
+            if cc is None:
+                by_country: dict[str, list] = {}
+                for o in offers[sp]:
+                    by_country.setdefault(o["country"], []).append(o)
+                # Länder nach lokalisiertem Namen sortieren, Unbekannt (leer) ans Ende.
+                groups = [
+                    (c, by_country[c])
+                    for c in sorted(by_country, key=lambda c: (c == "", country_name(c, lang).lower()))
                 ]
-                price_lines: list[str] = []
-                if vs:
-                    # Varianten-Ebene: pro Variante Einzelpreis
-                    for i, v in enumerate(vs, 1):
-                        label  = strip_html(v.get("title") or v.get("description") or f"Variante {i}")
-                        vprice = _price_md(v.get("price"), v.get("price"), v.get("currency_iso") or o["cur"])
-                        price_lines.append(f"{label}: {vprice}")
-                elif _has_price(o["min"]) or _has_price(o["max"]):
-                    # Fallback: Produkt-Ebene (min/max), falls (noch) keine Varianten
-                    price = _price_md(o["min"], o["max"], o["cur"])
-                    if o["description"] and len(o["description"]) <= 60 and o["description"].lower() != o["title"].lower():
-                        price_lines.append(f"{o['description']}: {price}")
-                    else:
-                        price_lines.append(price)
-                if not price_lines:
-                    continue  # 0-€/Preis-unbekannt → Angebot überspringen
-                sp_parts.append("")
-                shop_header = f"{flag_emoji(o['country'])} **{o['shop_name']}**"
-                if o["rating"] is not None:
-                    shop_header += f" · {format_rating(o['rating'])}"
-                sp_parts.append(shop_header)
-                for w in get_shop_warnings(o.get("shop_web", ""), o["shop_name"]):
-                    sp_parts.append(l10n.get(
-                        "warn_shop_line", lang,
-                        emoji=warn_emoji(w["level"]), level=w["level"], text=w["text"],
-                    ))
-                if o["title"]:
-                    sp_parts.append(o["title"])
-                if o.get("url"):
-                    sp_parts.append(l10n.get("sells_product_link", lang, url=o["url"]))
-                sp_parts.extend(price_lines)
+            else:
+                groups = [(None, offers[sp])]
+
+            sp_parts: list[str] = []
+            for country_code, group_offers in groups:
+                block: list[str] = []
+                for o in sorted(group_offers, key=_rating_key):
+                    block.extend(_offer_block(o))
+                if not block:
+                    continue
+                if country_code is not None:
+                    # Regions-Unterüberschrift (unterstrichen, klar von Shop-Namen abgesetzt).
+                    sp_parts.append("")
+                    sp_parts.append(f"__{country_label(country_code, lang)}__")
+                sp_parts.extend(block)
             if sp_parts:
                 species_blocks[sp] = sp_parts
 
