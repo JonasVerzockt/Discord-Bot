@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.5.8` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.5.9` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -941,7 +941,9 @@ Nutzung im Bot: Bei `/sells`, `/track_price` und `/notification` wird der eingeg
 - **Unbekannt** → Hinweis, Schreibweise zu prüfen.
 - Mit `force: True` wird die Prüfung übersprungen (für Handelsnamen/sehr neue Arten, die (noch) nicht im Katalog stehen).
 
-Fehlt `data/ant_species.json`, ist die Prüfung **inaktiv** – alle Eingaben werden dann unverändert akzeptiert (kein Feature-Bruch). Die Datei ist gitignored und wird auf dem Server erzeugt (analog `shops_data.json`).
+**Synonym-Vereinheitlichung überall:** `/sells`, `/notification` und `/track_price` matchen Shop-Angebote gegen **Rohname UND `canonical_species`** und lösen zusätzlich den Suchbegriff bzw. die gespeicherte Beobachtung auf den akzeptierten Namen auf. Dadurch findet/beobachtet man eine Art unabhängig davon, ob der Shop den aktuellen oder einen veralteten Namen führt (z. B. Suche „Neoponera apicalis" trifft auch ein als „Pachycondyla apicalis" gelistetes Angebot). Das gilt auch für **bestehende** Beobachtungen/Notifications (Kanonisierung zur Laufzeit, keine DB-Migration nötig). Einzelprodukt-Trackings laufen über die Produkt-ID und sind ohnehin unberührt.
+
+Fehlt `data/ant_species.json`, ist die Prüfung **inaktiv** – alle Eingaben werden dann unverändert akzeptiert und das Matching fällt automatisch auf den Rohnamen zurück (kein Feature-Bruch). Die Datei ist gitignored und wird auf dem Server erzeugt (analog `shops_data.json`).
 
 Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` – Tabelle `product_price_history` (Produkt-min/max) und `variant_price_history` (Einzelpreis pro Variante). Diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
 

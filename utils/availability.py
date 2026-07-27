@@ -308,23 +308,44 @@ async def expand_regions(bot, regions: list[str]) -> list[str]:
     return list(set(regions))
 
 
+def _search_terms(search_term: str) -> set[str]:
+    """Normalisierte Suchbegriffe inkl. AntCat-kanonisierter Form (Synonym→akzeptiert),
+    damit auch der aktuelle Name greift, wenn der User/DB-Eintrag einen anderen hat."""
+    terms = {normalize_species_name(search_term)}
+    try:
+        from utils import species_catalog          # lazy: vermeidet Zirkularimport
+        canon = species_catalog.canonical(search_term)
+        if canon:
+            terms.add(normalize_species_name(canon))
+    except Exception:
+        pass
+    return {t for t in terms if t}
+
+
+def _product_names(product: dict) -> list[str]:
+    """Normalisierte Namen eines Produkts: Rohfeld + (falls vorhanden) canonical_species."""
+    names = [normalize_species_name(product.get("species", ""))]
+    cs = (product.get("canonical_species") or "").strip()
+    if cs:
+        names.append(normalize_species_name(cs))
+    return [n for n in names if n]
+
+
 async def species_exists(bot, search_term: str) -> bool:
-    """Prüft ob eine Art/Gattung in shops_data.json vorkommt."""
+    """Prüft ob eine Art/Gattung in shops_data.json vorkommt (Roh- oder canonical-Name)."""
     shops = await bot.loop.run_in_executor(None, _load_shops_json)
-    normalized = normalize_species_name(search_term)
-    is_genus = " " not in normalized.strip()
+    terms = _search_terms(search_term)
+    is_genus = " " not in normalize_species_name(search_term).strip()
 
     for shop in shops.values():
         for product in shop.get("products", []):
-            sp = product.get("species", "")
-            if is_merch(sp):                     # Merch/Präparate ignorieren
+            if is_merch(product.get("species", "")):   # Merch/Präparate ignorieren
                 continue
-            title = normalize_species_name(sp)
-            if is_genus:
-                if title.startswith(normalized + " "):
-                    return True
-            else:
-                if title == normalized:
+            for title in _product_names(product):
+                if is_genus:
+                    if any(title.startswith(t + " ") for t in terms):
+                        return True
+                elif title in terms:
                     return True
     return False
 
@@ -366,8 +387,10 @@ async def check_availability_for_species(
 
     shop_data = await load_shop_data(bot)
 
-    normalized_search = normalize_species_name(species_or_genus)
-    is_genus = " " not in species_or_genus.strip()
+    # Suchbegriffe inkl. AntCat-kanonischer Form (Synonym→akzeptiert), damit auch
+    # veraltet benannte Shop-Angebote (Rohfeld ODER canonical_species) getroffen werden.
+    search_terms = _search_terms(species_or_genus)
+    is_genus = " " not in normalize_species_name(species_or_genus).strip()
     region_set = {r.lower() for r in regions}
 
     results = []
@@ -386,16 +409,19 @@ async def check_availability_for_species(
             species = product.get("species", "").strip()
             if is_merch(species):                # Merch/Präparate nie als „verfügbar" melden
                 continue
-            norm_title = normalize_species_name(species)
 
             match = False
-            if is_genus:
-                if norm_title.startswith(normalized_search + " "):
-                    part = norm_title.split()[1] if len(norm_title.split()) > 1 else ""
-                    if part not in excluded_species_list:
-                        match = True
-            else:
-                match = norm_title == normalized_search
+            for title in _product_names(product):   # Rohfeld + canonical_species
+                if is_genus:
+                    hit = next((t for t in search_terms if title.startswith(t + " ")), None)
+                    if hit:
+                        part = title.split()[1] if len(title.split()) > 1 else ""
+                        if part not in excluded_species_list:
+                            match = True
+                            break
+                elif title in search_terms:
+                    match = True
+                    break
 
             if match:
                 p_in_stock  = bool(product.get("in_stock", False))
