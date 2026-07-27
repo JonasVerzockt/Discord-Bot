@@ -49,6 +49,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC)
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
+from utils.timez import berlin_from_dt
 
 logger = logging.getLogger(__name__)
 
@@ -126,10 +127,18 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .col-body::-webkit-scrollbar-track{background:transparent}
  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 12px;margin-bottom:10px}
  .status-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px;margin-bottom:18px}
- .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:12px}
+ summary.status-head{cursor:pointer;list-style:none;user-select:none}
+ summary.status-head::-webkit-details-marker{display:none}
+ .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:0}
+ details[open]>.status-head{margin-bottom:4px}
+ .status-toggle{margin-left:auto;color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
+ .status-toggle::after{content:"▸";display:inline-block;margin-left:6px;transition:transform .15s}
+ details[open] .status-toggle::after{transform:rotate(90deg)}
  .status-badge{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:20px;font-size:14px;font-weight:600}
  .status-badge::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
  .s-ok{background:#3fb95022;border:1px solid #3fb95066;color:#3fb950} .s-warn{background:#d2992222;border:1px solid #d2992266;color:#d29922} .s-down{background:#f8514922;border:1px solid #f8514966;color:#f85149}
+ .status-section{margin-top:14px} .status-section:first-of-type{margin-top:4px}
+ .status-sub{font-size:13px;font-weight:600;color:#c9d1d9;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid #21262d}
  .status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px}
  .hc{display:flex;align-items:flex-start;gap:9px;background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
  .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:0 0 auto}
@@ -158,16 +167,24 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
-<div class="status-panel">
- <div class="status-head">🩺 Bot- &amp; Server-Status
-  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span></div>
- <div class="status-grid">
- {% for hc in checks %}
-  <div class=hc><span class="dot {{ hc.state }}"></span>
-   <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></div>
+<details class="status-panel">
+ <summary class="status-head">🩺 Bot- &amp; Server-Status
+  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
+  <span class="status-toggle">Details</span></summary>
+ <div class="status-body">
+ {% for sec in sections %}
+ <div class="status-section">
+  <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
+  <div class="status-grid">
+  {% for hc in sec.checks %}
+   <div class=hc><span class="dot {{ hc.state }}"></span>
+    <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></div>
+  {% endfor %}
+  </div>
+ </div>
  {% endfor %}
  </div>
-</div>
+</details>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
 <div class=cols>{% for key,label in cols %}
@@ -294,131 +311,164 @@ def _fmt_age(sec: float | None) -> str:
 
 
 def _loop_next(loop) -> str:
-    """Nächster geplanter Lauf eines tasks.loop in lokaler Zeit (HH:MM) oder ''."""
+    """Nächster geplanter Lauf eines tasks.loop in Berliner Zeit (HH:MM MEZ/MESZ).
+
+    ``next_iteration`` liefert discord.py UTC-aware; die Umrechnung erfolgt explizit
+    nach Europe/Berlin (via utils.timez) – unabhängig von der Server-Zeitzone –,
+    damit die Anzeige der übrigen MEZ/MESZ-Kennzeichnung im Bot entspricht."""
     try:
-        nxt = loop.next_iteration
-        return nxt.astimezone().strftime("%H:%M") if nxt else ""
+        return berlin_from_dt(getattr(loop, "next_iteration", None), "%H:%M") or ""
     except Exception:
         return ""
 
 
-async def _collect_health(app):
-    """Sammelt alle Health-Checks. Jeder Check ist gekapselt (ein Fehler bricht die
-    Seite nicht ab). Rückgabe: (overall, checks) mit state ∈ ok|warn|down|off.
-    'off' (grau) = bewusst deaktiviert/optional und zählt NICHT gegen den Gesamtstatus."""
-    bot = app.get("bot")
-    checks: list[dict] = []
+def _loop_interval(loop) -> str:
+    """Kurzbeschreibung des Loop-Intervalls, z.B. 'alle 65 min' / 'alle 2 h'.
+    Für zeitgesteuerte Loops (fester Uhrzeit-Trigger) ''."""
+    try:
+        h = getattr(loop, "hours", 0) or 0
+        m = getattr(loop, "minutes", 0) or 0
+        s = getattr(loop, "seconds", 0) or 0
+        total_min = h * 60 + m
+        if total_min:
+            if h and not m:
+                if h == 1:
+                    return "stündlich"
+                if h % 24 == 0:
+                    d = h // 24
+                    return "täglich" if d == 1 else f"alle {d} Tage"
+                return f"alle {h} h"
+            return f"alle {total_min} min"
+        if s:
+            return f"alle {s} s"
+    except Exception:
+        pass
+    return ""
 
-    # 1) Discord-Bot: online + WebSocket-Latenz
+
+# Registry ALLER In-Bot-Hintergrundjobs (discord.ext.tasks-Loops):
+# (Cog-Name, Loop-Attribut, Anzeige-Label, kritisch?) – kritisch → 'down' bei Ausfall, sonst 'warn'.
+_BOT_JOBS = [
+    ("Tasks",         "check_availability",       "Verfügbarkeits-Check",              True),
+    ("Tasks",         "reload_shops_task",        "Shop-Cache neu laden",              True),
+    ("PriceTracking", "check_price_changes",      "Preis-Tracking · Produkte",         True),
+    ("PriceTracking", "check_species_watches",    "Preis-Tracking · Arten",            True),
+    ("PriceTracking", "flush_removed_variants",   "Entfallene Varianten (Sammel-DM)",  False),
+    ("Digest",        "weekly_digest",            "Wochen-Digest",                     False),
+    ("Tasks",         "sync_shop_ratings",        "Shop-Bewertungen synchronisieren",  False),
+    ("Tasks",         "expire_old_notifications", "Alte Benachrichtigungen entfernen", False),
+    ("Tasks",         "optimize_db",              "DB-Optimierung (VACUUM)",           False),
+    ("Tasks",         "update_bot_status",        "Bot-Statusanzeige aktualisieren",   False),
+    ("CommandLog",    "flush_log",                "Command-Log schreiben",             False),
+    ("CommandLog",    "cleanup_log",              "Command-Log aufräumen (Retention)", False),
+    ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False),
+    ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False),
+]
+
+
+def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict:
+    """Health-Kachel für einen discord.ext.tasks-Loop: läuft / fehlerhaft / gestoppt?
+    Bei laufendem Loop zusätzlich Intervall + nächster Lauf (Berliner Zeit)."""
+    down = "down" if critical else "warn"
+    try:
+        cog = bot.get_cog(cog_name) if bot else None
+        loop = getattr(cog, attr, None) if cog else None
+        if loop is None:
+            return dict(name=label, state=down, detail="Cog/Loop nicht geladen")
+        if loop.failed():
+            return dict(name=label, state="down", detail="fehlerhaft (Exception im Loop)")
+        if not loop.is_running():
+            return dict(name=label, state=down, detail="gestoppt")
+        nxt = _loop_next(loop)
+        iv = _loop_interval(loop)
+        detail = "läuft" + (f" · {iv}" if iv else "") + (f" · nächster Lauf {nxt}" if nxt else "")
+        return dict(name=label, state="ok", detail=detail)
+    except Exception as e:
+        return dict(name=label, state="warn", detail=str(e)[:80])
+
+
+def _cron_tile(name: str, path, *, warn_h: int, down_h: int, optional: bool = False) -> dict:
+    """Health-Kachel für einen EXTERNEN Cronjob (läuft als Nutzer 'aam', nicht im
+    Bot-Prozess). Status wird aus dem Alter der erzeugten Datei abgeleitet."""
+    age = _file_age_seconds(path)
+    if age is None:
+        if optional:
+            return dict(name=name, state="off", detail="noch nicht erzeugt (optional)")
+        return dict(name=name, state="down", detail=f"{Path(path).name} fehlt")
+    state = "ok" if age < warn_h * 3600 else ("warn" if age < down_h * 3600 else "down")
+    return dict(name=name, state=state, detail=f"aktualisiert {_fmt_age(age)}")
+
+
+async def _collect_health(app):
+    """Sammelt alle Health-Checks in Sektionen (Kern · In-Bot-Jobs · externe Cronjobs).
+    Jeder Check ist gekapselt (ein Fehler bricht die Seite nicht ab). state ∈ ok|warn|down|off;
+    'off' (grau) = bewusst deaktiviert/optional und zählt NICHT gegen den Gesamtstatus.
+    Rückgabe: (overall, sections)."""
+    bot = app.get("bot")
+
+    # ── Sektion 1: Kern (Verbindung, Datenbanken, Feature-Flags) ──────────────
+    core: list[dict] = []
     try:
         if bot is None:
-            checks.append(dict(name="Discord-Bot", state="down", detail="Bot-Objekt nicht verfügbar"))
+            core.append(dict(name="Discord-Bot", state="down", detail="Bot-Objekt nicht verfügbar"))
         elif not bot.is_ready():
-            checks.append(dict(name="Discord-Bot", state="warn", detail="verbindet …"))
+            core.append(dict(name="Discord-Bot", state="warn", detail="verbindet …"))
         else:
             lat = bot.latency  # Sekunden; kann inf/nan sein, bevor der erste Heartbeat kam
             if lat != lat or lat in (float("inf"), 0):
-                checks.append(dict(name="Discord-Bot", state="warn", detail="online · Latenz unbekannt"))
+                core.append(dict(name="Discord-Bot", state="warn", detail="online · Latenz unbekannt"))
             else:
                 ms = round(lat * 1000)
-                checks.append(dict(name="Discord-Bot",
-                                   state="ok" if ms < 500 else "warn",
-                                   detail=f"online · {ms} ms Latenz"))
+                core.append(dict(name="Discord-Bot", state="ok" if ms < 500 else "warn",
+                                 detail=f"online · {ms} ms Latenz"))
     except Exception as e:
-        checks.append(dict(name="Discord-Bot", state="down", detail=str(e)[:80]))
-
-    # 2) Hauptdatenbank erreichbar (SELECT 1)
+        core.append(dict(name="Discord-Bot", state="down", detail=str(e)[:80]))
     try:
         await execute_db(bot, "SELECT 1", fetch=True)
-        checks.append(dict(name="Hauptdatenbank", state="ok", detail="erreichbar"))
+        core.append(dict(name="Hauptdatenbank", state="ok", detail="erreichbar"))
     except Exception as e:
-        checks.append(dict(name="Hauptdatenbank", state="down", detail=str(e)[:80]))
-
-    # 3) Board-Datenbank erreichbar
+        core.append(dict(name="Hauptdatenbank", state="down", detail=str(e)[:80]))
     try:
         await board_query("SELECT 1")
-        checks.append(dict(name="Board-Datenbank", state="ok", detail="erreichbar"))
+        core.append(dict(name="Board-Datenbank", state="ok", detail="erreichbar"))
     except Exception as e:
-        checks.append(dict(name="Board-Datenbank", state="down", detail=str(e)[:80]))
+        core.append(dict(name="Board-Datenbank", state="down", detail=str(e)[:80]))
+    core.append(dict(name="KI-Chat (öffentlich)", state="ok" if AI_CHAT_PUBLIC else "off",
+                     detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
 
-    # 4) Grabber: Frische der Shop-Daten (stündlicher Cronjob → ok<3h, warn<24h, sonst down)
-    age = _file_age_seconds(SHOPS_DATA_FILE)
-    if age is None:
-        checks.append(dict(name="Grabber (Shop-Daten)", state="down", detail="shops_data.json fehlt"))
-    else:
-        state = "ok" if age < 3 * 3600 else ("warn" if age < 24 * 3600 else "down")
-        checks.append(dict(name="Grabber (Shop-Daten)", state=state,
-                           detail=f"aktualisiert {_fmt_age(age)}"))
+    # ── Sektion 2: Hintergrund-Jobs IM Bot-Prozess (discord.ext.tasks) ────────
+    jobs = [_job_tile(bot, c, a, lbl, crit) for (c, a, lbl, crit) in _BOT_JOBS]
 
-    # 5) Preis-Historie-DB (der Grabber schreibt sie im selben Lauf)
-    agep = _file_age_seconds(Path(DATA_DIRECTORY) / "price_history.db")
-    if agep is None:
-        checks.append(dict(name="Preis-Historie", state="warn", detail="price_history.db fehlt"))
-    else:
-        state = "ok" if agep < 3 * 3600 else ("warn" if agep < 24 * 3600 else "down")
-        checks.append(dict(name="Preis-Historie", state=state,
-                           detail=f"aktualisiert {_fmt_age(agep)}"))
+    # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
+    cron = [
+        _cron_tile("Grabber · Shop-Daten (stündlich)", SHOPS_DATA_FILE, warn_h=3, down_h=24),
+        _cron_tile("Grabber · Preis-Historie (stündlich)", Path(DATA_DIRECTORY) / "price_history.db",
+                   warn_h=3, down_h=24),
+        _cron_tile("Artenliste · AntCat-Build (monatlich)", SPECIES_CATALOG_FILE,
+                   warn_h=40 * 24, down_h=1000 * 24, optional=True),
+    ]
 
-    # 6) Preis-Tracking-Job (tasks.loop läuft?)
-    try:
-        cog = bot.get_cog("PriceTracking") if bot else None
-        loop = getattr(cog, "check_price_changes", None) if cog else None
-        if loop is None:
-            checks.append(dict(name="Preis-Tracking-Job", state="down", detail="Cog nicht geladen"))
-        elif loop.is_running() and not loop.failed():
-            nxt = _loop_next(loop)
-            checks.append(dict(name="Preis-Tracking-Job", state="ok",
-                               detail="läuft" + (f" · nächster Lauf {nxt}" if nxt else "")))
-        else:
-            checks.append(dict(name="Preis-Tracking-Job", state="down",
-                               detail="gestoppt" if loop and not loop.is_running() else "fehlerhaft"))
-    except Exception as e:
-        checks.append(dict(name="Preis-Tracking-Job", state="warn", detail=str(e)[:80]))
-
-    # 7) Wochen-Digest-Job (tasks.loop läuft?)
-    try:
-        dcog = bot.get_cog("Digest") if bot else None
-        dloop = getattr(dcog, "weekly_digest", None) if dcog else None
-        if dloop is None:
-            checks.append(dict(name="Wochen-Digest-Job", state="warn", detail="Cog nicht geladen"))
-        elif dloop.is_running() and not dloop.failed():
-            nxt = _loop_next(dloop)
-            checks.append(dict(name="Wochen-Digest-Job", state="ok",
-                               detail="läuft" + (f" · nächste Prüfung {nxt}" if nxt else "")))
-        else:
-            checks.append(dict(name="Wochen-Digest-Job", state="warn", detail="gestoppt"))
-    except Exception as e:
-        checks.append(dict(name="Wochen-Digest-Job", state="warn", detail=str(e)[:80]))
-
-    # 8) Artenliste (AntCat) – optionales Feature (monatlicher Cronjob)
-    ages = _file_age_seconds(SPECIES_CATALOG_FILE)
-    if ages is None:
-        checks.append(dict(name="Artenliste (AntCat)", state="off", detail="nicht erzeugt (optional)"))
-    else:
-        checks.append(dict(name="Artenliste (AntCat)",
-                           state="ok" if ages < 40 * 86400 else "warn",
-                           detail=f"gebaut {_fmt_age(ages)}"))
-
-    # 9) KI-Chat – nur relevant, wenn öffentlich aktiviert
-    checks.append(dict(name="KI-Chat", state="ok" if AI_CHAT_PUBLIC else "off",
-                       detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
-
-    states = {c["state"] for c in checks}
+    sections = [
+        dict(title="🧩 Kern", note="Verbindung & Datenbanken", checks=core),
+        dict(title="⚙️ Hintergrund-Jobs im Bot", note="discord.ext.tasks-Loops im Bot-Prozess", checks=jobs),
+        dict(title="⏰ Externe Cronjobs (als Nutzer aam)", note="Status anhand Aktualität der erzeugten Dateien", checks=cron),
+    ]
+    states = {c["state"] for sec in sections for c in sec["checks"]}
     if "down" in states:
         overall = ("down", "Teilweise ausgefallen")
     elif "warn" in states:
         overall = ("warn", "Läuft mit Einschränkungen")
     else:
         overall = ("ok", "Alles läuft")
-    return overall, checks
+    return overall, sections
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
 async def h_board(req):
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
-    overall, checks = await _collect_health(req.app)
+    overall, sections = await _collect_health(req.app)
     return _render(req, "board", items=items, cols=PUBLIC_COLS,
-                   overall=overall, checks=checks, flash=req.query.get("m", ""))
+                   overall=overall, sections=sections, flash=req.query.get("m", ""))
 
 
 async def h_submit_form(req):

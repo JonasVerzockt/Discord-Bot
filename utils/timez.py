@@ -61,6 +61,19 @@ def berlin_from_iso(iso, fmt: str = _DEFAULT_FMT) -> str | None:
     return _fmt_berlin(dt.astimezone(BERLIN), fmt)
 
 
+def berlin_from_dt(dt, fmt: str = _DEFAULT_FMT) -> str | None:
+    """Beliebiges ``datetime`` → Berliner Zeit als String (inkl. MEZ/MESZ).
+
+    Für bereits tz-bewusste Objekte (z.B. ``tasks.loop.next_iteration``, das
+    discord.py als UTC-aware liefert) wird korrekt nach Europe/Berlin umgerechnet –
+    unabhängig von der Server-Zeitzone. Naive Werte gelten als UTC. ``None`` → ``None``."""
+    if dt is None:
+        return None
+    if getattr(dt, "tzinfo", None) is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return _fmt_berlin(dt.astimezone(BERLIN), fmt)
+
+
 def berlin_from_utc_naive(value, in_fmt: str, fmt: str = _DEFAULT_FMT) -> str:
     """Als UTC gespeicherten *naiven* Zeitstempel (Format in_fmt) → Berliner Zeit.
     Bei Parse-Fehler oder leerem Wert wird der Originalwert (als String) zurückgegeben."""
