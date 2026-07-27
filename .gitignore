@@ -20,6 +20,7 @@ shop_mapping.csv
 dm_blocked_users.json
 shops_ch_delivery.json
 shops_data.json
+data/ant_species.json
 antcheckbot.db
 antcheckbot.db-shm
 antcheckbot.db-wal

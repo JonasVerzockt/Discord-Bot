@@ -49,6 +49,7 @@ from utils.availability import (
 )
 from utils.currency import ensure_rates, format_price
 from utils.embeds import send_embeds, EMBED_COLOR
+from utils import species_catalog
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -379,6 +380,16 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         if species and " " not in species:
             await ctx.respond(l10n.get("notification_error_species_format", lang, species=species))
             return
+
+        # Namensprüfung gegen die Artenliste (außer bei force): bei Synonym/
+        # Tippfehler/unbekannt Hinweis + korrekte Schreibweise, dann abbrechen.
+        if not force:
+            _msg = species_catalog.validation_message(
+                species_catalog.check(species or genus), lang
+            )
+            if _msg:
+                await ctx.respond(_msg, ephemeral=True)
+                return
 
         search_term = species or genus
         excluded_str = exclude_species.strip().lower() if (genus and exclude_species) else None

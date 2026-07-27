@@ -48,6 +48,7 @@ from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, send_embeds_to
 from utils.currency import ensure_rates, format_price
 from utils.achievements import log_event, check_and_grant
+from utils import species_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -1054,10 +1055,20 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         self,
         ctx: discord.ApplicationContext,
         species: discord.Option(str, "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')", description_localizations={"de": "Artname oder Gattung (z.B. 'Oecophylla smaragdina' oder 'Camponotus')", "en-US": "Species or genus (e.g. 'Oecophylla smaragdina' or 'Camponotus')"}),  # type: ignore[valid-type]
+        force: discord.Option(bool, "Skip name validation (allow unknown / variant spellings)", name_localizations={"de": "trotzdem"}, description_localizations={"de": "Namensprüfung überspringen (unbekannte/abweichende Schreibweisen zulassen)"}, required=False, default=False),  # type: ignore[valid-type]
     ):
         await ctx.defer(ephemeral=True)
 
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        # Namensprüfung gegen die Artenliste (außer bei force): bei Synonym/
+        # Tippfehler/unbekannt Hinweis + korrekte Schreibweise, dann abbrechen.
+        if not force:
+            _msg = species_catalog.validation_message(species_catalog.check(species), lang)
+            if _msg:
+                await ctx.followup.send(_msg, ephemeral=True)
+                return
+
         await ensure_rates()
 
         shops_data = await _find_products_for_tracking(self.bot, species)

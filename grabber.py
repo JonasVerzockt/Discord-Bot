@@ -92,6 +92,51 @@ def _strip_html(text) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+# ── Artenliste (optional): kanonischen Artnamen mitschreiben ──────────────────
+# Lädt data/ant_species.json (von tools/build_ant_species.py erzeugt) eigenständig
+# – bewusst OHNE den Bot-Stack zu importieren. Fehlt die Datei, bleibt
+# canonical_species schlicht None (kein Fehler).
+_SPECIES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ant_species.json")
+_SP_LOADED = False
+_SP_ACCEPTED: dict[str, str] = {}
+_SP_SYNONYMS: dict[str, str] = {}
+_SP_GENERA: set[str] = set()
+
+
+def _load_species_catalog() -> None:
+    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA
+    if _SP_LOADED:
+        return
+    _SP_LOADED = True
+    try:
+        with open(_SPECIES_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        _SP_ACCEPTED = {k.lower(): v for k, v in data.get("accepted", {}).items()}
+        _SP_SYNONYMS = {k.lower(): v for k, v in data.get("synonyms", {}).items()}
+        _SP_GENERA = {k.lower() for k in data.get("genera", {})}
+        logging.info("🐜 Artenliste geladen: %d Arten (canonical_species aktiv)", len(_SP_ACCEPTED))
+    except FileNotFoundError:
+        logging.info("🐜 Keine Artenliste (data/ant_species.json) – canonical_species=null")
+    except Exception as e:
+        logging.warning("🐜 Artenliste nicht lesbar: %s", e)
+
+
+def _canonical_species(species_name: str) -> str | None:
+    """Zieht aus dem (evtl. verrauschten) Artnamen das enthaltene bekannte Binomen
+    und gibt den akzeptierten Namen zurück (Synonyme aufgelöst). Sonst None."""
+    _load_species_catalog()
+    if not _SP_ACCEPTED:
+        return None
+    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", species_name or "").lower().split() if t.isalpha()]
+    for i in range(len(toks) - 1):
+        cand = f"{toks[i]} {toks[i + 1]}"
+        if cand in _SP_ACCEPTED:
+            return _SP_ACCEPTED[cand]
+        if cand in _SP_SYNONYMS:   # auch Synonym-Gattungen
+            return _SP_SYNONYMS[cand]
+    return None
+
+
 def _fetch_json(url: str) -> dict | list:
     """Holt JSON von der URL mit Retry-Logik."""
     for attempt in range(1, API_RETRIES + 1):
@@ -214,6 +259,7 @@ def add_products(shop_map: dict, shop_id: str, products_raw: list,
         shop_map[shop_id]["products"].append({
             "id":            pid,
             "species":       species_name,
+            "canonical_species": _canonical_species(species_name),
             "title":         product_title,
             "description":   description,
             "genus":         genus,

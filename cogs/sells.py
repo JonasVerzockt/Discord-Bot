@@ -41,6 +41,7 @@ from utils.text_chunks import chunk_paragraphs
 from utils.embeds import EMBED_COLOR
 from utils.sheet import get_shop_warnings, warn_emoji
 from utils.countries import flag_emoji, country_name, country_label
+from utils import species_catalog
 from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -148,12 +149,28 @@ class SellsCog(commands.Cog, name="Sells"):
             required=False,
             default=None,
         ),
+        force: discord.Option(  # type: ignore[valid-type]
+            bool,
+            "Skip name validation (allow unknown / variant spellings)",
+            name_localizations={"de": "trotzdem"},
+            description_localizations={"de": "Namensprüfung überspringen (unbekannte/abweichende Schreibweisen zulassen)"},
+            required=False,
+            default=False,
+        ),
     ):
         await ctx.defer()
         lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         query  = species.strip()
         search = normalize_species_name(query)
         cc     = (country or "").strip().lower() or None
+
+        # Namensprüfung gegen die Artenliste (außer bei force): bei Synonym/
+        # Tippfehler/unbekannt Hinweis + korrekte Schreibweise, dann abbrechen.
+        if not force:
+            _msg = species_catalog.validation_message(species_catalog.check(query), lang)
+            if _msg:
+                await ctx.followup.send(_msg, ephemeral=True)
+                return
 
         await ensure_rates()
         shop_data = await load_shop_data(self.bot)

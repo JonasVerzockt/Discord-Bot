@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.4.7` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.4.8` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -658,7 +658,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/delete_notifications` | `ids` (komma- oder leerzeichengetrennte Benachrichtigungs-IDs) | Eigene Benachrichtigungen löschen. Die IDs sind aus `/history` ersichtlich. | `/delete_notifications ids:12 15` |
 | `/history` | – | Zeigt (als Embed) die letzten 20 eigenen Benachrichtigungen mit ID, Art, Region und Status (active / completed / expired / failed). Als zweites Embed: Übersicht über aktive Preis-Tracking-Einträge (Einzelprodukte mit Shops und ältestem Eintrag, Arten-Beobachtungen mit Datum). | `/history` |
 | `/testnotification` | – | Schickt eine Test-DM an sich selbst, um zu prüfen ob DMs vom Bot empfangen werden. | `/testnotification` |
-| `/track_price` | `species` (Art oder Gattung, Pflicht) | Startet die interaktive Preis-Tracking-Einrichtung. Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Bei genau einem gewählten Produkt mit **Varianten** folgt ein optionaler Varianten-Auswahlschritt (ganzes Produkt oder konkrete Variante). Aktueller Preis als Baseline. Bereits beobachtete Produkte/Arten erzeugen kein Duplikat und werden als „bereits beobachtet" gemeldet. | `/track_price species:Camponotus` |
+| `/track_price` | `species` (Art oder Gattung, Pflicht), `force` (optional) | Startet die interaktive Preis-Tracking-Einrichtung. Der Name wird gegen die **Artenliste** geprüft (`force: True` überspringt das). Erste Option im Shop-Dropdown ist **Alle Shops beobachten** (Arten-Beobachtung: Preisänderungen + Neuerscheinungen shopübergreifend). Alternativ: spezifischer Shop mit Produkt-Auswahl (Mehrfachauswahl). Bei genau einem gewählten Produkt mit **Varianten** folgt ein optionaler Varianten-Auswahlschritt (ganzes Produkt oder konkrete Variante). Aktueller Preis als Baseline. Bereits beobachtete Produkte/Arten erzeugen kein Duplikat und werden als „bereits beobachtet" gemeldet. | `/track_price species:Camponotus` |
 | `/my_price_tracking` | – | Listet alle aktiven Preis-Beobachtungen: oben Arten-Beobachtungen (🔭, alle Shops) mit Startdatum, darunter Einzelprodukte/**Varianten** mit aktuellem Preis (Variantenname wird mit angezeigt). | `/my_price_tracking` |
 | `/untrack_price` | – | Zeigt Einzelprodukte/Varianten und Arten-Beobachtungen gemeinsam im Multi-Select-Dropdown und entfernt die ausgewählten (Produkt und einzelne Variante getrennt entfernbar). | `/untrack_price` |
 | `/price_history` | – | Zeigt für eines deiner beobachteten Produkte/**Varianten** den Preisverlauf als Diagramm (Step-Chart; bei Varianten der Einzelpreis) mit markiertem historischem Tief („Bestpreis"). Auswahl per Dropdown. | `/price_history` |
@@ -676,7 +676,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, **AAM-Bewertung** (falls vorhanden), Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/offers shop:Antstore` |
-| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge und **AAM-Bewertung** (falls vorhanden), **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Die Gruppierung nach Art erfolgt **case-insensitiv** (Groß-/Kleinschreibung egal), sodass reine Schreibweise-Varianten desselben Artnamens nicht mehrere Gruppen bilden. Ist die Suche ein **Binomen** (Gattung + Art), werden zudem alle Treffer unter dieser einen Art gebündelt – auch abweichend benannte Bundle-/Varianten-Angebote (z. B. „Bundle Offer – …", „… 2 koninginnen met broed") erscheinen so als Unterpunkte statt als eigene „Arten". Wird **kein Land** angegeben, werden die Angebote je Art zusätzlich **nach Shop-Region** (Land) gruppiert, mit einer Regions-Unterüberschrift (Flagge + Ländername). Ausgabe als Embed(s). | `/sells species:aethiops` |
+| `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode), `force` (optional) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge und **AAM-Bewertung** (falls vorhanden), **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Die Gruppierung nach Art erfolgt **case-insensitiv** (Groß-/Kleinschreibung egal), sodass reine Schreibweise-Varianten desselben Artnamens nicht mehrere Gruppen bilden. Ist die Suche ein **Binomen** (Gattung + Art), werden zudem alle Treffer unter dieser einen Art gebündelt – auch abweichend benannte Bundle-/Varianten-Angebote (z. B. „Bundle Offer – …", „… 2 koninginnen met broed") erscheinen so als Unterpunkte statt als eigene „Arten". Wird **kein Land** angegeben, werden die Angebote je Art zusätzlich **nach Shop-Region** (Land) gruppiert, mit einer Regions-Unterüberschrift (Flagge + Ländername). Der eingegebene Name wird gegen die **Artenliste** geprüft (siehe unten); `force: True` überspringt das. Ausgabe als Embed(s). | `/sells species:aethiops` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Der **User-Teil ist immer öffentlich** im Kanal sichtbar. Der **Admin-Abschnitt** wird nur Mitgliedern mit „Nachrichten verwalten"/„Administrator" gezeigt und kommt separat **ephemer** (nur für sie sichtbar), damit er nicht öffentlich gepostet wird. *(`!help` als Textbefehl kann nicht ephemer antworten und zeigt daher nur den öffentlichen User-Teil.)* | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -858,7 +858,26 @@ Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Läd
 2. `GET /api/v2/ecommerce/products?shop_id={id}&product_type=ants` → Produkte pro Shop
 3. `GET /api/v2/ecommerce/variants?limit=-1` → **alle Varianten global**, nach `product_id` gruppiert und dem jeweiligen Produkt zugeordnet
 
-Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter.
+Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, GBIF-akzeptierten Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde.
+
+### Artenliste & Namensprüfung (GBIF)
+
+Eine optionale lokale Ameisen-Artenliste ermöglicht **Namensprüfung**, **Tippfehler-Vorschläge** und **Synonym-Auflösung**. Quelle ist die [GBIF Backbone Taxonomy](https://www.gbif.org) (Familie Formicidae, ~17.600 Arten, CC-BY).
+
+Erzeugung (einmalig/gelegentlich auf dem Server, Netzzugang nötig):
+
+```
+python3 tools/build_ant_species.py      # schreibt data/ant_species.json
+```
+
+Nutzung im Bot: Bei `/sells`, `/track_price` und `/notification` wird der eingegebene Gattungs-/Artname vor der Verarbeitung geprüft:
+
+- **Tippfehler** → der Bot **korrigiert nicht selbst**, sondern nennt die richtige Schreibweise („meintest du **Camponotus nicobarensis**?") und bricht ab.
+- **Synonym/veralteter Name** → Hinweis auf den akzeptierten Namen (z. B. `Iridomyrmex humilis` → **Linepithema humile**).
+- **Unbekannt** → Hinweis, Schreibweise zu prüfen.
+- Mit `force: True` wird die Prüfung übersprungen (für Handelsnamen/sehr neue Arten, die (noch) nicht im Katalog stehen).
+
+Fehlt `data/ant_species.json`, ist die Prüfung **inaktiv** – alle Eingaben werden dann unverändert akzeptiert (kein Feature-Bruch). Die Datei ist gitignored und wird auf dem Server erzeugt (analog `shops_data.json`).
 
 Außerdem schreibt der Grabber aktuelle Preisdaten in `price_history.db` – Tabelle `product_price_history` (Produkt-min/max) und `variant_price_history` (Einzelpreis pro Variante). Diese Datei wird vom Bot für das Preis-Tracking gelesen (read-only).
 
@@ -976,6 +995,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── ai_parser.py         # Claude Haiku Parser (Review-Bot)
 │   ├── discount_parser.py   # Claude Haiku Parser (Rabattcodes)
 │   ├── link_resolver.py     # Kurzlinks auflösen + Tracking-Parameter entfernen
+│   ├── species_catalog.py   # GBIF-Artenliste: Namensprüfung/Tippfehler/Synonyme
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
 │   ├── tracking.py          # Review-Tracking (Discord-ID → Sheet-Zeile)
