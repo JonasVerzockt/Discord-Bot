@@ -49,6 +49,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC)
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
+from utils.timez import berlin_from_dt
 
 logger = logging.getLogger(__name__)
 
@@ -294,12 +295,32 @@ def _fmt_age(sec: float | None) -> str:
 
 
 def _loop_next(loop) -> str:
-    """Nächster geplanter Lauf eines tasks.loop in lokaler Zeit (HH:MM) oder ''."""
+    """Nächster geplanter Lauf eines tasks.loop in Berliner Zeit (HH:MM MEZ/MESZ).
+
+    ``next_iteration`` liefert discord.py UTC-aware; die Umrechnung erfolgt explizit
+    nach Europe/Berlin (via utils.timez) – unabhängig von der Server-Zeitzone –,
+    damit die Anzeige der übrigen MEZ/MESZ-Kennzeichnung im Bot entspricht."""
     try:
-        nxt = loop.next_iteration
-        return nxt.astimezone().strftime("%H:%M") if nxt else ""
+        return berlin_from_dt(getattr(loop, "next_iteration", None), "%H:%M") or ""
     except Exception:
         return ""
+
+
+def _loop_interval(loop) -> str:
+    """Kurzbeschreibung des Loop-Intervalls, z.B. 'alle 65 min' / 'alle 2 h'.
+    Für zeitgesteuerte Loops (fester Uhrzeit-Trigger) ''."""
+    try:
+        h = getattr(loop, "hours", 0) or 0
+        m = getattr(loop, "minutes", 0) or 0
+        s = getattr(loop, "seconds", 0) or 0
+        total_min = h * 60 + m
+        if total_min:
+            return f"alle {h} h" if (h and not m) else f"alle {total_min} min"
+        if s:
+            return f"alle {s} s"
+    except Exception:
+        pass
+    return ""
 
 
 async def _collect_health(app):
@@ -367,8 +388,9 @@ async def _collect_health(app):
             checks.append(dict(name="Preis-Tracking-Job", state="down", detail="Cog nicht geladen"))
         elif loop.is_running() and not loop.failed():
             nxt = _loop_next(loop)
-            checks.append(dict(name="Preis-Tracking-Job", state="ok",
-                               detail="läuft" + (f" · nächster Lauf {nxt}" if nxt else "")))
+            iv = _loop_interval(loop)
+            detail = "läuft" + (f" ({iv})" if iv else "") + (f" · nächster Lauf {nxt}" if nxt else "")
+            checks.append(dict(name="Preis-Tracking-Job", state="ok", detail=detail))
         else:
             checks.append(dict(name="Preis-Tracking-Job", state="down",
                                detail="gestoppt" if loop and not loop.is_running() else "fehlerhaft"))
