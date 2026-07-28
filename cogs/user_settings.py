@@ -208,7 +208,7 @@ class UserSettingsCog(commands.Cog, name="UserSettings"):
             # Gefilterte Ansicht: flache Liste wie bisher
             entries = [
                 f"{'⚠️ ' if get_shop_warnings(s.get('url',''), s.get('name','')) else ''}"
-                f"`{s.get('id')}` | {s.get('name', '?')} - {format_rating(s.get('average_rating'))}"
+                f"{s.get('name', '?')} – {format_rating(s.get('average_rating'))} · ID: `{s.get('id')}`"
                 for s in filtered
             ]
             text = l10n.get("available_shops", lang, shops="\n- " + "\n- ".join(entries))
