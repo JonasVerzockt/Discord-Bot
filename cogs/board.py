@@ -47,9 +47,10 @@ from jinja2 import Environment, DictLoader, select_autoescape
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC)
+from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
-from utils.timez import berlin_from_dt
+from utils.timez import BERLIN
 
 logger = logging.getLogger(__name__)
 
@@ -310,14 +311,33 @@ def _fmt_age(sec: float | None) -> str:
     return f"vor {d} {'Tag' if d == 1 else 'Tagen'}"
 
 
+_WD_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
 def _loop_next(loop) -> str:
-    """Nächster geplanter Lauf eines tasks.loop in Berliner Zeit (HH:MM MEZ/MESZ).
+    """Nächster geplanter Lauf eines tasks.loop in Berliner Zeit (MEZ/MESZ).
 
     ``next_iteration`` liefert discord.py UTC-aware; die Umrechnung erfolgt explizit
-    nach Europe/Berlin (via utils.timez) – unabhängig von der Server-Zeitzone –,
-    damit die Anzeige der übrigen MEZ/MESZ-Kennzeichnung im Bot entspricht."""
+    nach Europe/Berlin – unabhängig von der Server-Zeitzone. Das Datum wird nur dann
+    mitgezeigt, wenn der nächste Lauf NICHT heute ist (sonst nur Uhrzeit), damit bei
+    seltenen Jobs (wöchentlich/…) 'HH:MM' nicht mehrdeutig ist:
+      heute   → '19:15 MESZ'
+      morgen  → 'morgen 09:00 MESZ'
+      später  → 'So, 03.08. 09:00 MESZ'"""
+    nxt = getattr(loop, "next_iteration", None)
+    if nxt is None:
+        return ""
     try:
-        return berlin_from_dt(getattr(loop, "next_iteration", None), "%H:%M") or ""
+        if nxt.tzinfo is None:
+            nxt = nxt.replace(tzinfo=timezone.utc)
+        local = nxt.astimezone(BERLIN)
+        label = "MESZ" if local.dst() else "MEZ"
+        days = (local.date() - datetime.now(BERLIN).date()).days
+        if days <= 0:
+            return f"{local:%H:%M} {label}"
+        if days == 1:
+            return f"morgen {local:%H:%M} {label}"
+        return f"{_WD_DE[local.weekday()]}, {local:%d.%m.} {local:%H:%M} {label}"
     except Exception:
         return ""
 
