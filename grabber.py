@@ -581,6 +581,16 @@ def main():
                 f"💶 Preis-Tracking: {checked} Produkte ({new_entries} neu), "
                 f"{v_checked} Varianten ({v_new} neu) -> {PRICE_HISTORY_DB}"
             )
+            # Heartbeat: mtime nach JEDEM erfolgreichen Preis-Lauf aktualisieren.
+            # Ohne dies bewegt sich die mtime nur bei tatsächlichen Preisänderungen
+            # (SQLite schreibt sonst nichts) – dann wirkt price_history.db fälschlich
+            # „veraltet", obwohl der Grabber erfolgreich lief. Mit touch() ist die
+            # Datei-Aktualität ein verlässliches „letzter erfolgreicher Lauf"-Signal
+            # (und ein echter Ausfall des Preis-Schritts bleibt so erkennbar).
+            try:
+                PRICE_HISTORY_DB.touch()
+            except OSError as e:
+                logger.warning(f"⚠️ price_history.db touch fehlgeschlagen: {e}")
         except Exception as e:
             logger.warning(f"⚠️ Preis-Tracking fehlgeschlagen (nicht kritisch): {e}")
 

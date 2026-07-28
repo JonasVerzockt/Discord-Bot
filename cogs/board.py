@@ -407,6 +407,31 @@ def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict
         return dict(name=label, state="warn", detail=str(e)[:80])
 
 
+def _grabber_cron_tile() -> dict:
+    """EIN Cronjob (stündlich, als Nutzer 'aam') erzeugt in einem Lauf BEIDE Dateien:
+    ``shops_data.json`` (jeder Lauf) und ``price_history.db`` (Preis-Historie).
+    Deshalb EINE gemeinsame Kachel statt zweier getrennter (es gibt nicht zwei Jobs).
+
+    Ampel-Status nach ``shops_data.json`` (wird jeden Lauf neu geschrieben → verlässlich).
+    Die Preis-Historie wird zwar nur bei echten Preisänderungen fortgeschrieben, der
+    Grabber ``touch()``t sie aber nach jedem erfolgreichen Lauf – bleibt sie trotzdem
+    deutlich zurück (> 24 h), deutet das auf einen Ausfall des Preis-Schritts hin → gelb."""
+    name = "Grabber · Shop-Daten + Preis-Historie (stündlich)"
+    age = _file_age_seconds(SHOPS_DATA_FILE)
+    if age is None:
+        return dict(name=name, state="down", detail="shops_data.json fehlt")
+    state = "ok" if age < 3 * 3600 else ("warn" if age < 24 * 3600 else "down")
+    ph = _file_age_seconds(Path(DATA_DIRECTORY) / "price_history.db")
+    if ph is None:
+        ph_txt = "Preis-Historie fehlt"
+    else:
+        ph_txt = f"Preis-Historie {_fmt_age(ph)}"
+        if ph > 24 * 3600 and state == "ok":
+            state = "warn"
+            ph_txt += " ⚠️"
+    return dict(name=name, state=state, detail=f"Shop-Daten {_fmt_age(age)} · {ph_txt}")
+
+
 def _cron_tile(name: str, path, *, warn_h: int, down_h: int, optional: bool = False) -> dict:
     """Health-Kachel für einen EXTERNEN Cronjob (läuft als Nutzer 'aam', nicht im
     Bot-Prozess). Status wird aus dem Alter der erzeugten Datei abgeleitet."""
@@ -461,9 +486,7 @@ async def _collect_health(app):
 
     # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
     cron = [
-        _cron_tile("Grabber · Shop-Daten (stündlich)", SHOPS_DATA_FILE, warn_h=3, down_h=24),
-        _cron_tile("Grabber · Preis-Historie (stündlich)", Path(DATA_DIRECTORY) / "price_history.db",
-                   warn_h=3, down_h=24),
+        _grabber_cron_tile(),
         _cron_tile("Artenliste · AntCat-Build (monatlich)", SPECIES_CATALOG_FILE,
                    warn_h=40 * 24, down_h=1000 * 24, optional=True),
     ]
@@ -471,7 +494,7 @@ async def _collect_health(app):
     sections = [
         dict(title="🧩 Kern", note="Verbindung & Datenbanken", checks=core),
         dict(title="⚙️ Hintergrund-Jobs im Bot", note="discord.ext.tasks-Loops im Bot-Prozess", checks=jobs),
-        dict(title="⏰ Externe Cronjobs (als Nutzer aam)", note="Status anhand Aktualität der erzeugten Dateien", checks=cron),
+        dict(title="⏰ Externe Cronjobs (als Nutzer aam)", note="2 Cronjobs · Status anhand Aktualität der erzeugten Dateien", checks=cron),
     ]
     states = {c["state"] for sec in sections for c in sec["checks"]}
     if "down" in states:
