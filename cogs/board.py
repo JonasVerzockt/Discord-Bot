@@ -152,6 +152,7 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .card .t{font-weight:600;overflow-wrap:anywhere} .muted{color:#8b949e;font-size:13px}
  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid #30363d;margin-right:5px}
  .bug{color:#ff7b72;border-color:#ff7b72} .feature{color:#7ee787;border-color:#7ee787} .idea{color:#d2a8ff;border-color:#d2a8ff}
+ .legend{font-size:12px} .legend .tag{margin:0 3px} a.btn{display:inline-block;text-decoration:none}
  .up{background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:20px;padding:3px 10px;cursor:pointer}
  input,textarea,select{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:8px;width:100%;box-sizing:border-box}
  label{display:block;margin:10px 0 3px;color:#8b949e;font-size:13px}
@@ -236,6 +237,7 @@ BOARD = """{% extends "base" %}{% block body %}
 </script>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
+<p class="muted legend">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig</p>
 <div class=cols>{% for key,label in cols %}
  <div class=col><h2>{{ label }}</h2>
   <div class=col-body>
@@ -275,7 +277,39 @@ DETAIL = """{% extends "base" %}{% block body %}
 <h2 style="margin:8px 0">{{ c.title }}</h2>
 <form method=post action="/upvote/{{c.id}}"><button class=up>▲ {{ c.upvotes }} Upvotes</button></form>
 <p style="white-space:pre-wrap;margin-top:14px">{{ c.body }}</p>
-<p class=muted>Eingereicht: {{ c.created_at }}{% if c.version %} · erledigt in {{ c.version }}{% endif %}</p>{% endblock %}"""
+<p class=muted>Eingereicht: {{ c.created_at }}{% if c.version %} · erledigt in {{ c.version }}{% endif %}</p>
+{% if comments %}<h3 style="margin-top:22px">💬 Kommentare</h3>
+{% for k in comments %}<div class=card><b>{{ k.author or 'Owner' }}</b> <span class=muted>· {{ k.created_at }}</span>
+ <div style="white-space:pre-wrap;margin-top:4px">{{ k.body }}</div></div>{% endfor %}{% endif %}
+{% if admin %}<p style="margin-top:16px"><a class="btn small" href="/admin/{{c.id}}/edit">✏️ Bearbeiten / Kommentar</a></p>{% endif %}
+{% endblock %}"""
+
+EDIT = """{% extends "base" %}{% block body %}
+<p><a href="/admin">← Admin</a> · <a href="/submission/{{c.id}}">Öffentliche Ansicht</a></p>
+<h2>✏️ Eintrag #{{ c.id }} bearbeiten</h2>
+<form method=post action="/admin/{{c.id}}/edit"><input type=hidden name=csrf value="{{csrf}}">
+ <label>Art</label><select name=type>{% for t in types %}<option value="{{t}}" {{'selected' if t==c.type}}>{{t}}</option>{% endfor %}</select>
+ <label>Titel *</label><input name=title maxlength=120 required value="{{ c.title }}">
+ <label>Beschreibung</label><textarea name=body rows=8 maxlength=4000>{{ c.body }}</textarea>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+  <div style="flex:1;min-width:120px"><label>Status</label><select name=status>{% for s in statuses %}<option value="{{s}}" {{'selected' if s==c.status}}>{{s}}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:100px"><label>Priorität</label><select name=priority>{% for p in priorities %}<option value="{{p}}" {{'selected' if p==c.priority}}>{{p or '–'}}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:150px"><label>Komponente</label><select name=component>{% for k in components %}<option value="{{k}}" {{'selected' if k==c.component}}>{{k or '–'}}</option>{% endfor %}</select></div>
+  <div style="min-width:110px"><label>Version</label><input name=version value="{{ c.version }}" style="width:110px"></div>
+ </div>
+ <p class="muted legend" style="margin-top:8px">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig</p>
+ <div style="margin-top:12px"><button class=btn>💾 Speichern</button></div>
+</form>
+<h3 style="margin-top:26px">💬 Kommentare ({{ comments|length }})</h3>
+{% for k in comments %}<div class=card>
+ <form method=post action="/admin/comment/{{k.id}}/delete" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=sid value="{{c.id}}"><button class="btn small grey">🗑</button></form>
+ <b>{{ k.author or 'Owner' }}</b> <span class=muted>· {{ k.created_at }}</span>
+ <div style="white-space:pre-wrap;margin-top:4px">{{ k.body }}</div></div>{% endfor %}
+<form method=post action="/admin/{{c.id}}/comment" style="margin-top:12px"><input type=hidden name=csrf value="{{csrf}}">
+ <label>Neuer Kommentar</label><textarea name=body rows=3 maxlength=4000 required placeholder="Kommentar…"></textarea>
+ <label>Autor</label><input name=author maxlength=40 value="Owner" style="max-width:220px">
+ <div style="margin-top:10px"><button class=btn>Kommentar hinzufügen</button></div>
+</form>{% endblock %}"""
 
 LOGIN = """{% extends "base" %}{% block body %}
 <h2>Owner-Login</h2><form method=post action="/admin/login" style="max-width:340px">
@@ -292,6 +326,7 @@ ADMIN = """{% extends "base" %}{% block body %}
  <form method=post action="/admin/{{c.id}}/delete" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑 Löschen</button></form>
 </div>{% endfor %}
 <h2 style="margin-top:24px">Alle Einträge ({{ items|length }})</h2>
+<p class="muted legend">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig · Zum Bearbeiten von Titel/Beschreibung & für Kommentare ✏️ nutzen.</p>
 <table><tr><th>#</th><th>Titel</th><th>Status / Prio / Komponente / Version</th><th>▲</th><th></th></tr>
 {% for c in items if c.status!='pending' %}<tr><td>{{c.id}}</td>
  <td><span class="tag {{c.type}}">{{c.type}}</span> {{ c.title }}</td>
@@ -302,7 +337,8 @@ ADMIN = """{% extends "base" %}{% block body %}
    <input name=version value="{{c.version}}" placeholder="Version" style="width:90px">
    <button class="btn small">Speichern</button></div></form></td>
  <td>{{ c.upvotes }}</td>
- <td><form method=post action="/admin/{{c.id}}/delete"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑</button></form></td></tr>
+ <td style="white-space:nowrap"><a class="btn small" href="/admin/{{c.id}}/edit">✏️</a>
+   <form method=post action="/admin/{{c.id}}/delete" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑</button></form></td></tr>
 {% endfor %}</table>
 <h3 style="margin-top:24px">📥 CSV-Import (rückwirkende Historie)</h3>
 <form method=post action="/admin/import" enctype="multipart/form-data"><input type=hidden name=csrf value="{{csrf}}">
@@ -313,7 +349,8 @@ ADMIN = """{% extends "base" %}{% block body %}
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
-                                     "detail": DETAIL, "login": LOGIN, "admin": ADMIN}),
+                                     "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
+                                     "edit": EDIT}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, (SELECT COUNT(*) FROM board_votes v WHERE v.submission_id=s.id) AS upvotes "
@@ -332,6 +369,12 @@ async def _rows(where="", params=()):
 async def _one(sid):
     r = await board_one(_ROWQ + "WHERE s.id=?", (sid,))
     return dict(r) if r else None
+
+
+async def _comments(sid):
+    rows = await board_query(
+        "SELECT * FROM board_comments WHERE submission_id=? ORDER BY id ASC", (sid,))
+    return [dict(r) for r in rows]
 
 
 # ── Status-Dashboard / Health-Checks ──────────────────────────────────────────
@@ -638,7 +681,8 @@ async def h_detail(req):
     sub = await _one(int(req.match_info["id"]))
     if not sub or (sub["status"] == "pending" and not _is_admin(req)):
         raise web.HTTPFound("/")
-    return _render(req, "detail", title=sub["title"], c=sub)
+    comments = await _comments(sub["id"])
+    return _render(req, "detail", title=sub["title"], c=sub, comments=comments)
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
@@ -718,7 +762,63 @@ async def h_delete(req):
     sid = int(req.match_info["id"])
     await board_exec("DELETE FROM board_submissions WHERE id=?", (sid,))
     await board_exec("DELETE FROM board_votes WHERE submission_id=?", (sid,))
+    await board_exec("DELETE FROM board_comments WHERE submission_id=?", (sid,))
     raise web.HTTPFound("/admin")
+
+
+async def h_edit_form(req):
+    """Editier-Seite eines Eintrags (Titel/Beschreibung/Meta) inkl. Kommentaren."""
+    if not _is_admin(req):
+        raise web.HTTPFound("/admin/login")
+    sub = await _one(int(req.match_info["id"]))
+    if not sub:
+        raise web.HTTPFound("/admin")
+    comments = await _comments(sub["id"])
+    return _render(req, "edit", title=f"Bearbeiten #{sub['id']}", c=sub, comments=comments,
+                   csrf=_csrf_token(), types=TYPES, statuses=STATUSES,
+                   priorities=PRIORITIES, components=COMPONENTS)
+
+
+async def h_edit(req):
+    """Speichert die bearbeiteten Felder eines Eintrags (inkl. Titel & Beschreibung)."""
+    d = await _admin_guard(req)
+    sid = int(req.match_info["id"])
+    cur = await _one(sid)
+    if not cur:
+        raise web.HTTPFound("/admin")
+    title = (d.get("title") or "").strip()[:120]
+    if not title:
+        raise web.HTTPFound(f"/admin/{sid}/edit")
+    typ  = d.get("type") if d.get("type") in TYPES else cur["type"]
+    st   = d.get("status") if d.get("status") in STATUSES else cur["status"]
+    prio = d.get("priority") if d.get("priority") in PRIORITIES else ""
+    comp = d.get("component") if d.get("component") in COMPONENTS else ""
+    appr = ", approved_at=COALESCE(approved_at, datetime('now'))" if st != "pending" else ""
+    await board_exec(
+        f"UPDATE board_submissions SET type=?, title=?, body=?, status=?, priority=?, "
+        f"component=?, version=?, updated_at=datetime('now'){appr} WHERE id=?",
+        (typ, title, (d.get("body") or "").strip()[:4000], st, prio, comp,
+         (d.get("version") or "").strip()[:40], sid))
+    raise web.HTTPFound(f"/admin/{sid}/edit")
+
+
+async def h_comment_add(req):
+    d = await _admin_guard(req)
+    sid = int(req.match_info["id"])
+    body = (d.get("body") or "").strip()[:4000]
+    if body:
+        author = (d.get("author") or "Owner").strip()[:40] or "Owner"
+        await board_exec("INSERT INTO board_comments (submission_id, author, body) VALUES (?,?,?)",
+                         (sid, author, body))
+    raise web.HTTPFound(f"/admin/{sid}/edit")
+
+
+async def h_comment_del(req):
+    d = await _admin_guard(req)
+    cid = int(req.match_info["cid"])
+    sid = (d.get("sid") or "").strip()
+    await board_exec("DELETE FROM board_comments WHERE id=?", (cid,))
+    raise web.HTTPFound(f"/admin/{sid}/edit" if sid.isdigit() else "/admin")
 
 
 def _parse_import_rows(text: str):
@@ -853,6 +953,9 @@ def build_app(bot) -> web.Application:
         web.get("/admin/logout", h_logout), web.get("/admin", h_admin),
         web.post("/admin/{id}/approve", h_approve), web.post("/admin/{id}/reject", h_reject),
         web.post("/admin/{id}/status", h_status), web.post("/admin/{id}/delete", h_delete),
+        web.get("/admin/{id}/edit", h_edit_form), web.post("/admin/{id}/edit", h_edit),
+        web.post("/admin/{id}/comment", h_comment_add),
+        web.post("/admin/comment/{cid}/delete", h_comment_del),
         web.post("/admin/import", h_import),
     ])
     return app

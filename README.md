@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.7.6` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.7.7` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1153,8 +1153,12 @@ Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) 
 Der Owner meldet sich unter `/admin/login` mit dem `BOARD_ADMIN_TOKEN` an und kann dann:
 
 - **Queue abarbeiten:** Einreichungen **freigeben** (→ öffentlich), **ablehnen** oder **löschen**.
-- Bei freigegebenen Karten **Status / Priorität / Komponente / Version** setzen und Titel/Text bearbeiten.
+- In der Übersicht je Eintrag schnell **Status / Priorität / Komponente / Version** setzen.
+- Über **✏️ Bearbeiten** (`/admin/<id>/edit`) einen Eintrag **voll bearbeiten** – Art, **Titel**, **Beschreibung**, Status, Priorität, Komponente, Version.
+- **Kommentare** zu einem Eintrag erfassen (mit Autor). Sie erscheinen öffentlich auf der Detailseite der Karte – nützlich für Rückmeldungen an die Community – und lassen sich einzeln wieder löschen.
 - **CSV-Import** der rückwirkenden Projekthistorie (Spalten: `type,title,body,status,component,priority,version,created_at,source`).
+
+Eine **Prioritäten-Legende** (P0 = kritisch/Blocker · P1 = hoch · P2 = mittel · P3 = niedrig) steht sowohl im öffentlichen Board als auch im Admin-Bereich und auf der Editier-Seite.
 
 Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam-Schutz**.
 

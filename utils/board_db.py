@@ -56,7 +56,15 @@ CREATE TABLE IF NOT EXISTS board_votes (
     created_at     TEXT    DEFAULT (datetime('now')),
     PRIMARY KEY (submission_id, voter_hash)
 );
+CREATE TABLE IF NOT EXISTS board_comments (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id  INTEGER NOT NULL,
+    author         TEXT    DEFAULT 'Owner',
+    body           TEXT    NOT NULL,
+    created_at     TEXT    DEFAULT (datetime('now'))
+);
 CREATE INDEX IF NOT EXISTS idx_board_status ON board_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_board_comments_sub ON board_comments(submission_id);
 """
 
 
