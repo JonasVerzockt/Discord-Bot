@@ -259,7 +259,9 @@ ADMIN = """{% extends "base" %}{% block body %}
 <h3 style="margin-top:24px">📥 CSV-Import (rückwirkende Historie)</h3>
 <form method=post action="/admin/import" enctype="multipart/form-data"><input type=hidden name=csrf value="{{csrf}}">
  <input type=file name=file accept=".csv"> <button class="btn small">Importieren</button>
- <div class=muted>Spalten: type,title,body,status,component,priority,version,created_at,source</div></form>
+ <div class=muted>Spalten (Reihenfolge/Groß-klein egal, Trenner , oder ; ): type,title,body,status,component,priority,version,created_at,source<br>
+  Pflicht: <b>title</b>. Gültige <b>status</b>: open, planned, in_progress, done, rejected, duplicate, pending (Standard: done). Gültige <b>type</b>: bug, feature, idea.<br>
+  Nach dem Import erscheint eine Meldung „N importiert, M übersprungen"; Details zu Skips stehen im Bot-Log.</div></form>
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
@@ -646,28 +648,72 @@ async def h_delete(req):
     raise web.HTTPFound("/admin")
 
 
+def _parse_import_rows(text: str):
+    """Parst CSV-Text robust und normalisiert auf gültige, ANZEIGBARE Werte.
+
+    Toleranzen (häufige stille Import-Fehler):
+      • BOM (utf-8-sig) und Feldnamen case-/whitespace-tolerant,
+      • Trennzeichen automatisch erkannt (Komma / Semikolon / Tab) – nicht nur Komma,
+      • unbekannter ``type`` → 'idea'; unbekannter ``status`` → 'open' (statt in KEINER
+        Spalte zu landen und dadurch unsichtbar zu sein).
+
+    Erwartete Spalten (Reihenfolge egal, Groß/klein egal):
+      type,title,body,status,component,priority,version,created_at,source
+    Pflicht ist nur ``title``. Rückgabe: (rows, skipped) mit rows als DB-fertige Dicts
+    (inkl. ``_line``/``_note`` für Logging) und skipped als Liste (Zeile, Grund)."""
+    rows, skipped = [], []
+    if not text.strip():
+        return rows, skipped
+    header = text.splitlines()[0].lstrip("﻿")
+    counts = {",": header.count(","), ";": header.count(";"), "\t": header.count("\t")}
+    delim = max(counts, key=counts.get) if max(counts.values()) else ","
+    reader = _csv.DictReader(io.StringIO(text), delimiter=delim)
+    if reader.fieldnames:
+        reader.fieldnames = [(fn or "").strip().lstrip("﻿").lower() for fn in reader.fieldnames]
+    for i, r in enumerate(reader, start=2):  # Zeile 1 = Header
+        g = lambda k: (r.get(k) or "").strip()
+        title = g("title")
+        if not title:
+            skipped.append((i, "kein Titel – Spalte 'title' nicht erkannt (falsches Trennzeichen?)"))
+            continue
+        typ = g("type").lower() or "idea"
+        if typ not in TYPES:
+            typ = "idea"
+        st = g("status").lower() or "done"
+        note = ""
+        if st not in STATUSES:
+            note = f"Status '{st}' unbekannt → als 'open' importiert"
+            st = "open"
+        rows.append({
+            "_line": i, "_note": note,
+            "type": typ, "title": title[:120], "body": g("body")[:4000], "status": st,
+            "component": g("component"), "priority": g("priority"), "version": g("version"),
+            "source": g("source") or "import", "created_at": g("created_at") or None,
+        })
+    return rows, skipped
+
+
 async def h_import(req):
     d = await _admin_guard(req)
     f = d.get("file")
     if not f or not hasattr(f, "file"):
-        raise web.HTTPFound("/admin")
-    text = f.file.read().decode("utf-8", "replace")
-    n = 0
-    for r in _csv.DictReader(io.StringIO(text)):
-        title = (r.get("title") or "").strip()
-        if not title:
-            continue
-        st = (r.get("status") or "done").strip()
-        appr = None if st == "pending" else "datetime('now')"
+        raise web.HTTPFound("/?m=Kein CSV empfangen.")
+    raw = f.file.read()
+    text = raw.decode("utf-8-sig", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+    rows, skipped = _parse_import_rows(text)
+    for row in rows:
+        appr = row["status"] != "pending"
         await board_exec(
             "INSERT INTO board_submissions (type,title,body,status,component,priority,version,source,approved_at,created_at) "
             "VALUES (?,?,?,?,?,?,?,?, " + ("datetime('now')" if appr else "NULL") + ", COALESCE(?, datetime('now')))",
-            ((r.get("type") or "idea").strip()[:20], title[:120], (r.get("body") or "").strip()[:4000],
-             st, (r.get("component") or "").strip(), (r.get("priority") or "").strip(),
-             (r.get("version") or "").strip(), (r.get("source") or "import").strip(),
-             (r.get("created_at") or "").strip() or None))
-        n += 1
-    raise web.HTTPFound(f"/?m={n} Einträge importiert.")
+            (row["type"], row["title"], row["body"], row["status"], row["component"],
+             row["priority"], row["version"], row["source"], row["created_at"]))
+    detail = list(skipped) + [(r["_line"], r["_note"]) for r in rows if r["_note"]]
+    msg = f"{len(rows)} importiert" + (f", {len(skipped)} übersprungen" if skipped else "")
+    if detail:
+        logger.warning("📥 Board-CSV-Import: %s | %s", msg,
+                       "; ".join(f"Z{ln}: {rs}" for ln, rs in detail[:25]))
+    raise web.HTTPFound(f"/?m={msg}")
 
 
 async def notify_owner(app, sub: dict) -> None:
