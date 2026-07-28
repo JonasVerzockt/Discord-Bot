@@ -172,10 +172,10 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 BOARD = """{% extends "base" %}{% block body %}
 <details class="status-panel">
  <summary class="status-head">🩺 Bot- &amp; Server-Status
-  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
-  <span class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
+  <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
+  <span id="hc-ver" class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
   <span class="status-toggle">Details</span></summary>
- <div class="status-body">
+ <div id="hc-body" class="status-body">
  {% for sec in sections %}
  <div class="status-section">
   <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
@@ -189,6 +189,47 @@ BOARD = """{% extends "base" %}{% block body %}
  {% endfor %}
  </div>
 </details>
+<script>
+(function(){
+  // Aktualisiert alle 5 s NUR den Status-Bereich (Rest der Seite bleibt unberührt);
+  // rendert nur neu, wenn sich die Daten gegenüber dem letzten Poll geändert haben.
+  // last=null → der erste Poll (nach 5 s) gleicht die Anzeige einmal mit dem Server
+  // ab, danach wird ausschließlich bei echten Änderungen neu gezeichnet.
+  var last = null;
+  function build(d){
+    var badge=document.getElementById('hc-badge');
+    if(badge){ badge.className='status-badge s-'+d.overall[0]; badge.textContent=d.overall[1]; }
+    var ver=document.getElementById('hc-ver'); if(ver){ ver.textContent='v'+d.version; }
+    var body=document.getElementById('hc-body'); if(!body){ return; }
+    var frag=document.createDocumentFragment();
+    (d.sections||[]).forEach(function(sec){
+      var s=document.createElement('div'); s.className='status-section';
+      var sub=document.createElement('div'); sub.className='status-sub'; sub.textContent=sec.title;
+      if(sec.note){ var m=document.createElement('span'); m.className='muted'; m.textContent=' · '+sec.note; sub.appendChild(m); }
+      s.appendChild(sub);
+      var grid=document.createElement('div'); grid.className='status-grid';
+      (sec.checks||[]).forEach(function(hc){
+        var card=document.createElement('div'); card.className='hc';
+        var dot=document.createElement('span'); dot.className='dot '+hc.state; card.appendChild(dot);
+        var box=document.createElement('div');
+        var n=document.createElement('div'); n.className='n'; n.textContent=hc.name; box.appendChild(n);
+        var de=document.createElement('div'); de.className='d'; de.textContent=hc.detail; box.appendChild(de);
+        card.appendChild(box); grid.appendChild(card);
+      });
+      s.appendChild(grid); frag.appendChild(s);
+    });
+    body.replaceChildren(frag);
+  }
+  function tick(){
+    fetch('/status.json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+      var sig=JSON.stringify(d);
+      if(sig===last){ return; }   // keine Änderung -> nichts neu rendern
+      last=sig; build(d);
+    }).catch(function(){});
+  }
+  setInterval(tick, 5000);
+})();
+</script>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
 <div class=cols>{% for key,label in cols %}
@@ -351,9 +392,11 @@ def _loop_interval(loop) -> str:
     """Kurzbeschreibung des Loop-Intervalls, z.B. 'alle 65 min' / 'alle 2 h'.
     Für zeitgesteuerte Loops (fester Uhrzeit-Trigger) ''."""
     try:
-        h = getattr(loop, "hours", 0) or 0
-        m = getattr(loop, "minutes", 0) or 0
-        s = getattr(loop, "seconds", 0) or 0
+        # py-cord speichert diese Werte als float → int, damit z.B. 'alle 5 min'
+        # statt 'alle 5.0 min' erscheint.
+        h = int(getattr(loop, "hours", 0) or 0)
+        m = int(getattr(loop, "minutes", 0) or 0)
+        s = int(getattr(loop, "seconds", 0) or 0)
         total_min = h * 60 + m
         if total_min:
             if h and not m:
@@ -372,28 +415,30 @@ def _loop_interval(loop) -> str:
 
 
 # Registry ALLER In-Bot-Hintergrundjobs (discord.ext.tasks-Loops):
-# (Cog-Name, Loop-Attribut, Anzeige-Label, kritisch?) – kritisch → 'down' bei Ausfall, sonst 'warn'.
+# (Cog-Name, Loop-Attribut, Anzeige-Label, kritisch?, Notiz) – kritisch → 'down' bei
+# Ausfall, sonst 'warn'. Notiz = optionaler Zusatz (z.B. wenn der Loop öfter tickt als
+# er tatsächlich etwas tut).
 _BOT_JOBS = [
-    ("Tasks",         "check_availability",       "Verfügbarkeits-Check",              True),
-    ("Tasks",         "reload_shops_task",        "Shop-Cache neu laden",              True),
-    ("PriceTracking", "check_price_changes",      "Preis-Tracking · Produkte",         True),
-    ("PriceTracking", "check_species_watches",    "Preis-Tracking · Arten",            True),
-    ("PriceTracking", "flush_removed_variants",   "Entfallene Varianten (Sammel-DM)",  False),
-    ("Digest",        "weekly_digest",            "Wochen-Digest",                     False),
-    ("Tasks",         "sync_shop_ratings",        "Shop-Bewertungen synchronisieren",  False),
-    ("Tasks",         "expire_old_notifications", "Alte Benachrichtigungen entfernen", False),
-    ("Tasks",         "optimize_db",              "DB-Optimierung (VACUUM)",           False),
-    ("Tasks",         "update_bot_status",        "Bot-Statusanzeige aktualisieren",   False),
-    ("CommandLog",    "flush_log",                "Command-Log schreiben",             False),
-    ("CommandLog",    "cleanup_log",              "Command-Log aufräumen (Retention)", False),
-    ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False),
-    ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False),
+    ("Tasks",         "check_availability",       "Verfügbarkeits-Check",              True,  ""),
+    ("Tasks",         "reload_shops_task",        "Shop-Cache neu laden",              True,  ""),
+    ("PriceTracking", "check_price_changes",      "Preis-Tracking · Produkte",         True,  ""),
+    ("PriceTracking", "check_species_watches",    "Preis-Tracking · Arten",            True,  ""),
+    ("PriceTracking", "flush_removed_variants",   "Entfallene Varianten (Sammel-DM)",  False, ""),
+    ("Digest",        "weekly_digest",            "Wochen-Digest",                     False, "Versand nur montags"),
+    ("Tasks",         "sync_shop_ratings",        "Shop-Bewertungen synchronisieren",  False, ""),
+    ("Tasks",         "expire_old_notifications", "Alte Benachrichtigungen entfernen", False, ""),
+    ("Tasks",         "optimize_db",              "DB-Optimierung (VACUUM)",           False, ""),
+    ("Tasks",         "update_bot_status",        "Bot-Statusanzeige aktualisieren",   False, ""),
+    ("CommandLog",    "flush_log",                "Command-Log schreiben",             False, ""),
+    ("CommandLog",    "cleanup_log",              "Command-Log aufräumen (Retention)", False, ""),
+    ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False, ""),
+    ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False, ""),
 ]
 
 
-def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict:
+def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool, note: str = "") -> dict:
     """Health-Kachel für einen discord.ext.tasks-Loop: läuft / fehlerhaft / gestoppt?
-    Bei laufendem Loop zusätzlich Intervall + nächster Lauf (Berliner Zeit)."""
+    Bei laufendem Loop zusätzlich Intervall + nächster Lauf (Berliner Zeit) + optionale Notiz."""
     down = "down" if critical else "warn"
     try:
         cog = bot.get_cog(cog_name) if bot else None
@@ -407,6 +452,8 @@ def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict
         nxt = _loop_next(loop)
         iv = _loop_interval(loop)
         detail = "läuft" + (f" · {iv}" if iv else "") + (f" · nächster Lauf {nxt}" if nxt else "")
+        if note:
+            detail += f" · {note}"
         return dict(name=label, state="ok", detail=detail)
     except Exception as e:
         return dict(name=label, state="warn", detail=str(e)[:80])
@@ -487,7 +534,7 @@ async def _collect_health(app):
                      detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
 
     # ── Sektion 2: Hintergrund-Jobs IM Bot-Prozess (discord.ext.tasks) ────────
-    jobs = [_job_tile(bot, c, a, lbl, crit) for (c, a, lbl, crit) in _BOT_JOBS]
+    jobs = [_job_tile(bot, c, a, lbl, crit, note) for (c, a, lbl, crit, note) in _BOT_JOBS]
 
     # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
     cron = [
@@ -518,6 +565,16 @@ async def h_board(req):
     return _render(req, "board", items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
                    flash=req.query.get("m", ""))
+
+
+async def h_status_json(req):
+    """Nur die Health-Daten als JSON – fürs 5-Sekunden-Polling des Status-Bereichs
+    (der Rest der Seite wird NICHT neu geladen)."""
+    overall, sections = await _collect_health(req.app)
+    return web.json_response(
+        {"overall": overall, "version": VERSION, "sections": sections},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 async def h_submit_form(req):
@@ -784,6 +841,7 @@ def build_app(bot) -> web.Application:
     app["bot"] = bot
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
+        web.get("/status.json", h_status_json),
         web.get("/submit", h_submit_form), web.post("/submit", h_submit),
         web.post("/upvote/{id}", h_upvote), web.get("/submission/{id}", h_detail),
         web.get("/admin/login", h_login_form), web.post("/admin/login", h_login),
