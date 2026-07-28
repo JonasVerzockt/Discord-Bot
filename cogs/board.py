@@ -603,7 +603,14 @@ async def h_logout(req):
 async def h_admin(req):
     if not _is_admin(req):
         raise web.HTTPFound("/admin/login")
-    items = await _rows("ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC")
+    # Nach Status gruppiert (pending zuerst für die Queue, dann in Board-Spalten-
+    # Reihenfolge), innerhalb eines Status nach ID (neueste zuerst).
+    items = await _rows(
+        "ORDER BY CASE status "
+        "WHEN 'pending' THEN 0 WHEN 'open' THEN 1 WHEN 'planned' THEN 2 "
+        "WHEN 'in_progress' THEN 3 WHEN 'done' THEN 4 WHEN 'rejected' THEN 5 "
+        "WHEN 'duplicate' THEN 6 ELSE 7 END, id DESC"
+    )
     queue = [c for c in items if c["status"] == "pending"]
     return _render(req, "admin", title="Admin", items=items, queue=queue, csrf=_csrf_token(),
                    statuses=STATUSES, priorities=PRIORITIES, components=COMPONENTS)
