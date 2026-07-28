@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.7.8` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.7.9` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -767,7 +767,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/codes_date` | `code`, `gueltig_bis` (`JJJJ-MM-TT`/`TT.MM.JJJJ` oder `-` zum Löschen), `gueltig_ab` (optional), `shop` (optional) | Gültigkeitsdatum eines Rabattcodes nachträglich anpassen (z. B. wenn die KI ein Enddatum falsch/gar nicht erkannt hat). Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_date code:ANT10 gueltig_bis:31.12.2026` |
 | `/codes_fix_links` | – | Einmal-Migration: löst Kurzlinks in **bereits gespeicherten** Codes zur echten Shop-URL auf und entfernt Tracking-Parameter. Idempotent (bereits saubere Links bleiben unverändert). | `/codes_fix_links` |
 | `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
-| `/info_add` | `name`, `nur_admin` (optional) | Info-Eintrag anlegen. Der Text wird in einem **mehrzeiligen Popup (Modal)** eingegeben – Markdown/Zeilenumbrüche werden 1:1 übernommen. `nur_admin:true` = nur für Admins nutzbar (Antwort dann ephemer). Ausgabe automatisch als Embed ab 1000 Zeichen. | `/info_add name:regeln` |
+| `/info_add` | `name`, `beschreibung` (optional), `nur_admin` (optional) | Info-Eintrag anlegen. Der Text wird in einem **mehrzeiligen Popup (Modal)** eingegeben – Markdown/Zeilenumbrüche werden 1:1 übernommen. `beschreibung` erscheint als Hinweis in der `/info`-Autocomplete (als `name — Beschreibung`). `nur_admin:true` = nur für Admins nutzbar (Antwort dann ephemer). Ausgabe automatisch als Embed ab 1000 Zeichen. | `/info_add name:regeln beschreibung:Serverregeln` |
 | `/info_edit` | `name` (Autocomplete), `nur_admin` (optional) | Info-Eintrag bearbeiten (Text im Modal, vorausgefüllt; Nur-Admin-Flag optional ändern). | `/info_edit name:regeln` |
 | `/info_remove` | `name` (Autocomplete) | Info-Eintrag löschen. | `/info_remove name:regeln` |
 | `/info_raw` | `name` (Autocomplete) | Quelltext eines Info-Eintrags als Codeblock anzeigen (ephemer). | `/info_raw name:regeln` |
@@ -1138,6 +1138,8 @@ Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Üb
 - **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron. Es sind genau **zwei** Jobs → **zwei** Kacheln: **Grabber** (stündlich, erzeugt in **einem** Lauf sowohl `shops_data.json` als auch `price_history.db` → eine gemeinsame Kachel) und **Artenliste/AntCat-Build** (monatlich, optional). Der Grabber-Status richtet sich nach `shops_data.json` (wird jeden Lauf neu geschrieben, also verlässliches Frische-Signal); `price_history.db` wird nur bei tatsächlichen Preisänderungen fortgeschrieben, der Grabber `touch()`t die Datei aber nach jedem erfolgreichen Lauf – bleibt sie dennoch > 7 Tage zurück, deutet das auf einen Ausfall des Preis-Schritts hin (Kachel wird gelb).
 
 Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.
+
+Der Status-Bereich **aktualisiert sich alle 5 Sekunden von selbst** (JSON-Poll auf `/status.json`, nur der Status-Teil, und nur bei echter Änderung; oben steht der „Stand"-Zeitpunkt). Jede Kachel ist **anklickbar** und öffnet die **Vorfall-Historie** dieses Checks (`/status/check/<name>`): ein minütlicher Monitor-Loop zeichnet jede „nicht OK"-Phase (gelb/rot) mit Beginn und – nach Rückkehr auf OK – automatisch dem **Recovery-Zeitpunkt** auf (letzte 10 je Check). Der Owner kann je Vorfall eine **Notiz** hinterlegen.
 
 ### Einreichen (öffentlich, anonym)
 

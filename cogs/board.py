@@ -41,7 +41,7 @@ from urllib.parse import urlparse
 import discord
 from aiohttp import web
 from aiohttp.abc import AbstractAccessLogger
-from discord.ext import commands
+from discord.ext import commands, tasks
 from jinja2 import Environment, DictLoader, select_autoescape
 
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
@@ -51,7 +51,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
 from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
-from utils.timez import BERLIN, now_berlin
+from utils.timez import BERLIN, now_berlin, berlin_from_utc_naive
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +145,7 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .status-sub{font-size:13px;font-weight:600;color:#c9d1d9;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid #21262d}
  .status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px}
  .hc{display:flex;align-items:flex-start;gap:9px;background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
+ a.hc{text-decoration:none;color:inherit} a.hc:hover{border-color:#3d444d;background:#11161d}
  .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:0 0 auto}
  .dot.ok{background:#3fb950} .dot.warn{background:#d29922} .dot.down{background:#f85149} .dot.off{background:#6e7681}
  .hc .n{font-weight:600;font-size:13px} .hc .d{color:#8b949e;font-size:12px;margin-top:1px}
@@ -186,8 +187,8 @@ BOARD = """{% extends "base" %}{% block body %}
   <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
   <div class="status-grid">
   {% for hc in sec.checks %}
-   <div class=hc><span class="dot {{ hc.state }}"></span>
-    <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></div>
+   <a class=hc href="/status/check/{{ hc.name|urlencode }}" title="Vorfall-Historie ansehen"><span class="dot {{ hc.state }}"></span>
+    <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></a>
   {% endfor %}
   </div>
  </div>
@@ -214,7 +215,9 @@ BOARD = """{% extends "base" %}{% block body %}
       s.appendChild(sub);
       var grid=document.createElement('div'); grid.className='status-grid';
       (sec.checks||[]).forEach(function(hc){
-        var card=document.createElement('div'); card.className='hc';
+        var card=document.createElement('a'); card.className='hc';
+        card.href='/status/check/'+encodeURIComponent(hc.name);
+        card.title='Vorfall-Historie ansehen';
         var dot=document.createElement('span'); dot.className='dot '+hc.state; card.appendChild(dot);
         var box=document.createElement('div');
         var n=document.createElement('div'); n.className='n'; n.textContent=hc.name; box.appendChild(n);
@@ -323,6 +326,25 @@ EDIT = """{% extends "base" %}{% block body %}
  <div style="margin-top:10px"><button class=btn>Kommentar hinzufügen</button></div>
 </form>{% endblock %}"""
 
+STATUSDETAIL = """{% extends "base" %}{% block body %}
+<p><a href="/">← Board</a></p>
+<h2 style="margin-bottom:4px">🩺 {{ key }}</h2>
+{% if current %}<p><span class="dot {{ current.state }}" style="display:inline-block;vertical-align:middle"></span>
+ Aktuell: <b>{{ current.state|upper }}</b> · {{ current.detail }}</p>{% endif %}
+<p class=muted>Aufgezeichnet werden „nicht OK"-Phasen (gelb/rot). Endet eine Phase, wird automatisch vermerkt, wann der Check wieder OK war.</p>
+<h3 style="margin-top:16px">Letzte Vorfälle (max. 10)</h3>
+{% if not incidents %}<p class=muted>Keine Vorfälle aufgezeichnet. 🎉</p>{% endif %}
+{% for inc in incidents %}<div class=card>
+ {% if admin %}<form method=post action="/status/incident/{{ inc.id }}/note" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=key value="{{ key }}">
+  <input name=note maxlength=500 value="{{ inc.admin_note }}" placeholder="Admin-Notiz…" style="width:220px"> <button class="btn small">📝</button></form>{% endif %}
+ <span class="dot {{ inc.state }}" style="display:inline-block;vertical-align:middle"></span> <b>{{ inc.state|upper }}</b>
+ <div style="margin-top:4px">🔴 seit <b>{{ inc.started_local }}</b> —
+  {% if inc.ended_local %}🟢 wieder OK seit <b>{{ inc.ended_local }}</b>{% else %}<span class=muted>läuft noch</span>{% endif %}</div>
+ {% if inc.detail %}<div class=muted style="margin-top:3px">{{ inc.detail }}</div>{% endif %}
+ {% if inc.admin_note %}<div style="margin-top:4px">📝 {{ inc.admin_note }}</div>{% endif %}
+</div>{% endfor %}
+{% endblock %}"""
+
 LOGIN = """{% extends "base" %}{% block body %}
 <h2>Owner-Login</h2><form method=post action="/admin/login" style="max-width:340px">
  <label>Admin-Token</label><input name=token type=password autofocus>
@@ -362,7 +384,7 @@ ADMIN = """{% extends "base" %}{% block body %}
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
-                                     "edit": EDIT}),
+                                     "edit": EDIT, "statusdetail": STATUSDETAIL}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -619,6 +641,38 @@ async def _collect_health(app):
     return overall, sections
 
 
+async def _record_incidents(bot) -> None:
+    """Schreibt die Vorfall-Historie fort: pro Check offenen Vorfall öffnen/aktualisieren
+    (warn/down) bzw. schließen (ok/off → ended_at). Wird minütlich vom Monitor-Loop
+    aufgerufen. 'off' (grau/deaktiviert) zählt wie OK (kein Vorfall)."""
+    try:
+        _, sections = await _collect_health({"bot": bot})
+    except Exception as e:
+        logger.warning("⚠️ Incident-Monitor: Health-Erhebung fehlgeschlagen: %s", e)
+        return
+    for c in (chk for sec in sections for chk in sec["checks"]):
+        key, state, detail = c["name"], c["state"], c.get("detail", "")
+        try:
+            open_row = await board_one(
+                "SELECT id, state FROM board_incidents WHERE check_key=? AND ended_at IS NULL "
+                "ORDER BY id DESC LIMIT 1", (key,))
+            if state in ("warn", "down"):
+                if open_row is None:
+                    await board_exec(
+                        "INSERT INTO board_incidents (check_key, state, detail) VALUES (?,?,?)",
+                        (key, state, detail))
+                elif open_row["state"] != state:   # warn<->down: Zustand/Detail aktualisieren
+                    await board_exec(
+                        "UPDATE board_incidents SET state=?, detail=? WHERE id=?",
+                        (state, detail, open_row["id"]))
+            elif open_row is not None:             # wieder OK -> Vorfall schließen
+                await board_exec(
+                    "UPDATE board_incidents SET ended_at=datetime('now') WHERE id=?",
+                    (open_row["id"],))
+        except Exception as e:
+            logger.warning("⚠️ Incident-Monitor: Check '%s' fehlgeschlagen: %s", key, e)
+
+
 # ── Handlers ──────────────────────────────────────────────────────────────────
 async def h_board(req):
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
@@ -639,6 +693,37 @@ async def h_status_json(req):
          "generated": now_berlin("%H:%M:%S")},
         headers={"Cache-Control": "no-store"},
     )
+
+
+async def h_status_detail(req):
+    """Vorfall-Historie eines Health-Checks (Kachel-Klick). Zeigt die letzten 10
+    'nicht OK'-Phasen; Admins können je Vorfall eine Notiz hinterlegen."""
+    key = req.match_info["key"]
+    try:
+        _, sections = await _collect_health(req.app)
+        current = next((c for sec in sections for c in sec["checks"] if c["name"] == key), None)
+    except Exception:
+        current = None
+    rows = await board_query(
+        "SELECT * FROM board_incidents WHERE check_key=? ORDER BY id DESC LIMIT 10", (key,))
+    incidents = []
+    for r in rows:
+        d = dict(r)
+        d["started_local"] = berlin_from_utc_naive(d["started_at"], "%Y-%m-%d %H:%M:%S")
+        d["ended_local"] = berlin_from_utc_naive(d["ended_at"], "%Y-%m-%d %H:%M:%S") if d["ended_at"] else None
+        incidents.append(d)
+    return _render(req, "statusdetail", title=f"Status: {key}", key=key,
+                   current=current, incidents=incidents, csrf=_csrf_token())
+
+
+async def h_incident_note(req):
+    d = await _admin_guard(req)
+    cid = int(req.match_info["id"])
+    key = (d.get("key") or "").strip()
+    await board_exec("UPDATE board_incidents SET admin_note=? WHERE id=?",
+                     ((d.get("note") or "").strip()[:500], cid))
+    from urllib.parse import quote
+    raise web.HTTPFound(f"/status/check/{quote(key, safe='')}" if key else "/")
 
 
 async def h_submit_form(req):
@@ -963,6 +1048,8 @@ def build_app(bot) -> web.Application:
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/status.json", h_status_json),
+        web.get("/status/check/{key}", h_status_detail),
+        web.post("/status/incident/{id}/note", h_incident_note),
         web.get("/submit", h_submit_form), web.post("/submit", h_submit),
         web.post("/upvote/{id}", h_upvote), web.get("/submission/{id}", h_detail),
         web.get("/admin/login", h_login_form), web.post("/admin/login", h_login),
@@ -998,10 +1085,22 @@ class BoardCog(commands.Cog, name="Board"):
             await web.TCPSite(self.runner, BOARD_BIND, BOARD_PORT).start()
             logger.info("🌐 Feedback-Board läuft auf http://%s:%d (öffentlich: %s)",
                         BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL or "—")
+            self.incident_monitor.start()   # Vorfall-Historie der Status-Kacheln
         except Exception as e:
             logger.error("❌ Board-Start fehlgeschlagen: %s", e, exc_info=True)
 
+    @tasks.loop(minutes=1)
+    async def incident_monitor(self):
+        """Wertet minütlich die Health-Checks aus und schreibt die Vorfall-Historie fort."""
+        await _record_incidents(self.bot)
+
+    @incident_monitor.before_loop
+    async def _before_incident_monitor(self):
+        await self.bot.wait_until_ready()
+
     def cog_unload(self):
+        if self.incident_monitor.is_running():
+            self.incident_monitor.cancel()
         if self.runner:
             self.bot.loop.create_task(self.runner.cleanup())
 
