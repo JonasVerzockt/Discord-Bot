@@ -47,9 +47,10 @@ from jinja2 import Environment, DictLoader, select_autoescape
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC)
+from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
-from utils.timez import berlin_from_dt
+from utils.timez import BERLIN
 
 logger = logging.getLogger(__name__)
 
@@ -310,14 +311,33 @@ def _fmt_age(sec: float | None) -> str:
     return f"vor {d} {'Tag' if d == 1 else 'Tagen'}"
 
 
+_WD_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
 def _loop_next(loop) -> str:
-    """Nächster geplanter Lauf eines tasks.loop in Berliner Zeit (HH:MM MEZ/MESZ).
+    """Nächster geplanter Lauf eines tasks.loop in Berliner Zeit (MEZ/MESZ).
 
     ``next_iteration`` liefert discord.py UTC-aware; die Umrechnung erfolgt explizit
-    nach Europe/Berlin (via utils.timez) – unabhängig von der Server-Zeitzone –,
-    damit die Anzeige der übrigen MEZ/MESZ-Kennzeichnung im Bot entspricht."""
+    nach Europe/Berlin – unabhängig von der Server-Zeitzone. Das Datum wird nur dann
+    mitgezeigt, wenn der nächste Lauf NICHT heute ist (sonst nur Uhrzeit), damit bei
+    seltenen Jobs (wöchentlich/…) 'HH:MM' nicht mehrdeutig ist:
+      heute   → '19:15 MESZ'
+      morgen  → 'morgen 09:00 MESZ'
+      später  → 'So, 03.08. 09:00 MESZ'"""
+    nxt = getattr(loop, "next_iteration", None)
+    if nxt is None:
+        return ""
     try:
-        return berlin_from_dt(getattr(loop, "next_iteration", None), "%H:%M") or ""
+        if nxt.tzinfo is None:
+            nxt = nxt.replace(tzinfo=timezone.utc)
+        local = nxt.astimezone(BERLIN)
+        label = "MESZ" if local.dst() else "MEZ"
+        days = (local.date() - datetime.now(BERLIN).date()).days
+        if days <= 0:
+            return f"{local:%H:%M} {label}"
+        if days == 1:
+            return f"morgen {local:%H:%M} {label}"
+        return f"{_WD_DE[local.weekday()]}, {local:%d.%m.} {local:%H:%M} {label}"
     except Exception:
         return ""
 
@@ -387,6 +407,31 @@ def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict
         return dict(name=label, state="warn", detail=str(e)[:80])
 
 
+def _grabber_cron_tile() -> dict:
+    """EIN Cronjob (stündlich, als Nutzer 'aam') erzeugt in einem Lauf BEIDE Dateien:
+    ``shops_data.json`` (jeder Lauf) und ``price_history.db`` (Preis-Historie).
+    Deshalb EINE gemeinsame Kachel statt zweier getrennter (es gibt nicht zwei Jobs).
+
+    Ampel-Status nach ``shops_data.json`` (wird jeden Lauf neu geschrieben → verlässlich).
+    Die Preis-Historie wird zwar nur bei echten Preisänderungen fortgeschrieben, der
+    Grabber ``touch()``t sie aber nach jedem erfolgreichen Lauf – bleibt sie trotzdem
+    deutlich zurück (> 7 Tage), deutet das auf einen Ausfall des Preis-Schritts hin → gelb."""
+    name = "Grabber · Shop-Daten + Preis-Historie (stündlich)"
+    age = _file_age_seconds(SHOPS_DATA_FILE)
+    if age is None:
+        return dict(name=name, state="down", detail="shops_data.json fehlt")
+    state = "ok" if age < 3 * 3600 else ("warn" if age < 24 * 3600 else "down")
+    ph = _file_age_seconds(Path(DATA_DIRECTORY) / "price_history.db")
+    if ph is None:
+        ph_txt = "Preis-Historie fehlt"
+    else:
+        ph_txt = f"Preis-Historie {_fmt_age(ph)}"
+        if ph > 168 * 3600 and state == "ok":
+            state = "warn"
+            ph_txt += " ⚠️"
+    return dict(name=name, state=state, detail=f"Shop-Daten {_fmt_age(age)} · {ph_txt}")
+
+
 def _cron_tile(name: str, path, *, warn_h: int, down_h: int, optional: bool = False) -> dict:
     """Health-Kachel für einen EXTERNEN Cronjob (läuft als Nutzer 'aam', nicht im
     Bot-Prozess). Status wird aus dem Alter der erzeugten Datei abgeleitet."""
@@ -441,9 +486,7 @@ async def _collect_health(app):
 
     # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
     cron = [
-        _cron_tile("Grabber · Shop-Daten (stündlich)", SHOPS_DATA_FILE, warn_h=3, down_h=24),
-        _cron_tile("Grabber · Preis-Historie (stündlich)", Path(DATA_DIRECTORY) / "price_history.db",
-                   warn_h=3, down_h=24),
+        _grabber_cron_tile(),
         _cron_tile("Artenliste · AntCat-Build (monatlich)", SPECIES_CATALOG_FILE,
                    warn_h=40 * 24, down_h=1000 * 24, optional=True),
     ]
@@ -451,7 +494,7 @@ async def _collect_health(app):
     sections = [
         dict(title="🧩 Kern", note="Verbindung & Datenbanken", checks=core),
         dict(title="⚙️ Hintergrund-Jobs im Bot", note="discord.ext.tasks-Loops im Bot-Prozess", checks=jobs),
-        dict(title="⏰ Externe Cronjobs (als Nutzer aam)", note="Status anhand Aktualität der erzeugten Dateien", checks=cron),
+        dict(title="⏰ Externe Cronjobs (als Nutzer aam)", note="2 Cronjobs · Status anhand Aktualität der erzeugten Dateien", checks=cron),
     ]
     states = {c["state"] for sec in sections for c in sec["checks"]}
     if "down" in states:

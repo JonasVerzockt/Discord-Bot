@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.6.7` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.7.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1135,7 +1135,7 @@ Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Üb
 
 - **🧩 Kern** – **Discord-Verbindung** (online + WebSocket-Latenz), **Haupt- und Board-Datenbank** (`SELECT 1`-Check) sowie **KI-Chat** (aktiv/deaktiviert).
 - **⚙️ Hintergrund-Jobs im Bot** – **alle** `discord.ext.tasks`-Loops des Bot-Prozesses mit Zustand (läuft / gestoppt / fehlerhaft), Intervall und – wo sinnvoll – nächstem Lauf in Berliner Zeit (MEZ/MESZ): Verfügbarkeits-Check, Shop-Cache-Reload, Preis-Tracking (Produkte + Arten), Sammel-DM entfallener Varianten, Wochen-Digest, Shop-Bewertungs-Sync, Ablauf alter Benachrichtigungen, DB-Optimierung (VACUUM), Bot-Statusanzeige, Command-Log schreiben/aufräumen und die beiden KI-Chat-Wartungsloops.
-- **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron: **Grabber** (Shop-Daten + Preis-Historie, stündlich) und **Artenliste/AntCat-Build** (monatlich, optional). Ihr Status wird aus der Aktualität der erzeugten Dateien (`shops_data.json`, `price_history.db`, `ant_species.json`) abgeleitet.
+- **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron. Es sind genau **zwei** Jobs → **zwei** Kacheln: **Grabber** (stündlich, erzeugt in **einem** Lauf sowohl `shops_data.json` als auch `price_history.db` → eine gemeinsame Kachel) und **Artenliste/AntCat-Build** (monatlich, optional). Der Grabber-Status richtet sich nach `shops_data.json` (wird jeden Lauf neu geschrieben, also verlässliches Frische-Signal); `price_history.db` wird nur bei tatsächlichen Preisänderungen fortgeschrieben, der Grabber `touch()`t die Datei aber nach jedem erfolgreichen Lauf – bleibt sie dennoch > 7 Tage zurück, deutet das auf einen Ausfall des Preis-Schritts hin (Kachel wird gelb).
 
 Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.
 
