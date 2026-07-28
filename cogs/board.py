@@ -51,7 +51,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
 from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
-from utils.timez import BERLIN
+from utils.timez import BERLIN, now_berlin
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,8 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:0}
  details[open]>.status-head{margin-bottom:4px}
  .status-ver{color:#8b949e;font-size:12px;font-weight:600;border:1px solid #30363d;border-radius:20px;padding:2px 9px;white-space:nowrap}
- .status-toggle{margin-left:auto;color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
+ .status-stand{margin-left:auto;color:#6e7681;font-size:11px;font-weight:400;white-space:nowrap}
+ .status-toggle{color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
  .status-toggle::after{content:"▸";display:inline-block;margin-left:6px;transition:transform .15s}
  details[open] .status-toggle::after{transform:rotate(90deg)}
  .status-badge{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:20px;font-size:14px;font-weight:600}
@@ -174,6 +175,7 @@ BOARD = """{% extends "base" %}{% block body %}
  <summary class="status-head">🩺 Bot- &amp; Server-Status
   <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
   <span id="hc-ver" class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
+  <span id="hc-stand" class="status-stand" title="Zeitpunkt der letzten Aktualisierung (alle 5 s)">Stand: {{ generated }}</span>
   <span class="status-toggle">Details</span></summary>
  <div id="hc-body" class="status-body">
  {% for sec in sections %}
@@ -222,8 +224,10 @@ BOARD = """{% extends "base" %}{% block body %}
   }
   function tick(){
     fetch('/status.json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
-      var sig=JSON.stringify(d);
-      if(sig===last){ return; }   // keine Änderung -> nichts neu rendern
+      var st=document.getElementById('hc-stand');
+      if(st){ st.textContent='Stand: '+d.generated; }   // Zeitstempel bei JEDEM Poll aktualisieren
+      var sig=JSON.stringify([d.overall, d.version, d.sections]);  // 'generated' bewusst NICHT vergleichen
+      if(sig===last){ return; }   // Health unverändert -> Kacheln nicht neu rendern
       last=sig; build(d);
     }).catch(function(){});
   }
@@ -380,10 +384,10 @@ def _loop_next(loop) -> str:
         label = "MESZ" if local.dst() else "MEZ"
         days = (local.date() - datetime.now(BERLIN).date()).days
         if days <= 0:
-            return f"{local:%H:%M} {label}"
+            return f"{local:%H:%M:%S} {label}"
         if days == 1:
-            return f"morgen {local:%H:%M} {label}"
-        return f"{_WD_DE[local.weekday()]}, {local:%d.%m.} {local:%H:%M} {label}"
+            return f"morgen {local:%H:%M:%S} {label}"
+        return f"{_WD_DE[local.weekday()]}, {local:%d.%m.} {local:%H:%M:%S} {label}"
     except Exception:
         return ""
 
@@ -564,7 +568,7 @@ async def h_board(req):
     overall, sections = await _collect_health(req.app)
     return _render(req, "board", items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
-                   flash=req.query.get("m", ""))
+                   generated=now_berlin("%H:%M:%S"), flash=req.query.get("m", ""))
 
 
 async def h_status_json(req):
@@ -572,7 +576,8 @@ async def h_status_json(req):
     (der Rest der Seite wird NICHT neu geladen)."""
     overall, sections = await _collect_health(req.app)
     return web.json_response(
-        {"overall": overall, "version": VERSION, "sections": sections},
+        {"overall": overall, "version": VERSION, "sections": sections,
+         "generated": now_berlin("%H:%M:%S")},
         headers={"Cache-Control": "no-store"},
     )
 
