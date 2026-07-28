@@ -153,6 +153,8 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid #30363d;margin-right:5px}
  .bug{color:#ff7b72;border-color:#ff7b72} .feature{color:#7ee787;border-color:#7ee787} .idea{color:#d2a8ff;border-color:#d2a8ff}
  .legend{font-size:12px} .legend .tag{margin:0 3px} a.btn{display:inline-block;text-decoration:none}
+ .cardfoot{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+ .cmark{font-size:12px;white-space:nowrap} .cardmore{margin-left:auto}
  .up{background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:20px;padding:3px 10px;cursor:pointer}
  input,textarea,select{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:8px;width:100%;box-sizing:border-box}
  label{display:block;margin:10px 0 3px;color:#8b949e;font-size:13px}
@@ -223,21 +225,27 @@ BOARD = """{% extends "base" %}{% block body %}
     });
     body.replaceChildren(frag);
   }
+  function setStand(txt){ var st=document.getElementById('hc-stand'); if(st){ st.textContent=txt; } }
   function tick(){
-    fetch('/status.json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
-      var st=document.getElementById('hc-stand');
-      if(st){ st.textContent='Stand: '+d.generated; }   // Zeitstempel bei JEDEM Poll aktualisieren
+    // Cache-Bust gegen Proxy-/Browser-Caching; Fehler werden SICHTBAR gemacht,
+    // damit ein Reverse-Proxy-/CSP-Problem nicht still bleibt.
+    fetch('/status.json?_='+Date.now(),{cache:'no-store'}).then(function(r){
+      if(!r.ok){ throw new Error('HTTP '+r.status); }
+      return r.json();
+    }).then(function(d){
+      setStand('Stand: '+d.generated);   // Zeitstempel bei JEDEM Poll aktualisieren
       var sig=JSON.stringify([d.overall, d.version, d.sections]);  // 'generated' bewusst NICHT vergleichen
       if(sig===last){ return; }   // Health unverändert -> Kacheln nicht neu rendern
       last=sig; build(d);
-    }).catch(function(){});
+    }).catch(function(){ setStand('Auto-Update: keine Verbindung zu /status.json'); });
   }
+  tick();                 // sofort (nicht erst nach 5 s)
   setInterval(tick, 5000);
 })();
 </script>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
-<p class="muted legend">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig</p>
+<p class="muted legend">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig &nbsp;|&nbsp; ▲ = Upvotes (Community-Priorisierung) · 💬 = Kommentar(e) vorhanden · „⤢ mehr" öffnet die Detailseite</p>
 <div class=cols>{% for key,label in cols %}
  <div class=col><h2>{{ label }}</h2>
   <div class=col-body>
@@ -247,7 +255,11 @@ neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen
     {% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}
     <div class=t><a href="/submission/{{c.id}}">{{ c.title }}</a></div>
     {% if c.version %}<div class=muted>erledigt in {{ c.version }}</div>{% endif %}
-    <form method=post action="/upvote/{{c.id}}" style="margin-top:6px"><button class=up>▲ {{ c.upvotes }}</button></form>
+    <div class=cardfoot>
+     <form method=post action="/upvote/{{c.id}}" style="margin:0"><button class=up>▲ {{ c.upvotes }}</button></form>
+     {% if c.comments %}<a class="muted cmark" href="/submission/{{c.id}}" title="{{ c.comments }} Kommentar(e)">💬 {{ c.comments }}</a>{% endif %}
+     <a class="muted cmark cardmore" href="/submission/{{c.id}}" title="Details ansehen">⤢ mehr</a>
+    </div>
    </div>
   {% else %}<div class=muted>—</div>{% endfor %}
   </div>
@@ -353,7 +365,9 @@ ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUB
                                      "edit": EDIT}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
-_ROWQ = ("SELECT s.*, (SELECT COUNT(*) FROM board_votes v WHERE v.submission_id=s.id) AS upvotes "
+_ROWQ = ("SELECT s.*, "
+         "(SELECT COUNT(*) FROM board_votes v WHERE v.submission_id=s.id) AS upvotes, "
+         "(SELECT COUNT(*) FROM board_comments c WHERE c.submission_id=s.id) AS comments "
          "FROM board_submissions s ")
 
 
@@ -609,9 +623,11 @@ async def _collect_health(app):
 async def h_board(req):
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
     overall, sections = await _collect_health(req.app)
-    return _render(req, "board", items=items, cols=PUBLIC_COLS,
+    resp = _render(req, "board", items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
                    generated=now_berlin("%H:%M:%S"), flash=req.query.get("m", ""))
+    resp.headers["Cache-Control"] = "no-store"   # kein veraltetes HTML aus Proxy/Browser-Cache
+    return resp
 
 
 async def h_status_json(req):
