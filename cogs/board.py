@@ -351,9 +351,11 @@ def _loop_interval(loop) -> str:
     """Kurzbeschreibung des Loop-Intervalls, z.B. 'alle 65 min' / 'alle 2 h'.
     Für zeitgesteuerte Loops (fester Uhrzeit-Trigger) ''."""
     try:
-        h = getattr(loop, "hours", 0) or 0
-        m = getattr(loop, "minutes", 0) or 0
-        s = getattr(loop, "seconds", 0) or 0
+        # py-cord speichert diese Werte als float → int, damit z.B. 'alle 5 min'
+        # statt 'alle 5.0 min' erscheint.
+        h = int(getattr(loop, "hours", 0) or 0)
+        m = int(getattr(loop, "minutes", 0) or 0)
+        s = int(getattr(loop, "seconds", 0) or 0)
         total_min = h * 60 + m
         if total_min:
             if h and not m:
@@ -372,28 +374,30 @@ def _loop_interval(loop) -> str:
 
 
 # Registry ALLER In-Bot-Hintergrundjobs (discord.ext.tasks-Loops):
-# (Cog-Name, Loop-Attribut, Anzeige-Label, kritisch?) – kritisch → 'down' bei Ausfall, sonst 'warn'.
+# (Cog-Name, Loop-Attribut, Anzeige-Label, kritisch?, Notiz) – kritisch → 'down' bei
+# Ausfall, sonst 'warn'. Notiz = optionaler Zusatz (z.B. wenn der Loop öfter tickt als
+# er tatsächlich etwas tut).
 _BOT_JOBS = [
-    ("Tasks",         "check_availability",       "Verfügbarkeits-Check",              True),
-    ("Tasks",         "reload_shops_task",        "Shop-Cache neu laden",              True),
-    ("PriceTracking", "check_price_changes",      "Preis-Tracking · Produkte",         True),
-    ("PriceTracking", "check_species_watches",    "Preis-Tracking · Arten",            True),
-    ("PriceTracking", "flush_removed_variants",   "Entfallene Varianten (Sammel-DM)",  False),
-    ("Digest",        "weekly_digest",            "Wochen-Digest",                     False),
-    ("Tasks",         "sync_shop_ratings",        "Shop-Bewertungen synchronisieren",  False),
-    ("Tasks",         "expire_old_notifications", "Alte Benachrichtigungen entfernen", False),
-    ("Tasks",         "optimize_db",              "DB-Optimierung (VACUUM)",           False),
-    ("Tasks",         "update_bot_status",        "Bot-Statusanzeige aktualisieren",   False),
-    ("CommandLog",    "flush_log",                "Command-Log schreiben",             False),
-    ("CommandLog",    "cleanup_log",              "Command-Log aufräumen (Retention)", False),
-    ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False),
-    ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False),
+    ("Tasks",         "check_availability",       "Verfügbarkeits-Check",              True,  ""),
+    ("Tasks",         "reload_shops_task",        "Shop-Cache neu laden",              True,  ""),
+    ("PriceTracking", "check_price_changes",      "Preis-Tracking · Produkte",         True,  ""),
+    ("PriceTracking", "check_species_watches",    "Preis-Tracking · Arten",            True,  ""),
+    ("PriceTracking", "flush_removed_variants",   "Entfallene Varianten (Sammel-DM)",  False, ""),
+    ("Digest",        "weekly_digest",            "Wochen-Digest",                     False, "Versand nur montags"),
+    ("Tasks",         "sync_shop_ratings",        "Shop-Bewertungen synchronisieren",  False, ""),
+    ("Tasks",         "expire_old_notifications", "Alte Benachrichtigungen entfernen", False, ""),
+    ("Tasks",         "optimize_db",              "DB-Optimierung (VACUUM)",           False, ""),
+    ("Tasks",         "update_bot_status",        "Bot-Statusanzeige aktualisieren",   False, ""),
+    ("CommandLog",    "flush_log",                "Command-Log schreiben",             False, ""),
+    ("CommandLog",    "cleanup_log",              "Command-Log aufräumen (Retention)", False, ""),
+    ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False, ""),
+    ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False, ""),
 ]
 
 
-def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict:
+def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool, note: str = "") -> dict:
     """Health-Kachel für einen discord.ext.tasks-Loop: läuft / fehlerhaft / gestoppt?
-    Bei laufendem Loop zusätzlich Intervall + nächster Lauf (Berliner Zeit)."""
+    Bei laufendem Loop zusätzlich Intervall + nächster Lauf (Berliner Zeit) + optionale Notiz."""
     down = "down" if critical else "warn"
     try:
         cog = bot.get_cog(cog_name) if bot else None
@@ -407,6 +411,8 @@ def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool) -> dict
         nxt = _loop_next(loop)
         iv = _loop_interval(loop)
         detail = "läuft" + (f" · {iv}" if iv else "") + (f" · nächster Lauf {nxt}" if nxt else "")
+        if note:
+            detail += f" · {note}"
         return dict(name=label, state="ok", detail=detail)
     except Exception as e:
         return dict(name=label, state="warn", detail=str(e)[:80])
@@ -487,7 +493,7 @@ async def _collect_health(app):
                      detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
 
     # ── Sektion 2: Hintergrund-Jobs IM Bot-Prozess (discord.ext.tasks) ────────
-    jobs = [_job_tile(bot, c, a, lbl, crit) for (c, a, lbl, crit) in _BOT_JOBS]
+    jobs = [_job_tile(bot, c, a, lbl, crit, note) for (c, a, lbl, crit, note) in _BOT_JOBS]
 
     # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
     cron = [
