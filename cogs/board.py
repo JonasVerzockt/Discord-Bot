@@ -32,6 +32,7 @@ import hmac
 import io
 import logging
 import os
+import re
 import secrets
 import time
 from collections import defaultdict
@@ -398,6 +399,13 @@ def _render(req, name, title="Board", flash="", **ctx):
     return web.Response(text=html, content_type="text/html")
 
 
+def _ver_key(v: str) -> tuple:
+    """Semantischer Versions-Sortierschlüssel: '1.10.0' > '1.9.0'. Leere/fehlende
+    Version -> (0,0,0,0), landet damit hinter allen echten Versionen."""
+    parts = [int(x) for x in re.findall(r"\d+", v or "")][:4]
+    return tuple(parts) + (0,) * (4 - len(parts))
+
+
 async def _rows(where="", params=()):
     return [dict(r) for r in await board_query(_ROWQ + where, params)]
 
@@ -676,6 +684,9 @@ async def _record_incidents(bot) -> None:
 # ── Handlers ──────────────────────────────────────────────────────────────────
 async def h_board(req):
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
+    # 'Erledigt'-Karten tragen eine Version -> nach Version absteigend (neueste oben);
+    # alle anderen Spalten haben keine Version ((0,0,0,0)) und bleiben so bei id DESC.
+    items.sort(key=lambda c: (_ver_key(c.get("version") or ""), c.get("id") or 0), reverse=True)
     overall, sections = await _collect_health(req.app)
     resp = _render(req, "board", items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
