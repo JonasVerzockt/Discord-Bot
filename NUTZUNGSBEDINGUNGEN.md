@@ -185,9 +185,10 @@ Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachricht
 | Daten | Zweck | Speicherort |
 |-------|-------|-------------|
 | Eingereichter **Inhalt** (Typ, Titel, Beschreibung), **optionaler Name** (freiwillig, unverifiziert) | Anzeige und Bearbeitung der eingereichten Idee/des Bugs | Eigene lokale SQLite-Datenbank (`BOARD_DB_FILE`, getrennt von der Haupt-DB) |
+| **Kommentare des Betreibers** (Text + angegebener Autorname) zu einem Eintrag | Öffentliche Rückmeldungen/Statusnotizen zur Idee/zum Bug | Eigene lokale SQLite-Datenbank |
 | **Aus der IP-Adresse abgeleiteter Hash** (HMAC mit geheimem Salt) – beim Einreichen und beim Upvoten | Spam-Abwehr (Rate-Limit) und Dedupe der Upvotes | Eigene lokale SQLite-Datenbank |
 
-**Es wird keine rohe IP-Adresse gespeichert** – nur ein nicht direkt rückrechenbarer HMAC-Hash. Öffentlich sichtbar werden nach Freigabe ausschließlich: Typ, Titel, Beschreibung, ggf. der angegebene Name, Status und die Upvote-Anzahl. Die vollständigen **Nutzungsbedingungen fürs Board** (was eingereicht werden darf, Moderation) stehen weiter oben unter *Nutzungsbedingungen → Feedback-Board*.
+**Es wird keine rohe IP-Adresse gespeichert** – nur ein nicht direkt rückrechenbarer HMAC-Hash. Öffentlich sichtbar werden nach Freigabe ausschließlich: Typ, Titel, Beschreibung, ggf. der angegebene Name, Status, die Upvote-Anzahl sowie vom Betreiber erfasste **Kommentare**. Die vollständigen **Nutzungsbedingungen fürs Board** (was eingereicht werden darf, Moderation) stehen weiter oben unter *Nutzungsbedingungen → Feedback-Board*.
 
 ### Drittanbieter
 
