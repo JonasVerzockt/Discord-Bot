@@ -172,10 +172,10 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
 BOARD = """{% extends "base" %}{% block body %}
 <details class="status-panel">
  <summary class="status-head">🩺 Bot- &amp; Server-Status
-  <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
-  <span class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
+  <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
+  <span id="hc-ver" class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
   <span class="status-toggle">Details</span></summary>
- <div class="status-body">
+ <div id="hc-body" class="status-body">
  {% for sec in sections %}
  <div class="status-section">
   <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
@@ -189,6 +189,47 @@ BOARD = """{% extends "base" %}{% block body %}
  {% endfor %}
  </div>
 </details>
+<script>
+(function(){
+  // Aktualisiert alle 5 s NUR den Status-Bereich (Rest der Seite bleibt unberührt);
+  // rendert nur neu, wenn sich die Daten gegenüber dem letzten Poll geändert haben.
+  // last=null → der erste Poll (nach 5 s) gleicht die Anzeige einmal mit dem Server
+  // ab, danach wird ausschließlich bei echten Änderungen neu gezeichnet.
+  var last = null;
+  function build(d){
+    var badge=document.getElementById('hc-badge');
+    if(badge){ badge.className='status-badge s-'+d.overall[0]; badge.textContent=d.overall[1]; }
+    var ver=document.getElementById('hc-ver'); if(ver){ ver.textContent='v'+d.version; }
+    var body=document.getElementById('hc-body'); if(!body){ return; }
+    var frag=document.createDocumentFragment();
+    (d.sections||[]).forEach(function(sec){
+      var s=document.createElement('div'); s.className='status-section';
+      var sub=document.createElement('div'); sub.className='status-sub'; sub.textContent=sec.title;
+      if(sec.note){ var m=document.createElement('span'); m.className='muted'; m.textContent=' · '+sec.note; sub.appendChild(m); }
+      s.appendChild(sub);
+      var grid=document.createElement('div'); grid.className='status-grid';
+      (sec.checks||[]).forEach(function(hc){
+        var card=document.createElement('div'); card.className='hc';
+        var dot=document.createElement('span'); dot.className='dot '+hc.state; card.appendChild(dot);
+        var box=document.createElement('div');
+        var n=document.createElement('div'); n.className='n'; n.textContent=hc.name; box.appendChild(n);
+        var de=document.createElement('div'); de.className='d'; de.textContent=hc.detail; box.appendChild(de);
+        card.appendChild(box); grid.appendChild(card);
+      });
+      s.appendChild(grid); frag.appendChild(s);
+    });
+    body.replaceChildren(frag);
+  }
+  function tick(){
+    fetch('/status.json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+      var sig=JSON.stringify(d);
+      if(sig===last){ return; }   // keine Änderung -> nichts neu rendern
+      last=sig; build(d);
+    }).catch(function(){});
+  }
+  setInterval(tick, 5000);
+})();
+</script>
 <p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
 neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
 <div class=cols>{% for key,label in cols %}
@@ -526,6 +567,16 @@ async def h_board(req):
                    flash=req.query.get("m", ""))
 
 
+async def h_status_json(req):
+    """Nur die Health-Daten als JSON – fürs 5-Sekunden-Polling des Status-Bereichs
+    (der Rest der Seite wird NICHT neu geladen)."""
+    overall, sections = await _collect_health(req.app)
+    return web.json_response(
+        {"overall": overall, "version": VERSION, "sections": sections},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 async def h_submit_form(req):
     return _render(req, "submit", title="Einreichen", types=TYPES)
 
@@ -790,6 +841,7 @@ def build_app(bot) -> web.Application:
     app["bot"] = bot
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
+        web.get("/status.json", h_status_json),
         web.get("/submit", h_submit_form), web.post("/submit", h_submit),
         web.post("/upvote/{id}", h_upvote), web.get("/submission/{id}", h_detail),
         web.get("/admin/login", h_login_form), web.post("/admin/login", h_login),
