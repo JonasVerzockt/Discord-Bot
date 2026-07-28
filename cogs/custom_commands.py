@@ -57,10 +57,18 @@ def _norm_name(name: str) -> str:
 async def _fetch(bot, name: str):
     rows = await execute_db(
         bot,
-        "SELECT name, content, admin_only FROM custom_commands WHERE name=?",
+        "SELECT name, content, description, admin_only FROM custom_commands WHERE name=?",
         (_norm_name(name),), fetch=True,
     )
     return rows[0] if rows else None
+
+
+def _choice(name: str, description: str):
+    """Autocomplete-Vorschlag: zeigt 'name — Beschreibung' an, liefert aber den
+    reinen Namen als Wert. Discord-Vorschläge haben kein eigenes Beschreibungsfeld,
+    darum steckt die Beschreibung im angezeigten Namen (max. 100 Zeichen)."""
+    label = f"{name} — {description}" if description else name
+    return discord.OptionChoice(name=label[:100], value=name)
 
 
 async def _is_admin(interaction_or_ctx) -> bool:
@@ -82,24 +90,24 @@ async def _info_autocomplete(ctx: discord.AutocompleteContext):
     except Exception:
         is_admin = False
     q = (ctx.value or "").lower()
-    sql = "SELECT name FROM custom_commands"
+    sql = "SELECT name, description FROM custom_commands"
     if not is_admin:
         sql += " WHERE admin_only=0"
     rows = await execute_db(ctx.bot, sql + " ORDER BY name", fetch=True) or []
-    return [r["name"] for r in rows if q in r["name"]][:25]
+    return [_choice(r["name"], r["description"]) for r in rows if q in r["name"]][:25]
 
 
 async def _all_info_autocomplete(ctx: discord.AutocompleteContext):
     """Alle Einträge (für Admin-Verwaltung)."""
     q = (ctx.value or "").lower()
-    rows = await execute_db(ctx.bot, "SELECT name FROM custom_commands ORDER BY name", fetch=True) or []
-    return [r["name"] for r in rows if q in r["name"]][:25]
+    rows = await execute_db(ctx.bot, "SELECT name, description FROM custom_commands ORDER BY name", fetch=True) or []
+    return [_choice(r["name"], r["description"]) for r in rows if q in r["name"]][:25]
 
 
 # ── Modal für Inhalt (mehrzeilig, Markdown) ───────────────────────────────────
 
 class _InfoModal(discord.ui.Modal):
-    def __init__(self, cog, lang, name, admin_only, existing="", is_edit=False):
+    def __init__(self, cog, lang, name, admin_only, existing="", is_edit=False, description=""):
         super().__init__(title=l10n.get(
             "info_modal_title_edit" if is_edit else "info_modal_title_add", lang, name=name)[:45])
         self.cog = cog
@@ -107,6 +115,7 @@ class _InfoModal(discord.ui.Modal):
         self.name = name
         self.admin_only = admin_only
         self.is_edit = is_edit
+        self.description = (description or "")[:100]
         self.add_item(discord.ui.InputText(
             label=l10n.get("info_modal_label", lang)[:45],
             style=discord.InputTextStyle.long,
@@ -123,15 +132,15 @@ class _InfoModal(discord.ui.Modal):
         if self.is_edit:
             await execute_db(
                 self.cog.bot,
-                "UPDATE custom_commands SET content=?, admin_only=?, as_embed=?, updated_at=datetime('now') WHERE name=?",
-                (content, self.admin_only, as_embed, self.name), commit=True,
+                "UPDATE custom_commands SET content=?, description=?, admin_only=?, as_embed=?, updated_at=datetime('now') WHERE name=?",
+                (content, self.description, self.admin_only, as_embed, self.name), commit=True,
             )
             msg = l10n.get("info_updated", self.lang, name=self.name)
         else:
             await execute_db(
                 self.cog.bot,
-                "INSERT INTO custom_commands (name, content, admin_only, as_embed, created_by) VALUES (?, ?, ?, ?, ?)",
-                (self.name, content, self.admin_only, as_embed, uid), commit=True,
+                "INSERT INTO custom_commands (name, content, description, admin_only, as_embed, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+                (self.name, content, self.description, self.admin_only, as_embed, uid), commit=True,
             )
             msg = l10n.get("info_added", self.lang, name=self.name)
         logger.info("ℹ️ Info-Eintrag %s: '%s' (admin_only=%s) von %s",
@@ -216,6 +225,7 @@ class CustomCommandsCog(commands.Cog, name="CustomCommands"):
         self,
         ctx: discord.ApplicationContext,
         name: discord.Option(str, "Name (a-z, 0-9, _ , -)", description_localizations={"de": "Name (a-z, 0-9, _ , -)", "en-US": "Name (a-z, 0-9, _ , -)"}, required=True),  # type: ignore[valid-type]
+        beschreibung: discord.Option(str, "Short description shown in the /info picker", name="beschreibung", description_localizations={"de": "Kurzbeschreibung, die in der /info-Auswahl angezeigt wird"}, required=False, default=""),  # type: ignore[valid-type]
         admin_only: discord.Option(bool, "Only admins may use this entry (reply shown only to them)", name_localizations={"de": "nur_admin"}, description_localizations={"de": "Nur Admins dürfen diesen Eintrag nutzen (Antwort nur für sie sichtbar)"}, required=False, default=False),  # type: ignore[valid-type]
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -226,7 +236,8 @@ class CustomCommandsCog(commands.Cog, name="CustomCommands"):
         if await _fetch(self.bot, nm):
             await ctx.respond(l10n.get("info_exists", lang, name=nm), ephemeral=True)
             return
-        await ctx.send_modal(_InfoModal(self, lang, nm, 1 if admin_only else 0, is_edit=False))
+        await ctx.send_modal(_InfoModal(self, lang, nm, 1 if admin_only else 0,
+                                        is_edit=False, description=(beschreibung or "").strip()))
 
     # ── /info_edit (Admin) ─────────────────────────────────────────────────────
     @discord.slash_command(
@@ -239,6 +250,7 @@ class CustomCommandsCog(commands.Cog, name="CustomCommands"):
         self,
         ctx: discord.ApplicationContext,
         name: discord.Option(str, "Entry name", description_localizations={"de": "Name des Eintrags", "en-US": "Entry name"}, autocomplete=_all_info_autocomplete, required=True),  # type: ignore[valid-type]
+        beschreibung: discord.Option(str, "New short description (empty = keep current)", name="beschreibung", description_localizations={"de": "Neue Kurzbeschreibung (leer = unverändert lassen)"}, required=False, default=None),  # type: ignore[valid-type]
         admin_only: discord.Option(bool, "Only admins may use this entry", name_localizations={"de": "nur_admin"}, description_localizations={"de": "Nur Admins dürfen diesen Eintrag nutzen"}, required=False, default=None),  # type: ignore[valid-type]
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -247,8 +259,10 @@ class CustomCommandsCog(commands.Cog, name="CustomCommands"):
             await ctx.respond(l10n.get("info_not_found", lang, name=_norm_name(name)), ephemeral=True)
             return
         ao = row["admin_only"] if admin_only is None else (1 if admin_only else 0)
+        # Beschreibung: None -> bestehende beibehalten, sonst (auch leer) übernehmen.
+        desc = row["description"] if beschreibung is None else beschreibung.strip()
         await ctx.send_modal(_InfoModal(
-            self, lang, row["name"], ao, existing=row["content"], is_edit=True))
+            self, lang, row["name"], ao, existing=row["content"], is_edit=True, description=desc))
 
     # ── /info_remove (Admin) ───────────────────────────────────────────────────
     @discord.slash_command(

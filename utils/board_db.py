@@ -63,8 +63,20 @@ CREATE TABLE IF NOT EXISTS board_comments (
     body           TEXT    NOT NULL,
     created_at     TEXT    DEFAULT (datetime('now'))
 );
+-- Vorfall-Historie der Status-Kacheln: pro Check eine Zeile je 'nicht OK'-Phase.
+-- ended_at NULL = noch offen; wird bei Rückkehr auf OK automatisch gesetzt.
+CREATE TABLE IF NOT EXISTS board_incidents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    check_key   TEXT    NOT NULL,
+    state       TEXT    NOT NULL,        -- 'warn' | 'down'
+    detail      TEXT    DEFAULT '',
+    admin_note  TEXT    DEFAULT '',
+    started_at  TEXT    DEFAULT (datetime('now')),
+    ended_at    TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_board_status ON board_submissions(status);
 CREATE INDEX IF NOT EXISTS idx_board_comments_sub ON board_comments(submission_id);
+CREATE INDEX IF NOT EXISTS idx_board_incidents_key ON board_incidents(check_key, id DESC);
 """
 
 

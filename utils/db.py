@@ -414,6 +414,7 @@ CREATE INDEX IF NOT EXISTS idx_command_log_user ON command_log (user_id);
 CREATE TABLE IF NOT EXISTS custom_commands (
     name        TEXT    PRIMARY KEY,   -- kleingeschrieben, eindeutig
     content     TEXT    NOT NULL,
+    description TEXT    DEFAULT '',     -- Kurzbeschreibung (in der /info-Autocomplete)
     admin_only  INTEGER NOT NULL DEFAULT 0,
     as_embed    INTEGER NOT NULL DEFAULT 0,
     created_by  TEXT,
@@ -443,6 +444,7 @@ _MIGRATIONS = [
     ("user_price_tracking", "target_price", "ALTER TABLE user_price_tracking ADD COLUMN target_price REAL"),
     ("user_price_tracking", "target_mode",  "ALTER TABLE user_price_tracking ADD COLUMN target_mode TEXT"),
     ("ai_chat_history",     "model",         "ALTER TABLE ai_chat_history ADD COLUMN model TEXT DEFAULT ''"),
+    ("custom_commands",     "description",   "ALTER TABLE custom_commands ADD COLUMN description TEXT DEFAULT ''"),
 ]
 
 
