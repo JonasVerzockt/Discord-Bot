@@ -46,7 +46,8 @@ from jinja2 import Environment, DictLoader, select_autoescape
 
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT,
-                    SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC)
+                    SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC,
+                    VERSION)
 from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
@@ -132,6 +133,7 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  summary.status-head::-webkit-details-marker{display:none}
  .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:0}
  details[open]>.status-head{margin-bottom:4px}
+ .status-ver{color:#8b949e;font-size:12px;font-weight:600;border:1px solid #30363d;border-radius:20px;padding:2px 9px;white-space:nowrap}
  .status-toggle{margin-left:auto;color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
  .status-toggle::after{content:"▸";display:inline-block;margin-left:6px;transition:transform .15s}
  details[open] .status-toggle::after{transform:rotate(90deg)}
@@ -171,6 +173,7 @@ BOARD = """{% extends "base" %}{% block body %}
 <details class="status-panel">
  <summary class="status-head">🩺 Bot- &amp; Server-Status
   <span class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
+  <span class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
   <span class="status-toggle">Details</span></summary>
  <div class="status-body">
  {% for sec in sections %}
@@ -513,7 +516,8 @@ async def h_board(req):
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
     overall, sections = await _collect_health(req.app)
     return _render(req, "board", items=items, cols=PUBLIC_COLS,
-                   overall=overall, sections=sections, flash=req.query.get("m", ""))
+                   overall=overall, sections=sections, version=VERSION,
+                   flash=req.query.get("m", ""))
 
 
 async def h_submit_form(req):
