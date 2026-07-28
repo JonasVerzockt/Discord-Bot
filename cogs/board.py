@@ -415,7 +415,7 @@ def _grabber_cron_tile() -> dict:
     Ampel-Status nach ``shops_data.json`` (wird jeden Lauf neu geschrieben → verlässlich).
     Die Preis-Historie wird zwar nur bei echten Preisänderungen fortgeschrieben, der
     Grabber ``touch()``t sie aber nach jedem erfolgreichen Lauf – bleibt sie trotzdem
-    deutlich zurück (> 24 h), deutet das auf einen Ausfall des Preis-Schritts hin → gelb."""
+    deutlich zurück (> 7 Tage), deutet das auf einen Ausfall des Preis-Schritts hin → gelb."""
     name = "Grabber · Shop-Daten + Preis-Historie (stündlich)"
     age = _file_age_seconds(SHOPS_DATA_FILE)
     if age is None:
@@ -426,7 +426,7 @@ def _grabber_cron_tile() -> dict:
         ph_txt = "Preis-Historie fehlt"
     else:
         ph_txt = f"Preis-Historie {_fmt_age(ph)}"
-        if ph > 24 * 3600 and state == "ok":
+        if ph > 168 * 3600 and state == "ok":
             state = "warn"
             ph_txt += " ⚠️"
     return dict(name=name, state=state, detail=f"Shop-Daten {_fmt_age(age)} · {ph_txt}")
