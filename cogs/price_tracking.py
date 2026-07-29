@@ -1050,13 +1050,12 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     def __init__(self, bot: discord.Bot):
         self.bot = bot
-        self.check_price_changes.start()
-        self.check_species_watches.start()
+        # check_price_changes & check_species_watches haben KEINEN eigenen Timer mehr –
+        # sie werden stündlich von der Daten-Pipeline (Tasks-Cog, reload_shops_task)
+        # nach dem Shop-Reload sequenziell aufgerufen (immer auf frischen Daten).
         self.flush_removed_variants.start()
 
     def cog_unload(self):
-        self.check_price_changes.cancel()
-        self.check_species_watches.cancel()
         self.flush_removed_variants.cancel()
 
     # ── /track_price ──────────────────────────────────────────────────────────
@@ -1243,9 +1242,12 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
     # ── Hintergrundtask: Einzelprodukte prüfen ────────────────────────────────
 
-    @tasks.loop(minutes=65)
     async def check_price_changes(self):
-        """Prüft ~stündlich (alle 65 Min) Preisänderungen bei beobachteten Einzelprodukten."""
+        """Prüft Preisänderungen bei beobachteten Einzelprodukten.
+
+        Kein eigener Timer mehr: wird stündlich von der Daten-Pipeline (Tasks-Cog,
+        reload_shops_task) direkt nach dem Shop-Reload aufgerufen – so immer auf
+        frischen Shop-Daten und in fester Reihenfolge vor den Arten-Beobachtungen."""
         try:
             rows = await execute_db(
                 self.bot,
@@ -1322,16 +1324,12 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         except Exception as e:
             logger.error("❌ check_price_changes error: %s", e, exc_info=True)
 
-    @check_price_changes.before_loop
-    async def before_check_price_changes(self):
-        await self.bot.wait_until_ready()
+    # ── Arten-Beobachtungen prüfen (Teil der Daten-Pipeline) ──────────────────
 
-    # ── Hintergrundtask: Arten-Beobachtungen prüfen ───────────────────────────
-
-    @tasks.loop(minutes=67)
     async def check_species_watches(self):
         """
-        Prüft ~stündlich (alle 67 Min) alle Arten-Beobachtungen:
+        Prüft alle Arten-Beobachtungen (kein eigener Timer – stündlich von der
+        Daten-Pipeline nach check_price_changes aufgerufen):
         - Neue Produkte → DM
         - Preisänderungen bei bekannten Produkten → DM
         """
@@ -1358,12 +1356,6 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
 
         except Exception as e:
             logger.error("❌ check_species_watches error: %s", e, exc_info=True)
-
-    @check_species_watches.before_loop
-    async def before_check_species_watches(self):
-        await self.bot.wait_until_ready()
-        # Tabellen user_species_watch / user_species_watch_seen werden
-        # zentral in utils/db.py:init_db() angelegt.
 
     async def _process_species_watch(self, watch: dict, shop_data: dict):
         """Verarbeitet eine einzelne Arten-Beobachtung."""

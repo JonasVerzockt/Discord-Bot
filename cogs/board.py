@@ -511,9 +511,6 @@ def _loop_interval(loop) -> str:
 # er tatsächlich etwas tut).
 _BOT_JOBS = [
     ("Tasks",         "check_availability",       "Verfügbarkeits-Check",              True,  ""),
-    ("Tasks",         "reload_shops_task",        "Shop-Cache neu laden",              True,  ""),
-    ("PriceTracking", "check_price_changes",      "Preis-Tracking · Produkte",         True,  ""),
-    ("PriceTracking", "check_species_watches",    "Preis-Tracking · Arten",            True,  ""),
     ("PriceTracking", "flush_removed_variants",   "Entfallene Varianten (Sammel-DM)",  False, ""),
     ("Digest",        "weekly_digest",            "Wochen-Digest",                     False, "Versand nur montags"),
     ("Tasks",         "sync_shop_ratings",        "Shop-Bewertungen synchronisieren",  False, ""),
@@ -525,6 +522,34 @@ _BOT_JOBS = [
     ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False, ""),
     ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False, ""),
 ]
+
+
+def _pipeline_tile(bot) -> dict:
+    """Kachel für die stündliche Daten-Pipeline (Shop-Reload → Preis → Arten), die
+    im Tasks-Cog als ``reload_shops_task`` läuft. Zeigt nächsten Lauf + je Schritt
+    das Ergebnis des letzten Laufs (aus ``TasksCog.pipeline_last``)."""
+    name = "Daten-Pipeline (Shop-Reload → Preis → Arten)"
+    try:
+        cog = bot.get_cog("Tasks") if bot else None
+        loop = getattr(cog, "reload_shops_task", None) if cog else None
+        if loop is None:
+            return dict(name=name, state="down", detail="Cog/Loop nicht geladen")
+        if loop.failed():
+            return dict(name=name, state="down", detail="fehlerhaft (Exception im Loop)")
+        if not loop.is_running():
+            return dict(name=name, state="down", detail="gestoppt")
+        nxt = _loop_next(loop)
+        detail = "läuft · stündlich" + (f" · nächster Lauf {nxt}" if nxt else "")
+        state = "ok"
+        last = getattr(cog, "pipeline_last", None)
+        if last and last.get("steps"):
+            marks = " · ".join(f"{lbl} {'✓' if ok else '✗'}" for lbl, ok in last["steps"])
+            detail += f" · zuletzt {last.get('at', '')}: {marks}"
+            if not all(ok for _, ok in last["steps"]):
+                state = "warn"
+        return dict(name=name, state=state, detail=detail)
+    except Exception as e:
+        return dict(name=name, state="warn", detail=str(e)[:80])
 
 
 def _job_tile(bot, cog_name: str, attr: str, label: str, critical: bool, note: str = "") -> dict:
@@ -625,7 +650,8 @@ async def _collect_health(app):
                      detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
 
     # ── Sektion 2: Hintergrund-Jobs IM Bot-Prozess (discord.ext.tasks) ────────
-    jobs = [_job_tile(bot, c, a, lbl, crit, note) for (c, a, lbl, crit, note) in _BOT_JOBS]
+    jobs = [_pipeline_tile(bot)] + [_job_tile(bot, c, a, lbl, crit, note)
+                                    for (c, a, lbl, crit, note) in _BOT_JOBS]
 
     # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
     cron = [

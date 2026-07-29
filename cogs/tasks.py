@@ -35,6 +35,7 @@ from discord.ext import commands, tasks
 from config import VERSION
 from utils.db import execute_db, execute_many
 from utils.availability import load_shop_data
+from utils.timez import now_berlin
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class TasksCog(commands.Cog, name="Tasks"):
         self.bot       = bot
         self._start_time = datetime.utcnow()
         self._quote_deck: list = []   # gemischtes Deck für zufällige Status-Reihenfolge
+        self.pipeline_last: dict | None = None   # letzter Daten-Pipeline-Lauf (fürs Dashboard)
         # Tasks starten
         self.check_availability.start()
         self.reload_shops_task.start()
@@ -96,9 +98,20 @@ class TasksCog(commands.Cog, name="Tasks"):
     async def before_check_availability(self):
         await self.bot.wait_until_ready()
 
-    # ── Shop-Daten-Reload stündlich ───────────────────────────────────────────
+    # ── Daten-Pipeline stündlich: Shop-Reload → Preis → Arten ─────────────────
     @tasks.loop(hours=1)
     async def reload_shops_task(self):
+        """Stündliche Daten-Pipeline. Statt drei driftender Einzel-Timer laufen die
+        voneinander abhängigen Schritte hier NACHEINANDER auf frischen Daten:
+          1) Shop-Cache neu laden (+ Community-Warnungen synchronisieren)
+          2) Preis-Tracking: Einzelprodukte prüfen
+          3) Preis-Tracking: Arten-Beobachtungen prüfen
+        Jeder Schritt ist gekapselt (ein Fehler blockiert die folgenden nicht).
+        Ergebnis je Schritt landet in ``self.pipeline_last`` fürs Status-Dashboard."""
+        steps: list[tuple[str, bool]] = []
+
+        # Schritt 1: Shop-Reload
+        ok = True
         try:
             shop_data = await load_shop_data(self.bot)
             rows = [
@@ -123,7 +136,28 @@ class TasksCog(commands.Cog, name="Tasks"):
             except Exception as e:
                 logger.error(f"❌ sync_warnings error: {e}")
         except Exception as e:
-            logger.error(f"❌ reload_shops_task error: {e}")
+            ok = False
+            logger.error(f"❌ Pipeline/Shop-Reload error: {e}", exc_info=True)
+        steps.append(("Shop-Reload", ok))
+
+        # Schritt 2 + 3: abhängige Prüfungen im PriceTracking-Cog (sequenziell)
+        pt = self.bot.cogs.get("PriceTracking")
+        for label, method in (("Preis-Tracking (Produkte)", "check_price_changes"),
+                              ("Preis-Tracking (Arten)", "check_species_watches")):
+            ok = True
+            fn = getattr(pt, method, None) if pt else None
+            if fn is None:
+                ok = False
+                logger.warning("⚠️ Pipeline: %s nicht verfügbar (PriceTracking-Cog nicht geladen?)", method)
+            else:
+                try:
+                    await fn()
+                except Exception as e:
+                    ok = False
+                    logger.error("❌ Pipeline-Schritt %s: %s", method, e, exc_info=True)
+            steps.append((label, ok))
+
+        self.pipeline_last = {"at": now_berlin("%H:%M:%S"), "steps": steps}
 
     @reload_shops_task.before_loop
     async def before_reload_shops(self):
