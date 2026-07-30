@@ -17,17 +17,22 @@
 """
 cogs/tasks.py – Automatisierte Hintergrundaufgaben.
 
+Alle Intervall-Timer sind an der UHR ausgerichtet (nicht an der zufälligen Bot-
+Startzeit): via ``align_delay_seconds`` im jeweiligen ``before_loop`` starten sie am
+nächsten Rasterpunkt (:00 der Stunde bzw. :00/:05/:10 … bei Minuten-Loops).
+
 Zeitplan:
-  • Verfügbarkeitsprüfung    alle 5 Minuten
-  • Shop-Daten-Reload        stündlich
+  • Verfügbarkeitsprüfung    alle 5 Minuten (:00/:05/:10 …)
+  • Daten-Pipeline           stündlich um :05 (Shop-Reload → Preis → Arten, sequenziell)
   • Shop-Ratings-Sync        alle 48 Stunden (von Google Sheets)
   • Abgelaufene Benachricht. täglich (nach 1 Jahr → 'expired')
   • DB-Optimierung           wöchentlich
-  • Bot-Status               jede Minute (Uptime / Server-Anzahl)
+  • Bot-Status               alle 2 Minuten (Uptime / Server-Anzahl)
 """
+import asyncio
 import logging
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 
 import discord
 from discord.ext import commands, tasks
@@ -35,9 +40,14 @@ from discord.ext import commands, tasks
 from config import VERSION
 from utils.db import execute_db, execute_many
 from utils.availability import load_shop_data
-from utils.timez import now_berlin
+from utils.timez import now_berlin, BERLIN, align_delay_seconds
 
 logger = logging.getLogger(__name__)
+
+# Daten-Pipeline läuft stündlich, aber auf die UHR ausgerichtet: jede volle Stunde
+# um :05 (kurz nach dem Grabber-Cron um :00), damit sie auf frischen Shop-Daten läuft
+# – statt 'Bot-Startzeit + N h' zu driften. 24 feste Uhrzeiten = stündlicher Trigger.
+_PIPELINE_TIMES = [dtime(hour=h, minute=5, tzinfo=BERLIN) for h in range(24)]
 
 
 class TasksCog(commands.Cog, name="Tasks"):
@@ -97,9 +107,10 @@ class TasksCog(commands.Cog, name="Tasks"):
     @check_availability.before_loop
     async def before_check_availability(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(5 * 60))   # an :00/:05/:10 … ausrichten
 
-    # ── Daten-Pipeline stündlich: Shop-Reload → Preis → Arten ─────────────────
-    @tasks.loop(hours=1)
+    # ── Daten-Pipeline stündlich (:05, uhr-ausgerichtet): Reload → Preis → Arten ─
+    @tasks.loop(time=_PIPELINE_TIMES)
     async def reload_shops_task(self):
         """Stündliche Daten-Pipeline. Statt drei driftender Einzel-Timer laufen die
         voneinander abhängigen Schritte hier NACHEINANDER auf frischen Daten:
@@ -176,6 +187,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     @sync_shop_ratings.before_loop
     async def before_sync_shop_ratings(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
 
     # ── Abgelaufene Benachrichtigungen täglich markieren ──────────────────────
@@ -214,6 +226,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     @expire_old_notifications.before_loop
     async def before_expire(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
     # ── DB-Optimierung wöchentlich ────────────────────────────────────────────
     @tasks.loop(hours=168)
@@ -228,6 +241,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     @optimize_db.before_loop
     async def before_optimize(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
     # ── Bot-Status alle 2 Minuten mit rotierenden Ameisen-Sprüchen ──────────
     _ANT_QUOTES = [
@@ -286,6 +300,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     @update_bot_status.before_loop
     async def before_status(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(2 * 60))   # an :00/:02/:04 … ausrichten
 
 
 def setup(bot: discord.Bot):

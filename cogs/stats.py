@@ -213,7 +213,7 @@ class StatsCog(commands.Cog, name="Stats"):
         ]),
         ("help_grp_sysmod", [
             "help_stats", "help_system", "help_export",
-            "help_command_log", "help_known_users",
+            "help_command_log", "help_known_users", "help_run_jobs",
         ]),
     ]
     _HELP_AI_KEYS = [

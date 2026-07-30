@@ -30,10 +30,13 @@ Slash-Commands:
   /ai_reset   – (Admin) Budget eines Users oder global zurücksetzen
 """
 
+import asyncio
 import logging
 
 import discord
 from discord.ext import commands, tasks
+
+from utils.timez import align_delay_seconds
 
 import config as cfg
 from utils.localization import l10n, get_user_lang
@@ -271,6 +274,7 @@ class AiChatCog(commands.Cog):
     @cleanup_loop.before_loop
     async def _before_cleanup(self) -> None:
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
     # ── Hintergrundtask: Shop-Daten aus Google Sheets laden ───────────────────
 
@@ -285,6 +289,7 @@ class AiChatCog(commands.Cog):
     @shop_data_loop.before_loop
     async def _before_shop_data(self) -> None:
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
     # ── Hilfsmethoden ─────────────────────────────────────────────────────────
 
