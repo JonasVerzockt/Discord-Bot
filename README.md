@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.8.2` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.8.3` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -772,6 +772,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/info_remove` | `name` (Autocomplete) | Info-Eintrag löschen. | `/info_remove name:regeln` |
 | `/info_raw` | `name` (Autocomplete) | Quelltext eines Info-Eintrags als Codeblock anzeigen (ephemer). | `/info_raw name:regeln` |
 | `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
+| `/run_jobs` | – | Stößt **alle Hintergrund-Jobs einmalig sofort** an (unabhängig vom Zeitplan) und meldet je Job Erfolg/Fehler + Dauer (ephemeral). Nützlich direkt nach Deploy/Neustart, um nicht auf den nächsten uhr-ausgerichteten Lauf zu warten. Umfasst u. a. die Daten-Pipeline (Shop-Reload → Preis → Arten), Verfügbarkeits-Check, Shop-Bewertungs-Sync, DB-Optimierung, Command-Log-Flush/-Cleanup und die KI-Chat-Wartung. **Ausgenommen** ist bewusst der Wochen-Digest (fester Montags-Versand). | `/run_jobs` |
 | `/known_users` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/known_users` |
 | `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
 | `/shopmap list` | – | Alle Shop-Zuordnungen anzeigen (inkl. noch offener). | `/shopmap list` |
@@ -1135,6 +1136,8 @@ Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Üb
 
 - **🧩 Kern** – **Discord-Verbindung** (online + WebSocket-Latenz), **Haupt- und Board-Datenbank** (`SELECT 1`-Check) sowie **KI-Chat** (aktiv/deaktiviert).
 - **⚙️ Hintergrund-Jobs im Bot** – die `discord.ext.tasks`-Loops des Bot-Prozesses mit Zustand (läuft / gestoppt / fehlerhaft), Intervall und – wo sinnvoll – nächstem Lauf in Berliner Zeit (MEZ/MESZ). Die voneinander abhängigen, datengetriebenen Schritte laufen als **eine stündliche „Daten-Pipeline"**: Shop-Cache-Reload → Preis-Tracking (Produkte) → Preis-Tracking (Arten) nacheinander auf frischen Daten (die Kachel zeigt je Schritt ✓/✗ des letzten Laufs). Separat mit eigenem Timer: Verfügbarkeits-Check (alle 5 min), Sammel-DM entfallener Varianten, Wochen-Digest, Shop-Bewertungs-Sync, Ablauf alter Benachrichtigungen, DB-Optimierung (VACUUM), Bot-Statusanzeige, Command-Log schreiben/aufräumen und die beiden KI-Chat-Wartungsloops.
+
+Alle Intervall-Timer sind **an der Uhr ausgerichtet** statt an der zufälligen Bot-Startzeit: sie starten am nächsten Rasterpunkt (:00 der Stunde bzw. :00/:05/:10 … bei Minuten-Loops), die Daten-Pipeline gezielt um **:05** (kurz nach dem Grabber-Cron um :00). Mit `/run_jobs` lassen sich alle Jobs bei Bedarf einmalig sofort anstoßen.
 - **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron. Es sind genau **zwei** Jobs → **zwei** Kacheln: **Grabber** (stündlich, erzeugt in **einem** Lauf sowohl `shops_data.json` als auch `price_history.db` → eine gemeinsame Kachel) und **Artenliste/AntCat-Build** (monatlich, optional). Der Grabber-Status richtet sich nach `shops_data.json` (wird jeden Lauf neu geschrieben, also verlässliches Frische-Signal); `price_history.db` wird nur bei tatsächlichen Preisänderungen fortgeschrieben, der Grabber `touch()`t die Datei aber nach jedem erfolgreichen Lauf – bleibt sie dennoch > 7 Tage zurück, deutet das auf einen Ausfall des Preis-Schritts hin (Kachel wird gelb).
 
 Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.

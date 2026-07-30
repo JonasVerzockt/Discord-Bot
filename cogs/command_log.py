@@ -38,7 +38,7 @@ from discord.ext import commands, tasks
 from config import MOD_LOG_CHANNEL_ID, COMMAND_LOG_RETENTION_DAYS
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
-from utils.timez import now_berlin, berlin_from_utc_naive
+from utils.timez import now_berlin, berlin_from_utc_naive, align_delay_seconds
 from utils.embeds import ADMIN_COLOR
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
@@ -233,6 +233,7 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     @cleanup_log.before_loop
     async def _before_cleanup(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
 
 _QUERY_LIMIT = 100  # max. Treffer pro Abfrage (jüngste zuerst)

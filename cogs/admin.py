@@ -28,6 +28,7 @@ Slash Commands (nur Admins / Manage-Messages):
 import io
 import json
 import logging
+import time
 from datetime import datetime
 
 import discord
@@ -71,6 +72,53 @@ class AdminCog(commands.Cog, name="Admin"):
         except Exception as e:
             logger.error(f"❌ status error: {e}")
             await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
+
+    # Reihenfolge = sinnvolle Ausführungsreihenfolge. (label, Cog-Name, Loop-Attribut)
+    # Bewusst NICHT dabei: weekly_digest (würde ggf. den Wochen-Digest an alle Abonnenten
+    # verschicken) – der bleibt seinem festen Montags-Zeitplan überlassen.
+    _RUNNABLE_JOBS = [
+        ("Daten-Pipeline (Reload → Preis → Arten)", "Tasks",         "reload_shops_task"),
+        ("Verfügbarkeits-Check",                    "Tasks",         "check_availability"),
+        ("Shop-Bewertungen synchronisieren",        "Tasks",         "sync_shop_ratings"),
+        ("Alte Benachrichtigungen entfernen",       "Tasks",         "expire_old_notifications"),
+        ("DB-Optimierung (VACUUM)",                 "Tasks",         "optimize_db"),
+        ("Bot-Statusanzeige aktualisieren",         "Tasks",         "update_bot_status"),
+        ("Entfallene Varianten (Sammel-DM)",        "PriceTracking", "flush_removed_variants"),
+        ("Command-Log schreiben",                   "CommandLog",    "flush_log"),
+        ("Command-Log aufräumen (Retention)",       "CommandLog",    "cleanup_log"),
+        ("KI-Chat · Verläufe aufräumen",            "AiChatCog",     "cleanup_loop"),
+        ("KI-Chat · Shop-Daten-Refresh",            "AiChatCog",     "shop_data_loop"),
+    ]
+
+    @discord.slash_command(name="run_jobs", description="🔒 [Admin] Run all background jobs once now", description_localizations={"de": "🔒 [Admin] Alle Hintergrund-Jobs einmalig sofort ausführen"})
+    @discord.default_permissions(manage_messages=True)
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def cmd_run_jobs(self, ctx: discord.ApplicationContext):
+        """Stößt alle Hintergrund-Jobs einmalig sofort an (unabhängig vom Timer) und
+        meldet je Job Erfolg/Fehler + Dauer. Nützlich nach Deploy/Neustart, um nicht
+        auf den nächsten uhr-ausgerichteten Lauf warten zu müssen."""
+        await ctx.defer(ephemeral=True)
+        lines = []
+        for label, cog_name, attr in self._RUNNABLE_JOBS:
+            cog  = self.bot.get_cog(cog_name)
+            loop = getattr(cog, attr, None) if cog else None
+            if loop is None:
+                lines.append(f"⏭️ {label} – übersprungen (nicht geladen)")
+                continue
+            t0 = time.monotonic()
+            try:
+                await loop()   # tasks.Loop einmalig ausführen (unabhängig vom Zeitplan)
+                lines.append(f"✅ {label} · {time.monotonic() - t0:.1f}s")
+            except Exception as e:
+                logger.error("run_jobs: %s (%s) fehlgeschlagen: %s", attr, cog_name, e, exc_info=True)
+                lines.append(f"❌ {label} – {str(e)[:80]}")
+        embed = discord.Embed(
+            title="🔄 Hintergrund-Jobs einmalig ausgeführt",
+            description="\n".join(lines) + "\n\n*Wochen-Digest bewusst ausgenommen (fester Montags-Versand).*",
+            color=ADMIN_COLOR,
+        )
+        await ctx.followup.send(embed=embed, ephemeral=True)
 
     @discord.slash_command(name="pending", description="🔒 [Admin] List pending messages", description_localizations={"de": "🔒 [Admin] Ausstehende Nachrichten auflisten"})
     @discord.default_permissions(manage_messages=True)

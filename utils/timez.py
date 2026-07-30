@@ -61,6 +61,24 @@ def berlin_from_iso(iso, fmt: str = _DEFAULT_FMT) -> str | None:
     return _fmt_berlin(dt.astimezone(BERLIN), fmt)
 
 
+def align_delay_seconds(interval_seconds: int) -> float:
+    """Sekunden bis zum nächsten Rasterpunkt (Vielfaches von ``interval_seconds`` seit
+    Mitternacht Berliner Zeit).
+
+    Damit lassen sich ``tasks.loop``-Intervalle an der UHR ausrichten (in ``before_loop``
+    einmal so lange schlafen) – die Läufe hängen dann nicht mehr von der zufälligen
+    Bot-Startzeit ab. Für Intervalle, die 3600 teilen (z.B. 300 s, 120 s), fällt das
+    Raster genau auf die volle Stunde (:00). Für Stunden-Intervalle bewusst 3600
+    übergeben → Ausrichtung auf die nächste volle Stunde (max. ~1 h Wartezeit)."""
+    now = datetime.now(BERLIN)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elapsed = (now - midnight).total_seconds()
+    rem = interval_seconds - (elapsed % interval_seconds)
+    if rem < 1:
+        rem += interval_seconds
+    return rem
+
+
 def berlin_from_dt(dt, fmt: str = _DEFAULT_FMT) -> str | None:
     """Beliebiges ``datetime`` → Berliner Zeit als String (inkl. MEZ/MESZ).
 
