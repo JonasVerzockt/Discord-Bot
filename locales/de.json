@@ -478,6 +478,6 @@
   "channel_confirm_no": "Abbrechen",
   "help_run_jobs": "🔄 `/run_jobs` – Alle Hintergrund-Jobs einmalig sofort ausführen (Ergebnis je Job)",
   "help_export_chat": "📤 `/export_chat <channel> [von] [bis] [reaktionen_detail]` – Kompletten Channel als JSON exportieren (Datei-Download, ephemer)",
-  "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Schlagwort-Alerts für den Angebote-Kanal (PN bei passenden Angeboten; ✅ erledigt / 🔄 weiter)",
+  "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Schlagwort-Alerts für den Angebote-Kanal (mehrere kommagetrennt möglich; PN bei passenden Angeboten; ✅ erledigt / 🔄 weiter)",
   "help_offer_alert_check": "🔎 `/offer_alert check` – Alle aktuell als verfügbar erkannten Angebote auflisten (Prüfung)"
 }
