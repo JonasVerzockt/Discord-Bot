@@ -118,10 +118,11 @@ _SP_ACCEPTED: dict[str, str] = {}
 _SP_SYNONYMS: dict[str, str] = {}
 _SP_GENERA: set[str] = set()
 _SP_BY_GENUS: dict[str, list[str]] = {}   # Gattung -> akzeptierte Epitheta (für Fuzzy)
+_SP_EPITHETS: set[str] = set()            # ALLE akzeptierten Epitheta (gattungsübergreifend)
 
 
 def _load_species_catalog() -> None:
-    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS
+    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS, _SP_EPITHETS
     if _SP_LOADED:
         return
     _SP_LOADED = True
@@ -136,6 +137,7 @@ def _load_species_catalog() -> None:
             g, _, ep = key.partition(" ")
             if ep:
                 by.setdefault(g, set()).add(ep)
+                _SP_EPITHETS.add(ep)
         _SP_BY_GENUS = {g: sorted(s) for g, s in by.items()}
         logging.info("🐜 Artenliste geladen: %d Arten (canonical_species aktiv)", len(_SP_ACCEPTED))
     except FileNotFoundError:
@@ -146,6 +148,18 @@ def _load_species_catalog() -> None:
 
 # Max. erlaubte Editierdistanz für die Tippfehler-Korrektur im Shop-Artnamen.
 _MAX_EDITS = 2
+
+
+def _is_ending_variant(a: str, b: str) -> bool:
+    """Unterscheiden sich a und b nur in der ENDUNG (gemeinsamer Präfix ≥ Länge − 2)?
+    Deckt Genus-/Endungsangleichungen ab (niger↔nigra, hispanicus↔hispanica) und grenzt
+    sie von echten Art-Wechseln ab (chinensis↔chilensis: gemeinsamer Präfix nur 3)."""
+    n = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        n += 1
+    return n >= max(len(a), len(b)) - 2
 
 
 def _osa(a: str, b: str) -> int:
@@ -210,13 +224,21 @@ def _canonical_species(species_name: str) -> str | None:
         scored.sort()
         best_dist = scored[0][0]
         closest = [acc for dist, acc in scored if dist == best_dist]
-        if len(closest) == 1:                      # eindeutig nächster Treffer
-            corrected = _SP_ACCEPTED[f"{g} {closest[0]}"]
-            logging.info("🐜 canonical_species Tippfehler-Korrektur (Distanz %d): %r -> %r",
-                         best_dist, f"{g} {ep}", corrected)
-            return corrected
-        logging.info("🐜 canonical_species Fuzzy mehrdeutig (Distanz %d), keine Korrektur: %r -> %s",
-                     best_dist, f"{g} {ep}", closest)
+        if len(closest) != 1:                      # nicht eindeutig -> keine Korrektur
+            logging.info("🐜 canonical_species Fuzzy mehrdeutig (Distanz %d), keine Korrektur: %r -> %s",
+                         best_dist, f"{g} {ep}", closest)
+            continue
+        # Schutz vor Art-Verwechslung: Ist das Epitheton SELBST ein echtes (akzeptiertes)
+        # Epitheton – nur in einer anderen Gattung – dann NICHT auf eine fremde Art
+        # umbiegen; erlaubt bleibt nur eine reine Endungs-/Gender-Variante.
+        if ep in _SP_EPITHETS and not _is_ending_variant(ep, closest[0]):
+            logging.info("🐜 canonical_species: %r ist ein echtes Epitheton (andere Gattung), "
+                         "keine Art-Korrektur zu %r", f"{g} {ep}", closest[0])
+            continue
+        corrected = _SP_ACCEPTED[f"{g} {closest[0]}"]
+        logging.info("🐜 canonical_species Tippfehler-Korrektur (Distanz %d): %r -> %r",
+                     best_dist, f"{g} {ep}", corrected)
+        return corrected
     return None
 
 
