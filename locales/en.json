@@ -478,6 +478,6 @@
   "channel_confirm_no": "Cancel",
   "help_run_jobs": "🔄 `/run_jobs` – Run all background jobs once now (per-job result)",
   "help_export_chat": "📤 `/export_chat <channel> [from] [to] [reactions_detail]` – Export a whole channel as JSON (file download, ephemeral)",
-  "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Keyword alerts for the offers channel (DM on matches; ✅ done / 🔄 keep)",
+  "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Keyword alerts for the offers channel (several comma-separated; DM on matches; ✅ done / 🔄 keep)",
   "help_offer_alert_check": "🔎 `/offer_alert check` – List all offers currently recognized as available (verification)"
 }

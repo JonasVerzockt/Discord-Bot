@@ -188,42 +188,69 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         description_localizations={"de": "Schlagwort-Alerts für den Angebote-Kanal"},
     )
 
-    @offer_alert.command(name="add", description="Add a keyword to be alerted about",
-                         description_localizations={"de": "Ein Schlagwort für Alerts hinterlegen"})
+    @offer_alert.command(name="add", description="Add one or more keywords (comma-separated) to be alerted about",
+                         description_localizations={"de": "Ein oder mehrere Schlagworte (kommagetrennt) für Alerts hinterlegen"})
     @commands.guild_only()
     @allowed_channel()
     async def add(self, ctx: discord.ApplicationContext,
-                  schlagwort: discord.Option(str, "Keyword (species or any term)", name="schlagwort", description_localizations={"de": "Schlagwort (Art oder beliebiger Begriff)"}, required=True)):  # type: ignore[valid-type]
+                  schlagwort: discord.Option(str, "Keyword(s), comma-separated (a phrase with spaces stays one keyword)", name="schlagwort", description_localizations={"de": "Schlagwort(e), kommagetrennt (Begriff mit Leerzeichen bleibt EIN Schlagwort)"}, required=True)):  # type: ignore[valid-type]
         await ctx.defer(ephemeral=True)
         if not OFFER_CHANNEL_ID:
             await ctx.followup.send("⚠️ Das Angebote-Alert-Feature ist nicht konfiguriert (OFFER_CHANNEL_ID fehlt).", ephemeral=True)
             return
-        raw = (schlagwort or "").strip()
-        kw = _plain(raw)
-        if len(kw) < 2 or len(kw) > 80:
-            await ctx.followup.send("⚠️ Das Schlagwort muss 2–80 Zeichen haben.", ephemeral=True)
-            return
         uid = str(ctx.author.id)
         cnt = await execute_db(self.bot, "SELECT COUNT(*) AS n FROM offer_keywords WHERE user_id=?", (uid,), fetch=True)
-        if cnt and cnt[0]["n"] >= MAX_KEYWORDS:
-            await ctx.followup.send(f"⚠️ Maximal {MAX_KEYWORDS} Schlagworte pro Person.", ephemeral=True)
+        have = cnt[0]["n"] if cnt else 0
+
+        # An Komma/Semikolon in einzelne Schlagworte trennen (Leerzeichen bleiben Teil
+        # eines Schlagworts, z.B. „Lasius niger"). Innerhalb der Eingabe deduplizieren.
+        seen_norm, terms = set(), []
+        for part in re.split(r"[;,]", schlagwort or ""):
+            raw = part.strip()
+            kw = _plain(raw)
+            if kw and kw not in seen_norm:
+                seen_norm.add(kw)
+                terms.append((raw, kw))
+        if not terms:
+            await ctx.followup.send("⚠️ Bitte mindestens ein Schlagwort angeben.", ephemeral=True)
             return
-        rc = await execute_db(self.bot, "INSERT OR IGNORE INTO offer_keywords (user_id, keyword, keyword_raw) VALUES (?,?,?)",
-                              (uid, kw, raw), commit=True)
-        if not rc:
-            await ctx.followup.send(f"ℹ️ »{raw}« ist bereits hinterlegt.", ephemeral=True)
-            return
-        n = await self._backfill(ctx.author, uid, kw, raw)
-        if n == -1:
-            tail = ("Schlagwort gespeichert, aber ich konnte den Angebote-Kanal nicht lesen "
-                    "(fehlende Rechte).")
-        elif n > 0:
-            tail = (f"✅ »{raw}« gespeichert. Ich habe dir **{n}** noch offene Angebote der letzten "
-                    f"{OFFER_BACKFILL_DAYS} Tage per PN geschickt und melde ab jetzt neue.")
-        else:
-            tail = (f"✅ »{raw}« gespeichert. Aktuell keine offenen Treffer der letzten "
-                    f"{OFFER_BACKFILL_DAYS} Tage – ich melde dir neue Angebote automatisch.")
-        await ctx.followup.send(tail + "\n_(Kommt keine PN an, sind deine Server-DMs evtl. deaktiviert.)_", ephemeral=True)
+
+        added, exists, invalid, total_hits, chan_error = [], [], [], 0, False
+        for raw, kw in terms:
+            if len(kw) < 2 or len(kw) > 80:
+                invalid.append(raw or kw); continue
+            if have >= MAX_KEYWORDS:
+                invalid.append(f"{raw} (Limit {MAX_KEYWORDS})"); continue
+            rc = await execute_db(self.bot, "INSERT OR IGNORE INTO offer_keywords (user_id, keyword, keyword_raw) VALUES (?,?,?)",
+                                  (uid, kw, raw), commit=True)
+            if not rc:
+                exists.append(raw); continue
+            have += 1
+            added.append(raw)
+            n = await self._backfill(ctx.author, uid, kw, raw)
+            if n == -1:
+                chan_error = True
+            elif n > 0:
+                total_hits += n
+
+        parts = []
+        if added:
+            parts.append(f"✅ Hinzugefügt: {', '.join('»'+a+'«' for a in added)}")
+        if exists:
+            parts.append(f"ℹ️ Bereits vorhanden: {', '.join('»'+e+'«' for e in exists)}")
+        if invalid:
+            parts.append(f"⚠️ Übersprungen (ungültig/Limit): {', '.join('»'+i+'«' for i in invalid)}")
+        if added:
+            if chan_error:
+                parts.append("Konnte den Angebote-Kanal für den Rückblick nicht lesen (fehlende Rechte).")
+            elif total_hits > 0:
+                parts.append(f"📩 **{total_hits}** noch offene Angebote der letzten {OFFER_BACKFILL_DAYS} Tage "
+                             "per PN geschickt; neue melde ich automatisch.")
+            else:
+                parts.append(f"Aktuell keine offenen Treffer der letzten {OFFER_BACKFILL_DAYS} Tage – "
+                             "neue Angebote melde ich automatisch.")
+            parts.append("_(Kommt keine PN an, sind deine Server-DMs evtl. deaktiviert.)_")
+        await ctx.followup.send("\n".join(parts) or "Nichts hinzugefügt.", ephemeral=True)
 
     @offer_alert.command(name="list", description="Show your keywords",
                          description_localizations={"de": "Deine Schlagworte anzeigen"})

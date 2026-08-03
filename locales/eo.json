@@ -478,6 +478,6 @@
   "channel_confirm_no": "Nuligi",
   "help_run_jobs": "🔄 `/run_jobs` – Ruli ĉiujn fonajn taskojn unufoje tuj (rezulto po tasko)",
   "help_export_chat": "📤 `/export_chat <channel> [de] [ĝis] [reago_detalo]` – Eksporti tutan kanalon kiel JSON (dosier-elŝuto, efemera)",
-  "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Ŝlosilvorto-atentigoj por la ofert-kanalo (PM ĉe trafoj; ✅ preta / 🔄 plu)",
+  "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Ŝlosilvorto-atentigoj por la ofert-kanalo (pluraj perkome; PM ĉe trafoj; ✅ preta / 🔄 plu)",
   "help_offer_alert_check": "🔎 `/offer_alert check` – Listigi ĉiujn nun kiel haveblajn rekonitajn ofertojn (kontrolo)"
 }
