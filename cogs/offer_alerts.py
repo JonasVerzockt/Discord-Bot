@@ -37,6 +37,7 @@ zeilenweise geprüft, sodass nur wirklich noch offene Positionen gemeldet werden
 Kanal via Env OFFER_CHANNEL_ID (0/leer = Feature inaktiv).
 """
 import asyncio
+import functools
 import io
 import logging
 import re
@@ -88,6 +89,23 @@ def _kw_in(text_plain: str, kw: str) -> bool:
     return re.search(r"(?<!\w)" + re.escape(kw) + r"(?!\w)", text_plain) is not None
 
 
+@functools.lru_cache(maxsize=1024)
+def _expand_terms(kw: str) -> tuple:
+    """Match-Formen eines Schlagworts: das Wort selbst PLUS – falls es eine Ameisenart
+    ist – die AntCat-akzeptierte Schreibweise (Synonym→akzeptiert), damit z.B.
+    „Camponotus ligniperdus" auch „…ligniperda" findet. Für Nicht-Arten bleibt es
+    beim reinen Begriff. Nutzt utils.species_catalog (lazy, gecacht)."""
+    terms = {kw}
+    try:
+        from utils import species_catalog
+        canon = species_catalog.canonical(kw)
+        if canon:
+            terms.add(_plain(canon))
+    except Exception:
+        pass
+    return tuple(t for t in terms if t)
+
+
 def _line_sold(line_raw: str) -> bool:
     """Ist diese einzelne Zeile als verkauft markiert?"""
     if str(OFFER_SOLD_EMOTE_ID) in line_raw:                # :sold:-Emote im Text
@@ -125,30 +143,32 @@ def _message_sold_whole(content: str, reactions, author_id=None) -> bool:
     return False
 
 
-def _keyword_open_in_line(line_raw: str, kw: str) -> bool:
-    """Kommt das Schlagwort in dieser Zeile vor UND ist die Zeile offen (nicht verkauft)?"""
+def _line_open_for_terms(line_raw: str, terms: tuple) -> bool:
+    """Trifft eine der (Synonym-)Formen die Zeile UND ist die Zeile offen (nicht
+    verkauft)? Ein Term, der nur in einem durchgestrichenen Teilstück steht, zählt
+    nicht als offen."""
     plain = _plain(line_raw)
-    if not _kw_in(plain, kw):
+    if not any(_kw_in(plain, t) for t in terms):
         return False
     if _line_sold(line_raw):
         return False
-    # Schlagwort steckt (nur) in einem durchgestrichenen Teilstück? -> verkauft
-    for span in _STRIKE.findall(line_raw):
-        if _kw_in(_plain(span), kw):
-            return False
-    return True
+    # Mindestens ein Term muss AUSSERHALB der ~~…~~-Spans stehen.
+    outside = _plain(_STRIKE.sub(" ", line_raw))
+    return any(_kw_in(outside, t) for t in terms)
 
 
 def _open_hits(content: str, reactions, keywords, author_id=None) -> dict:
     """{keyword_norm: offene Trefferzeile} für alle Schlagworte, die in der
-    Nachricht eine NOCH OFFENE Position treffen. Leer, wenn ganze Nachricht verkauft."""
+    Nachricht eine NOCH OFFENE Position treffen (synonym-bewusst). Leer, wenn ganze
+    Nachricht verkauft."""
     if _message_sold_whole(content, reactions, author_id):
         return {}
     lines = (content or "").splitlines() or [content or ""]
     hits: dict[str, str] = {}
     for kw in keywords:
+        terms = _expand_terms(kw)
         for ln in lines:
-            if _keyword_open_in_line(ln, kw):
+            if _line_open_for_terms(ln, terms):
                 hits[kw] = ln.strip()
                 break
     return hits
@@ -323,23 +343,42 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
             await ctx.followup.send(text if rows else header, ephemeral=True)
 
     # ── Alerts / Backfill / Scanner ───────────────────────────────────────────
-    async def _send_alert_dm(self, user, uid: str, kw: str, title: str, intro: str, body: str):
-        """Schickt eine Alert-PN (mit Hinweis + ✅/🔄) und merkt sich die Nachricht
-        für den Reaktions-Lebenszyklus. True, wenn zugestellt."""
-        embed = discord.Embed(title=title[:256], description=(f"{intro}\n\n{body}")[:4000], color=EMBED_COLOR)
-        embed.add_field(name="​", value=_HINT, inline=False)
-        embed.set_footer(text="✅ = erledigt (Schlagwort entfernen)   ·   🔄 = weiter suchen")
+    async def _send_alert_dm(self, user, uid: str, kw: str, title: str, intro: str, lines):
+        """Schickt eine Alert-PN mit Hinweis + ✅/🔄. Der Text wird an Zeilengrenzen in
+        mehrere Embeds (≤ 4000 Zeichen) aufgeteilt, wenn er zu lang ist; Hinweis,
+        Reaktionen und die Reaktions-Zuordnung sitzen auf der LETZTEN Nachricht.
+        True, wenn (mind. eine) PN zugestellt wurde."""
+        LIMIT = 3900
+        chunks, cur = [], (intro or "")
+        for ln in lines:
+            if cur and len(cur) + 1 + len(ln) > LIMIT:
+                chunks.append(cur)
+                cur = ln
+            else:
+                cur = f"{cur}\n{ln}" if cur else ln
+        chunks.append(cur)
+        last = len(chunks) - 1
+        dm_last = None
         try:
-            dm = await user.send(embed=embed)
+            for i, chunk in enumerate(chunks):
+                embed = discord.Embed(description=chunk[:4096], color=EMBED_COLOR)
+                if i == 0:
+                    embed.title = title[:256]
+                if i == last:
+                    embed.add_field(name="​", value=_HINT, inline=False)
+                    embed.set_footer(text="✅ = erledigt (Schlagwort entfernen)   ·   🔄 = weiter suchen")
+                dm_last = await user.send(embed=embed)
         except (discord.Forbidden, discord.HTTPException):
+            return False
+        if dm_last is None:
             return False
         for e in (_DONE, _KEEP):
             try:
-                await dm.add_reaction(e)
+                await dm_last.add_reaction(e)
             except Exception:
                 pass
         await execute_db(self.bot, "INSERT OR REPLACE INTO offer_alert_msgs (message_id, user_id, keyword) VALUES (?,?,?)",
-                         (str(dm.id), uid, kw), commit=True)
+                         (str(dm_last.id), uid, kw), commit=True)
         return True
 
     async def _backfill(self, user, uid: str, kw: str, raw: str) -> int:
@@ -365,7 +404,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
             return 0
         await execute_many(self.bot, "INSERT OR IGNORE INTO offer_alert_seen (user_id, message_id, keyword) VALUES (?,?,?)",
                            [(uid, str(m.id), kw) for m, _ in matches])
-        shown = matches[:20]
+        shown = matches[:40]           # Länge regelt das Auto-Splitting in _send_alert_dm
         lines = []
         for m, snip in shown:
             when = berlin_from_dt(m.created_at, "%d.%m.%Y")
@@ -378,7 +417,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
             user, uid, kw,
             title=f"🔎 Bestehende Angebote zu »{raw}«",
             intro=f"Ich habe **{len(matches)}** noch offene Angebote der letzten {OFFER_BACKFILL_DAYS} Tage gefunden:",
-            body="\n".join(lines))
+            lines=lines)
         return len(matches)
 
     @tasks.loop(minutes=10)
@@ -447,7 +486,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         await self._send_alert_dm(user, uid, kw,
                                   title=f"🔔 Neues Angebot zu »{raw}«",
                                   intro=f"[{when}] {snip}",
-                                  body=m.jump_url)
+                                  lines=[m.jump_url])
 
     # ── Reaktions-Lebenszyklus (✅ erledigt / 🔄 weiter) ───────────────────────
     @commands.Cog.listener()
