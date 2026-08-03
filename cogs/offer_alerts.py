@@ -404,15 +404,12 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
             return 0
         await execute_many(self.bot, "INSERT OR IGNORE INTO offer_alert_seen (user_id, message_id, keyword) VALUES (?,?,?)",
                            [(uid, str(m.id), kw) for m, _ in matches])
-        shown = matches[:40]           # Länge regelt das Auto-Splitting in _send_alert_dm
+        # ALLE Treffer zeigen – die Länge regelt das Auto-Splitting in mehrere PNs.
         lines = []
-        for m, snip in shown:
+        for m, snip in matches:
             when = berlin_from_dt(m.created_at, "%d.%m.%Y")
             s = (snip or m.content or "").strip().replace("\n", " ")[:120]
             lines.append(f"• [{when}] {s} — {m.jump_url}")
-        extra = len(matches) - len(shown)
-        if extra > 0:
-            lines.append(f"… und {extra} weitere.")
         await self._send_alert_dm(
             user, uid, kw,
             title=f"🔎 Bestehende Angebote zu »{raw}«",
