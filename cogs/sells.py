@@ -34,7 +34,7 @@ from discord.ext import commands
 
 from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species, matches_species_query
+from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species, matches_species_query, is_merch_product
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_paragraphs
@@ -195,6 +195,8 @@ class SellsCog(commands.Cog, name="Sells"):
                 for p in shop.get("products", []):
                     sp = (p.get("species") or "").strip()
                     if not sp:
+                        continue
+                    if is_merch_product(p):   # Merch (auch Poster o.Ä. im Titel/Variante) raus
                         continue
                     # Der GBIF-kanonische Artname (vom Grabber gesetzt) wird sowohl
                     # beim Matching ALS AUCH beim Gruppieren berücksichtigt: so findet
