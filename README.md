@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.0.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.0.2` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -757,6 +757,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/stats` |
 | `/system` | – | Systemstatus: **laufende Bot-Version**, Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/system` |
 | `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). | `/reloadshops` |
+| `/uncanonical` | – | Listet alle **Nicht-Merch-Angebote ohne `canonical_species`** (Artname weder exakt noch per Tippfehler-Fallback der Artenliste zuordenbar – also unbekannte Arten oder Tippfehler > 1 Editierschritt). Je Artname gebündelt mit Anzahl und betroffenen Shops; lange Listen als `uncanonical.txt`. Hilft, Datenlücken/Shop-Tippfehler aufzuspüren. | `/uncanonical` |
 | `/shopmapping add` | `external`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. | `/shopmapping add external:Antstore.de shop_id:2` |
 | `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. | `/shopmapping show` |
 | `/shopmapping remove` | `external` | Mapping löschen. | `/shopmapping remove external:Antstore.de` |
@@ -925,7 +926,7 @@ Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Läd
 2. `GET /api/v2/ecommerce/products?shop_id={id}&product_type=ants` → Produkte pro Shop
 3. `GET /api/v2/ecommerce/variants?limit=-1` → **alle Varianten global**, nach `product_id` gruppiert und dem jeweiligen Produkt zugeordnet
 
-Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, **AntCat-akzeptierten** Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde.
+Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, **AntCat-akzeptierten** Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde. Findet die exakte Zuordnung nichts, greift ein **konservativer Tippfehler-Fallback** für Tippfehler im **Shop-eigenen** Artnamen: die Gattung muss exakt eine bekannte Gattung sein, das Epitheton (≥ 4 Zeichen) darf höchstens **einen Editierschritt** vom akzeptierten Epitheton abweichen – Ersetzen, Einfügen, Löschen **oder ein Nachbar-Dreher** (Damerau-Levenshtein ≤ 1) – und nur bei **eindeutigem** Treffer. So werden z. B. „Monomorium chiense" → „Monomorium chinense", „Lasius nigar/nigre" → „Lasius niger" korrigiert, ohne über Gattungsgrenzen hinweg zu raten (jede Korrektur erscheint im Grabber-Log; mehrere gleich nahe Kandidaten → keine Korrektur). Dadurch finden `/sells` und `/notification` solche Angebote trotz Shop-Tippfehler. Verbleibende, nicht zuordenbare Artnamen (unbekannte Arten oder > 1 Editierschritt) lassen sich per Admin-Befehl **`/uncanonical`** auflisten.
 
 ### Artenliste & Namensprüfung (AntCat)
 

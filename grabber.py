@@ -117,10 +117,11 @@ _SP_LOADED = False
 _SP_ACCEPTED: dict[str, str] = {}
 _SP_SYNONYMS: dict[str, str] = {}
 _SP_GENERA: set[str] = set()
+_SP_BY_GENUS: dict[str, list[str]] = {}   # Gattung -> akzeptierte Epitheta (für Fuzzy)
 
 
 def _load_species_catalog() -> None:
-    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA
+    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS
     if _SP_LOADED:
         return
     _SP_LOADED = True
@@ -130,6 +131,12 @@ def _load_species_catalog() -> None:
         _SP_ACCEPTED = {k.lower(): v for k, v in data.get("accepted", {}).items()}
         _SP_SYNONYMS = {k.lower(): v for k, v in data.get("synonyms", {}).items()}
         _SP_GENERA = {k.lower() for k in data.get("genera", {})}
+        by: dict[str, set] = {}
+        for key in _SP_ACCEPTED:                       # "gattung epitheton"
+            g, _, ep = key.partition(" ")
+            if ep:
+                by.setdefault(g, set()).add(ep)
+        _SP_BY_GENUS = {g: sorted(s) for g, s in by.items()}
         logging.info("🐜 Artenliste geladen: %d Arten (canonical_species aktiv)", len(_SP_ACCEPTED))
     except FileNotFoundError:
         logging.info("🐜 Keine Artenliste (data/ant_species.json) – canonical_species=null")
@@ -137,19 +144,76 @@ def _load_species_catalog() -> None:
         logging.warning("🐜 Artenliste nicht lesbar: %s", e)
 
 
+def _edit_le1(a: str, b: str) -> bool:
+    """True, wenn a und b höchstens EINEN Editierschritt auseinander liegen –
+    Ersetzen, Einfügen, Löschen ODER Vertauschen zweier BENACHBARTER Zeichen
+    (Damerau-Levenshtein ≤ 1). Fängt so auch Tippfehler-Dreher wie „nigre"↔„niger".
+    Schnell, ohne volle DP-Matrix."""
+    if a == b:
+        return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la == lb:
+        diffs = [i for i in range(la) if a[i] != b[i]]
+        if len(diffs) == 1:                        # eine Ersetzung (z.B. nigar↔niger)
+            return True
+        if len(diffs) == 2:                        # Nachbar-Dreher (z.B. nigre↔niger)
+            i, j = diffs
+            return j == i + 1 and a[i] == b[j] and a[j] == b[i]
+        return False
+    # Längendiff 1: genau ein Einfügen/Löschen -> der kürzere ist Teilfolge-per-Skip
+    if la > lb:
+        a, b = b, a                                # a = kürzer
+    i = j = diff = 0
+    while i < len(a) and j < len(b):
+        if a[i] == b[j]:
+            i += 1; j += 1
+        else:
+            diff += 1
+            if diff > 1:
+                return False
+            j += 1                                 # ein Zeichen im längeren überspringen
+    return True
+
+
 def _canonical_species(species_name: str) -> str | None:
     """Zieht aus dem (evtl. verrauschten) Artnamen das enthaltene bekannte Binomen
-    und gibt den akzeptierten Namen zurück (Synonyme aufgelöst). Sonst None."""
+    und gibt den akzeptierten Namen zurück (Synonyme aufgelöst). Sonst None.
+
+    Zweistufig:
+      1) EXAKT: bekanntes Binomen (accepted/synonym) im Namen.
+      2) FUZZY-Fallback (konservativ), falls (1) nichts findet – fängt Tippfehler im
+         SHOP-eigenen Artnamen ab (z.B. „Monomorium chiense" -> „Monomorium chinense",
+         „Lasius nigar/nigre" -> „Lasius niger"): Gattung muss EXAKT eine bekannte
+         Gattung sein, das Epitheton darf max. 1 Editierschritt (inkl. Nachbar-Dreher)
+         vom akzeptierten Epitheton abweichen. Nur bei EINDEUTIGEM Treffer – mehrere
+         gleich nahe Kandidaten -> keine Korrektur."""
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
     toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", species_name or "").lower().split() if t.isalpha()]
+    # 1) Exakt
     for i in range(len(toks) - 1):
         cand = f"{toks[i]} {toks[i + 1]}"
         if cand in _SP_ACCEPTED:
             return _SP_ACCEPTED[cand]
         if cand in _SP_SYNONYMS:   # auch Synonym-Gattungen
             return _SP_SYNONYMS[cand]
+    # 2) Fuzzy-Fallback: exakte Gattung + Epitheton max. 1 Editierschritt, eindeutig.
+    for i in range(len(toks) - 1):
+        g, ep = toks[i], toks[i + 1]
+        cands = _SP_BY_GENUS.get(g)
+        if not cands or len(ep) < 4:               # zu kurze Epitheta nicht raten
+            continue
+        hits = [acc for acc in cands if _edit_le1(ep, acc)]
+        if len(hits) == 1:
+            corrected = _SP_ACCEPTED[f"{g} {hits[0]}"]
+            logging.info("🐜 canonical_species Tippfehler-Korrektur: %r -> %r", f"{g} {ep}", corrected)
+            return corrected
+        if len(hits) > 1:
+            logging.info("🐜 canonical_species Fuzzy mehrdeutig, keine Korrektur: %r -> %s",
+                         f"{g} {ep}", hits)
     return None
 
 

@@ -126,6 +126,7 @@
   "shopmapping_remove_success": "✅ Mapado por `{external}` forigita.",
   "shopmapping_remove_none": "ℹ️ Neniu mapado trovita.",
   "help_reloadshops": "🔄 `/reloadshops` – Reŝargi butikdatumojn",
+  "help_uncanonical": "🔎 `/uncanonical` – Listigi ofertojn sen canonical_species (nekonataj/tajperaroj)",
   "help_shopmapping": "🗂️ `/shopmapping` – Administri butiknomnomigojn",
   "help_shopmap": "🗂️ `/shopmap set|list|remove` – Mapu vendejan tekston al URL (solvas la 🟡)",
   "ch_delivery_exists": "⚠️ Butiko {shop} jam estas en la listo!",
