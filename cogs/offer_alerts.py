@@ -79,6 +79,31 @@ def _in_quiet_hours(dt) -> bool:
     h = dt.hour
     return (s <= h < e) if s < e else (h >= s or h < e)
 
+
+def _to_berlin(created_at):
+    """Beliebiges (evtl. naives = UTC) datetime → Berliner Zeit, tz-bewusst."""
+    dt = created_at
+    if getattr(dt, "tzinfo", None) is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(BERLIN)
+
+
+def _posted_in_quiet(created_at) -> bool:
+    """Wurde die Nachricht in der Nachtruhe (Berliner Tageszeit) gepostet?"""
+    return _in_quiet_hours(_to_berlin(created_at))
+
+
+def _current_quiet_start(now_b):
+    """Beginn der GERADE laufenden Nachtruhe (aware, Berlin) – oder None, wenn jetzt
+    keine Nachtruhe ist. Dient dem Backfill: nur Angebote der aktuellen Nacht kappen
+    (wie der 60-min-Puffer), NICHT jede nachts gepostete Nachricht der Vergangenheit."""
+    if not _in_quiet_hours(now_b):
+        return None
+    start = now_b.replace(hour=OFFER_QUIET_START_HOUR, minute=0, second=0, microsecond=0)
+    if now_b.hour < OFFER_QUIET_START_HOUR:      # schon nach Mitternacht → Beginn war gestern
+        start -= timedelta(days=1)
+    return start
+
 # Starke „verkauft"-Begriffe (bewusst OHNE mehrdeutige wie „weg"/„erledigt").
 _STRONG_SOLD = re.compile(r"(?<!\w)(verkauft|sold|vergeben|reserviert|reserved)(?!\w)", re.I)
 # Gesamt-Nachricht-Marker (ganze Anzeige beendet) – inkl. „sind/ist/alle weg".
@@ -326,10 +351,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         gepostet (wird ab Fenster-Ende nachgeliefert)."""
         if await self._paused_by_admin(m):
             return "pause"
-        posted = m.created_at
-        if getattr(posted, "tzinfo", None) is None:
-            posted = posted.replace(tzinfo=timezone.utc)
-        if _in_quiet_hours(datetime.now(BERLIN)) and _in_quiet_hours(posted.astimezone(BERLIN)):
+        if _in_quiet_hours(datetime.now(BERLIN)) and _posted_in_quiet(m.created_at):
             return "quiet"
         return None
 
@@ -522,10 +544,17 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         now = discord.utils.utcnow()
         after = now - timedelta(days=OFFER_BACKFILL_DAYS)
         before = now - timedelta(minutes=OFFER_ALERT_DELAY_MIN)
+        # Läuft der Backfill WÄHREND der Nachtruhe, die Angebote der aktuell laufenden
+        # Nacht kappen (wie der 60-min-Puffer) – aber NICHT nachts gepostete Angebote
+        # früherer Tage. Tagsüber ausgelöst: kein Nacht-Cut.
+        quiet_start = _current_quiet_start(datetime.now(BERLIN))
         matches = []
         try:
             async for m in ch.history(after=after, before=before, oldest_first=False, limit=None):
                 if m.author.bot or m.webhook_id:
+                    continue
+                # Angebote der laufenden Nacht sowie per ⏸️ pausierte nicht aufnehmen.
+                if (quiet_start and _to_berlin(m.created_at) >= quiet_start) or await self._paused_by_admin(m):
                     continue
                 hits = _open_hits(m.content, await self._sold_reaction_valid(m), {kw}, m.author.id)
                 if kw in hits:
