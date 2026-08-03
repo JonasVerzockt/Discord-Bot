@@ -144,37 +144,28 @@ def _load_species_catalog() -> None:
         logging.warning("🐜 Artenliste nicht lesbar: %s", e)
 
 
-def _edit_le1(a: str, b: str) -> bool:
-    """True, wenn a und b höchstens EINEN Editierschritt auseinander liegen –
-    Ersetzen, Einfügen, Löschen ODER Vertauschen zweier BENACHBARTER Zeichen
-    (Damerau-Levenshtein ≤ 1). Fängt so auch Tippfehler-Dreher wie „nigre"↔„niger".
-    Schnell, ohne volle DP-Matrix."""
-    if a == b:
-        return True
+# Max. erlaubte Editierdistanz für die Tippfehler-Korrektur im Shop-Artnamen.
+_MAX_EDITS = 2
+
+
+def _osa(a: str, b: str) -> int:
+    """Optimal-String-Alignment-Distanz (Damerau-Levenshtein mit Nachbar-Dreher als
+    EIN Schritt). Kleine Strings -> volle DP-Matrix ist völlig ausreichend."""
     la, lb = len(a), len(b)
-    if abs(la - lb) > 1:
-        return False
-    if la == lb:
-        diffs = [i for i in range(la) if a[i] != b[i]]
-        if len(diffs) == 1:                        # eine Ersetzung (z.B. nigar↔niger)
-            return True
-        if len(diffs) == 2:                        # Nachbar-Dreher (z.B. nigre↔niger)
-            i, j = diffs
-            return j == i + 1 and a[i] == b[j] and a[j] == b[i]
-        return False
-    # Längendiff 1: genau ein Einfügen/Löschen -> der kürzere ist Teilfolge-per-Skip
-    if la > lb:
-        a, b = b, a                                # a = kürzer
-    i = j = diff = 0
-    while i < len(a) and j < len(b):
-        if a[i] == b[j]:
-            i += 1; j += 1
-        else:
-            diff += 1
-            if diff > 1:
-                return False
-            j += 1                                 # ein Zeichen im längeren überspringen
-    return True
+    if a == b:
+        return 0
+    d = [[0] * (lb + 1) for _ in range(la + 1)]
+    for i in range(la + 1):
+        d[i][0] = i
+    for j in range(lb + 1):
+        d[0][j] = j
+    for i in range(1, la + 1):
+        for j in range(1, lb + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            d[i][j] = min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                d[i][j] = min(d[i][j], d[i - 2][j - 2] + 1)   # benachbarte Umstellung
+    return d[la][lb]
 
 
 def _canonical_species(species_name: str) -> str | None:
@@ -186,9 +177,10 @@ def _canonical_species(species_name: str) -> str | None:
       2) FUZZY-Fallback (konservativ), falls (1) nichts findet – fängt Tippfehler im
          SHOP-eigenen Artnamen ab (z.B. „Monomorium chiense" -> „Monomorium chinense",
          „Lasius nigar/nigre" -> „Lasius niger"): Gattung muss EXAKT eine bekannte
-         Gattung sein, das Epitheton darf max. 1 Editierschritt (inkl. Nachbar-Dreher)
-         vom akzeptierten Epitheton abweichen. Nur bei EINDEUTIGEM Treffer – mehrere
-         gleich nahe Kandidaten -> keine Korrektur."""
+         Gattung sein, das Epitheton (≥ 4 Zeichen) darf max. _MAX_EDITS Editierschritte
+         (Ersetzen/Einfügen/Löschen/Nachbar-Dreher) abweichen. Korrigiert wird nur auf
+         den EINDEUTIG nächsten Treffer – teilen sich zwei die kleinste Distanz, bleibt
+         es unkorrigiert."""
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
@@ -200,20 +192,31 @@ def _canonical_species(species_name: str) -> str | None:
             return _SP_ACCEPTED[cand]
         if cand in _SP_SYNONYMS:   # auch Synonym-Gattungen
             return _SP_SYNONYMS[cand]
-    # 2) Fuzzy-Fallback: exakte Gattung + Epitheton max. 1 Editierschritt, eindeutig.
+    # 2) Fuzzy-Fallback: exakte Gattung + Epitheton max. _MAX_EDITS Schritte, eindeutig nächster.
     for i in range(len(toks) - 1):
         g, ep = toks[i], toks[i + 1]
         cands = _SP_BY_GENUS.get(g)
         if not cands or len(ep) < 4:               # zu kurze Epitheta nicht raten
             continue
-        hits = [acc for acc in cands if _edit_le1(ep, acc)]
-        if len(hits) == 1:
-            corrected = _SP_ACCEPTED[f"{g} {hits[0]}"]
-            logging.info("🐜 canonical_species Tippfehler-Korrektur: %r -> %r", f"{g} {ep}", corrected)
+        scored = []
+        for acc in cands:
+            if abs(len(acc) - len(ep)) > _MAX_EDITS:   # Längendiff macht Distanz unmöglich klein
+                continue
+            dist = _osa(ep, acc)
+            if dist <= _MAX_EDITS:
+                scored.append((dist, acc))
+        if not scored:
+            continue
+        scored.sort()
+        best_dist = scored[0][0]
+        closest = [acc for dist, acc in scored if dist == best_dist]
+        if len(closest) == 1:                      # eindeutig nächster Treffer
+            corrected = _SP_ACCEPTED[f"{g} {closest[0]}"]
+            logging.info("🐜 canonical_species Tippfehler-Korrektur (Distanz %d): %r -> %r",
+                         best_dist, f"{g} {ep}", corrected)
             return corrected
-        if len(hits) > 1:
-            logging.info("🐜 canonical_species Fuzzy mehrdeutig, keine Korrektur: %r -> %s",
-                         f"{g} {ep}", hits)
+        logging.info("🐜 canonical_species Fuzzy mehrdeutig (Distanz %d), keine Korrektur: %r -> %s",
+                     best_dist, f"{g} {ep}", closest)
     return None
 
 
