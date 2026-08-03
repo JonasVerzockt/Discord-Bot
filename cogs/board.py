@@ -754,6 +754,18 @@ async def h_status_detail(req):
                    current=current, incidents=incidents, csrf=_csrf_token())
 
 
+def _safe_local_redirect(target: str, fallback: str = "/") -> str:
+    """Nur auf einen LOKALEN, relativen Pfad weiterleiten (Schutz vor Open-Redirect,
+    CWE-601). Alles mit Schema/Host oder protokoll-relativem //host wird verworfen –
+    dann greift der Fallback. Backslashes werden vor der Prüfung entfernt, da viele
+    Browser sie wie / behandeln."""
+    t = (target or "").replace("\\", "")
+    p = urlparse(t)
+    if t.startswith("/") and not t.startswith("//") and not p.scheme and not p.netloc:
+        return t
+    return fallback
+
+
 async def h_incident_note(req):
     d = await _admin_guard(req)
     cid = int(req.match_info["id"])
@@ -761,7 +773,7 @@ async def h_incident_note(req):
     await board_exec("UPDATE board_incidents SET admin_note=? WHERE id=?",
                      ((d.get("note") or "").strip()[:500], cid))
     from urllib.parse import quote
-    raise web.HTTPFound(f"/status/check/{quote(key, safe='')}" if key else "/")
+    raise web.HTTPFound(_safe_local_redirect(f"/status/check/{quote(key, safe='')}") if key else "/")
 
 
 async def h_submit_form(req):
@@ -957,7 +969,7 @@ async def h_comment_del(req):
     cid = int(req.match_info["cid"])
     sid = (d.get("sid") or "").strip()
     await board_exec("DELETE FROM board_comments WHERE id=?", (cid,))
-    raise web.HTTPFound(f"/admin/{sid}/edit" if sid.isdigit() else "/admin")
+    raise web.HTTPFound(_safe_local_redirect(f"/admin/{int(sid)}/edit" if sid.isdigit() else "/admin"))
 
 
 def _parse_import_rows(text: str):
