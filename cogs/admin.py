@@ -301,6 +301,13 @@ class AdminCog(commands.Cog, name="Admin"):
                 data["command_log"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM command_log WHERE user_id=?", (uid,), fetch=True)]
 
+                data["offer_keywords"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM offer_keywords WHERE user_id=?", (uid,), fetch=True)]
+                data["offer_alert_seen"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM offer_alert_seen WHERE user_id=?", (uid,), fetch=True)]
+                data["offer_alert_msgs"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM offer_alert_msgs WHERE user_id=?", (uid,), fetch=True)]
+
                 try:
                     ai_hist = await execute_db(
                         self.bot,
@@ -363,6 +370,9 @@ class AdminCog(commands.Cog, name="Admin"):
                 "achievements",
                 "user_events",
                 "command_log",
+                "offer_keywords",
+                "offer_alert_seen",
+                "offer_alert_msgs",
                 "discount_codes",
                 "review_tracking",
                 "review_pending",
@@ -509,6 +519,7 @@ class AdminCog(commands.Cog, name="Admin"):
             ("ai_chat_user_spend", "user_id"), ("digest_subscribers", "user_id"),
             ("achievements", "user_id"), ("user_events", "user_id"),
             ("command_log", "user_id"),
+            ("offer_keywords", "user_id"), ("offer_alert_seen", "user_id"),
         ]
 
         ids: set[int] = set()

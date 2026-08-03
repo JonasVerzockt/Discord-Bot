@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.8.6"
+VERSION = "1.9.0"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -96,6 +96,17 @@ MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", "0"))
 # Aufbewahrung der Log-Zeilen in der DB (Tage). 365 = zweckgebunden für Moderation
 # (siehe NUTZUNGSBEDINGUNGEN). Kanal-Nachrichten werden NICHT automatisch gelöscht.
 COMMAND_LOG_RETENTION_DAYS = int(os.getenv("COMMAND_LOG_RETENTION_DAYS", "365"))
+
+# ── Schlagwort-Alerts für den Angebote-Kanal (/offer_alert) ───────────────────
+# Kanal, der auf Wunsch-Schlagworte überwacht wird (0/leer = Feature inaktiv).
+OFFER_CHANNEL_ID = int(os.getenv("OFFER_CHANNEL_ID", "0"))
+# Prüf-Puffer: Angebote, die jünger als so viele Minuten sind, werden NICHT gemeldet
+# (Team-Review-Fenster).
+OFFER_ALERT_DELAY_MIN = int(os.getenv("OFFER_ALERT_DELAY_MIN", "60"))
+# Rückblick beim einmaligen Backfill nach Einrichten eines Schlagworts (Tage).
+OFFER_BACKFILL_DAYS = int(os.getenv("OFFER_BACKFILL_DAYS", "90"))
+# Custom-Emote-ID, mit der „verkauft" markiert wird (im Text oder als Reaktion).
+OFFER_SOLD_EMOTE_ID = int(os.getenv("OFFER_SOLD_EMOTE_ID", "577904916006174741"))
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)
