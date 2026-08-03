@@ -118,6 +118,7 @@ INITIAL_COGS = [
     "cogs.sells",             # /sells – Preisvergleich einer Art/Gattung über alle Shops
     "cogs.offers",            # /offers – alle lagernden Angebote eines Shops
     "cogs.custom_commands",   # /info – benutzerdefinierte Text-Befehle (Info-Einträge)
+    "cogs.chat_export",       # /export_chat – Channel als JSON exportieren (Admin)
     "cogs.board",             # Öffentliches Feedback-Board (aiohttp, eigene DB) – nur wenn BOARD_ENABLED
 ]
 

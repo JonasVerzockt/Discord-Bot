@@ -476,5 +476,6 @@
   "wrong_channel_cancelled": "❌ Cancelled – the command was not run.",
   "channel_confirm_yes": "Yes, run here",
   "channel_confirm_no": "Cancel",
-  "help_run_jobs": "🔄 `/run_jobs` – Run all background jobs once now (per-job result)"
+  "help_run_jobs": "🔄 `/run_jobs` – Run all background jobs once now (per-job result)",
+  "help_export_chat": "📤 `/export_chat <channel> [from] [to] [reactions_detail]` – Export a whole channel as JSON (file download, ephemeral)"
 }

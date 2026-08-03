@@ -476,5 +476,6 @@
   "wrong_channel_cancelled": "❌ Nuligita – la komando ne estis rulita.",
   "channel_confirm_yes": "Jes, ruli ĉi tie",
   "channel_confirm_no": "Nuligi",
-  "help_run_jobs": "🔄 `/run_jobs` – Ruli ĉiujn fonajn taskojn unufoje tuj (rezulto po tasko)"
+  "help_run_jobs": "🔄 `/run_jobs` – Ruli ĉiujn fonajn taskojn unufoje tuj (rezulto po tasko)",
+  "help_export_chat": "📤 `/export_chat <channel> [de] [ĝis] [reago_detalo]` – Eksporti tutan kanalon kiel JSON (dosier-elŝuto, efemera)"
 }
