@@ -519,6 +519,7 @@ _BOT_JOBS = [
     ("Tasks",         "update_bot_status",        "Bot-Statusanzeige aktualisieren",   False, ""),
     ("CommandLog",    "flush_log",                "Command-Log schreiben",             False, ""),
     ("CommandLog",    "cleanup_log",              "Command-Log aufräumen (Retention)", False, ""),
+    ("OfferAlerts",   "scan_offers",              "Angebote-Schlagwort-Scanner",       False, ""),
     ("AiChatCog",     "cleanup_loop",             "KI-Chat · Verläufe aufräumen",      False, ""),
     ("AiChatCog",     "shop_data_loop",           "KI-Chat · Shop-Daten-Refresh",      False, ""),
 ]

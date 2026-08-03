@@ -423,8 +423,38 @@ CREATE TABLE IF NOT EXISTS custom_commands (
     uses        INTEGER NOT NULL DEFAULT 0
 );
 
+-- Schlagwort-Alerts für den Angebote-Kanal (/offer_alert)
+CREATE TABLE IF NOT EXISTS offer_keywords (
+    user_id     TEXT NOT NULL,
+    keyword     TEXT NOT NULL,          -- normalisiert (klein, getrimmt)
+    keyword_raw TEXT,                    -- Originaleingabe für die Anzeige
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, keyword)
+);
+-- Bereits gemeldete Treffer (Dedup: kein Doppel-Alert je User+Nachricht+Schlagwort)
+CREATE TABLE IF NOT EXISTS offer_alert_seen (
+    user_id    TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    keyword    TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, message_id, keyword)
+);
+-- Fortschritt des Vorwärts-Scanners (zuletzt verarbeitete Nachricht)
+CREATE TABLE IF NOT EXISTS offer_cursor (
+    id              INTEGER PRIMARY KEY CHECK (id = 1),
+    last_message_id TEXT
+);
+-- Zuordnung Alert-PN → (User, Schlagwort) für den Reaktions-Lebenszyklus (✅/🔄)
+CREATE TABLE IF NOT EXISTS offer_alert_msgs (
+    message_id TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL,
+    keyword    TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
+CREATE INDEX IF NOT EXISTS idx_offer_keywords_user    ON offer_keywords (user_id);
 CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
 CREATE INDEX IF NOT EXISTS idx_ai_chat_budget_user    ON ai_chat_budget (user_id);
 """

@@ -163,6 +163,14 @@ Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten we
 
 Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest action:deaktivieren` widerrufbar. Der Digest-Inhalt (Preisstürze, neue Arten/Shops) enthält keine personenbezogenen Daten.
 
+#### Angebote-Schlagwort-Alerts (`/offer_alert`)
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID + selbst gewählte **Schlagworte**; IDs bereits gemeldeter Angebots-Nachrichten (Dedup) | Private Benachrichtigung, wenn ein Angebot im Angebote-Kanal zu einem Schlagwort passt | Lokale SQLite-Datenbank auf dem Server |
+
+Die Nutzung ist freiwillig (`/offer_alert add`) und jederzeit widerrufbar (`/offer_alert remove` bzw. ✅ auf einer Alert-PN). Der Bot liest dafür den Angebote-Kanal (ohnehin von Discord gespeicherte Nachrichten); dauerhaft gespeichert werden nur die Schlagworte und Nachrichten-IDs (Dedup), keine fremden Nachrichtsinhalte.
+
 #### Erfolge (Achievements)
 
 | Daten | Zweck | Speicherort |

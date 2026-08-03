@@ -178,6 +178,7 @@ class StatsCog(commands.Cog, name="Stats"):
         ("help_grp_notifications", [
             "help_notification", "help_ch_delivery",
             "help_history", "help_delete", "help_test", "help_digest",
+            "help_offer_alert",
         ]),
         ("help_grp_offers", [
             "help_sells", "help_offers",
@@ -213,7 +214,7 @@ class StatsCog(commands.Cog, name="Stats"):
         ]),
         ("help_grp_sysmod", [
             "help_stats", "help_system", "help_export", "help_export_chat",
-            "help_command_log", "help_known_users", "help_run_jobs",
+            "help_command_log", "help_known_users", "help_run_jobs", "help_offer_alert_check",
         ]),
     ]
     _HELP_AI_KEYS = [
