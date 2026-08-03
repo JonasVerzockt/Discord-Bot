@@ -126,6 +126,7 @@
   "shopmapping_remove_success": "✅ Zuordnung für `{external}` gelöscht.",
   "shopmapping_remove_none": "ℹ️ Keine Zuordnung gefunden.",
   "help_reloadshops": "🔄 `/reloadshops` – Shop-Daten neu laden",
+  "help_uncanonical": "🔎 `/uncanonical` – Angebote ohne canonical_species (unbekannt/Tippfehler) auflisten",
   "help_shopmapping": "🗂️ `/shopmapping` – Shopnamen-Zuordnungen verwalten",
   "help_shopmap": "🗂️ `/shopmap set|list|remove` – Shop-Text aus Bewertungen einer URL zuordnen (löst 🟡 auf)",
   "ch_delivery_exists": "⚠️ Shop {shop} steht bereits auf der Liste!",

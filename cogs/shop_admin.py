@@ -35,7 +35,7 @@ from rapidfuzz import process
 
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data
+from utils.availability import load_shop_data, is_merch_product
 from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, ADMIN_COLOR
 from utils.timez import berlin_from_utc_naive
@@ -76,6 +76,55 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         except Exception as e:
             logger.error(f"❌ reloadshops error: {e}")
             await ctx.respond(l10n.get("general_error", lang), ephemeral=True)
+
+    # ── /uncanonical ──────────────────────────────────────────────────────────
+    @discord.slash_command(
+        name="uncanonical",
+        description="🔒 [Admin] List ant offers without canonical_species (unknown/typo names)",
+        description_localizations={"de": "🔒 [Admin] Ameisen-Angebote ohne canonical_species (unbekannt/Tippfehler) auflisten"})
+    @discord.default_permissions(manage_messages=True)
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def uncanonical(self, ctx: discord.ApplicationContext):
+        await ctx.defer(ephemeral=True)
+        try:
+            shop_data = await load_shop_data(self.bot)
+        except Exception as e:
+            logger.error(f"❌ uncanonical: {e}")
+            await ctx.respond("⚠️ Shop-Daten nicht lesbar.", ephemeral=True)
+            return
+        # Nicht-Merch-Produkte mit nicht-leerem species-Feld, aber leerem canonical_species.
+        # Je Artname (case-insensitiv) bündeln: Anzahl + betroffene Shops.
+        groups: dict[str, dict] = {}
+        for sd in shop_data.values():
+            shop_name = sd.get("name") or "?"
+            for p in sd.get("products", []):
+                species = (p.get("species") or "").strip()
+                cs = (p.get("canonical_species") or "").strip()
+                if not species or cs or is_merch_product(p):
+                    continue
+                key = species.lower()
+                g = groups.setdefault(key, {"display": species, "shops": set(), "count": 0})
+                g["count"] += 1
+                g["shops"].add(shop_name)
+        header = (f"🔎 **Ohne `canonical_species`: {len(groups)}** Artnamen "
+                  f"({sum(g['count'] for g in groups.values())} Angebote, ohne Merch)")
+        if not groups:
+            await ctx.respond(header + "\n✅ Alles kanonisiert.", ephemeral=True)
+            return
+        lines = []
+        for g in sorted(groups.values(), key=lambda x: x["display"].lower()):
+            shops = sorted(g["shops"])
+            shops_txt = ", ".join(shops[:5]) + (f" +{len(shops) - 5}" if len(shops) > 5 else "")
+            lines.append(f"• {g['display']} — {g['count']}× ({shops_txt})")
+        text = header + "\n" + "\n".join(lines)
+        if len(text) > 1900:
+            import io
+            f = discord.File(io.BytesIO(text.encode("utf-8")), filename="uncanonical.txt")
+            await ctx.respond(header, file=f, ephemeral=True)
+        else:
+            await ctx.respond(text, ephemeral=True)
+        logger.info("🔎 uncanonical von %s: %d Artnamen ohne canonical_species", ctx.author.id, len(groups))
 
     # ── /shopmapping ──────────────────────────────────────────────────────────
     shopmapping = discord.SlashCommandGroup(

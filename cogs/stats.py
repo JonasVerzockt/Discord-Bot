@@ -199,7 +199,7 @@ class StatsCog(commands.Cog, name="Stats"):
     ]
     _HELP_ADMIN_GROUPS = [
         ("help_grp_server", [
-            "help_startup", "help_reloadshops",
+            "help_startup", "help_reloadshops", "help_uncanonical",
             "help_shopmapping", "help_shopmap", "help_shopurl",
         ]),
         ("help_grp_reviews", [

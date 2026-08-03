@@ -126,6 +126,7 @@
   "shopmapping_remove_success": "✅ Mapping for `{external}` deleted.",
   "shopmapping_remove_none": "ℹ️ No mapping found.",
   "help_reloadshops": "🔄 `/reloadshops` – Reload shop data",
+  "help_uncanonical": "🔎 `/uncanonical` – List offers without canonical_species (unknown/typo names)",
   "help_shopmapping": "🗂️ `/shopmapping` – Manage shop name mappings",
   "help_shopmap": "🗂️ `/shopmap set|list|remove` – Map a review shop text to a URL (resolves the 🟡)",
   "ch_delivery_exists": "⚠️ Shop {shop} is already on the list!",

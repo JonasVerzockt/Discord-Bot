@@ -38,7 +38,6 @@ import sys
 import time
 import re
 import html
-import difflib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -145,16 +144,24 @@ def _load_species_catalog() -> None:
         logging.warning("🐜 Artenliste nicht lesbar: %s", e)
 
 
-def _lev_le1(a: str, b: str) -> bool:
-    """True, wenn a und b höchstens EINEN Editierschritt (Ersetzen/Einfügen/Löschen)
-    auseinander liegen. Schnell, ohne volle DP-Matrix (Längendiff ≤1 vorausgesetzt)."""
+def _edit_le1(a: str, b: str) -> bool:
+    """True, wenn a und b höchstens EINEN Editierschritt auseinander liegen –
+    Ersetzen, Einfügen, Löschen ODER Vertauschen zweier BENACHBARTER Zeichen
+    (Damerau-Levenshtein ≤ 1). Fängt so auch Tippfehler-Dreher wie „nigre"↔„niger".
+    Schnell, ohne volle DP-Matrix."""
     if a == b:
         return True
     la, lb = len(a), len(b)
     if abs(la - lb) > 1:
         return False
-    if la == lb:                                   # genau eine Ersetzung erlaubt
-        return sum(x != y for x, y in zip(a, b)) == 1
+    if la == lb:
+        diffs = [i for i in range(la) if a[i] != b[i]]
+        if len(diffs) == 1:                        # eine Ersetzung (z.B. nigar↔niger)
+            return True
+        if len(diffs) == 2:                        # Nachbar-Dreher (z.B. nigre↔niger)
+            i, j = diffs
+            return j == i + 1 and a[i] == b[j] and a[j] == b[i]
+        return False
     # Längendiff 1: genau ein Einfügen/Löschen -> der kürzere ist Teilfolge-per-Skip
     if la > lb:
         a, b = b, a                                # a = kürzer
@@ -177,10 +184,11 @@ def _canonical_species(species_name: str) -> str | None:
     Zweistufig:
       1) EXAKT: bekanntes Binomen (accepted/synonym) im Namen.
       2) FUZZY-Fallback (konservativ), falls (1) nichts findet – fängt Tippfehler im
-         SHOP-eigenen Artnamen ab (z.B. „Monomorium chiense" -> „Monomorium chinense"):
-         Gattung muss EXAKT eine bekannte Gattung sein, das Epitheton darf max. 1
-         Editierschritt vom akzeptierten Epitheton abweichen (zusätzlich difflib-Ratio
-         ≥ 0.9). Nur bei EINDEUTIGEM Treffer – mehrere Kandidaten -> keine Korrektur."""
+         SHOP-eigenen Artnamen ab (z.B. „Monomorium chiense" -> „Monomorium chinense",
+         „Lasius nigar/nigre" -> „Lasius niger"): Gattung muss EXAKT eine bekannte
+         Gattung sein, das Epitheton darf max. 1 Editierschritt (inkl. Nachbar-Dreher)
+         vom akzeptierten Epitheton abweichen. Nur bei EINDEUTIGEM Treffer – mehrere
+         gleich nahe Kandidaten -> keine Korrektur."""
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
@@ -198,9 +206,7 @@ def _canonical_species(species_name: str) -> str | None:
         cands = _SP_BY_GENUS.get(g)
         if not cands or len(ep) < 4:               # zu kurze Epitheta nicht raten
             continue
-        hits = [acc for acc in cands
-                if _lev_le1(ep, acc)
-                and difflib.SequenceMatcher(None, ep, acc).ratio() >= 0.9]
+        hits = [acc for acc in cands if _edit_le1(ep, acc)]
         if len(hits) == 1:
             corrected = _SP_ACCEPTED[f"{g} {hits[0]}"]
             logging.info("🐜 canonical_species Tippfehler-Korrektur: %r -> %r", f"{g} {ep}", corrected)
