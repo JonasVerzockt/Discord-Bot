@@ -122,6 +122,35 @@ def is_merch(species: str) -> bool:
     return any(w in _MERCH_TOKENS for w in toks)
 
 
+# „Starke" Merch-Tokens = eindeutige Waren OHNE die mehrdeutigen (set/kit/…), die
+# auch in echten Kolonie-Titeln vorkommen können („Starter-Set", „Zucht-Kit").
+# Werden zusätzlich auf Titel + Varianten-Titel angewandt (siehe is_merch_product).
+_MERCH_AMBIGUOUS = frozenset({"set", "kit", "zestaw", "coffret"})
+_MERCH_STRONG = _MERCH_TOKENS - _MERCH_AMBIGUOUS
+
+
+def _has_token(text: str, tokens: frozenset) -> bool:
+    toks = re.findall(r"[a-z0-9äöüßà-ÿ]+", normalize_species_name(text or ""))
+    return any(w in tokens for w in toks)
+
+
+def is_merch_product(product: dict) -> bool:
+    """Produktweiter Merch-Filter (für /sells & /offers).
+
+    Grund: Bei manchem Merch (z.B. Postern) trägt das ``species``-Feld nur die reine
+    Art (‚Myrmecocystus mexicanus'), das Merch-Wort steht ausschließlich im
+    Produkt-/Varianten-Titel (‚Poster – … – 70×50'). Daher:
+      • ``species``-Feld gegen das VOLLE Token-Set prüfen (wie bisher, inkl. set/kit),
+      • ``title`` + Varianten-Titel zusätzlich gegen die STARKE Teilmenge
+        (ohne set/kit …), damit ‚Poster' & Co. greifen, ohne echte ‚Set/Kit'-Kolonien
+        fälschlich auszuschließen."""
+    if is_merch(product.get("species", "")):
+        return True
+    titles = [product.get("title", "")]
+    titles += [v.get("title", "") for v in (product.get("variants") or [])]
+    return _has_token(" ".join(t for t in titles if t), _MERCH_STRONG)
+
+
 def matches_species_query(field_species: str, query: str) -> bool:
     """Match für /sells – inklusiv für reale Shop-Felder, aber ohne Merch.
 
@@ -339,7 +368,7 @@ async def species_exists(bot, search_term: str) -> bool:
 
     for shop in shops.values():
         for product in shop.get("products", []):
-            if is_merch(product.get("species", "")):   # Merch/Präparate ignorieren
+            if is_merch_product(product):   # Merch/Präparate (auch Poster o.Ä. im Titel) ignorieren
                 continue
             for title in _product_names(product):
                 if is_genus:
@@ -407,7 +436,7 @@ async def check_availability_for_species(
 
         for product in shop_info.get("products", []):
             species = product.get("species", "").strip()
-            if is_merch(species):                # Merch/Präparate nie als „verfügbar" melden
+            if is_merch_product(product):        # Merch/Präparate (auch Poster o.Ä. im Titel) nie als „verfügbar" melden
                 continue
 
             match = False

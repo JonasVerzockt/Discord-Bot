@@ -43,7 +43,7 @@ from config import DATA_DIRECTORY
 from utils.db import execute_db, execute_many
 from utils.localization import l10n, get_user_lang
 from cogs.server_settings import allowed_channel
-from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants, strip_html
+from utils.availability import load_shop_data, normalize_species_name, format_rating, available_variants, strip_html, is_merch_product
 from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, send_embeds_to
 from utils.currency import ensure_rates, format_price
@@ -220,6 +220,8 @@ async def _find_products_for_tracking(bot, species_query: str) -> dict:
     for shop_id, shop_info in shop_data.items():
         for product in shop_info.get("products", []):
             species = (product.get("species") or "").strip()
+            if is_merch_product(product):     # Merch (auch Poster o.Ä. im Titel/Variante) nicht trackbar
+                continue
             # Rohfeld + canonical_species (falls Grabber es gesetzt hat) matchen.
             cand_names = [normalize_species_name(species)]
             _cs = (product.get("canonical_species") or "").strip()
@@ -519,6 +521,8 @@ class SpeciesWatchConfirmView(_BaseView):
             shop_data = await load_shop_data(self.bot)
             for shop_id, shop_info in shop_data.items():
                 for product in shop_info.get("products", []):
+                    if is_merch_product(product):     # Merch (auch Poster o.Ä. im Titel) ignorieren
+                        continue
                     species = (product.get("species") or "").strip()
                     cand_names = [normalize_species_name(species)]
                     _cs = (product.get("canonical_species") or "").strip()
@@ -1373,6 +1377,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
         current_products: dict[int, dict] = {}
         for shop_id, shop_info in shop_data.items():
             for product in shop_info.get("products", []):
+                if is_merch_product(product):     # Merch (auch Poster o.Ä. im Titel) ignorieren
+                    continue
                 species = (product.get("species") or "").strip()
                 cand_names = [normalize_species_name(species)]
                 _cs = (product.get("canonical_species") or "").strip()

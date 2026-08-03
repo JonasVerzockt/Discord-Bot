@@ -212,7 +212,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_info_add", "help_info_edit", "help_info_remove", "help_info_raw",
         ]),
         ("help_grp_sysmod", [
-            "help_stats", "help_system", "help_export",
+            "help_stats", "help_system", "help_export", "help_export_chat",
             "help_command_log", "help_known_users", "help_run_jobs",
         ]),
     ]

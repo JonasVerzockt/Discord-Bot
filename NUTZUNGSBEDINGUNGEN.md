@@ -180,6 +180,8 @@ Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar
 
 Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/command_log` (nach User-ID, optional Zeitfenster) abfragen.
 
+**Channel-Export (`/export_chat`, nur Admin):** Zur Moderation/Archivierung können Administrator:innen einen Kanalverlauf (optional in einem Datumsbereich) als JSON exportieren. Dabei werden ausschließlich **ohnehin von Discord gespeicherte** Nachrichtendaten (Autor, Zeit, Inhalt, Anhänge/Links, Reaktionen usw.) einmalig ausgelesen und dem/der aufrufenden Admin als **ephemere Datei** bereitgestellt – es entsteht **keine** dauerhafte zusätzliche Speicherung im Bot. Die Funktion ist Admins vorbehalten und auf den gebundenen Server beschränkt.
+
 #### Feedback-Board (optional)
 
 | Daten | Zweck | Speicherort |

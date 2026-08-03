@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `1.8.3` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `1.8.6` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -752,6 +752,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. | `/rescan` |
 | `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). | `/reprocess ids:1176542880 1176542995` |
 | `/export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). | `/export user_id:123456789012345678` |
+| `/export_chat` | `channel` (ID, Pflicht), `von`/`bis` (`JJJJ-MM-TT`, optional, `bis` inklusive), `reaktionen_detail` (optional, Standard aus) | Exportiert einen **kompletten Channel/Thread** (optional im Datumsbereich) als **umfangreiche JSON** und liefert sie als **Datei-Download in der ephemeren Antwort**. Erfasst pro Nachricht Autor, Zeitstempel (erstellt/bearbeitet), Inhalt, **Anhänge inkl. Bild-Links**, Embeds, Sticker, **Reaktionen** (Emoji + Anzahl; mit `reaktionen_detail:true` auch **wer** reagiert hat – langsam bei großen Channels), Antwort-/Referenzbezug, Mentions und Thread-Info. Ohne Zeitraum wird **alles** exportiert. Bei Überschreitung des Server-Upload-Limits wird automatisch **gzip** komprimiert (`.json.gz`). Nicht abrufbar (Discord-API): gelöschte Nachrichten, frühere Bearbeitungsversionen, „gelesen von". | `/export_chat channel:123… von:2026-07-01 bis:2026-07-31` |
 | `/stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/stats` |
 | `/system` | – | Systemstatus: **laufende Bot-Version**, Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/system` |
 | `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). | `/reloadshops` |
