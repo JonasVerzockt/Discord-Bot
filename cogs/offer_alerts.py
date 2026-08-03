@@ -225,8 +225,10 @@ def _open_hits(content: str, sold_reaction: bool, keywords, author_id=None) -> d
 _MD_DECO   = re.compile(r"[#>*_`~]")
 _CUSTEMOTE = re.compile(r"<a?:\w+:\d+>")
 _MENTION   = re.compile(r"<[@#&!][^>]+>")
+# Hinweis: keine sich \u00FCberlappenden Ranges (CodeQL py/overly-large-range) \u2013 die
+# Regional-Indicator (1F1E6\u20131F1FF) liegen bereits in 1F000\u20131FAFF, daher nicht extra.
 _EMOJI     = re.compile(
-    "[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF"
+    "[\U0001F000-\U0001FAFF\U00002600-\U000027BF"
     "\U00002190-\U000021FF\U00002B00-\U00002BFF\uFE0F\u200D]")
 # Führende Begrüßung bzw. Angebots-Header, die keine Angebotssubstanz tragen.
 _GREETING = re.compile(
