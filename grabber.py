@@ -149,6 +149,16 @@ def _load_species_catalog() -> None:
 # Max. erlaubte Editierdistanz für die Tippfehler-Korrektur im Shop-Artnamen.
 _MAX_EDITS = 2
 
+# Manuelle Overrides für Fälle, die der automatische Fuzzy nicht sicher auflösen kann
+# (z.B. mehrdeutige Tippfehler oder bekannte Fehlzuordnungen). Key = „gattung epitheton"
+# (kleingeschrieben). Wert = akzeptierter Name -> ERZWINGT diese Korrektur; None -> BLOCKT
+# jede Fuzzy-Korrektur (bleibt canonical_species=null). Hier bei Bedarf ergänzen.
+_OVERRIDES: dict[str, str | None] = {
+    # Shop-Tippfehler bestätigt (Beschreibung: „Monomorium chinense", Ostasien/China);
+    # per Distanz mehrdeutig zu „chilense", daher fest zugeordnet:
+    "monomorium chiense": "Monomorium chinense",
+}
+
 
 def _is_ending_variant(a: str, b: str) -> bool:
     """Unterscheiden sich a und b nur in der ENDUNG (gemeinsamer Präfix ≥ Länge − 2)?
@@ -199,6 +209,16 @@ def _canonical_species(species_name: str) -> str | None:
     if not _SP_ACCEPTED:
         return None
     toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", species_name or "").lower().split() if t.isalpha()]
+    # 0) Manuelle Overrides: erzwingen (Wert=Name) oder blocken (Wert=None).
+    blocked = set()
+    for i in range(len(toks) - 1):
+        pair = f"{toks[i]} {toks[i + 1]}"
+        if pair in _OVERRIDES:
+            val = _OVERRIDES[pair]
+            if val:
+                logging.info("🐜 canonical_species Override: %r -> %r", pair, val)
+                return val
+            blocked.add(pair)                      # explizit nicht korrigieren
     # 1) Exakt
     for i in range(len(toks) - 1):
         cand = f"{toks[i]} {toks[i + 1]}"
@@ -209,6 +229,8 @@ def _canonical_species(species_name: str) -> str | None:
     # 2) Fuzzy-Fallback: exakte Gattung + Epitheton max. _MAX_EDITS Schritte, eindeutig nächster.
     for i in range(len(toks) - 1):
         g, ep = toks[i], toks[i + 1]
+        if f"{g} {ep}" in blocked:                 # per Override von Fuzzy ausgenommen
+            continue
         cands = _SP_BY_GENUS.get(g)
         if not cands or len(ep) < 4:               # zu kurze Epitheta nicht raten
             continue
