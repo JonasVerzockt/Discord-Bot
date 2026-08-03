@@ -59,8 +59,10 @@ _DONE, _KEEP = "✅", "🔄"
 
 # Starke „verkauft"-Begriffe (bewusst OHNE mehrdeutige wie „weg"/„erledigt").
 _STRONG_SOLD = re.compile(r"(?<!\w)(verkauft|sold|vergeben|reserviert|reserved)(?!\w)", re.I)
-# Gesamt-Nachricht-Marker (ganze Anzeige beendet).
-_WHOLE_SOLD = re.compile(r"(?<!\w)(alles (verkauft|weg|vergeben)|komplett verkauft|eos|end of sale)(?!\w)", re.I)
+# Gesamt-Nachricht-Marker (ganze Anzeige beendet) – inkl. „sind/ist/alle weg".
+_WHOLE_SOLD = re.compile(
+    r"(?<!\w)(alles (verkauft|weg|vergeben)|(sind|ist|alle)\s+weg|komplett verkauft|eos|end of sale)(?!\w)",
+    re.I)
 _STRIKE = re.compile(r"~~(.+?)~~", re.S)
 
 _HINT = ("ℹ️ Schon verkauft? Bitte den Anbieter, hinter der betreffenden Zeile das "
@@ -111,10 +113,15 @@ def _message_sold_whole(content: str, reactions, author_id=None) -> bool:
             return True
     if _WHOLE_SOLD.search(_plain(content)):
         return True
-    # komplette Nachricht durchgestrichen (jede nicht-leere Zeile ~~…~~)
-    lines = [ln.strip() for ln in (content or "").splitlines() if ln.strip()]
-    if lines and all(ln.startswith("~~") and ln.endswith("~~") for ln in lines):
-        return True
+    # Vollständig durchgestrichen – auch MEHRZEILIG (~~ öffnet/schließt über Zeilen
+    # hinweg): bleibt nach Entfernen aller ~~…~~-Spans und Preise/Deko nichts mit
+    # Buchstaben übrig, gilt die ganze Anzeige als vergeben.
+    if content and content.count("~~") >= 2:
+        rest = _STRIKE.sub(" ", content)                      # _STRIKE nutzt re.S (mehrzeilig)
+        rest = re.sub(r"[#>*_`~]", " ", rest)                 # Markdown-Deko
+        rest = re.sub(r"\d+[.,]?\d*\s*(€|eur|euro|\$|vb)?", " ", rest, flags=re.I)  # Preise
+        if not re.search(r"[a-z0-9äöüß]", rest, re.I):
+            return True
     return False
 
 
