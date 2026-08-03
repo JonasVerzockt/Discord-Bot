@@ -227,7 +227,7 @@ _CUSTEMOTE = re.compile(r"<a?:\w+:\d+>")
 _MENTION   = re.compile(r"<[@#&!][^>]+>")
 _EMOJI     = re.compile(
     "[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF"
-    "←-⇿⬀-⯿️‍]")
+    "\U00002190-\U000021FF\U00002B00-\U00002BFF\uFE0F\u200D]")
 # Führende Begrüßung bzw. Angebots-Header, die keine Angebotssubstanz tragen.
 _GREETING = re.compile(
     r"^(hallo+|hi+|hey+|hej|moin+|servus|salut|tach|na|guten\s+(morgen|tag|abend)|"
