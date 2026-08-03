@@ -55,7 +55,6 @@ build/
 Thumbs.db
 
 # ── Lokale Planung / Notizen (NICHT tracken – nur lokal auf der Platte) ────────
-board-planning/
 dev-notes/
 
 # ── Sonstiges ──────────────────────────────────────────────────────────────────
