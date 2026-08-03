@@ -109,8 +109,10 @@ OFFER_BACKFILL_DAYS = int(os.getenv("OFFER_BACKFILL_DAYS", "90"))
 OFFER_SOLD_EMOTE_ID = int(os.getenv("OFFER_SOLD_EMOTE_ID", "577904916006174741"))
 # Nachtruhe (Berliner Zeit): im Fenster [START, END) werden KEINE automatischen
 # Alert-PNs verschickt; nachts aufgelaufene Treffer gehen gesammelt ab END raus.
-# Standard 23–9 Uhr. START==END schaltet die Nachtruhe aus. Betrifft nur den
-# Live-Scanner – nicht den Admin-/offer_alert check und nicht den Einricht-Backfill.
+# Standard 23–9 Uhr. START==END schaltet die Nachtruhe aus. Der Live-Scanner hält
+# nachts gepostete Angebote zurueck; der Einricht-Backfill kappt – wenn er WAEHREND
+# der Nachtruhe laeuft – die Angebote der laufenden Nacht (frueherer Naechte bleiben
+# drin). Der Admin-/offer_alert check ist unberuehrt.
 OFFER_QUIET_START_HOUR = int(os.getenv("OFFER_QUIET_START_HOUR", "23"))
 OFFER_QUIET_END_HOUR   = int(os.getenv("OFFER_QUIET_END_HOUR", "9"))
 
