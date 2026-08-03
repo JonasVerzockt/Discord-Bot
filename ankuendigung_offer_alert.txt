@@ -1,0 +1,29 @@
+# 📢 Neu: Schlagwort-Alerts für #angebote — `/offer_alert`
+
+Ihr wollt ein bestimmtes Tier oder Zubehör nicht mehr verpassen? Der Bot behält **#angebote** für euch im Auge und schickt euch eine **private Nachricht**, sobald ein passendes Angebot gepostet wird. 🐜
+
+## So richtest du dir einen Alarm ein
+> • `/offer_alert add` – ein oder **mehrere** Schlagworte auf einmal, kommagetrennt
+>   z. B. `Messor barbarus, Nest, Camponotus, Reagenzglas`
+> • `/offer_alert list` – deine hinterlegten Schlagworte anzeigen
+> • `/offer_alert remove` – ein Schlagwort wieder entfernen
+
+Ein Begriff mit Leerzeichen (z. B. `Lasius niger`) bleibt **ein** Schlagwort. Suchen könnt ihr nach allem – Arten **und** allgemeinen Begriffen wie „Nest", „Farm" oder „Zubehör".
+
+## Was beim Einrichten passiert
+Direkt nach dem Anlegen bekommst du **einmalig** alle noch offenen Angebote der **letzten 90 Tage** zu deinem Schlagwort per PN. Danach meldet der Bot **nur noch neue** Angebote – automatisch, sobald sie gepostet werden.
+
+## Reagieren statt tippen
+Auf jede Alert-PN kannst du direkt reagieren:
+> ✅ = **erledigt** – das Schlagwort wird entfernt, ich suche nicht mehr danach
+> 🔄 = **weiter suchen** – bleib dran und melde neue Treffer
+
+## Clever gefiltert
+🔹 **Verkauftes fliegt raus:** Angebote, die durchgestrichen sind, das `:sold:`-Emote tragen oder mit „verkauft/vergeben/reserviert" markiert sind, bekommst du gar nicht erst gemeldet – zeilengenau, auch bei Sammel-Angeboten.
+🔹 **Synonym-bewusst:** Artnamen werden wie bei `/sells` über AntCat abgeglichen – „ligniperdus" findet also auch „ligniperda".
+🔹 **Kleiner Puffer:** Ganz frische Posts werden kurz zurückgehalten, damit das Team sie vorher prüfen kann.
+
+## 💡 Bitte helft mit, die Alerts sauber zu halten
+Ist euer Angebot **schon weg**? Setzt hinter die betreffende Zeile das `:sold:`-Emote, reagiert mit `:sold:` auf eure Nachricht – oder meldet es dem Team. So bekommt niemand veraltete Treffer. 🙏
+
+_(Kommt keine PN an? Dann sind eventuell deine Server-DMs deaktiviert – kurz in den Privatsphäre-Einstellungen prüfen.)_

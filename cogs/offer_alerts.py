@@ -30,8 +30,10 @@ Ablauf (Variante B):
     entfernen) · 🔄 = weiter suchen.
 
 „Verkauft"-Erkennung (aus echten #angebote-Daten abgeleitet) – PRO ZEILE und pro
-Nachricht: :sold:-Emote (im Text oder als Reaktion), ~~Durchstreichung~~ sowie
-starke Begriffe (verkauft/sold/vergeben/reserviert). Mehr-Positions-Posts werden
+Nachricht: :sold:-Emote im Text, ~~Durchstreichung~~ sowie starke Begriffe
+(verkauft/sold/vergeben/reserviert). Eine :sold:-REAKTION zählt nur, wenn sie vom
+Autor selbst oder einem Team-/Mod-Mitglied („Nachrichten verwalten") stammt –
+Reaktionen beliebiger Mitglieder werden ignoriert. Mehr-Positions-Posts werden
 zeilenweise geprüft, sodass nur wirklich noch offene Positionen gemeldet werden.
 
 Kanal via Env OFFER_CHANNEL_ID (0/leer = Feature inaktiv).
@@ -123,12 +125,12 @@ def _line_sold(line_raw: str) -> bool:
     return False
 
 
-def _message_sold_whole(content: str, reactions, author_id=None) -> bool:
-    """Ist die GESAMTE Nachricht verkauft/beendet?"""
-    for r in (reactions or []):
-        emo = getattr(r, "emoji", None)
-        if getattr(emo, "id", None) == OFFER_SOLD_EMOTE_ID:  # :sold:-Reaktion
-            return True
+def _message_sold_whole(content: str, sold_reaction: bool, author_id=None) -> bool:
+    """Ist die GESAMTE Nachricht verkauft/beendet? ``sold_reaction`` = ob eine
+    GÜLTIGE :sold:-Reaktion vorliegt (nur Autor oder Team/Mod – vorab async
+    ermittelt via OfferAlertsCog._sold_reaction_valid)."""
+    if sold_reaction:                                         # gültige :sold:-Reaktion
+        return True
     if _WHOLE_SOLD.search(_plain(content)):
         return True
     # Vollständig durchgestrichen – auch MEHRZEILIG (~~ öffnet/schließt über Zeilen
@@ -157,11 +159,11 @@ def _line_open_for_terms(line_raw: str, terms: tuple) -> bool:
     return any(_kw_in(outside, t) for t in terms)
 
 
-def _open_hits(content: str, reactions, keywords, author_id=None) -> dict:
+def _open_hits(content: str, sold_reaction: bool, keywords, author_id=None) -> dict:
     """{keyword_norm: offene Trefferzeile} für alle Schlagworte, die in der
     Nachricht eine NOCH OFFENE Position treffen (synonym-bewusst). Leer, wenn ganze
-    Nachricht verkauft."""
-    if _message_sold_whole(content, reactions, author_id):
+    Nachricht verkauft. ``sold_reaction`` s. _message_sold_whole."""
+    if _message_sold_whole(content, sold_reaction, author_id):
         return {}
     lines = (content or "").splitlines() or [content or ""]
     hits: dict[str, str] = {}
@@ -247,6 +249,34 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
     def cog_unload(self):
         if OFFER_CHANNEL_ID and self.scan_offers.is_running():
             self.scan_offers.cancel()
+
+    async def _sold_reaction_valid(self, m: discord.Message) -> bool:
+        """Trägt die Nachricht eine GÜLTIGE :sold:-Reaktion? Gültig nur, wenn der
+        Autor selbst ODER ein Mitglied mit „Nachrichten verwalten" (Team/Mod) mit
+        dem :sold:-Emote reagiert hat – eine Reaktion beliebiger Mitglieder zählt
+        NICHT. Löst die Reagierenden nur auf, wenn überhaupt eine :sold:-Reaktion
+        existiert (spart API-Aufrufe)."""
+        for r in (m.reactions or []):
+            emo = getattr(r, "emoji", None)
+            if getattr(emo, "id", None) != OFFER_SOLD_EMOTE_ID:
+                continue
+            try:
+                async for u in r.users():
+                    if u.id == m.author.id:                    # Anbieter selbst
+                        return True
+                    member = u if isinstance(u, discord.Member) else None
+                    if member is None and m.guild:
+                        member = m.guild.get_member(u.id)
+                        if member is None:
+                            try:
+                                member = await m.guild.fetch_member(u.id)
+                            except Exception:
+                                member = None
+                    if member and m.channel.permissions_for(member).manage_messages:
+                        return True                            # Team/Mod
+            except Exception:
+                continue
+        return False
 
     # ── Slash-Command-Gruppe ──────────────────────────────────────────────────
     offer_alert = discord.SlashCommandGroup(
@@ -369,7 +399,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
             async for m in ch.history(after=after, before=before, oldest_first=False, limit=None):
                 if m.author.bot or m.webhook_id or not (m.content or "").strip():
                     continue
-                if _message_sold_whole(m.content, m.reactions, m.author.id):
+                if _message_sold_whole(m.content, await self._sold_reaction_valid(m), m.author.id):
                     continue
                 ol = _first_content_line(m.content)
                 if ol is None:
@@ -442,7 +472,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
             async for m in ch.history(after=after, before=before, oldest_first=False, limit=None):
                 if m.author.bot or m.webhook_id:
                     continue
-                hits = _open_hits(m.content, m.reactions, {kw}, m.author.id)
+                hits = _open_hits(m.content, await self._sold_reaction_valid(m), {kw}, m.author.id)
                 if kw in hits:
                     matches.append((m, hits[kw]))
         except discord.Forbidden:
@@ -500,7 +530,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
                 new_cursor = m.id
                 if m.author.bot or m.webhook_id:
                     continue
-                hits = _open_hits(m.content, m.reactions, distinct, m.author.id)
+                hits = _open_hits(m.content, await self._sold_reaction_valid(m), distinct, m.author.id)
                 for kw, line in hits.items():
                     for uid, raw in by_kw.get(kw, []):
                         await self._forward_alert(uid, kw, raw or kw, m, line)
