@@ -451,6 +451,13 @@ CREATE TABLE IF NOT EXISTS offer_alert_msgs (
     keyword    TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Zurückgestellte Angebote (Nachtruhe 23–9 bzw. Admin-⏸️): werden nicht sofort
+-- gemeldet, sondern jeden Scan neu geprüft und nach Wegfall des Grundes nachgeliefert.
+CREATE TABLE IF NOT EXISTS offer_deferred (
+    message_id TEXT PRIMARY KEY,
+    reason     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);

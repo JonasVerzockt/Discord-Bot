@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "1.9.6"
+VERSION = "1.9.7"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -107,6 +107,12 @@ OFFER_ALERT_DELAY_MIN = int(os.getenv("OFFER_ALERT_DELAY_MIN", "60"))
 OFFER_BACKFILL_DAYS = int(os.getenv("OFFER_BACKFILL_DAYS", "90"))
 # Custom-Emote-ID, mit der „verkauft" markiert wird (im Text oder als Reaktion).
 OFFER_SOLD_EMOTE_ID = int(os.getenv("OFFER_SOLD_EMOTE_ID", "577904916006174741"))
+# Nachtruhe (Berliner Zeit): im Fenster [START, END) werden KEINE automatischen
+# Alert-PNs verschickt; nachts aufgelaufene Treffer gehen gesammelt ab END raus.
+# Standard 23–9 Uhr. START==END schaltet die Nachtruhe aus. Betrifft nur den
+# Live-Scanner – nicht den Admin-/offer_alert check und nicht den Einricht-Backfill.
+OFFER_QUIET_START_HOUR = int(os.getenv("OFFER_QUIET_START_HOUR", "23"))
+OFFER_QUIET_END_HOUR   = int(os.getenv("OFFER_QUIET_END_HOUR", "9"))
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
 # Modell für den Chat (Standard: claude-haiku-4-5-20251001)
