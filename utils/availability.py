@@ -368,7 +368,7 @@ async def species_exists(bot, search_term: str) -> bool:
 
     for shop in shops.values():
         for product in shop.get("products", []):
-            if is_merch(product.get("species", "")):   # Merch/Präparate ignorieren
+            if is_merch_product(product):   # Merch/Präparate (auch Poster o.Ä. im Titel) ignorieren
                 continue
             for title in _product_names(product):
                 if is_genus:
@@ -436,7 +436,7 @@ async def check_availability_for_species(
 
         for product in shop_info.get("products", []):
             species = product.get("species", "").strip()
-            if is_merch(species):                # Merch/Präparate nie als „verfügbar" melden
+            if is_merch_product(product):        # Merch/Präparate (auch Poster o.Ä. im Titel) nie als „verfügbar" melden
                 continue
 
             match = False
