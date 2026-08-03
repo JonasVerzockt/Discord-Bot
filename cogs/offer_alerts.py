@@ -174,12 +174,59 @@ def _open_hits(content: str, reactions, keywords, author_id=None) -> dict:
     return hits
 
 
-def _first_open_line(content: str) -> str | None:
+# Deko/Nicht-Inhalt für die „erste inhaltliche Zeile"-Erkennung (nur Anzeige im
+# Admin-`check`, nicht fürs Matching): Markdown, Custom-Emotes, Mentions, Emojis.
+_MD_DECO   = re.compile(r"[#>*_`~]")
+_CUSTEMOTE = re.compile(r"<a?:\w+:\d+>")
+_MENTION   = re.compile(r"<[@#&!][^>]+>")
+_EMOJI     = re.compile(
+    "[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF"
+    "←-⇿⬀-⯿️‍]")
+# Führende Begrüßung bzw. Angebots-Header, die keine Angebotssubstanz tragen.
+_GREETING = re.compile(
+    r"^(hallo+|hi+|hey+|hej|moin+|servus|salut|tach|na|guten\s+(morgen|tag|abend)|"
+    r"schöne[nr]?\s+(tag|abend)|liebe[nr]?\s+(gruß|grüße))"
+    r"(\s+(zusammen|leute|alle|miteinander|community|freunde|an\s+alle|ihr\s+lieben))?"
+    r"[\s,!.:;-]*", re.I)
+_INTRO = re.compile(
+    r"^(ich\s+)?(möchte\s+)?(hier\s+)?(euch\s+)?(gerne\s+)?(mal\s+)?"
+    r"(biete|verkaufe|verschenke|suche|tausche|abzugeben|abgabe|verkauf|angebot)"
+    r"(\s+(an|euch|hier|noch|folgendes|folgende|meine|mein|meinen|einige|weiter|"
+    r"weiterhin|zum\s+verkauf|zur\s+abgabe|zu\s+verkaufen|zum\s+abgeben))*"
+    r"[\s,!.:;-]*", re.I)
+
+
+def _is_filler_line(line_raw: str) -> bool:
+    """Trägt die Zeile KEINE Angebotssubstanz (reine Begrüßung/Header/Deko)? Nach
+    Entfernen von Markdown/Emotes/Mentions/Emoji sowie führender Begrüßung/Header
+    bleiben <2 „echte" Wörter (≥3 Buchstaben) übrig."""
+    core = _MD_DECO.sub(" ", line_raw)
+    core = _CUSTEMOTE.sub(" ", core)
+    core = _MENTION.sub(" ", core)
+    core = _EMOJI.sub(" ", core)
+    core = re.sub(r"\s+", " ", core).strip()
+    if not core:
+        return True
+    resid = _GREETING.sub("", core, count=1)
+    resid = _INTRO.sub("", resid, count=1)
+    resid = _GREETING.sub("", resid, count=1)   # z.B. „Hallo, biete:" (Gruß→Header)
+    return len(re.findall(r"[a-zA-ZäöüÄÖÜß]{3,}", resid)) < 2
+
+
+def _first_content_line(content: str) -> str | None:
+    """Erste inhaltliche, noch offene Zeile – überspringt Begrüßungen/Header wie
+    „Hallo Leute", „Biete:" oder „## Verschenke". Fällt auf die erste offene Zeile
+    zurück, falls keine inhaltliche existiert (damit nie leer)."""
+    first_open = None
     for ln in (content or "").splitlines() or [content or ""]:
         s = ln.strip()
-        if s and not _line_sold(ln):
+        if not s or _line_sold(ln):
+            continue
+        if first_open is None:
+            first_open = s
+        if not _is_filler_line(ln):
             return s
-    return None
+    return first_open
 
 
 async def _keyword_autocomplete(ctx: discord.AutocompleteContext):
@@ -324,7 +371,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
                     continue
                 if _message_sold_whole(m.content, m.reactions, m.author.id):
                     continue
-                ol = _first_open_line(m.content)
+                ol = _first_content_line(m.content)
                 if ol is None:
                     continue
                 rows.append((m, ol))
