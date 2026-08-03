@@ -26,6 +26,12 @@ Ablauf (Variante B):
     gebündelt per PN.
   • Danach laufend (Vorwärts-Scanner): neue Angebote, die älter als
     OFFER_ALERT_DELAY_MIN Minuten sind (Team-Review-Puffer).
+  • Nachtruhe: in der Nachtruhe [OFFER_QUIET_START_HOUR, OFFER_QUIET_END_HOUR)
+    (Berlin, Standard 23–9) gepostete Angebote werden zurückgestellt und erst
+    nach Fenster-Ende gemeldet.
+  • Admin-Pause: reagiert ein Team-/Mod-Mitglied mit ⏸️ (:pause_button:) auf ein
+    Angebot, wird es zurückgestellt, solange die Reaktion gesetzt ist.
+    (Zurückgestellte Angebote in Tabelle offer_deferred, je Scan neu geprüft.)
   • Auf jede Alert-PN kann der Nutzer reagieren: ✅ = erledigt (Schlagwort
     entfernen) · 🔄 = weiter suchen.
 
@@ -43,22 +49,60 @@ import functools
 import io
 import logging
 import re
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 
 import discord
 from discord.ext import commands, tasks
 
 from config import (OFFER_CHANNEL_ID, OFFER_ALERT_DELAY_MIN, OFFER_BACKFILL_DAYS,
-                    OFFER_SOLD_EMOTE_ID)
+                    OFFER_SOLD_EMOTE_ID, OFFER_QUIET_START_HOUR, OFFER_QUIET_END_HOUR)
 from utils.db import execute_db, execute_many
 from utils.embeds import EMBED_COLOR, ADMIN_COLOR
-from utils.timez import berlin_from_dt, align_delay_seconds
+from utils.timez import berlin_from_dt, align_delay_seconds, BERLIN
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
 
 MAX_KEYWORDS = 25
 _DONE, _KEEP = "✅", "🔄"
+# Admin-Pause: ⏸️ (:pause_button:) auf ein Angebot hält es aus den Alerts zurück,
+# solange die Reaktion eines Team-/Mod-Mitglieds gesetzt ist.
+_PAUSE = {"⏸️", "⏸"}
+
+
+def _in_quiet_hours(dt) -> bool:
+    """Liegt der (Berliner) Zeitpunkt in der Nachtruhe [START, END)? Fenster darf
+    über Mitternacht laufen (z.B. 23–9). START==END = Nachtruhe aus."""
+    s, e = OFFER_QUIET_START_HOUR, OFFER_QUIET_END_HOUR
+    if s == e:
+        return False
+    h = dt.hour
+    return (s <= h < e) if s < e else (h >= s or h < e)
+
+
+def _to_berlin(created_at):
+    """Beliebiges (evtl. naives = UTC) datetime → Berliner Zeit, tz-bewusst."""
+    dt = created_at
+    if getattr(dt, "tzinfo", None) is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(BERLIN)
+
+
+def _posted_in_quiet(created_at) -> bool:
+    """Wurde die Nachricht in der Nachtruhe (Berliner Tageszeit) gepostet?"""
+    return _in_quiet_hours(_to_berlin(created_at))
+
+
+def _current_quiet_start(now_b):
+    """Beginn der GERADE laufenden Nachtruhe (aware, Berlin) – oder None, wenn jetzt
+    keine Nachtruhe ist. Dient dem Backfill: nur Angebote der aktuellen Nacht kappen
+    (wie der 60-min-Puffer), NICHT jede nachts gepostete Nachricht der Vergangenheit."""
+    if not _in_quiet_hours(now_b):
+        return None
+    start = now_b.replace(hour=OFFER_QUIET_START_HOUR, minute=0, second=0, microsecond=0)
+    if now_b.hour < OFFER_QUIET_START_HOUR:      # schon nach Mitternacht → Beginn war gestern
+        start -= timedelta(days=1)
+    return start
 
 # Starke „verkauft"-Begriffe (bewusst OHNE mehrdeutige wie „weg"/„erledigt").
 _STRONG_SOLD = re.compile(r"(?<!\w)(verkauft|sold|vergeben|reserviert|reserved)(?!\w)", re.I)
@@ -278,6 +322,39 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
                 continue
         return False
 
+    async def _paused_by_admin(self, m: discord.Message) -> bool:
+        """Hat ein Team-/Mod-Mitglied („Nachrichten verwalten") mit ⏸️
+        (:pause_button:) auf das Angebot reagiert? Dann aus den Alerts zurückhalten,
+        solange die Reaktion gesetzt ist. Reaktionen anderer Mitglieder zählen nicht."""
+        for r in (m.reactions or []):
+            if str(getattr(r, "emoji", "")) not in _PAUSE:
+                continue
+            try:
+                async for u in r.users():
+                    member = u if isinstance(u, discord.Member) else None
+                    if member is None and m.guild:
+                        member = m.guild.get_member(u.id)
+                        if member is None:
+                            try:
+                                member = await m.guild.fetch_member(u.id)
+                            except Exception:
+                                member = None
+                    if member and m.channel.permissions_for(member).manage_messages:
+                        return True
+            except Exception:
+                continue
+        return False
+
+    async def _defer_reason(self, m: discord.Message) -> str | None:
+        """Grund, das Angebot (noch) NICHT zu melden – oder None. „pause" = Admin-⏸️
+        gesetzt; „quiet" = jetzt Nachtruhe UND das Angebot wurde in der Nachtruhe
+        gepostet (wird ab Fenster-Ende nachgeliefert)."""
+        if await self._paused_by_admin(m):
+            return "pause"
+        if _in_quiet_hours(datetime.now(BERLIN)) and _posted_in_quiet(m.created_at):
+            return "quiet"
+        return None
+
     # ── Slash-Command-Gruppe ──────────────────────────────────────────────────
     offer_alert = discord.SlashCommandGroup(
         name="offer_alert",
@@ -467,10 +544,17 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         now = discord.utils.utcnow()
         after = now - timedelta(days=OFFER_BACKFILL_DAYS)
         before = now - timedelta(minutes=OFFER_ALERT_DELAY_MIN)
+        # Läuft der Backfill WÄHREND der Nachtruhe, die Angebote der aktuell laufenden
+        # Nacht kappen (wie der 60-min-Puffer) – aber NICHT nachts gepostete Angebote
+        # früherer Tage. Tagsüber ausgelöst: kein Nacht-Cut.
+        quiet_start = _current_quiet_start(datetime.now(BERLIN))
         matches = []
         try:
             async for m in ch.history(after=after, before=before, oldest_first=False, limit=None):
                 if m.author.bot or m.webhook_id:
+                    continue
+                # Angebote der laufenden Nacht sowie per ⏸️ pausierte nicht aufnehmen.
+                if (quiet_start and _to_berlin(m.created_at) >= quiet_start) or await self._paused_by_admin(m):
                     continue
                 hits = _open_hits(m.content, await self._sold_reaction_valid(m), {kw}, m.author.id)
                 if kw in hits:
@@ -530,14 +614,45 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
                 new_cursor = m.id
                 if m.author.bot or m.webhook_id:
                     continue
-                hits = _open_hits(m.content, await self._sold_reaction_valid(m), distinct, m.author.id)
-                for kw, line in hits.items():
-                    for uid, raw in by_kw.get(kw, []):
-                        await self._forward_alert(uid, kw, raw or kw, m, line)
+                # Nachtruhe (23–9) bzw. Admin-⏸️: zurückstellen statt melden. Der
+                # Cursor läuft trotzdem weiter (blockiert nicht); nachgeliefert wird
+                # in _release_deferred, sobald der Grund wegfällt.
+                reason = await self._defer_reason(m)
+                if reason:
+                    await self._add_deferred(m.id, reason)
+                    continue
+                await self._process_hits(m, by_kw, distinct)
         except Exception as e:
             logger.warning("offer_alerts scan: %s", e)
         if new_cursor != int(cursor):
             await self._set_cursor(new_cursor)
+        await self._release_deferred(ch, by_kw, distinct)
+
+    async def _process_hits(self, m: discord.Message, by_kw: dict, distinct):
+        """Offene Treffer der Nachricht gegen alle Abos ermitteln und melden."""
+        hits = _open_hits(m.content, await self._sold_reaction_valid(m), distinct, m.author.id)
+        for kw, line in hits.items():
+            for uid, raw in by_kw.get(kw, []):
+                await self._forward_alert(uid, kw, raw or kw, m, line)
+
+    async def _release_deferred(self, ch, by_kw: dict, distinct):
+        """Zurückgestellte Angebote erneut prüfen: Grund weg (Fenster vorbei bzw.
+        ⏸️ entfernt) -> jetzt melden und aus der Warteliste nehmen. Gelöschte
+        Nachrichten werden ebenfalls entfernt."""
+        rows = await execute_db(self.bot, "SELECT message_id FROM offer_deferred", fetch=True) or []
+        for r in rows:
+            mid = r["message_id"]
+            try:
+                m = await ch.fetch_message(int(mid))
+            except discord.NotFound:
+                await self._del_deferred(mid); continue
+            except Exception:
+                continue                       # transient -> später erneut
+            if await self._defer_reason(m):
+                continue                       # noch zurückgestellt
+            if not (m.author.bot or m.webhook_id):
+                await self._process_hits(m, by_kw, distinct)
+            await self._del_deferred(mid)
 
     @scan_offers.before_loop
     async def _before_scan(self):
@@ -606,6 +721,14 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         await execute_db(self.bot, "INSERT INTO offer_cursor (id, last_message_id) VALUES (1, ?) "
                          "ON CONFLICT(id) DO UPDATE SET last_message_id=excluded.last_message_id",
                          (str(mid),), commit=True)
+
+    # ── Zurückgestellte Angebote (Nachtruhe / Admin-⏸️) ───────────────────────
+    async def _add_deferred(self, mid, reason: str):
+        await execute_db(self.bot, "INSERT OR IGNORE INTO offer_deferred (message_id, reason) VALUES (?,?)",
+                         (str(mid), reason), commit=True)
+
+    async def _del_deferred(self, mid):
+        await execute_db(self.bot, "DELETE FROM offer_deferred WHERE message_id=?", (str(mid),), commit=True)
 
 
 def setup(bot: discord.Bot):
