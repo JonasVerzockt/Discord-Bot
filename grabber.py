@@ -149,6 +149,17 @@ def _load_species_catalog() -> None:
 # Max. erlaubte Editierdistanz für die Tippfehler-Korrektur im Shop-Artnamen.
 _MAX_EDITS = 2
 
+# Commerce-/Kasten-Wörter, die KEIN Epitheton sind und als Token entfernt werden
+# (sonst würde z.B. „Pheidole colony" fälschlich auf „Pheidole dolon" gefuzzt).
+# Bewusst OHNE „major"/„minor" – das SIND echte Epitheta. Alle Einträge sind gegen
+# den AntCat-Katalog als Nicht-Epitheton geprüft.
+_NOISE_WORDS = {
+    "colony", "colonies", "colonie", "colonia", "kolonie", "kolonien",
+    "queen", "queens", "gyne", "gynes", "worker", "workers", "workerless",
+    "soldier", "soldiers", "majors", "minors", "starter", "kit", "kits",
+    "set", "sets", "bundle", "nanitic", "nanitics", "founding",
+}
+
 # Manuelle Overrides für Fälle, die der automatische Fuzzy nicht sicher auflösen kann
 # (z.B. mehrdeutige Tippfehler oder bekannte Fehlzuordnungen). Key = „gattung epitheton"
 # (kleingeschrieben). Wert = akzeptierter Name -> ERZWINGT diese Korrektur; None -> BLOCKT
@@ -214,11 +225,18 @@ def _canonical_species(species_name: str) -> str | None:
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
-    # Bestimmungs-Qualifier als GANZE Token entfernen (cf./sp./aff.), damit z.B.
-    # „Lasius cf. niger" -> „lasius niger" matcht (identisch zu utils.normalize_species_name).
-    # Nur eigenständige Token – „affinis"/„affiche" bleiben unangetastet.
-    cleaned = re.sub(r"(?<!\w)(cf|sp|aff)\.?(?!\w)", " ", species_name or "", flags=re.IGNORECASE)
-    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", cleaned).lower().split() if t.isalpha()]
+    # Klammer-Inhalte sind KOMMENTARE zum Namen, keine Art (z.B. „(Tococa)",
+    # „(helle Variante)", „(Schnappkiefer)") -> vor der Auswertung entfernen.
+    raw = re.sub(r"\([^)]*\)", " ", species_name or "")
+    # „sp."/„spp."/„ssp." = Art UNBESTIMMT -> es darf KEIN Epitheton bestimmt werden,
+    # nur die Gattung (z.B. „Crematogaster sp. (Tococa)" -> Gattung, nicht „…torosa").
+    # „cf."/„aff." meinen dagegen eine konkrete Art -> normal weiter auflösen.
+    genus_only = re.search(r"(?<!\w)(sp|spp|ssp|subsp)\.?(?!\w)", raw, re.IGNORECASE) is not None
+    # Bestimmungs-Qualifier als GANZE Token entfernen; nur eigenständige Token –
+    # „affinis"/„affiche" bleiben unangetastet (identisch zu utils.normalize_species_name).
+    cleaned = re.sub(r"(?<!\w)(cf|aff|sp|spp|ssp|subsp)\.?(?!\w)", " ", raw, flags=re.IGNORECASE)
+    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", cleaned).lower().split()
+            if t.isalpha() and t not in _NOISE_WORDS]
     # 0) Manuelle Overrides: erzwingen (Wert=Name) oder blocken (Wert=None).
     blocked = set()
     for i in range(len(toks) - 1):
@@ -229,15 +247,16 @@ def _canonical_species(species_name: str) -> str | None:
                 logging.info("🐜 canonical_species Override: %r -> %r", pair, val)
                 return val
             blocked.add(pair)                      # explizit nicht korrigieren
-    # 1) Exakt
-    for i in range(len(toks) - 1):
+    # 1) Exakt (nur wenn eine Art gemeint ist – nicht bei „sp.")
+    if not genus_only:
+      for i in range(len(toks) - 1):
         cand = f"{toks[i]} {toks[i + 1]}"
         if cand in _SP_ACCEPTED:
             return _SP_ACCEPTED[cand]
         if cand in _SP_SYNONYMS:   # auch Synonym-Gattungen
             return _SP_SYNONYMS[cand]
     # 2) Fuzzy-Fallback: exakte Gattung + Epitheton max. _MAX_EDITS Schritte, eindeutig nächster.
-    for i in range(len(toks) - 1):
+    for i in (range(len(toks) - 1) if not genus_only else range(0)):
         g, ep = toks[i], toks[i + 1]
         if f"{g} {ep}" in blocked:                 # per Override von Fuzzy ausgenommen
             continue
@@ -284,7 +303,7 @@ def _canonical_species(species_name: str) -> str | None:
                 gbest, g2 = gs[0]
                 ep = toks[1] if len(toks) >= 2 else None
                 result = None
-                if ep:
+                if ep and not genus_only:            # bei „sp." keine Art bestimmen
                     key = f"{g2} {ep}"
                     if key in _SP_ACCEPTED:
                         result = _SP_ACCEPTED[key]
