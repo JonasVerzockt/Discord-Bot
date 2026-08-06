@@ -149,6 +149,17 @@ def _load_species_catalog() -> None:
 # Max. erlaubte Editierdistanz für die Tippfehler-Korrektur im Shop-Artnamen.
 _MAX_EDITS = 2
 
+# Commerce-/Kasten-Wörter, die KEIN Epitheton sind und als Token entfernt werden
+# (sonst würde z.B. „Pheidole colony" fälschlich auf „Pheidole dolon" gefuzzt).
+# Bewusst OHNE „major"/„minor" – das SIND echte Epitheta. Alle Einträge sind gegen
+# den AntCat-Katalog als Nicht-Epitheton geprüft.
+_NOISE_WORDS = {
+    "colony", "colonies", "colonie", "colonia", "kolonie", "kolonien",
+    "queen", "queens", "gyne", "gynes", "worker", "workers", "workerless",
+    "soldier", "soldiers", "majors", "minors", "starter", "kit", "kits",
+    "set", "sets", "bundle", "nanitic", "nanitics", "founding",
+}
+
 # Manuelle Overrides für Fälle, die der automatische Fuzzy nicht sicher auflösen kann
 # (z.B. mehrdeutige Tippfehler oder bekannte Fehlzuordnungen). Key = „gattung epitheton"
 # (kleingeschrieben). Wert = akzeptierter Name -> ERZWINGT diese Korrektur; None -> BLOCKT
@@ -218,7 +229,8 @@ def _canonical_species(species_name: str) -> str | None:
     # „Lasius cf. niger" -> „lasius niger" matcht (identisch zu utils.normalize_species_name).
     # Nur eigenständige Token – „affinis"/„affiche" bleiben unangetastet.
     cleaned = re.sub(r"(?<!\w)(cf|sp|aff)\.?(?!\w)", " ", species_name or "", flags=re.IGNORECASE)
-    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", cleaned).lower().split() if t.isalpha()]
+    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", cleaned).lower().split()
+            if t.isalpha() and t not in _NOISE_WORDS]
     # 0) Manuelle Overrides: erzwingen (Wert=Name) oder blocken (Wert=None).
     blocked = set()
     for i in range(len(toks) - 1):
