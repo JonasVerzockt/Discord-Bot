@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "2.0.7"
+VERSION = "2.0.8"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
