@@ -208,7 +208,11 @@ def _canonical_species(species_name: str) -> str | None:
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
-    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", species_name or "").lower().split() if t.isalpha()]
+    # Bestimmungs-Qualifier als GANZE Token entfernen (cf./sp./aff.), damit z.B.
+    # „Lasius cf. niger" -> „lasius niger" matcht (identisch zu utils.normalize_species_name).
+    # Nur eigenständige Token – „affinis"/„affiche" bleiben unangetastet.
+    cleaned = re.sub(r"(?<!\w)(cf|sp|aff)\.?(?!\w)", " ", species_name or "", flags=re.IGNORECASE)
+    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", cleaned).lower().split() if t.isalpha()]
     # 0) Manuelle Overrides: erzwingen (Wert=Name) oder blocken (Wert=None).
     blocked = set()
     for i in range(len(toks) - 1):
