@@ -225,9 +225,12 @@ def _canonical_species(species_name: str) -> str | None:
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
-    # Klammer-Inhalte sind KOMMENTARE zum Namen, keine Art (z.B. „(Tococa)",
-    # „(helle Variante)", „(Schnappkiefer)") -> vor der Auswertung entfernen.
-    raw = re.sub(r"\([^)]*\)", " ", species_name or "")
+    # Klammer-Inhalte werden NICHT entfernt: manche Shops schreiben die echte Art in
+    # Klammern (z.B. „Lesser Red Carpenter Ant (Camponotus decipiens)") – die soll
+    # gefunden werden. Reine Kommentare in Klammern („(Tococa)", „(helle Variante)")
+    # schaden nicht, weil sie kein bekanntes Binomen ergeben bzw. via „sp." nur zur
+    # Gattung führen.
+    raw = species_name or ""
     # „sp."/„spp."/„ssp." = Art UNBESTIMMT -> es darf KEIN Epitheton bestimmt werden,
     # nur die Gattung (z.B. „Crematogaster sp. (Tococa)" -> Gattung, nicht „…torosa").
     # „cf."/„aff." meinen dagegen eine konkrete Art -> normal weiter auflösen.
@@ -319,11 +322,16 @@ def _canonical_species(species_name: str) -> str | None:
                                 cand_ep = es[0][1]
                                 if not (ep in _SP_EPITHETS and not _is_ending_variant(ep, cand_ep)):
                                     result = _SP_ACCEPTED[f"{g2} {cand_ep}"]
-                if result is None:
-                    result = _SP_GENERA[g2]          # wenigstens die korrigierte Gattung
-                logging.info("🐜 canonical_species Gattungs-Korrektur (Distanz %d): %r -> %r",
-                             gbest, (species_name or "").strip(), result)
-                return result
+                # Aus einer NUR gefuzzten Gattung nicht blind eine Gattung raten: nur
+                # übernehmen, wenn dabei eine echte Art herauskam ODER „sp." vorlag
+                # (unbestimmte Art). Sonst würden Nicht-Arten wie „Lesser …" oder
+                # „Formicarium" fälschlich zu Gattungen (Messor/Formicium) gebogen.
+                if result is None and genus_only:
+                    result = _SP_GENERA[g2]          # explizit „sp." -> korrigierte Gattung
+                if result is not None:
+                    logging.info("🐜 canonical_species Gattungs-Korrektur (Distanz %d): %r -> %r",
+                                 gbest, (species_name or "").strip(), result)
+                    return result
     # 4) Gattungs-Fallback: kein Binomen bestimmbar (unbekannte/mehrdeutige Art oder
     #    „sp." ohne Epitheton), aber die Gattung ist EXAKT bekannt -> wenigstens die
     #    GATTUNG setzen. Das Rohfeld zeigt weiterhin cf./sp./aff. (Unsicherheit sichtbar).
