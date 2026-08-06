@@ -116,7 +116,7 @@ _SPECIES_FILE = str(Path(DATA_DIRECTORY) / "ant_species.json")
 _SP_LOADED = False
 _SP_ACCEPTED: dict[str, str] = {}
 _SP_SYNONYMS: dict[str, str] = {}
-_SP_GENERA: set[str] = set()
+_SP_GENERA: dict[str, str] = {}          # Gattung (lower) -> Anzeigename (für Gattungs-Fallback)
 _SP_BY_GENUS: dict[str, list[str]] = {}   # Gattung -> akzeptierte Epitheta (für Fuzzy)
 _SP_EPITHETS: set[str] = set()            # ALLE akzeptierten Epitheta (gattungsübergreifend)
 
@@ -131,7 +131,7 @@ def _load_species_catalog() -> None:
             data = json.load(f)
         _SP_ACCEPTED = {k.lower(): v for k, v in data.get("accepted", {}).items()}
         _SP_SYNONYMS = {k.lower(): v for k, v in data.get("synonyms", {}).items()}
-        _SP_GENERA = {k.lower() for k in data.get("genera", {})}
+        _SP_GENERA = {k.lower(): v for k, v in data.get("genera", {}).items()}
         by: dict[str, set] = {}
         for key in _SP_ACCEPTED:                       # "gattung epitheton"
             g, _, ep = key.partition(" ")
@@ -157,6 +157,12 @@ _OVERRIDES: dict[str, str | None] = {
     # Shop-Tippfehler bestätigt (Beschreibung: „Monomorium chinense", Ostasien/China);
     # per Distanz mehrdeutig zu „chilense", daher fest zugeordnet:
     "monomorium chiense": "Monomorium chinense",
+    # „Dendrolasius" ist eine Untergattung von Lasius -> Lasius fuliginosus:
+    "dendrolasius fuliginosus": "Lasius fuliginosus",
+    # Gattung für Auto-Fuzzy mehrdeutig, Epitheton „astutus" akzeptiert nur bei Ectomomyrmex:
+    "ectomyrmex astutus": "Ectomomyrmex astutus",
+    # „C." abgekürzt; „fedtschenkoi" akzeptiert nur bei Camponotus (AntWiki: C. fedtschenkoi):
+    "c fedschenkoi": "Camponotus fedtschenkoi",
 }
 
 
@@ -208,7 +214,11 @@ def _canonical_species(species_name: str) -> str | None:
     _load_species_catalog()
     if not _SP_ACCEPTED:
         return None
-    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", species_name or "").lower().split() if t.isalpha()]
+    # Bestimmungs-Qualifier als GANZE Token entfernen (cf./sp./aff.), damit z.B.
+    # „Lasius cf. niger" -> „lasius niger" matcht (identisch zu utils.normalize_species_name).
+    # Nur eigenständige Token – „affinis"/„affiche" bleiben unangetastet.
+    cleaned = re.sub(r"(?<!\w)(cf|sp|aff)\.?(?!\w)", " ", species_name or "", flags=re.IGNORECASE)
+    toks = [t for t in re.sub(r"[^A-Za-zÀ-ÿ ]", " ", cleaned).lower().split() if t.isalpha()]
     # 0) Manuelle Overrides: erzwingen (Wert=Name) oder blocken (Wert=None).
     blocked = set()
     for i in range(len(toks) - 1):
@@ -261,6 +271,47 @@ def _canonical_species(species_name: str) -> str | None:
         logging.info("🐜 canonical_species Tippfehler-Korrektur (Distanz %d): %r -> %r",
                      best_dist, f"{g} {ep}", corrected)
         return corrected
+    # 3) Gattungs-Fuzzy: die GATTUNG selbst ist verschrieben -> nächste bekannte Gattung
+    #    (eindeutig, Damerau ≤ _MAX_EDITS, ab 5 Zeichen), dann die Art innerhalb dieser
+    #    korrigierten Gattung bestimmen (exakt/Fuzzy) bzw. wenigstens die Gattung setzen.
+    if toks:
+        gtok = toks[0]
+        if gtok not in _SP_GENERA and len(gtok) >= 5:
+            gs = sorted((_osa(gtok, gg), gg) for gg in _SP_GENERA
+                        if abs(len(gg) - len(gtok)) <= _MAX_EDITS)
+            gs = [(d, gg) for d, gg in gs if d <= _MAX_EDITS]
+            if gs and len([gg for d, gg in gs if d == gs[0][0]]) == 1:
+                gbest, g2 = gs[0]
+                ep = toks[1] if len(toks) >= 2 else None
+                result = None
+                if ep:
+                    key = f"{g2} {ep}"
+                    if key in _SP_ACCEPTED:
+                        result = _SP_ACCEPTED[key]
+                    elif key in _SP_SYNONYMS:
+                        result = _SP_SYNONYMS[key]
+                    else:
+                        cands = _SP_BY_GENUS.get(g2)
+                        if cands and len(ep) >= 4:
+                            es = sorted((_osa(ep, a), a) for a in cands
+                                        if abs(len(a) - len(ep)) <= _MAX_EDITS)
+                            es = [(d, a) for d, a in es if d <= _MAX_EDITS]
+                            if es and len([a for d, a in es if d == es[0][0]]) == 1:
+                                cand_ep = es[0][1]
+                                if not (ep in _SP_EPITHETS and not _is_ending_variant(ep, cand_ep)):
+                                    result = _SP_ACCEPTED[f"{g2} {cand_ep}"]
+                if result is None:
+                    result = _SP_GENERA[g2]          # wenigstens die korrigierte Gattung
+                logging.info("🐜 canonical_species Gattungs-Korrektur (Distanz %d): %r -> %r",
+                             gbest, (species_name or "").strip(), result)
+                return result
+    # 4) Gattungs-Fallback: kein Binomen bestimmbar (unbekannte/mehrdeutige Art oder
+    #    „sp." ohne Epitheton), aber die Gattung ist EXAKT bekannt -> wenigstens die
+    #    GATTUNG setzen. Das Rohfeld zeigt weiterhin cf./sp./aff. (Unsicherheit sichtbar).
+    for t in toks:
+        disp = _SP_GENERA.get(t)
+        if disp:
+            return disp
     return None
 
 
