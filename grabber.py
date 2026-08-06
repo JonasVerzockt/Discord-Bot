@@ -116,7 +116,7 @@ _SPECIES_FILE = str(Path(DATA_DIRECTORY) / "ant_species.json")
 _SP_LOADED = False
 _SP_ACCEPTED: dict[str, str] = {}
 _SP_SYNONYMS: dict[str, str] = {}
-_SP_GENERA: set[str] = set()
+_SP_GENERA: dict[str, str] = {}          # Gattung (lower) -> Anzeigename (für Gattungs-Fallback)
 _SP_BY_GENUS: dict[str, list[str]] = {}   # Gattung -> akzeptierte Epitheta (für Fuzzy)
 _SP_EPITHETS: set[str] = set()            # ALLE akzeptierten Epitheta (gattungsübergreifend)
 
@@ -131,7 +131,7 @@ def _load_species_catalog() -> None:
             data = json.load(f)
         _SP_ACCEPTED = {k.lower(): v for k, v in data.get("accepted", {}).items()}
         _SP_SYNONYMS = {k.lower(): v for k, v in data.get("synonyms", {}).items()}
-        _SP_GENERA = {k.lower() for k in data.get("genera", {})}
+        _SP_GENERA = {k.lower(): v for k, v in data.get("genera", {}).items()}
         by: dict[str, set] = {}
         for key in _SP_ACCEPTED:                       # "gattung epitheton"
             g, _, ep = key.partition(" ")
@@ -265,6 +265,13 @@ def _canonical_species(species_name: str) -> str | None:
         logging.info("🐜 canonical_species Tippfehler-Korrektur (Distanz %d): %r -> %r",
                      best_dist, f"{g} {ep}", corrected)
         return corrected
+    # 3) Gattungs-Fallback: kein Binomen bestimmbar (unbekannte/mehrdeutige Art oder
+    #    „sp." ohne Epitheton), aber die Gattung ist bekannt -> wenigstens die GATTUNG
+    #    setzen. Das Rohfeld zeigt weiterhin cf./sp./aff., die Unsicherheit bleibt sichtbar.
+    for t in toks:
+        disp = _SP_GENERA.get(t)
+        if disp:
+            return disp
     return None
 
 
