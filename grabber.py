@@ -174,6 +174,12 @@ _OVERRIDES: dict[str, str | None] = {
     "ectomyrmex astutus": "Ectomomyrmex astutus",
     # „C." abgekürzt; „fedtschenkoi" akzeptiert nur bei Camponotus (AntWiki: C. fedtschenkoi):
     "c fedschenkoi": "Camponotus fedtschenkoi",
+    # „nova" ist eine Abkürzung von novaeboracensis (Shop-Beschreibung + Parallel-Artikel
+    # im selben Shop bestätigen es) – NICHT „hova":
+    "camponotus nova": "Camponotus novaeboracensis",
+    # „andanus" nicht im Katalog und im Shop nicht mehr prüfbar -> Fuzzy blocken
+    # (bleibt Gattung Camponotus statt falsch „indianus"):
+    "camponotus andanus": None,
 }
 
 
