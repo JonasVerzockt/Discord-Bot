@@ -157,6 +157,12 @@ _OVERRIDES: dict[str, str | None] = {
     # Shop-Tippfehler bestätigt (Beschreibung: „Monomorium chinense", Ostasien/China);
     # per Distanz mehrdeutig zu „chilense", daher fest zugeordnet:
     "monomorium chiense": "Monomorium chinense",
+    # „Dendrolasius" ist eine Untergattung von Lasius -> Lasius fuliginosus:
+    "dendrolasius fuliginosus": "Lasius fuliginosus",
+    # Gattung für Auto-Fuzzy mehrdeutig, Epitheton „astutus" akzeptiert nur bei Ectomomyrmex:
+    "ectomyrmex astutus": "Ectomomyrmex astutus",
+    # „C." abgekürzt; „fedtschenkoi" akzeptiert nur bei Camponotus (AntWiki: C. fedtschenkoi):
+    "c fedschenkoi": "Camponotus fedtschenkoi",
 }
 
 
