@@ -53,14 +53,18 @@ from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
 from utils.timez import BERLIN, now_berlin, berlin_from_utc_naive
+from urllib.parse import urlencode
+from utils.board_i18n import (LANGS, FLAGS, FLAG_TITLE, pick_lang, translate,
+                              type_label, flash_text)
 
 logger = logging.getLogger(__name__)
 
 TYPES       = ["bug", "feature", "idea"]
 STATUSES    = ["pending", "open", "planned", "in_progress", "done", "rejected", "duplicate"]
-PUBLIC_COLS = [("open", "🗳️ Offen / Backlog"), ("planned", "📌 Geplant"),
-               ("in_progress", "🔧 In Arbeit"), ("done", "✅ Erledigt"),
-               ("rejected", "🚫 Abgelehnt")]
+# (Status-Schlüssel, i18n-Schlüssel für die Spaltenüberschrift) – Label via t() im Template.
+PUBLIC_COLS = [("open", "col_open"), ("planned", "col_planned"),
+               ("in_progress", "col_in_progress"), ("done", "col_done"),
+               ("rejected", "col_rejected")]
 PRIORITIES  = ["", "P0", "P1", "P2", "P3"]
 COMPONENTS  = ["", "Preis-Tracking", "Benachrichtigungen", "Shop-Suche/Grabber", "KI-Chat",
                "Digest", "iNat", "Rabattcodes", "Review-Bot", "Erfolge", "Moderation",
@@ -107,7 +111,7 @@ def _csrf_ok(form) -> bool:
 
 
 # ── Templates (Dark-Mode-ONLY) ────────────────────────────────────────────────
-BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
+BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>{{ title }} · AAM-Bot Board</title><link rel="icon" type="image/svg+xml" href="/favicon.ico"><style>
@@ -162,33 +166,38 @@ BASE = """<!doctype html><html lang=de><head><meta charset=utf-8>
  label{display:block;margin:10px 0 3px;color:#8b949e;font-size:13px}
  table{width:100%;border-collapse:collapse} td,th{border-bottom:1px solid #21262d;padding:6px 8px;text-align:left;vertical-align:top}
  .hp{position:absolute;left:-9999px} .flash{background:#1f6feb22;border:1px solid #1f6feb;border-radius:6px;padding:10px 12px;margin-bottom:14px}
+ .langsw{display:inline-flex;gap:4px;align-items:center}
+ .langsw a{border:1px solid #30363d;border-radius:6px;padding:2px 7px;font-size:13px;line-height:1.4;color:#8b949e}
+ .langsw a:hover{text-decoration:none;border-color:#3d444d}
+ .langsw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
 </style></head><body>
-<header><h1>🐜 AAM-Bot · Ideen &amp; Bugs</h1>
- <a href="/">Board</a><a href="/submit">Einreichen</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">💖 Unterstützen</a><span class=grow></span>
- {% if admin %}<span class=muted>Owner</span> <a href="/admin">Admin</a> <a href="/admin/logout">Logout</a>
- {% else %}<a href="/admin/login">Owner-Login</a>{% endif %}</header>
+<header><h1>🐜 {{ t('brand') }}</h1>
+ <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
+ <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0] }} {{ flags[code][1] }}</a>{% endfor %}</span>
+ {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
+ {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
 <div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
 <footer style="max-width:1100px;margin:28px auto 12px;padding:14px 20px;border-top:1px solid #30363d;color:#8b949e;font-size:13px;text-align:center;line-height:1.6">
-  💖 <strong>Dieses Board &amp; der Bot werden privat betrieben.</strong> Wer die Serverkosten und die Weiterentwicklung unterstützen möchte:
+  💖 <strong>{{ t('footer_run') }}</strong>
   <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
-  · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">Quellcode</a>
+  · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">{{ t('footer_source') }}</a>
 </footer>
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
 <details class="status-panel">
- <summary class="status-head">🩺 Bot- &amp; Server-Status
+ <summary class="status-head">{{ t('status_head') }}
   <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
-  <span id="hc-ver" class="status-ver" title="Aktuell laufende Bot-Version">v{{ version }}</span>
-  <span id="hc-stand" class="status-stand" title="Zeitpunkt der letzten Aktualisierung (alle 5 s)">Stand: {{ generated }}</span>
-  <span class="status-toggle">Details</span></summary>
+  <span id="hc-ver" class="status-ver" title="{{ t('ver_title') }}">v{{ version }}</span>
+  <span id="hc-stand" class="status-stand" title="{{ t('stand_title') }}">{{ t('stand_label') }} {{ generated }}</span>
+  <span class="status-toggle">{{ t('details') }}</span></summary>
  <div id="hc-body" class="status-body">
  {% for sec in sections %}
  <div class="status-section">
   <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
   <div class="status-grid">
   {% for hc in sec.checks %}
-   <a class=hc href="/status/check/{{ hc.name|urlencode }}" title="Vorfall-Historie ansehen"><span class="dot {{ hc.state }}"></span>
+   <a class=hc href="/status/check/{{ hc.name|urlencode }}?lang={{ lang }}" title="{{ t('incident_history') }}"><span class="dot {{ hc.state }}"></span>
     <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></a>
   {% endfor %}
   </div>
@@ -197,6 +206,7 @@ BOARD = """{% extends "base" %}{% block body %}
  </div>
 </details>
 <script>
+var I18N={incident:{{ t('incident_history')|tojson }},stand:{{ t('stand_label')|tojson }},noconn:{{ t('js_noconn')|tojson }},lang:{{ lang|tojson }}};
 (function(){
   // Aktualisiert alle 5 s NUR den Status-Bereich (Rest der Seite bleibt unberührt);
   // rendert nur neu, wenn sich die Daten gegenüber dem letzten Poll geändert haben.
@@ -217,8 +227,8 @@ BOARD = """{% extends "base" %}{% block body %}
       var grid=document.createElement('div'); grid.className='status-grid';
       (sec.checks||[]).forEach(function(hc){
         var card=document.createElement('a'); card.className='hc';
-        card.href='/status/check/'+encodeURIComponent(hc.name);
-        card.title='Vorfall-Historie ansehen';
+        card.href='/status/check/'+encodeURIComponent(hc.name)+'?lang='+I18N.lang;
+        card.title=I18N.incident;
         var dot=document.createElement('span'); dot.className='dot '+hc.state; card.appendChild(dot);
         var box=document.createElement('div');
         var n=document.createElement('div'); n.className='n'; n.textContent=hc.name; box.appendChild(n);
@@ -233,36 +243,35 @@ BOARD = """{% extends "base" %}{% block body %}
   function tick(){
     // Cache-Bust gegen Proxy-/Browser-Caching; Fehler werden SICHTBAR gemacht,
     // damit ein Reverse-Proxy-/CSP-Problem nicht still bleibt.
-    fetch('/status.json?_='+Date.now(),{cache:'no-store'}).then(function(r){
+    fetch('/status.json?lang='+I18N.lang+'&_='+Date.now(),{cache:'no-store'}).then(function(r){
       if(!r.ok){ throw new Error('HTTP '+r.status); }
       return r.json();
     }).then(function(d){
-      setStand('Stand: '+d.generated);   // Zeitstempel bei JEDEM Poll aktualisieren
+      setStand(I18N.stand+' '+d.generated);   // Zeitstempel bei JEDEM Poll aktualisieren
       var sig=JSON.stringify([d.overall, d.version, d.sections]);  // 'generated' bewusst NICHT vergleichen
       if(sig===last){ return; }   // Health unverändert -> Kacheln nicht neu rendern
       last=sig; build(d);
-    }).catch(function(){ setStand('Auto-Update: keine Verbindung zu /status.json'); });
+    }).catch(function(){ setStand(I18N.noconn); });
   }
   tick();                 // sofort (nicht erst nach 5 s)
   setInterval(tick, 5000);
 })();
 </script>
-<p class=muted>Öffentliche Ideen &amp; gemeldete Bugs. Jeder darf anonym einreichen und hochvoten –
-neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen</a></p>
-<p class="muted legend">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig &nbsp;|&nbsp; ▲ = Upvotes (Community-Priorisierung) · 💬 = Kommentar(e) vorhanden · „⤢ mehr" öffnet die Detailseite</p>
-<div class=cols>{% for key,label in cols %}
- <div class=col><h2>{{ label }}</h2>
+<p class=muted>{{ t('board_intro') }} <a href="/submit?lang={{ lang }}">+ {{ t('nav_submit') }}</a></p>
+<p class="muted legend">{{ t('legend_priority') }} <span class=tag>P0</span> {{ t('prio_p0') }} · <span class=tag>P1</span> {{ t('prio_p1') }} · <span class=tag>P2</span> {{ t('prio_p2') }} · <span class=tag>P3</span> {{ t('prio_p3') }} &nbsp;|&nbsp; {{ t('legend_upvotes') }} · {{ t('legend_comments') }} · {{ t('legend_more') }}</p>
+<div class=cols>{% for key,tkey in cols %}
+ <div class=col><h2>{{ t(tkey) }}</h2>
   <div class=col-body>
   {% for c in items if c.status==key %}
-   <div class=card><span class="tag {{c.type}}">{{ c.type }}</span>
+   <div class=card><span class="tag {{c.type}}">{{ type_label(c.type) }}</span>
     {% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
     {% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}
-    <div class=t><a href="/submission/{{c.id}}">{{ c.title }}</a></div>
-    {% if c.version %}<div class=muted>erledigt in {{ c.version }}</div>{% endif %}
+    <div class=t><a href="/submission/{{c.id}}?lang={{ lang }}">{{ c.title }}</a></div>
+    {% if c.version %}<div class=muted>{{ t('done_in', v=c.version) }}</div>{% endif %}
     <div class=cardfoot>
      <form method=post action="/upvote/{{c.id}}" style="margin:0"><button class=up>▲ {{ c.upvotes }}</button></form>
-     {% if c.comments %}<a class="muted cmark" href="/submission/{{c.id}}" title="{{ c.comments }} Kommentar(e)">💬 {{ c.comments }}</a>{% endif %}
-     <a class="muted cmark cardmore" href="/submission/{{c.id}}" title="Details ansehen">⤢ mehr</a>
+     {% if c.comments %}<a class="muted cmark" href="/submission/{{c.id}}?lang={{ lang }}" title="{{ t('n_comments_title', n=c.comments) }}">💬 {{ c.comments }}</a>{% endif %}
+     <a class="muted cmark cardmore" href="/submission/{{c.id}}?lang={{ lang }}" title="{{ t('more') }}">{{ t('more') }}</a>
     </div>
    </div>
   {% else %}<div class=muted>—</div>{% endfor %}
@@ -272,120 +281,122 @@ neue Einreichungen erscheinen erst nach Prüfung. <a href="/submit">+ Einreichen
 {% endblock %}"""
 
 SUBMIT = """{% extends "base" %}{% block body %}
-<h2>Idee oder Bug einreichen</h2>
-<p class=muted>Anonym möglich. Deine Einreichung wird zuerst geprüft und erscheint dann öffentlich.</p>
-<p class=muted>Mit dem Absenden akzeptierst du die Board-Nutzungsbedingungen: sachliche Ideen/Bugs zum Bot,
-<b>keine</b> persönlichen/sensiblen Daten und keine beleidigenden oder rechtswidrigen Inhalte.
-Der Betreiber kann Einträge ablehnen, bearbeiten oder löschen.</p>
-<form method=post action="/submit">
- <label>Art</label><select name=type>{% for t in types %}<option value="{{t}}">{{ t }}</option>{% endfor %}</select>
- <label>Titel *</label><input name=title maxlength=120 required>
- <label>Beschreibung</label><textarea name=body rows=6 maxlength=4000></textarea>
- <label>Dein Name (optional)</label><input name=submitter_name maxlength=40 placeholder="anonym">
+<h2>{{ t('submit_h') }}</h2>
+<p class=muted>{{ t('submit_anon') }}</p>
+<p class=muted>{{ t('submit_terms') }}</p>
+<form method=post action="/submit?lang={{ lang }}">
+ <label>{{ t('f_type') }}</label><select name=type>{% for ty in types %}<option value="{{ty}}">{{ type_label(ty) }}</option>{% endfor %}</select>
+ <label>{{ t('f_title') }}</label><input name=title maxlength=120 required>
+ <label>{{ t('f_desc') }}</label><textarea name=body rows=6 maxlength=4000></textarea>
+ <label>{{ t('f_name') }}</label><input name=submitter_name maxlength=40 placeholder="{{ t('ph_anon') }}">
  <input class=hp type=text name=website tabindex=-1 autocomplete=off>
- <div style="margin-top:14px"><button class=btn>Absenden</button> <a href="/">Abbrechen</a></div>
+ <div style="margin-top:14px"><button class=btn>{{ t('btn_send') }}</button> <a href="/?lang={{ lang }}">{{ t('cancel') }}</a></div>
 </form>{% endblock %}"""
 
 DETAIL = """{% extends "base" %}{% block body %}
-<p><a href="/">← Board</a></p>
-<span class="tag {{c.type}}">{{ c.type }}</span>{% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
+<p><a href="/?lang={{ lang }}">{{ t('back_board') }}</a></p>
+<span class="tag {{c.type}}">{{ type_label(c.type) }}</span>{% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
 {% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}<span class=tag>{{ c.status }}</span>
 <h2 style="margin:8px 0">{{ c.title }}</h2>
-<form method=post action="/upvote/{{c.id}}"><button class=up>▲ {{ c.upvotes }} Upvotes</button></form>
+<form method=post action="/upvote/{{c.id}}?lang={{ lang }}"><button class=up>{{ t('upvotes_n', n=c.upvotes) }}</button></form>
 <p style="white-space:pre-wrap;margin-top:14px">{{ c.body }}</p>
-<p class=muted>Eingereicht: {{ c.created_at }}{% if c.version %} · erledigt in {{ c.version }}{% endif %}</p>
-{% if comments %}<h3 style="margin-top:22px">💬 Kommentare</h3>
+<p class=muted>{{ t('submitted_at', d=c.created_at) }}{% if c.version %} · {{ t('done_in', v=c.version) }}{% endif %}</p>
+{% if comments %}<h3 style="margin-top:22px">{{ t('comments_h') }}</h3>
 {% for k in comments %}<div class=card><b>{{ k.author or 'Owner' }}</b> <span class=muted>· {{ k.created_at }}</span>
  <div style="white-space:pre-wrap;margin-top:4px">{{ k.body }}</div></div>{% endfor %}{% endif %}
-{% if admin %}<p style="margin-top:16px"><a class="btn small" href="/admin/{{c.id}}/edit">✏️ Bearbeiten / Kommentar</a></p>{% endif %}
+{% if admin %}<p style="margin-top:16px"><a class="btn small" href="/admin/{{c.id}}/edit?lang={{ lang }}">{{ t('edit_or_comment') }}</a></p>{% endif %}
 {% endblock %}"""
 
 EDIT = """{% extends "base" %}{% block body %}
-<p><a href="/admin">← Admin</a> · <a href="/submission/{{c.id}}">Öffentliche Ansicht</a></p>
-<h2>✏️ Eintrag #{{ c.id }} bearbeiten</h2>
-<form method=post action="/admin/{{c.id}}/edit"><input type=hidden name=csrf value="{{csrf}}">
- <label>Art</label><select name=type>{% for t in types %}<option value="{{t}}" {{'selected' if t==c.type}}>{{t}}</option>{% endfor %}</select>
- <label>Titel *</label><input name=title maxlength=120 required value="{{ c.title }}">
- <label>Beschreibung</label><textarea name=body rows=8 maxlength=4000>{{ c.body }}</textarea>
+<p><a href="/admin?lang={{ lang }}">{{ t('back_admin') }}</a> · <a href="/submission/{{c.id}}?lang={{ lang }}">{{ t('public_view') }}</a></p>
+<h2>{{ t('edit_h', id=c.id) }}</h2>
+<form method=post action="/admin/{{c.id}}/edit?lang={{ lang }}"><input type=hidden name=csrf value="{{csrf}}">
+ <label>{{ t('f_type') }}</label><select name=type>{% for ty in types %}<option value="{{ty}}" {{'selected' if ty==c.type}}>{{ type_label(ty) }}</option>{% endfor %}</select>
+ <label>{{ t('f_title') }}</label><input name=title maxlength=120 required value="{{ c.title }}">
+ <label>{{ t('f_desc') }}</label><textarea name=body rows=8 maxlength=4000>{{ c.body }}</textarea>
  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-  <div style="flex:1;min-width:120px"><label>Status</label><select name=status>{% for s in statuses %}<option value="{{s}}" {{'selected' if s==c.status}}>{{s}}</option>{% endfor %}</select></div>
-  <div style="flex:1;min-width:100px"><label>Priorität</label><select name=priority>{% for p in priorities %}<option value="{{p}}" {{'selected' if p==c.priority}}>{{p or '–'}}</option>{% endfor %}</select></div>
-  <div style="flex:1;min-width:150px"><label>Komponente</label><select name=component>{% for k in components %}<option value="{{k}}" {{'selected' if k==c.component}}>{{k or '–'}}</option>{% endfor %}</select></div>
-  <div style="min-width:110px"><label>Version</label><input name=version value="{{ c.version }}" style="width:110px"></div>
+  <div style="flex:1;min-width:120px"><label>{{ t('f_status') }}</label><select name=status>{% for s in statuses %}<option value="{{s}}" {{'selected' if s==c.status}}>{{s}}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:100px"><label>{{ t('f_priority') }}</label><select name=priority>{% for p in priorities %}<option value="{{p}}" {{'selected' if p==c.priority}}>{{p or '–'}}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:150px"><label>{{ t('f_component') }}</label><select name=component>{% for k in components %}<option value="{{k}}" {{'selected' if k==c.component}}>{{k or '–'}}</option>{% endfor %}</select></div>
+  <div style="min-width:110px"><label>{{ t('f_version') }}</label><input name=version value="{{ c.version }}" style="width:110px"></div>
  </div>
- <p class="muted legend" style="margin-top:8px">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig</p>
- <div style="margin-top:12px"><button class=btn>💾 Speichern</button></div>
+ <p class="muted legend" style="margin-top:8px">{{ t('legend_priority') }} <span class=tag>P0</span> {{ t('prio_p0') }} · <span class=tag>P1</span> {{ t('prio_p1') }} · <span class=tag>P2</span> {{ t('prio_p2') }} · <span class=tag>P3</span> {{ t('prio_p3') }}</p>
+ <div style="margin-top:12px"><button class=btn>{{ t('btn_save_disk') }}</button></div>
 </form>
-<h3 style="margin-top:26px">💬 Kommentare ({{ comments|length }})</h3>
+<h3 style="margin-top:26px">{{ t('comments_count_h', n=comments|length) }}</h3>
 {% for k in comments %}<div class=card>
- <form method=post action="/admin/comment/{{k.id}}/delete" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=sid value="{{c.id}}"><button class="btn small grey">🗑</button></form>
+ <form method=post action="/admin/comment/{{k.id}}/delete?lang={{ lang }}" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=sid value="{{c.id}}"><button class="btn small grey">🗑</button></form>
  <b>{{ k.author or 'Owner' }}</b> <span class=muted>· {{ k.created_at }}</span>
  <div style="white-space:pre-wrap;margin-top:4px">{{ k.body }}</div></div>{% endfor %}
-<form method=post action="/admin/{{c.id}}/comment" style="margin-top:12px"><input type=hidden name=csrf value="{{csrf}}">
- <label>Neuer Kommentar</label><textarea name=body rows=3 maxlength=4000 required placeholder="Kommentar…"></textarea>
- <label>Autor</label><input name=author maxlength=40 value="Owner" style="max-width:220px">
- <div style="margin-top:10px"><button class=btn>Kommentar hinzufügen</button></div>
+<form method=post action="/admin/{{c.id}}/comment?lang={{ lang }}" style="margin-top:12px"><input type=hidden name=csrf value="{{csrf}}">
+ <label>{{ t('new_comment') }}</label><textarea name=body rows=3 maxlength=4000 required placeholder="{{ t('ph_comment') }}"></textarea>
+ <label>{{ t('f_author') }}</label><input name=author maxlength=40 value="Owner" style="max-width:220px">
+ <div style="margin-top:10px"><button class=btn>{{ t('add_comment') }}</button></div>
 </form>{% endblock %}"""
 
 STATUSDETAIL = """{% extends "base" %}{% block body %}
-<p><a href="/">← Board</a></p>
+<p><a href="/?lang={{ lang }}">{{ t('back_board') }}</a></p>
 <h2 style="margin-bottom:4px">🩺 {{ key }}</h2>
 {% if current %}<p><span class="dot {{ current.state }}" style="display:inline-block;vertical-align:middle"></span>
- Aktuell: <b>{{ current.state|upper }}</b> · {{ current.detail }}</p>{% endif %}
-<p class=muted>Aufgezeichnet werden „nicht OK"-Phasen (gelb/rot). Endet eine Phase, wird automatisch vermerkt, wann der Check wieder OK war.</p>
-<h3 style="margin-top:16px">Letzte Vorfälle (max. 10)</h3>
-{% if not incidents %}<p class=muted>Keine Vorfälle aufgezeichnet. 🎉</p>{% endif %}
+ {{ t('current_label') }} <b>{{ current.state|upper }}</b> · {{ current.detail }}</p>{% endif %}
+<p class=muted>{{ t('inc_intro') }}</p>
+<h3 style="margin-top:16px">{{ t('inc_recent_h') }}</h3>
+{% if not incidents %}<p class=muted>{{ t('inc_none') }}</p>{% endif %}
 {% for inc in incidents %}<div class=card>
- {% if admin %}<form method=post action="/status/incident/{{ inc.id }}/note" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=key value="{{ key }}">
-  <input name=note maxlength=500 value="{{ inc.admin_note }}" placeholder="Admin-Notiz…" style="width:220px"> <button class="btn small">📝</button></form>{% endif %}
+ {% if admin %}<form method=post action="/status/incident/{{ inc.id }}/note?lang={{ lang }}" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=key value="{{ key }}">
+  <input name=note maxlength=500 value="{{ inc.admin_note }}" placeholder="{{ t('ph_admin_note') }}" style="width:220px"> <button class="btn small">📝</button></form>{% endif %}
  <span class="dot {{ inc.state }}" style="display:inline-block;vertical-align:middle"></span> <b>{{ inc.state|upper }}</b>
- <div style="margin-top:4px">🔴 seit <b>{{ inc.started_local }}</b> —
-  {% if inc.ended_local %}🟢 wieder OK seit <b>{{ inc.ended_local }}</b>{% else %}<span class=muted>läuft noch</span>{% endif %}</div>
+ <div style="margin-top:4px">🔴 {{ t('inc_since') }} <b>{{ inc.started_local }}</b> —
+  {% if inc.ended_local %}🟢 {{ t('inc_ok_since') }} <b>{{ inc.ended_local }}</b>{% else %}<span class=muted>{{ t('inc_running') }}</span>{% endif %}</div>
  {% if inc.detail %}<div class=muted style="margin-top:3px">{{ inc.detail }}</div>{% endif %}
  {% if inc.admin_note %}<div style="margin-top:4px">📝 {{ inc.admin_note }}</div>{% endif %}
 </div>{% endfor %}
 {% endblock %}"""
 
 LOGIN = """{% extends "base" %}{% block body %}
-<h2>Owner-Login</h2><form method=post action="/admin/login" style="max-width:340px">
- <label>Admin-Token</label><input name=token type=password autofocus>
- <div style="margin-top:12px"><button class=btn>Anmelden</button></div></form>{% endblock %}"""
+<h2>{{ t('login_h') }}</h2><form method=post action="/admin/login?lang={{ lang }}" style="max-width:340px">
+ <label>{{ t('f_token') }}</label><input name=token type=password autofocus>
+ <div style="margin-top:12px"><button class=btn>{{ t('btn_login') }}</button></div></form>{% endblock %}"""
 
 ADMIN = """{% extends "base" %}{% block body %}
-<h2>🛡️ Moderations-Queue ({{ queue|length }})</h2>
-{% if not queue %}<p class=muted>Nichts zu prüfen.</p>{% endif %}
-{% for c in queue %}<div class=card><span class="tag {{c.type}}">{{ c.type }}</span> <b>{{ c.title }}</b>
+<h2>{{ t('queue_h', n=queue|length) }}</h2>
+{% if not queue %}<p class=muted>{{ t('nothing_review') }}</p>{% endif %}
+{% for c in queue %}<div class=card><span class="tag {{c.type}}">{{ type_label(c.type) }}</span> <b>{{ c.title }}</b>
  <div class=muted>{{ c.body }}</div>
- <form method=post action="/admin/{{c.id}}/approve" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small">✔ Freigeben</button></form>
- <form method=post action="/admin/{{c.id}}/reject" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small red">✖ Ablehnen</button></form>
- <form method=post action="/admin/{{c.id}}/delete" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑 Löschen</button></form>
+ <form method=post action="/admin/{{c.id}}/approve?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small">{{ t('btn_approve') }}</button></form>
+ <form method=post action="/admin/{{c.id}}/reject?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small red">{{ t('btn_reject') }}</button></form>
+ <form method=post action="/admin/{{c.id}}/delete?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">{{ t('btn_delete') }}</button></form>
 </div>{% endfor %}
-<h2 style="margin-top:24px">Alle Einträge ({{ items|length }})</h2>
-<p class="muted legend">Priorität: <span class=tag>P0</span> kritisch (Blocker) · <span class=tag>P1</span> hoch · <span class=tag>P2</span> mittel · <span class=tag>P3</span> niedrig · Zum Bearbeiten von Titel/Beschreibung & für Kommentare ✏️ nutzen.</p>
-<table><tr><th>#</th><th>Titel</th><th>Status / Prio / Komponente / Version</th><th>▲</th><th></th></tr>
+<h2 style="margin-top:24px">{{ t('all_entries_h', n=items|length) }}</h2>
+<p class="muted legend">{{ t('legend_priority') }} <span class=tag>P0</span> {{ t('prio_p0') }} · <span class=tag>P1</span> {{ t('prio_p1') }} · <span class=tag>P2</span> {{ t('prio_p2') }} · <span class=tag>P3</span> {{ t('prio_p3') }} · {{ t('admin_legend_edit') }}</p>
+<table><tr><th>#</th><th>{{ t('th_title') }}</th><th>{{ t('th_status_meta') }}</th><th>▲</th><th></th></tr>
 {% for c in items if c.status!='pending' %}<tr><td>{{c.id}}</td>
- <td><span class="tag {{c.type}}">{{c.type}}</span> {{ c.title }}</td>
- <td><form method=post action="/admin/{{c.id}}/status"><input type=hidden name=csrf value="{{csrf}}"><div style="display:flex;gap:6px;flex-wrap:wrap">
+ <td><span class="tag {{c.type}}">{{ type_label(c.type) }}</span> {{ c.title }}</td>
+ <td><form method=post action="/admin/{{c.id}}/status?lang={{ lang }}"><input type=hidden name=csrf value="{{csrf}}"><div style="display:flex;gap:6px;flex-wrap:wrap">
    <select name=status>{% for s in statuses %}<option value="{{s}}" {{'selected' if s==c.status}}>{{s}}</option>{% endfor %}</select>
    <select name=priority>{% for p in priorities %}<option value="{{p}}" {{'selected' if p==c.priority}}>{{p or '–'}}</option>{% endfor %}</select>
    <select name=component>{% for k in components %}<option value="{{k}}" {{'selected' if k==c.component}}>{{k or '–'}}</option>{% endfor %}</select>
-   <input name=version value="{{c.version}}" placeholder="Version" style="width:90px">
-   <button class="btn small">Speichern</button></div></form></td>
+   <input name=version value="{{c.version}}" placeholder="{{ t('f_version') }}" style="width:90px">
+   <button class="btn small">{{ t('btn_save') }}</button></div></form></td>
  <td>{{ c.upvotes }}</td>
- <td style="white-space:nowrap"><a class="btn small" href="/admin/{{c.id}}/edit">✏️</a>
-   <form method=post action="/admin/{{c.id}}/delete" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑</button></form></td></tr>
+ <td style="white-space:nowrap"><a class="btn small" href="/admin/{{c.id}}/edit?lang={{ lang }}">✏️</a>
+   <form method=post action="/admin/{{c.id}}/delete?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑</button></form></td></tr>
 {% endfor %}</table>
-<h3 style="margin-top:24px">📥 CSV-Import (rückwirkende Historie)</h3>
-<form method=post action="/admin/import" enctype="multipart/form-data"><input type=hidden name=csrf value="{{csrf}}">
- <input type=file name=file accept=".csv"> <button class="btn small">Importieren</button>
- <div class=muted>Spalten (Reihenfolge/Groß-klein egal, Trenner , oder ; ): type,title,body,status,component,priority,version,created_at,source<br>
-  Pflicht: <b>title</b>. Gültige <b>status</b>: open, planned, in_progress, done, rejected, duplicate, pending (Standard: done). Gültige <b>type</b>: bug, feature, idea.<br>
-  Nach dem Import erscheint eine Meldung „N importiert, M übersprungen"; Details zu Skips stehen im Bot-Log.</div></form>
+<h3 style="margin-top:24px">{{ t('csv_h') }}</h3>
+<form method=post action="/admin/import?lang={{ lang }}" enctype="multipart/form-data"><input type=hidden name=csrf value="{{csrf}}">
+ <input type=file name=file accept=".csv"> <button class="btn small">{{ t('csv_import') }}</button>
+ <div class=muted>{{ t('csv_help')|safe }}</div></form>
+{% endblock %}"""
+
+STATS = """{% extends "base" %}{% block body %}
+<h2>{{ t('nav_stats') }}</h2>
+<p class=muted>{{ t('stats_soon') }}</p>
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
-                                     "edit": EDIT, "statusdetail": STATUSDETAIL}),
+                                     "edit": EDIT, "statusdetail": STATUSDETAIL,
+                                     "stats": STATS}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -394,8 +405,26 @@ _ROWQ = ("SELECT s.*, "
          "FROM board_submissions s ")
 
 
+def _switch_urls(req) -> dict:
+    """Baut je Sprache die AKTUELLE URL mit gesetztem ?lang= – für den Flaggen-Umschalter
+    im Header (bleibt auf derselben Seite, tauscht nur die Sprache)."""
+    q = dict(req.query)
+    out = {}
+    for code in LANGS:
+        q2 = dict(q)
+        q2["lang"] = code
+        out[code] = req.path + "?" + urlencode(q2)
+    return out
+
+
 def _render(req, name, title="Board", flash="", **ctx):
-    html = ENV.get_template(name).render(title=title, flash=flash, admin=_is_admin(req), **ctx)
+    lang = pick_lang(req)
+    tt = lambda key, **kw: translate(lang, key, **kw)
+    i18n = dict(lang=lang, t=tt, langs=LANGS, flags=FLAGS, flag_title=FLAG_TITLE,
+                switch_urls=_switch_urls(req), qs=(lambda: "?lang=" + lang),
+                type_label=(lambda ty: type_label(lang, ty)))
+    i18n.update(ctx)   # template-spezifischer Kontext (items, cols, …) ergänzt/gewinnt
+    html = ENV.get_template(name).render(title=title, flash=flash, admin=_is_admin(req), **i18n)
     return web.Response(text=html, content_type="text/html")
 
 
@@ -613,11 +642,12 @@ def _cron_tile(name: str, path, *, warn_h: int, down_h: int, optional: bool = Fa
     return dict(name=name, state=state, detail=f"aktualisiert {_fmt_age(age)}")
 
 
-async def _collect_health(app):
+async def _collect_health(app, lang: str = "de"):
     """Sammelt alle Health-Checks in Sektionen (Kern · In-Bot-Jobs · externe Cronjobs).
     Jeder Check ist gekapselt (ein Fehler bricht die Seite nicht ab). state ∈ ok|warn|down|off;
     'off' (grau) = bewusst deaktiviert/optional und zählt NICHT gegen den Gesamtstatus.
-    Rückgabe: (overall, sections)."""
+    Rückgabe: (overall, sections). Lokalisiert werden Gesamt-Ampel + Sektions-Titel/-Notizen;
+    die einzelnen Kachel-Namen/-Details bleiben Deutsch (dienen als stabile Vorfall-Schlüssel)."""
     bot = app.get("bot")
 
     # ── Sektion 1: Kern (Verbindung, Datenbanken, Feature-Flags) ──────────────
@@ -662,17 +692,17 @@ async def _collect_health(app):
     ]
 
     sections = [
-        dict(title="🧩 Kern", note="Verbindung & Datenbanken", checks=core),
-        dict(title="⚙️ Hintergrund-Jobs im Bot", note="discord.ext.tasks-Loops im Bot-Prozess", checks=jobs),
-        dict(title="⏰ Externe Cronjobs (als Nutzer aam)", note="2 Cronjobs · Status anhand Aktualität der erzeugten Dateien", checks=cron),
+        dict(title=translate(lang, "sec_core"), note=translate(lang, "sec_core_note"), checks=core),
+        dict(title=translate(lang, "sec_jobs"), note=translate(lang, "sec_jobs_note"), checks=jobs),
+        dict(title=translate(lang, "sec_cron"), note=translate(lang, "sec_cron_note"), checks=cron),
     ]
     states = {c["state"] for sec in sections for c in sec["checks"]}
     if "down" in states:
-        overall = ("down", "Teilweise ausgefallen")
+        overall = ("down", translate(lang, "overall_down"))
     elif "warn" in states:
-        overall = ("warn", "Läuft mit Einschränkungen")
+        overall = ("warn", translate(lang, "overall_warn"))
     else:
-        overall = ("ok", "Alles läuft")
+        overall = ("ok", translate(lang, "overall_ok"))
     return overall, sections
 
 
@@ -710,22 +740,29 @@ async def _record_incidents(bot) -> None:
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
 async def h_board(req):
+    lang = pick_lang(req)
     items = await _rows("WHERE status!='pending' ORDER BY id DESC")
     # 'Erledigt'-Karten tragen eine Version -> nach Version absteigend (neueste oben);
     # alle anderen Spalten haben keine Version ((0,0,0,0)) und bleiben so bei id DESC.
     items.sort(key=lambda c: (_ver_key(c.get("version") or ""), c.get("id") or 0), reverse=True)
-    overall, sections = await _collect_health(req.app)
-    resp = _render(req, "board", items=items, cols=PUBLIC_COLS,
+    overall, sections = await _collect_health(req.app, lang)
+    flash = flash_text(lang, req.query.get("m", ""), n=req.query.get("n", ""), s=req.query.get("s", ""))
+    resp = _render(req, "board", title=translate(lang, "nav_board"), items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
-                   generated=now_berlin("%H:%M:%S"), flash=req.query.get("m", ""))
+                   generated=now_berlin("%H:%M:%S"), flash=flash)
     resp.headers["Cache-Control"] = "no-store"   # kein veraltetes HTML aus Proxy/Browser-Cache
     return resp
+
+
+async def h_stats(req):
+    """Statistik-Seite (Platzhalter – wird im nächsten Schritt mit Inhalten gefüllt)."""
+    return _render(req, "stats", title=translate(pick_lang(req), "nav_stats"))
 
 
 async def h_status_json(req):
     """Nur die Health-Daten als JSON – fürs 5-Sekunden-Polling des Status-Bereichs
     (der Rest der Seite wird NICHT neu geladen)."""
-    overall, sections = await _collect_health(req.app)
+    overall, sections = await _collect_health(req.app, pick_lang(req))
     return web.json_response(
         {"overall": overall, "version": VERSION, "sections": sections,
          "generated": now_berlin("%H:%M:%S")},
@@ -738,7 +775,7 @@ async def h_status_detail(req):
     'nicht OK'-Phasen; Admins können je Vorfall eine Notiz hinterlegen."""
     key = req.match_info["key"]
     try:
-        _, sections = await _collect_health(req.app)
+        _, sections = await _collect_health(req.app, pick_lang(req))
         current = next((c for sec in sections for c in sec["checks"] if c["name"] == key), None)
     except Exception:
         current = None
@@ -773,27 +810,30 @@ async def h_incident_note(req):
     await board_exec("UPDATE board_incidents SET admin_note=? WHERE id=?",
                      ((d.get("note") or "").strip()[:500], cid))
     from urllib.parse import quote
-    raise web.HTTPFound(_safe_local_redirect(f"/status/check/{quote(key, safe='')}") if key else "/")
+    lang = pick_lang(req)
+    raise web.HTTPFound(_safe_local_redirect(f"/status/check/{quote(key, safe='')}?lang={lang}") if key else f"/?lang={lang}")
 
 
 async def h_submit_form(req):
-    return _render(req, "submit", title="Einreichen", types=TYPES)
+    return _render(req, "submit", title=translate(pick_lang(req), "submit_h"), types=TYPES)
 
 
 async def h_submit(req):
+    lang = pick_lang(req)
     d = await req.post()
     if (d.get("website") or "").strip():
-        raise web.HTTPFound("/?m=Danke, wird geprüft.")
+        raise web.HTTPFound(f"/?m=thanks_review&lang={lang}")
     if not _rate("submit:" + _ip(req), RATE_SUBMIT_PER_H, 3600):
-        raise web.HTTPFound("/?m=Zu viele Einreichungen – bitte später erneut.")
+        raise web.HTTPFound(f"/?m=too_many&lang={lang}")
     title = (d.get("title") or "").strip()[:120]
     if not title:
-        return _render(req, "submit", title="Einreichen", types=TYPES, flash="Titel fehlt.")
+        return _render(req, "submit", title=translate(lang, "submit_h"), types=TYPES,
+                       flash=translate(lang, "flash_title_missing"))
     sh = _hmac("submit", _ip(req))
     n = await board_one("SELECT COUNT(*) AS n FROM board_submissions WHERE submitter_hash=? "
                         "AND created_at > datetime('now','-1 hour')", (sh,))
     if n and n["n"] >= RATE_SUBMIT_PER_H:
-        raise web.HTTPFound("/?m=Zu viele Einreichungen – bitte später erneut.")
+        raise web.HTTPFound(f"/?m=too_many&lang={lang}")
     typ = d.get("type") if d.get("type") in TYPES else "idea"
     sid = await board_exec(
         "INSERT INTO board_submissions (type,title,body,submitter_hash,submitter_name,status,source) "
@@ -801,7 +841,7 @@ async def h_submit(req):
         (typ, title, (d.get("body") or "").strip()[:4000], sh, (d.get("submitter_name") or "").strip()[:40]))
     sub = await _one(sid)
     await notify_owner(req.app, sub)
-    raise web.HTTPFound("/?m=Danke! Deine Einreichung wird geprüft und erscheint dann öffentlich.")
+    raise web.HTTPFound(f"/?m=submitted&lang={lang}")
 
 
 async def h_upvote(req):
@@ -838,17 +878,19 @@ async def h_detail(req):
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
 async def h_login_form(req):
-    return _render(req, "login", title="Login")
+    return _render(req, "login", title=translate(pick_lang(req), "login_h"))
 
 
 async def h_login(req):
+    lang = pick_lang(req)
     d = await req.post()
     if BOARD_ADMIN_TOKEN and hmac.compare_digest((d.get("token") or ""), BOARD_ADMIN_TOKEN):
-        resp = web.HTTPFound("/admin")
+        resp = web.HTTPFound(f"/admin?lang={lang}")
         resp.set_cookie(_ADMIN_COOKIE, _hmac("owner", BOARD_ADMIN_TOKEN),
                         max_age=604800, httponly=True, samesite="Lax")
         raise resp
-    return _render(req, "login", title="Login", flash="Falsches Token.")
+    return _render(req, "login", title=translate(lang, "login_h"),
+                   flash=translate(lang, "flash_wrong_token"))
 
 
 async def h_logout(req):
@@ -869,7 +911,8 @@ async def h_admin(req):
         "WHEN 'duplicate' THEN 6 ELSE 7 END, id DESC"
     )
     queue = [c for c in items if c["status"] == "pending"]
-    return _render(req, "admin", title="Admin", items=items, queue=queue, csrf=_csrf_token(),
+    return _render(req, "admin", title=translate(pick_lang(req), "nav_admin"),
+                   items=items, queue=queue, csrf=_csrf_token(),
                    statuses=STATUSES, priorities=PRIORITIES, components=COMPONENTS)
 
 
@@ -886,14 +929,14 @@ async def h_approve(req):
     await _admin_guard(req)
     await board_exec("UPDATE board_submissions SET status='open', approved_at=datetime('now'), "
                      "updated_at=datetime('now') WHERE id=? AND status='pending'", (int(req.match_info["id"]),))
-    raise web.HTTPFound("/admin")
+    raise web.HTTPFound(f"/admin?lang={pick_lang(req)}")
 
 
 async def h_reject(req):
     await _admin_guard(req)
     await board_exec("UPDATE board_submissions SET status='rejected', updated_at=datetime('now') WHERE id=?",
                      (int(req.match_info["id"]),))
-    raise web.HTTPFound("/admin")
+    raise web.HTTPFound(f"/admin?lang={pick_lang(req)}")
 
 
 async def h_status(req):
@@ -905,7 +948,7 @@ async def h_status(req):
                          f"updated_at=datetime('now'){appr} WHERE id=?",
                          (st, d.get("priority", ""), d.get("component", ""), d.get("version", ""),
                           int(req.match_info["id"])))
-    raise web.HTTPFound("/admin")
+    raise web.HTTPFound(f"/admin?lang={pick_lang(req)}")
 
 
 async def h_delete(req):
@@ -914,7 +957,7 @@ async def h_delete(req):
     await board_exec("DELETE FROM board_submissions WHERE id=?", (sid,))
     await board_exec("DELETE FROM board_votes WHERE submission_id=?", (sid,))
     await board_exec("DELETE FROM board_comments WHERE submission_id=?", (sid,))
-    raise web.HTTPFound("/admin")
+    raise web.HTTPFound(f"/admin?lang={pick_lang(req)}")
 
 
 async def h_edit_form(req):
@@ -923,9 +966,10 @@ async def h_edit_form(req):
         raise web.HTTPFound("/admin/login")
     sub = await _one(int(req.match_info["id"]))
     if not sub:
-        raise web.HTTPFound("/admin")
+        raise web.HTTPFound(f"/admin?lang={pick_lang(req)}")
     comments = await _comments(sub["id"])
-    return _render(req, "edit", title=f"Bearbeiten #{sub['id']}", c=sub, comments=comments,
+    return _render(req, "edit", title=translate(pick_lang(req), "edit_h", id=sub["id"]),
+                   c=sub, comments=comments,
                    csrf=_csrf_token(), types=TYPES, statuses=STATUSES,
                    priorities=PRIORITIES, components=COMPONENTS)
 
@@ -936,10 +980,10 @@ async def h_edit(req):
     sid = int(req.match_info["id"])
     cur = await _one(sid)
     if not cur:
-        raise web.HTTPFound("/admin")
+        raise web.HTTPFound(f"/admin?lang={pick_lang(req)}")
     title = (d.get("title") or "").strip()[:120]
     if not title:
-        raise web.HTTPFound(f"/admin/{sid}/edit")
+        raise web.HTTPFound(f"/admin/{sid}/edit?lang={pick_lang(req)}")
     typ  = d.get("type") if d.get("type") in TYPES else cur["type"]
     st   = d.get("status") if d.get("status") in STATUSES else cur["status"]
     prio = d.get("priority") if d.get("priority") in PRIORITIES else ""
@@ -950,7 +994,7 @@ async def h_edit(req):
         f"component=?, version=?, updated_at=datetime('now'){appr} WHERE id=?",
         (typ, title, (d.get("body") or "").strip()[:4000], st, prio, comp,
          (d.get("version") or "").strip()[:40], sid))
-    raise web.HTTPFound(f"/admin/{sid}/edit")
+    raise web.HTTPFound(f"/admin/{sid}/edit?lang={pick_lang(req)}")
 
 
 async def h_comment_add(req):
@@ -961,7 +1005,7 @@ async def h_comment_add(req):
         author = (d.get("author") or "Owner").strip()[:40] or "Owner"
         await board_exec("INSERT INTO board_comments (submission_id, author, body) VALUES (?,?,?)",
                          (sid, author, body))
-    raise web.HTTPFound(f"/admin/{sid}/edit")
+    raise web.HTTPFound(f"/admin/{sid}/edit?lang={pick_lang(req)}")
 
 
 async def h_comment_del(req):
@@ -969,7 +1013,9 @@ async def h_comment_del(req):
     cid = int(req.match_info["cid"])
     sid = (d.get("sid") or "").strip()
     await board_exec("DELETE FROM board_comments WHERE id=?", (cid,))
-    raise web.HTTPFound(_safe_local_redirect(f"/admin/{int(sid)}/edit" if sid.isdigit() else "/admin"))
+    lang = pick_lang(req)
+    raise web.HTTPFound(_safe_local_redirect(
+        f"/admin/{int(sid)}/edit?lang={lang}" if sid.isdigit() else f"/admin?lang={lang}"))
 
 
 def _parse_import_rows(text: str):
@@ -1018,10 +1064,11 @@ def _parse_import_rows(text: str):
 
 
 async def h_import(req):
+    lang = pick_lang(req)
     d = await _admin_guard(req)
     f = d.get("file")
     if not f or not hasattr(f, "file"):
-        raise web.HTTPFound("/?m=Kein CSV empfangen.")
+        raise web.HTTPFound(f"/?m=no_csv&lang={lang}")
     raw = f.file.read()
     text = raw.decode("utf-8-sig", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
     rows, skipped = _parse_import_rows(text)
@@ -1033,11 +1080,11 @@ async def h_import(req):
             (row["type"], row["title"], row["body"], row["status"], row["component"],
              row["priority"], row["version"], row["source"], row["created_at"]))
     detail = list(skipped) + [(r["_line"], r["_note"]) for r in rows if r["_note"]]
-    msg = f"{len(rows)} importiert" + (f", {len(skipped)} übersprungen" if skipped else "")
     if detail:
-        logger.warning("📥 Board-CSV-Import: %s | %s", msg,
+        logger.warning("📥 Board-CSV-Import: %d importiert, %d übersprungen | %s",
+                       len(rows), len(skipped),
                        "; ".join(f"Z{ln}: {rs}" for ln, rs in detail[:25]))
-    raise web.HTTPFound(f"/?m={msg}")
+    raise web.HTTPFound(f"/?m=imported&n={len(rows)}&s={len(skipped)}&lang={lang}")
 
 
 async def notify_owner(app, sub: dict) -> None:
@@ -1097,6 +1144,7 @@ def build_app(bot) -> web.Application:
     app["bot"] = bot
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
+        web.get("/stats", h_stats),
         web.get("/status.json", h_status_json),
         web.get("/status/check/{key}", h_status_detail),
         web.post("/status/incident/{id}/note", h_incident_note),

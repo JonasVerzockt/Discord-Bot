@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.1.3` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.1.4` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1130,6 +1130,8 @@ Die übrigen Bot-Ausgaben (Slash-Commands, DMs, Rabattcodes) funktionieren dageg
 Ein **optionales, öffentlich einsehbares Ideen- und Bug-Board** für den Bot. Jede/r kann – auch **ohne Account, anonym** – Fehler melden, Feature-Wünsche und Ideen einreichen und bestehende Einträge **hochvoten**. Der Betreiber (Owner) verwaltet alles über ein Admin-Backend.
 
 Technisch läuft das Board als **eigener Webdienst im selben Prozess wie der Bot** (aiohttp, kein zweiter Dienst) mit einer **eigenen, getrennten Datenbank** (`BOARD_DB_FILE`, nicht die Haupt-Bot-DB). Es ist **standardmäßig deaktiviert** und startet erst, wenn es per `.env` eingerichtet wird.
+
+**Mehrsprachig (de/en/eo):** Alle leserseitigen Board-Texte sind in **Deutsch, Englisch und Esperanto** verfügbar. Oben rechts im Header schaltet ein **Flaggen-Umschalter** die Sprache um; technisch geschieht das ausschließlich über den URL-Parameter `?lang=de|en|eo` (**kein Cookie**), der auf jeder Seite mitgeführt wird. Ohne Parameter wird die **Browser-Sprache** (`Accept-Language`) genutzt, sonst Deutsch. Der Sprachkatalog liegt in `utils/board_i18n.py`. Bewusst **nicht** übersetzt sind die einzelnen Kacheln des Status-Dashboards (Name + Detailtext): Der Kachelname dient zugleich als **stabiler Schlüssel** für die Vorfall-Historie (`board_incidents.check_key`) und die Kachel-Links (`/status/check/<key>`) – lokalisiert werden dort nur Gesamt-Ampel, Sektions-Titel und die übrigen Seitentexte.
 
 ### Was ist das Board?
 
