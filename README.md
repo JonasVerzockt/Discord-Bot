@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.2.2` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.2.3` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1156,7 +1156,7 @@ Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Üb
 Alle Intervall-Timer sind **an der Uhr ausgerichtet** statt an der zufälligen Bot-Startzeit: sie starten am nächsten Rasterpunkt (:00 der Stunde bzw. :00/:05/:10 … bei Minuten-Loops), die Daten-Pipeline gezielt um **:05** (kurz nach dem Grabber-Cron um :00). Mit `/run_jobs` lassen sich alle Jobs bei Bedarf einmalig sofort anstoßen.
 - **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron. Es sind genau **zwei** Jobs → **zwei** Kacheln: **Grabber** (stündlich, erzeugt in **einem** Lauf sowohl `shops_data.json` als auch `price_history.db` → eine gemeinsame Kachel) und **Artenliste/AntCat-Build** (monatlich, optional). Der Grabber-Status richtet sich nach `shops_data.json` (wird jeden Lauf neu geschrieben, also verlässliches Frische-Signal); `price_history.db` wird nur bei tatsächlichen Preisänderungen fortgeschrieben, der Grabber `touch()`t die Datei aber nach jedem erfolgreichen Lauf – bleibt sie dennoch > 7 Tage zurück, deutet das auf einen Ausfall des Preis-Schritts hin (Kachel wird gelb).
 
-Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.
+Direkt in der (auch eingeklappt sichtbaren) Kopfzeile stehen neben der Bot-Version drei **Live-Systemmetriken**: **CPU-Load** (Load-Average 1/5/15 min relativ zu den Kernen – aussagekräftiger als ein Momentanwert), **RAM**- und **SSD**-Auslastung, jeweils farbig (grün/gelb/rot) und alle 5 s aktualisiert. Diese Metriken sind reine Anzeige (kein Vorfall-Logging, ohne Einfluss auf den Gesamtstatus). Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.
 
 Der Status-Bereich **aktualisiert sich alle 5 Sekunden von selbst** (JSON-Poll auf `/status.json`, nur der Status-Teil, und nur bei echter Änderung; oben steht der „Stand"-Zeitpunkt). Jede Kachel ist **anklickbar** und öffnet die **Vorfall-Historie** dieses Checks (`/status/check/<name>`): ein minütlicher Monitor-Loop zeichnet jede „nicht OK"-Phase (gelb/rot) mit Beginn und – nach Rückkehr auf OK – automatisch dem **Recovery-Zeitpunkt** auf (letzte 10 je Check). Der Owner kann je Vorfall eine **Notiz** hinterlegen.
 

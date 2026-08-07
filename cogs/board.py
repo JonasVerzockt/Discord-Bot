@@ -37,6 +37,8 @@ import os
 import re
 import secrets
 import time
+
+import psutil
 from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlparse
@@ -153,6 +155,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:0}
  details[open]>.status-head{margin-bottom:4px}
  .status-ver{color:#8b949e;font-size:12px;font-weight:600;border:1px solid #30363d;border-radius:20px;padding:2px 9px;white-space:nowrap}
+ .status-metrics{font-size:12px;color:#8b949e;font-weight:400;white-space:nowrap}
+ .status-metrics .mok{color:#3fb950} .status-metrics .mwarn{color:#d29922} .status-metrics .mdown{color:#f85149}
  .status-stand{margin-left:auto;color:#6e7681;font-size:11px;font-weight:400;white-space:nowrap}
  .status-toggle{color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
  .status-toggle::after{content:"▸";display:inline-block;margin-left:6px;transition:transform .15s}
@@ -219,6 +223,7 @@ BOARD = """{% extends "base" %}{% block body %}
  <summary class="status-head">{{ t('status_head') }}
   <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
   <span id="hc-ver" class="status-ver" title="{{ t('ver_title') }}">v{{ version }}</span>
+  <span id="hc-metrics" class="status-metrics">{{ metrics_html|safe }}</span>
   <span id="hc-stand" class="status-stand" title="{{ t('stand_title') }}">{{ t('stand_label') }} {{ generated }}</span>
   <span class="status-toggle">{{ t('details') }}</span></summary>
  <div id="hc-body" class="status-body">
@@ -243,6 +248,15 @@ var I18N={incident:{{ t('incident_history')|tojson }},stand:{{ t('stand_label')|
   // last=null → der erste Poll (nach 5 s) gleicht die Anzeige einmal mit dem Server
   // ab, danach wird ausschließlich bei echten Änderungen neu gezeichnet.
   var last = null;
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function _gbjs(b){return (b/1073741824).toFixed(1);}
+  function _seg(part,label,val,title){ if(!part){return '';} var cls={ok:'mok',warn:'mwarn',down:'mdown'}[part.state]||''; return '<span class="'+cls+'" title="'+esc(title)+'">'+label+' '+val+'</span>'; }
+  function buildMetrics(m){ if(!m){return '';} var p=[];
+    if(m.cpu){ var lo=m.cpu.load; p.push(_seg(m.cpu,'Load',lo[0].toFixed(2),'1/5/15 min: '+lo[0].toFixed(2)+' / '+lo[1].toFixed(2)+' / '+lo[2].toFixed(2)+' · '+m.cpu.cores+' Kerne')); }
+    if(m.ram){ p.push(_seg(m.ram,'RAM',m.ram.percent+'%',_gbjs(m.ram.used)+'/'+_gbjs(m.ram.total)+' GB')); }
+    if(m.disk){ p.push(_seg(m.disk,'SSD',m.disk.percent+'%',_gbjs(m.disk.used)+'/'+_gbjs(m.disk.total)+' GB')); }
+    return p.length ? '⚙️ '+p.join(' · ') : ''; }
+  function setMetrics(m){ var e=document.getElementById('hc-metrics'); if(e){ e.innerHTML=buildMetrics(m); } }
   function build(d){
     var badge=document.getElementById('hc-badge');
     if(badge){ badge.className='status-badge s-'+d.overall[0]; badge.textContent=d.overall[1]; }
@@ -278,6 +292,7 @@ var I18N={incident:{{ t('incident_history')|tojson }},stand:{{ t('stand_label')|
       return r.json();
     }).then(function(d){
       setStand(I18N.stand+' '+d.generated);   // Zeitstempel bei JEDEM Poll aktualisieren
+      setMetrics(d.metrics);                  // CPU-Load/RAM/SSD bei JEDEM Poll aktualisieren
       var sig=JSON.stringify([d.overall, d.version, d.sections]);  // 'generated' bewusst NICHT vergleichen
       if(sig===last){ return; }   // Health unverändert -> Kacheln nicht neu rendern
       last=sig; build(d);
@@ -576,6 +591,59 @@ def _fmt_age(sec: float | None) -> str:
     return f"vor {d} {'Tag' if d == 1 else 'Tagen'}"
 
 
+def _gb(nbytes) -> str:
+    """Bytes -> GB-String mit einer Nachkommastelle."""
+    try:
+        return f"{nbytes / 1024 ** 3:.1f}"
+    except (TypeError, ValueError, ZeroDivisionError):
+        return "?"
+
+
+def _system_metrics() -> dict:
+    """Momentane Systemauslastung (anzeige-only, KEIN Incident-Logging, ohne Einfluss
+    auf den Gesamtstatus): CPU als Load-Average (1/5/15 min, relativ zu den Kernen),
+    RAM- und SSD-Auslastung. Ampel je Metrik. Einzelne Fehler -> None für die Metrik."""
+    out: dict = {}
+    try:
+        la1, la5, la15 = os.getloadavg()                 # nur Linux/Unix
+        cores = psutil.cpu_count() or 1
+        ratio = la1 / cores
+        out["cpu"] = {"state": "ok" if ratio < 0.7 else ("warn" if ratio < 1.0 else "down"),
+                      "load": [round(la1, 2), round(la5, 2), round(la15, 2)], "cores": cores}
+    except Exception:                                    # z.B. kein getloadavg (Windows)
+        out["cpu"] = None
+    try:
+        vm = psutil.virtual_memory()
+        out["ram"] = {"state": "ok" if vm.percent < 75 else ("warn" if vm.percent < 90 else "down"),
+                      "percent": round(vm.percent), "used": vm.used, "total": vm.total}
+    except Exception:
+        out["ram"] = None
+    try:
+        du = psutil.disk_usage("/")
+        out["disk"] = {"state": "ok" if du.percent < 80 else ("warn" if du.percent < 90 else "down"),
+                       "percent": round(du.percent), "used": du.used, "total": du.total}
+    except Exception:
+        out["disk"] = None
+    return out
+
+
+def _metrics_chip(m: dict) -> str:
+    """Kompakte, farbige HTML-Zeile (Load · RAM · SSD) für die Status-Übersicht.
+    Wird server-seitig gerendert (No-JS-Fallback) und vom 5-s-Poll aktualisiert."""
+    _cls = {"ok": "mok", "warn": "mwarn", "down": "mdown"}
+    parts = []
+    cpu, ram, disk = m.get("cpu"), m.get("ram"), m.get("disk")
+    if cpu:
+        lo = cpu["load"]
+        title = f"1/5/15 min: {lo[0]:.2f} / {lo[1]:.2f} / {lo[2]:.2f} · {cpu['cores']} Kerne"
+        parts.append(f'<span class="{_cls.get(cpu["state"], "")}" title="{title}">Load {lo[0]:.2f}</span>')
+    if ram:
+        parts.append(f'<span class="{_cls.get(ram["state"], "")}" title="{_gb(ram["used"])}/{_gb(ram["total"])} GB">RAM {ram["percent"]}%</span>')
+    if disk:
+        parts.append(f'<span class="{_cls.get(disk["state"], "")}" title="{_gb(disk["used"])}/{_gb(disk["total"])} GB">SSD {disk["percent"]}%</span>')
+    return "⚙️ " + " · ".join(parts) if parts else ""
+
+
 _WD_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
@@ -848,7 +916,8 @@ async def h_board(req):
     flash = flash_text(lang, req.query.get("m", ""), n=req.query.get("n", ""), s=req.query.get("s", ""))
     resp = _render(req, "board", title=translate(lang, "nav_board"), items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
-                   generated=now_berlin("%H:%M:%S"), flash=flash)
+                   generated=now_berlin("%H:%M:%S"), metrics_html=_metrics_chip(_system_metrics()),
+                   flash=flash)
     resp.headers["Cache-Control"] = "no-store"   # kein veraltetes HTML aus Proxy/Browser-Cache
     return resp
 
@@ -995,7 +1064,7 @@ async def h_status_json(req):
     overall, sections = await _collect_health(req.app, pick_lang(req))
     return web.json_response(
         {"overall": overall, "version": VERSION, "sections": sections,
-         "generated": now_berlin("%H:%M:%S")},
+         "metrics": _system_metrics(), "generated": now_berlin("%H:%M:%S")},
         headers={"Cache-Control": "no-store"},
     )
 
