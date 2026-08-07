@@ -253,4 +253,9 @@
   hbar("chAvShopBest", L.av_shop_best, OK, 100);
   hbar("chAvShopWorst", L.av_shop_worst, "#f85149", 100);
   hbar("chAvHardest", L.av_hardest, "#d29922", 100);
+
+  // ── Block 6: Datenqualität ────────────────────────────────────────────────
+  hbar("chDqShopUncanon", L.dq_shop_uncanon, "#f85149");
+  hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922", 100);
+  hbar("chDqVariants", L.dq_variants, ACCENT);
 })();

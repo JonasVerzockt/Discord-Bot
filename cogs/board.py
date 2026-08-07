@@ -501,6 +501,21 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('av_shop_best_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopBest"></canvas></div></div>
   <div class=chartbox><h4>{{ t('av_shop_worst_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopWorst"></canvas></div></div>
   <div class=chartbox><h4>{{ t('av_hardest_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvHardest"></canvas></div></div>
+ {% elif aid=='quality' %}
+  {% set q = data.quality %}
+  <p class=muted style="margin-top:0">{{ t('dq_intro') }}</p>
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ q.coverage_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_coverage') }}</div></div>
+   <div class=kpi><div class=v>{{ q.uncanon }}</div><div class=l>{{ t('kpi_dq_uncanon') }}</div></div>
+   <div class=kpi><div class=v>{{ q.adjusted_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_adjusted') }}</div></div>
+  </div>
+  <div class=chartbox><h4>{{ t('dq_shop_uncanon_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopUncanon"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_shop_adjusted_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopAdjusted"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_variants_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqVariants"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_uncanon_list_title') }}</h4>
+   {% if q.uncanon_raw %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('dq_uncanon_show', n=q.uncanon_raw|length) }}</summary>
+    <div class=raritygrid>{% for name,cnt in q.uncanon_raw %}<div>{{ name }} <span class=muted>· {{ cnt }}</span></div>{% endfor %}</div></details>{% endif %}
+  </div>
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
@@ -1044,6 +1059,22 @@ def _stats_l10n(lang: str, data: dict) -> dict:
         out["av_hardest"] = {"title": translate(lang, "av_hardest_title"), "axis": rate_axis,
                              "labels": [s for s, _, _, _ in av["hardest"]],
                              "values": [r for _, r, _, _ in av["hardest"]]}
+
+    # ── Block 6: Datenqualität ──────────────────────────────────────────────
+    q = data.get("quality")
+    if q:
+        out["dq_shop_uncanon"] = {"title": translate(lang, "dq_shop_uncanon_title"),
+                                  "axis": translate(lang, "dq_shop_uncanon_axis"),
+                                  "labels": [s for s, _ in q["shop_uncanon"]],
+                                  "values": [n for _, n in q["shop_uncanon"]]}
+        out["dq_shop_adjusted"] = {"title": translate(lang, "dq_shop_adjusted_title"),
+                                   "axis": translate(lang, "dq_shop_adjusted_axis"),
+                                   "labels": [s for s, _, _ in q["shop_adjusted"]],
+                                   "values": [r for _, r, _ in q["shop_adjusted"]]}
+        out["dq_variants"] = {"title": translate(lang, "dq_variants_title"),
+                              "axis": translate(lang, "dq_variants_axis"),
+                              "labels": [s for s, _ in q["variants"]],
+                              "values": [n for _, n in q["variants"]]}
     return out
 
 

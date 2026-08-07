@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import SHOPS_DATA_FILE, DATA_DIRECTORY
-from utils.availability import is_merch_product
+from utils.availability import is_merch_product, normalize_species_name
 from utils.currency import to_eur
 from utils.timez import BERLIN
 
@@ -169,6 +169,12 @@ def _compute(d: dict) -> dict:
     shop_instock: Counter = Counter()                # Shop -> lagernde Angebote
     species_offers: Counter = Counter()              # Art -> Angebote
     species_instock: Counter = Counter()             # Art -> lagernde Angebote
+    q_with = q_uncanon = q_adjusted = 0              # Datenqualität: gesamt-Zähler
+    shop_canon: Counter = Counter()                  # Shop -> Angebote mit canonical
+    shop_uncanon: Counter = Counter()                # Shop -> Angebote OHNE canonical
+    shop_adjusted: Counter = Counter()               # Shop -> angepasste Namen (Tippf./Synonym)
+    species_rawforms: dict[str, set] = defaultdict(set)  # canonical -> Menge Roh-Schreibweisen
+    uncanon_raw: Counter = Counter()                 # unaufgelöster Rohname -> Häufigkeit
 
     for s in shops:
         ps = s.get("products") or []
@@ -214,6 +220,22 @@ def _compute(d: dict) -> dict:
                 if cs:
                     genus_prices[genus].append(eur)
                     species_prices[cs].append(eur)
+            # Datenqualität: canonical-Abdeckung, Anpassungen (Tippf./Synonym), Roh-Schreibweisen.
+            raw = (p.get("species") or "").strip()
+            if cs:
+                q_with += 1
+                shop_canon[shop_id] += 1
+                nr = normalize_species_name(raw)
+                species_rawforms[cs].add(nr or raw.lower())
+                if nr and nr != cs.lower():      # echte Korrektur (kein reines cf./sp.-Entfernen)
+                    q_adjusted += 1
+                    shop_adjusted[shop_id] += 1
+            else:
+                q_uncanon += 1
+                shop_uncanon[shop_id] += 1
+                key = raw or (p.get("title") or "").strip()
+                if key:
+                    uncanon_raw[key] += 1
 
     instock_pct = round(100 * instock_live / live_products, 1) if live_products else 0.0
     countries_sorted = sorted(countries.items(), key=lambda kv: (-kv[1], kv[0]))
@@ -297,6 +319,25 @@ def _compute(d: dict) -> dict:
          for sp in species_offers if len(species_shops.get(sp, ())) >= 5],
         key=lambda x: (x[1], -x[2]))[:10]
 
+    # ── Block 6: Datenqualität (canonical) ──────────────────────────────────
+    q_live = q_with + q_uncanon
+    quality = {
+        "coverage_pct": _rate(q_with, q_live),
+        "with_canon": q_with,
+        "uncanon": q_uncanon,
+        "adjusted": q_adjusted,
+        "adjusted_pct": _rate(q_adjusted, q_with),
+        "shop_uncanon": sorted(((shop_name[i], shop_uncanon[i]) for i in shop_uncanon),
+                               key=lambda x: -x[1])[:10],
+        "shop_adjusted": sorted(
+            [(shop_name[i], _rate(shop_adjusted.get(i, 0), shop_canon.get(i, 0)), shop_canon.get(i, 0))
+             for i in shop_offers if shop_offers[i] >= 20 and shop_canon.get(i, 0) > 0],
+            key=lambda x: -x[1])[:10],
+        "variants": sorted(((sp, len(f)) for sp, f in species_rawforms.items() if len(f) > 1),
+                           key=lambda x: (-x[1], x[0]))[:10],
+        "uncanon_raw": uncanon_raw.most_common(40),
+    }
+
     overview = {
         "shops_total": shops_total,
         "shops_with_products": shops_with_products,
@@ -346,6 +387,7 @@ def _compute(d: dict) -> dict:
             "shop_worst": shop_worst,            # [(Shop, Quote%, Angebote)]
             "hardest": hardest,                  # [(Art, Quote%, Shops, Angebote)] ab 5 Shops
         },
+        "quality": quality,                      # canonical-Abdeckung, Anpassungen, Roh-Schreibweisen
     }
 
 

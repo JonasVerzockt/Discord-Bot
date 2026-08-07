@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.2.4` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.2.5` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1141,7 +1141,8 @@ Umgesetzt sind bislang:
 - **Block 2 „Arten & Gattungen"**: Top-Gattungen als **Treemap** (self-hosted Plugin `chartjs-chart-treemap`), beliebteste Arten nach Shop-Reichweite, Raritäten (Arten in nur 1 Shop – Anzahl + Auszug) und eine Long-Tail-Verteilung (Arten je Shop-Reichweite).
 - **Block 3 „Shop-Vergleich"**: Sortimentsgröße (Angebote je Shop), Sortimentsbreite (verschiedene Arten je Shop), Exklusiv-Arten (Shop ist einziger Anbieter) und ein Streudiagramm Breite vs. Tiefe (alle Shops).
 - **Block 4 „Preise"** (alles in EUR): KPI-Kacheln (Median, Ø, p25/p75, Min/Max), Preis-Histogramm (bis 99. Perzentil, Rest gebündelt), Median-Preis je Top-Gattung und die größten Preisspannen je Art (günstigster–teuerster Anbieter). Preisbasis: niedrigster positiver Variantenpreis je Angebot; Umrechnung via `utils/currency.py` (EZB/Frankfurter + Fallback).
-- **Block 5 „Verfügbarkeit"** (Snapshot-Lagerquoten): je Top-Gattung, je Land (ab 20 Angeboten), beste und niedrigste Shop-Verfügbarkeit (ab 20 Angeboten) sowie „am schwersten erhältlich" (breit gelistete, aber selten lagernde Arten, ab 5 Shops). *(Verfügbarkeit über die Zeit folgt in Block 7 aus der Preis-Historie.)*
+- **Block 5 „Verfügbarkeit"** (Snapshot-Lagerquoten): je Top-Gattung, je Land (ab 20 Angeboten), beste und niedrigste Shop-Verfügbarkeit (ab 20 Angeboten) sowie „am schwersten erhältlich" (breit gelistete, aber selten lagernde Arten, ab 5 Shops).
+- **Block 6 „Datenqualität"** (canonical): KPIs (Abdeckung %, Angebote ohne canonical, Anteil angepasster Namen), Shops mit den meisten „ohne canonical"-Angeboten, Shops mit höchster Anpassungsquote (ab 20 Angeboten), Arten mit den meisten zusammengeführten Schreibweisen und eine Liste der häufigsten unaufgelösten Rohnamen. „Angepasst" = normalisierter Rohname ≠ canonical (echte Tippfehler-/Synonym-Korrektur, via `utils/availability.normalize_species_name`). *(Verfügbarkeit über die Zeit folgt in Block 7 aus der Preis-Historie.)*
 
 Ranglisten zeigen generell die **Top 10**; ein sinnvoller Rest wird als „übrige" zusammengefasst. Zeitstempel (Datenstand/Erzeugt) werden in Berliner Zeit mit MEZ/MESZ angezeigt. *(Die weiteren Blöcke werden schrittweise ausgebaut.)*
 
