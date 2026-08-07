@@ -65,6 +65,24 @@ from utils import shop_stats
 
 # Vendored statische Assets (Chart.js self-hosted, kein CDN) unter <repo>/static/.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+# Rechtsseiten-Inhalte unter <repo>/legal/. Echte Datei (z.B. impressum.html) liegt
+# NICHT im Git (gitignored) und wird bevorzugt geladen; sonst die .example-Vorlage.
+LEGAL_DIR = Path(__file__).resolve().parent.parent / "legal"
+_LEGAL_PAGES = {"impressum", "datenschutz"}
+
+
+def _legal_content(name: str) -> tuple[str, bool]:
+    """Lädt den HTML-Body einer Rechtsseite. Rückgabe: (html, is_example).
+    Reihenfolge: legal/<name>.html (echt) > legal/<name>.example.html (Vorlage)."""
+    if name not in _LEGAL_PAGES:
+        return ("", True)
+    for path, is_example in ((LEGAL_DIR / f"{name}.html", False),
+                             (LEGAL_DIR / f"{name}.example.html", True)):
+        try:
+            return (path.read_text(encoding="utf-8"), is_example)
+        except OSError:
+            continue
+    return ("<p>[[Seite noch nicht konfiguriert]]</p>", True)
 # Strikte Allowlist auslieferbarer Dateien -> {Dateiname: Content-Type}. Neue Assets
 # hier eintragen (der /static-Handler baut den Pfad nur aus diesen Literalen).
 _STATIC_FILES = {
@@ -200,6 +218,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .kpi .v{font-size:22px;font-weight:700} .kpi .l{color:#8b949e;font-size:12px;margin-top:2px}
  .chartbox{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px;margin-top:12px}
  .chartbox h4{margin:0 0 8px;font-size:14px;color:#c9d1d9;font-weight:600}
+ .info{cursor:help;color:#8b949e;font-size:12px;font-weight:400;user-select:none}
+ .info:hover{color:#58a6ff}
  .chartwrap{position:relative;height:320px}
  .raritygrid{columns:2;column-gap:18px;margin-top:8px;font-size:13px;color:#8b949e}
  .raritygrid div{break-inside:avoid;padding:1px 0;font-style:italic}
@@ -207,6 +227,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .rangesw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
  .rangesw a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
  .rangesw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
+ .legal{max-width:820px} .legal h3{margin:18px 0 6px;font-size:15px;color:#c9d1d9} .legal p{margin:0 0 8px} .legal code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:1px 5px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
@@ -218,6 +239,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   💖 <strong>{{ t('footer_run') }}</strong>
   <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
   · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">{{ t('footer_source') }}</a>
+  · <a href="/impressum?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_impressum') }}</a>
+  · <a href="/datenschutz?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_privacy') }}</a>
 </footer>
 </body></html>"""
 
@@ -454,7 +477,7 @@ STATS = """{% extends "base" %}{% block body %}
 </nav>
 {% for aid,key in sections %}
 <section id="{{ aid }}" class="statsec">
- <h3>{{ t(key) }}</h3>
+ <h3>{{ t(key) }} <span class="info" title="{{ t('exp_sec_' ~ aid) }}">ⓘ</span></h3>
  {% if aid=='overview' %}
   {% set o = data.overview %}
   <div class=kpigrid>
@@ -474,7 +497,7 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('sp_genera_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chGenera"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sp_reach_title') }}</h4><div class="chartwrap" style="height:400px"><canvas id="chReach"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sp_longtail_title') }}</h4><div class=chartwrap><canvas id="chLongtail"></canvas></div></div>
-  <div class=chartbox><h4>{{ t('sp_rarities_title') }}</h4>
+  <div class=chartbox><h4>{{ t('sp_rarities_title') }} <span class="info" title="{{ t('exp_rarities') }}">ⓘ</span></h4>
    <p class=muted style="margin-top:0">{{ t('sp_rarities_count', n=sp.rarities_count) }}</p>
    {% if sp.rarities_sample %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=sp.rarities_sample|length) }}</summary>
     <div class=raritygrid>{% for r in sp.rarities_sample %}<div>{{ r }}</div>{% endfor %}</div></details>{% endif %}
@@ -542,17 +565,26 @@ STATS = """{% extends "base" %}{% block body %}
  {% endif %}
 </section>
 {% endfor %}
-<script src="/static/chart.umd.js"></script>
-<script src="/static/chartjs-chart-treemap.min.js"></script>
+<script src="/static/chart.umd.js?v={{ ver }}"></script>
+<script src="/static/chartjs-chart-treemap.min.js?v={{ ver }}"></script>
 <script>var STATS = {{ data|tojson }}; var STATS_L = {{ l10n|tojson }};</script>
-<script src="/static/stats.js"></script>
+<script src="/static/stats.js?v={{ ver }}"></script>
 {% endif %}
+{% endblock %}"""
+
+# Rechtsseiten (Impressum/Datenschutz): schlanker Wrapper; der eigentliche Inhalt
+# kommt aus Dateien in legal/ (echte Datei bevorzugt, sonst .example, siehe _legal_content).
+LEGAL = """{% extends "base" %}{% block body %}
+<h2>{{ heading }}</h2>
+{% if is_example %}<div class=flash>{{ t('legal_draft_note') }}</div>{% endif %}
+<p class=muted>{{ t('legal_lang_note') }}</p>
+<div class="legal">{{ body|safe }}</div>
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
-                                     "stats": STATS}),
+                                     "stats": STATS, "legal": LEGAL}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -964,6 +996,22 @@ async def h_board(req):
     return resp
 
 
+# Zuordnung Diagramm-Canvas -> i18n-Erklärungsschlüssel (für Hover-Tooltips, via stats.js).
+_CHART_EXP = {
+    "chCountries": "exp_countries", "chStock": "exp_stock",
+    "chGenera": "exp_genera", "chReach": "exp_reach", "chLongtail": "exp_longtail",
+    "chShopOffers": "exp_shop_offers", "chShopBreadth": "exp_shop_breadth",
+    "chShopExclusive": "exp_shop_exclusive", "chShopScatter": "exp_shop_scatter",
+    "chPriceHist": "exp_price_hist", "chPriceGenus": "exp_price_genus", "chPriceSpread": "exp_price_spread",
+    "chAvGenus": "exp_av_genus", "chAvCountry": "exp_av_country", "chAvShopBest": "exp_av_shop_best",
+    "chAvShopWorst": "exp_av_shop_worst", "chAvHardest": "exp_av_hardest",
+    "chDqShopUncanon": "exp_dq_shop_uncanon", "chDqShopAdjusted": "exp_dq_shop_adjusted",
+    "chDqVariants": "exp_dq_variants",
+    "chTrPrice": "exp_tr_price", "chTrChanges": "exp_tr_changes", "chTrDrops": "exp_tr_drops",
+    "chTrIncreases": "exp_tr_increases", "chTrAvail": "exp_tr_avail",
+}
+
+
 def _top10(pairs, other_label=None):
     """Aus [(label, wert), …] die Top 10 als (labels, values). Ist *other_label*
     gesetzt und gibt es einen Rest, wird dieser als eine „übrige"-Position summiert."""
@@ -1127,7 +1175,26 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                            "x": translate(lang, "tr_month_axis"),
                            "labels": [m for m, _, _ in av], "values": [r for _, r, _ in av],
                            "empty": not ts.get("has_stock")}
+
+    # Hover-Erklärungen je Diagramm (Canvas-ID -> Text); stats.js hängt das ⓘ an die Überschrift.
+    out["exp"] = {cid: translate(lang, key) for cid, key in _CHART_EXP.items()}
     return out
+
+
+async def h_impressum(req):
+    """Impressum (§ 5 DDG) – Inhalt aus legal/impressum(.example).html."""
+    lang = pick_lang(req)
+    body, is_example = _legal_content("impressum")
+    return _render(req, "legal", title=translate(lang, "nav_impressum"),
+                   heading=translate(lang, "nav_impressum"), body=body, is_example=is_example)
+
+
+async def h_datenschutz(req):
+    """Datenschutzerklärung (Art. 13 DSGVO) – Inhalt aus legal/datenschutz(.example).html."""
+    lang = pick_lang(req)
+    body, is_example = _legal_content("datenschutz")
+    return _render(req, "legal", title=translate(lang, "nav_privacy"),
+                   heading=translate(lang, "nav_privacy"), body=body, is_example=is_example)
 
 
 async def h_stats(req):
@@ -1149,7 +1216,7 @@ async def h_stats(req):
     if data:
         l10n = _stats_l10n(lang, data, ts)
     resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n,
-                   ts_available=bool(ts and ts.get("available")), ts_range=range_key)
+                   ts_available=bool(ts and ts.get("available")), ts_range=range_key, ver=VERSION)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -1558,6 +1625,7 @@ def build_app(bot) -> web.Application:
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
+        web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
         web.get("/status.json", h_status_json),
         web.get("/status/check/{key}", h_status_detail),
         web.post("/status/incident/{id}/note", h_incident_note),

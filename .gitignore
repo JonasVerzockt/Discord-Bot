@@ -9,6 +9,10 @@ credentials.json
 !service_account.example.json
 !shop_mapping.example.csv
 
+# ── Rechtsseiten: echte Inhalte NICHT ins Git, Vorlagen (.example) schon ──
+legal/impressum.html
+legal/datenschutz.html
+
 # ── Alte/Backup-Dateien ────────────────────────────────────────────────────────
 bot.py
 backup_*.zip
