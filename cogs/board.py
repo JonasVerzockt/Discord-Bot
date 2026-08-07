@@ -26,10 +26,12 @@ Sicherheit: nur an 127.0.0.1 binden (Reverse-Proxy/HTTPS davor), Honeypot,
 Rate-Limits, HMAC-gehashte IPs (keine Roh-IP), CSRF auf Admin-Aktionen,
 Jinja2-Autoescape gegen XSS.
 """
+import asyncio
 import csv as _csv
 import hashlib
 import hmac
 import io
+import json
 import logging
 import os
 import re
@@ -56,6 +58,11 @@ from utils.timez import BERLIN, now_berlin, berlin_from_utc_naive
 from urllib.parse import urlencode
 from utils.board_i18n import (LANGS, FLAGS, FLAG_TITLE, pick_lang, translate,
                               type_label, flash_text)
+from utils.currency import ensure_rates
+from utils import shop_stats
+
+# Vendored statische Assets (Chart.js self-hosted, kein CDN) unter <repo>/static/.
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 logger = logging.getLogger(__name__)
 
@@ -170,10 +177,23 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .langsw a{border:1px solid #30363d;border-radius:6px;padding:2px 7px;font-size:13px;line-height:1.4;color:#8b949e}
  .langsw a:hover{text-decoration:none;border-color:#3d444d}
  .langsw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
+ .langsw svg.fl{width:18px;height:12px;vertical-align:middle;border-radius:2px;border:1px solid #30363d;margin-right:1px}
+ .statmeta{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 6px}
+ .statmeta span{font-size:12px;color:#8b949e;background:#0f141a;border:1px solid #21262d;border-radius:20px;padding:3px 10px}
+ .secnav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:5;background:#0d1117;padding:10px 0;border-bottom:1px solid #21262d;margin-bottom:8px}
+ .secnav a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
+ .statsec{scroll-margin-top:58px;padding:16px 0;border-bottom:1px solid #161b22}
+ .statsec h3{margin:0 0 12px;font-size:17px}
+ .kpigrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+ .kpi{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px 14px}
+ .kpi .v{font-size:22px;font-weight:700} .kpi .l{color:#8b949e;font-size:12px;margin-top:2px}
+ .chartbox{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px;margin-top:12px}
+ .chartbox h4{margin:0 0 8px;font-size:14px;color:#c9d1d9;font-weight:600}
+ .chartwrap{position:relative;height:320px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
- <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0] }} {{ flags[code][1] }}</a>{% endfor %}</span>
+ <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
 <div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
@@ -389,8 +409,30 @@ ADMIN = """{% extends "base" %}{% block body %}
 {% endblock %}"""
 
 STATS = """{% extends "base" %}{% block body %}
-<h2>{{ t('nav_stats') }}</h2>
-<p class=muted>{{ t('stats_soon') }}</p>
+{% set sections = [('overview','st_sec_overview'),('species','st_sec_species'),('shops','st_sec_shops'),('prices','st_sec_prices'),('availability','st_sec_availability'),('quality','st_sec_quality'),('trends','st_sec_trends')] %}
+<h2 style="margin-bottom:6px">{{ t('nav_stats') }}</h2>
+{% if not data %}
+<div class=flash>{{ t('st_error') }}</div>
+{% else %}
+<p class=muted style="margin-top:0">{{ t('st_intro') }}</p>
+<div class="statmeta">
+ <span>📅 {{ t('st_data_as_of', d=data.meta.fetched_at) }}</span>
+ <span>💶 {{ t('st_fx_note') }}</span>
+ <span>♻️ {{ t('st_cache_note') }}</span>
+ <span>🕒 {{ t('st_generated', d=data.meta.generated_at) }}</span>
+</div>
+<nav class="secnav"><span class=muted>{{ t('st_nav') }}</span>
+ {% for aid,key in sections %}<a href="#{{ aid }}">{{ t(key) }}</a>{% endfor %}
+</nav>
+{% for aid,key in sections %}
+<section id="{{ aid }}" class="statsec">
+ <h3>{{ t(key) }}</h3>
+ <p class=muted>{{ t('st_wip') }}</p>
+</section>
+{% endfor %}
+<script src="/static/chart.umd.js"></script>
+<script>var STATS = {{ data|tojson }};</script>
+{% endif %}
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
@@ -755,8 +797,35 @@ async def h_board(req):
 
 
 async def h_stats(req):
-    """Statistik-Seite (Platzhalter – wird im nächsten Schritt mit Inhalten gefüllt)."""
-    return _render(req, "stats", title=translate(pick_lang(req), "nav_stats"))
+    """Öffentliche Statistik-Seite. Aggregiert live aus shops_data.json (15-min-Cache).
+    Währungskurse werden zuvor sichergestellt (für die späteren EUR-Preisblöcke)."""
+    lang = pick_lang(req)
+    data = None
+    try:
+        await ensure_rates()                                   # EZB/Frankfurter + Fallback
+        data = await asyncio.to_thread(shop_stats.compute)     # Datei-I/O + CPU im Thread
+    except FileNotFoundError:
+        logger.warning("📊 Stats: shops_data.json nicht gefunden (%s)", SHOPS_DATA_FILE)
+    except Exception as e:
+        logger.warning("📊 Stats-Aggregation fehlgeschlagen: %s", e, exc_info=True)
+    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def h_static(req):
+    """Liefert vendored statische Assets (z.B. self-hosted Chart.js) aus <repo>/static/.
+    Nur einfache Dateinamen (kein Pfad-Traversal), nur bekannte Endungen."""
+    name = req.match_info["name"]
+    if "/" in name or "\\" in name or ".." in name or name.startswith("."):
+        raise web.HTTPNotFound()
+    p = STATIC_DIR / name
+    if not p.is_file():
+        raise web.HTTPNotFound()
+    ct = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml"}.get(
+        name.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+    return web.FileResponse(p, headers={"Cache-Control": "public, max-age=86400",
+                                        "Content-Type": ct})
 
 
 async def h_status_json(req):
@@ -1144,7 +1213,7 @@ def build_app(bot) -> web.Application:
     app["bot"] = bot
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
-        web.get("/stats", h_stats),
+        web.get("/stats", h_stats), web.get("/static/{name}", h_static),
         web.get("/status.json", h_status_json),
         web.get("/status/check/{key}", h_status_detail),
         web.post("/status/incident/{id}/note", h_incident_note),

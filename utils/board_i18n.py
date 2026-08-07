@@ -40,12 +40,29 @@ from __future__ import annotations
 LANGS = ("de", "en", "eo")
 DEFAULT_LANG = "de"
 
-# Flaggen/Labels für den Umschalter. Esperanto hat kein Länder-Emoji – wir nutzen
-# das grüne Quadrat (Anlehnung an die Esperanto-Flagge) plus Kürzel.
+# Flaggen für den Umschalter als Inline-SVG (KEINE Emoji-Flaggen: die rendern u.a.
+# unter Windows nur als Buchstaben "DE"/"GB"). Jeweils (SVG, Kürzel). Das SVG wird
+# im Template mit |safe ausgegeben. de = Bundesflagge, en = Union Jack (vereinfacht),
+# eo = Esperanto-Flagge (grün mit weißem Kanton + grünem Stern „verda stelo").
+_SVG_DE = ('<svg class=fl viewBox="0 0 5 3" preserveAspectRatio="none">'
+           '<rect width="5" height="3" fill="#000"/>'
+           '<rect y="1" width="5" height="1" fill="#D00"/>'
+           '<rect y="2" width="5" height="1" fill="#FFCE00"/></svg>')
+_SVG_EN = ('<svg class=fl viewBox="0 0 60 30" preserveAspectRatio="none">'
+           '<rect width="60" height="30" fill="#012169"/>'
+           '<path d="M0,0 60,30 M60,0 0,30" stroke="#fff" stroke-width="6"/>'
+           '<path d="M0,0 60,30 M60,0 0,30" stroke="#C8102E" stroke-width="2.5"/>'
+           '<path d="M30,0 V30 M0,15 H60" stroke="#fff" stroke-width="10"/>'
+           '<path d="M30,0 V30 M0,15 H60" stroke="#C8102E" stroke-width="6"/></svg>')
+_SVG_EO = ('<svg class=fl viewBox="0 0 60 30" preserveAspectRatio="none">'
+           '<rect width="60" height="30" fill="#009900"/>'
+           '<rect width="15" height="15" fill="#fff"/>'
+           '<polygon fill="#009900" points="7.5,1.3 8.97,5.48 13.4,5.58 9.88,8.27 '
+           '11.14,12.52 7.5,10 3.86,12.52 5.12,8.27 1.6,5.58 6.03,5.48"/></svg>')
 FLAGS = {
-    "de": ("\U0001F1E9\U0001F1EA", "DE"),   # 🇩🇪
-    "en": ("\U0001F1EC\U0001F1E7", "EN"),   # 🇬🇧
-    "eo": ("\U0001F7E9", "EO"),             # 🟩
+    "de": (_SVG_DE, "DE"),
+    "en": (_SVG_EN, "EN"),
+    "eo": (_SVG_EO, "EO"),
 }
 FLAG_TITLE = {
     "de": "Deutsch",
@@ -77,6 +94,22 @@ T: dict[str, dict[str, str]] = {
     "nav_submit": {"de": "Einreichen", "en": "Submit", "eo": "Sendi"},
     "nav_stats": {"de": "📊 Statistiken", "en": "📊 Statistics", "eo": "📊 Statistiko"},
     "stats_soon": {"de": "Die Statistik-Seite wird gerade aufgebaut – schau bald wieder vorbei.", "en": "The statistics page is being built – check back soon.", "eo": "La statistika paĝo estas konstruata – revenu baldaŭ."},
+    # Stats-Seite: Kopf, Navigation, Sektionen
+    "st_intro": {"de": "Auswertungen zu Shops und Produkten aus den Grabber-Daten. Alle Zahlen beziehen sich auf den unten genannten Datenstand.", "en": "Analytics on shops and products from the grabber data. All figures refer to the data snapshot noted below.", "eo": "Analizoj pri butikoj kaj produktoj el la grabber-datumoj. Ĉiuj ciferoj rilatas al la sube menciita datumstato."},
+    "st_nav": {"de": "Springe zu:", "en": "Jump to:", "eo": "Salti al:"},
+    "st_data_as_of": {"de": "Datenstand: {d}", "en": "Data as of: {d}", "eo": "Datumstato: {d}"},
+    "st_generated": {"de": "Erzeugt: {d}", "en": "Generated: {d}", "eo": "Generita: {d}"},
+    "st_fx_note": {"de": "Fremdwährungen in EUR umgerechnet (Kurse: EZB/Frankfurter, Fallback für seltene Währungen; im Speicher bis 6 h gecacht).", "en": "Foreign currencies converted to EUR (rates: ECB/Frankfurter, fallback for rare currencies; cached in memory up to 6 h).", "eo": "Fremdaj valutoj konvertitaj al EUR (kursoj: EEB/Frankfurter, retrostreĉo por maloftaj valutoj; kaŝmemorigita ĝis 6 h)."},
+    "st_cache_note": {"de": "Live berechnet, im Speicher bis zu 15 min zwischengespeichert.", "en": "Computed live, cached in memory for up to 15 min.", "eo": "Kalkulita realtempe, kaŝmemorigita ĝis 15 min."},
+    "st_error": {"de": "Statistikdaten sind momentan nicht verfügbar (Datenquelle fehlt oder wird gerade erzeugt).", "en": "Statistics data is currently unavailable (source missing or being generated).", "eo": "Statistikaj datumoj nun ne haveblas (fonto mankas aŭ estas generata)."},
+    "st_wip": {"de": "Dieser Bereich wird gerade gebaut.", "en": "This section is being built.", "eo": "Ĉi tiu sekcio estas konstruata."},
+    "st_sec_overview": {"de": "Marktüberblick", "en": "Market overview", "eo": "Merkata superrigardo"},
+    "st_sec_species": {"de": "Arten & Gattungen", "en": "Species & genera", "eo": "Specioj & genroj"},
+    "st_sec_shops": {"de": "Shop-Vergleich", "en": "Shop comparison", "eo": "Butika komparo"},
+    "st_sec_prices": {"de": "Preise", "en": "Prices", "eo": "Prezoj"},
+    "st_sec_availability": {"de": "Verfügbarkeit", "en": "Availability", "eo": "Havebleco"},
+    "st_sec_quality": {"de": "Datenqualität", "en": "Data quality", "eo": "Datumkvalito"},
+    "st_sec_trends": {"de": "Zeitverläufe", "en": "Trends over time", "eo": "Tempaj tendencoj"},
     "nav_support": {"de": "💖 Unterstützen", "en": "💖 Support", "eo": "💖 Subteni"},
     "nav_owner": {"de": "Owner", "en": "Owner", "eo": "Posedanto"},
     "nav_admin": {"de": "Admin", "en": "Admin", "eo": "Administro"},
