@@ -110,6 +110,21 @@ T: dict[str, dict[str, str]] = {
     "st_sec_availability": {"de": "Verfügbarkeit", "en": "Availability", "eo": "Havebleco"},
     "st_sec_quality": {"de": "Datenqualität", "en": "Data quality", "eo": "Datumkvalito"},
     "st_sec_trends": {"de": "Zeitverläufe", "en": "Trends over time", "eo": "Tempaj tendencoj"},
+    # Punkt 1: Marktüberblick – KPI-Kacheln, Diagramme
+    "kpi_shops": {"de": "Shops", "en": "Shops", "eo": "Butikoj"},
+    "kpi_shops_with": {"de": "Shops mit Produkten", "en": "Shops with products", "eo": "Butikoj kun produktoj"},
+    "kpi_live": {"de": "Angebote (Ameisen)", "en": "Offers (ants)", "eo": "Ofertoj (formikoj)"},
+    "kpi_merch": {"de": "Merch / Zubehör", "en": "Merch / accessories", "eo": "Var- / akcesoraĵoj"},
+    "kpi_species": {"de": "Arten", "en": "Species", "eo": "Specioj"},
+    "kpi_genera": {"de": "Gattungen", "en": "Genera", "eo": "Genroj"},
+    "kpi_instock_pct": {"de": "Lagerquote (Ameisen)", "en": "In-stock rate (ants)", "eo": "Stok-kvoto (formikoj)"},
+    "kpi_countries": {"de": "Länder", "en": "Countries", "eo": "Landoj"},
+    "ch_countries_title": {"de": "Shops pro Land (Top 12)", "en": "Shops per country (top 12)", "eo": "Butikoj laŭ lando (supraj 12)"},
+    "ch_countries_axis": {"de": "Shops", "en": "Shops", "eo": "Butikoj"},
+    "ch_stock_title": {"de": "Verfügbarkeit der Ameisen-Angebote", "en": "Availability of ant offers", "eo": "Havebleco de formik-ofertoj"},
+    "lbl_instock": {"de": "lagernd", "en": "in stock", "eo": "en stoko"},
+    "lbl_outstock": {"de": "nicht lagernd", "en": "out of stock", "eo": "ne en stoko"},
+    "lbl_other": {"de": "übrige", "en": "other", "eo": "aliaj"},
     "nav_support": {"de": "💖 Unterstützen", "en": "💖 Support", "eo": "💖 Subteni"},
     "nav_owner": {"de": "Owner", "en": "Owner", "eo": "Posedanto"},
     "nav_admin": {"de": "Admin", "en": "Admin", "eo": "Administro"},
@@ -284,6 +299,38 @@ _TYPE_KEYS = {"bug": "type_bug", "feature": "type_feature", "idea": "type_idea"}
 
 def type_label(lang: str, typ: str) -> str:
     return translate(lang, _TYPE_KEYS.get((typ or "").lower(), "type_idea"))
+
+
+# Lokalisierte Ländernamen (Babel/CLDR) – wie bei /shop_list. Cache pro Sprache.
+_LOCALE_CACHE: dict = {}
+
+
+def _locale(lang: str):
+    if lang not in _LOCALE_CACHE:
+        try:
+            from babel import Locale
+            _LOCALE_CACHE[lang] = Locale.parse(lang)
+        except Exception:
+            try:
+                from babel import Locale
+                _LOCALE_CACHE[lang] = Locale.parse("en")
+            except Exception:
+                _LOCALE_CACHE[lang] = None
+    return _LOCALE_CACHE[lang]
+
+
+def country_name(lang: str, iso: str) -> str:
+    """ISO-Ländercode -> lokalisierter Name (Fallback: Großbuchstaben-Code)."""
+    code = (iso or "").upper()
+    if not code or code == "??":
+        return "?"
+    loc = _locale(lang)
+    if loc is None:
+        return code
+    try:
+        return loc.territories.get(code, code)
+    except Exception:
+        return code
 
 
 def flash_text(lang: str, code: str, n: str = "", s: str = "") -> str:

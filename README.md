@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.1.5` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.1.6` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1133,7 +1133,9 @@ Technisch läuft das Board als **eigener Webdienst im selben Prozess wie der Bot
 
 **Mehrsprachig (de/en/eo):** Alle leserseitigen Board-Texte sind in **Deutsch, Englisch und Esperanto** verfügbar. Oben rechts im Header schaltet ein **Flaggen-Umschalter** (kleine Inline-SVG-Flaggen, kein Emoji – rendert plattformübergreifend gleich) die Sprache um; technisch geschieht das ausschließlich über den URL-Parameter `?lang=de|en|eo` (**kein Cookie**), der auf jeder Seite mitgeführt wird. Ohne Parameter wird die **Browser-Sprache** (`Accept-Language`) genutzt, sonst Deutsch. Der Sprachkatalog liegt in `utils/board_i18n.py`. Bewusst **nicht** übersetzt sind die einzelnen Kacheln des Status-Dashboards (Name + Detailtext): Der Kachelname dient zugleich als **stabiler Schlüssel** für die Vorfall-Historie (`board_incidents.check_key`) und die Kachel-Links (`/status/check/<key>`) – lokalisiert werden dort nur Gesamt-Ampel, Sektions-Titel und die übrigen Seitentexte.
 
-**Statistik-Seite (`/stats`):** Öffentliche Auswertungen zu Shops und Produkten aus den Grabber-Daten (`utils/shop_stats.py`), live aggregiert mit 15-min-In-Memory-Cache und angezeigtem Datenstand. Eine lange Scroll-Seite mit Sprungnavigation über mehrere Blöcke (Marktüberblick, Arten & Gattungen, Shop-Vergleich, Preise, Verfügbarkeit, Datenqualität, Zeitverläufe). Diagramme über **self-hosted Chart.js** (vendored unter `static/`, ausgeliefert via `/static/…`, **kein CDN**). Fremdwährungen werden für Preisauswertungen über `utils/currency.py` (EZB/Frankfurter + Fallback) nach EUR umgerechnet. *(Die einzelnen Blöcke werden schrittweise ausgebaut.)*
+**Statistik-Seite (`/stats`):** Öffentliche Auswertungen zu Shops und Produkten aus den Grabber-Daten (`utils/shop_stats.py`), live aggregiert mit 15-min-In-Memory-Cache und angezeigtem Datenstand. Eine lange Scroll-Seite mit Sprungnavigation über mehrere Blöcke (Marktüberblick, Arten & Gattungen, Shop-Vergleich, Preise, Verfügbarkeit, Datenqualität, Zeitverläufe). Diagramme über **self-hosted Chart.js** (vendored unter `static/`, ausgeliefert via `/static/…`, **kein CDN**; die Diagramm-Logik liegt in `static/stats.js`). Fremdwährungen werden für Preisauswertungen über `utils/currency.py` (EZB/Frankfurter + Fallback) nach EUR umgerechnet. Merch/Zubehör wird für die Lebendtier-Kennzahlen mit derselben Wortliste wie im Bot herausgefiltert (`utils/availability.is_merch_product`), Ländernamen werden über Babel/CLDR lokalisiert.
+
+Bereits umgesetzt ist **Block 1 „Marktüberblick"**: KPI-Kacheln (Shops, Shops mit Produkten, Ameisen-Angebote, Merch, Arten, Gattungen, Lagerquote, Länder), ein Balkendiagramm „Shops pro Land" (Top 12 + übrige) und ein Verfügbarkeits-Donut (lagernd vs. nicht lagernd). *(Die weiteren Blöcke werden schrittweise ausgebaut.)*
 
 ### Was ist das Board?
 

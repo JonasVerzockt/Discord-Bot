@@ -57,7 +57,7 @@ from utils.db import execute_db
 from utils.timez import BERLIN, now_berlin, berlin_from_utc_naive
 from urllib.parse import urlencode
 from utils.board_i18n import (LANGS, FLAGS, FLAG_TITLE, pick_lang, translate,
-                              type_label, flash_text)
+                              type_label, flash_text, country_name)
 from utils.currency import ensure_rates
 from utils import shop_stats
 
@@ -427,11 +427,28 @@ STATS = """{% extends "base" %}{% block body %}
 {% for aid,key in sections %}
 <section id="{{ aid }}" class="statsec">
  <h3>{{ t(key) }}</h3>
- <p class=muted>{{ t('st_wip') }}</p>
+ {% if aid=='overview' %}
+  {% set o = data.overview %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ o.shops_total }}</div><div class=l>{{ t('kpi_shops') }}</div></div>
+   <div class=kpi><div class=v>{{ o.shops_with_products }}</div><div class=l>{{ t('kpi_shops_with') }}</div></div>
+   <div class=kpi><div class=v>{{ o.live_products }}</div><div class=l>{{ t('kpi_live') }}</div></div>
+   <div class=kpi><div class=v>{{ o.merch_products }}</div><div class=l>{{ t('kpi_merch') }}</div></div>
+   <div class=kpi><div class=v>{{ o.species_total }}</div><div class=l>{{ t('kpi_species') }}</div></div>
+   <div class=kpi><div class=v>{{ o.genera_total }}</div><div class=l>{{ t('kpi_genera') }}</div></div>
+   <div class=kpi><div class=v>{{ o.instock_pct }}&nbsp;%</div><div class=l>{{ t('kpi_instock_pct') }}</div></div>
+   <div class=kpi><div class=v>{{ o.countries|length }}</div><div class=l>{{ t('kpi_countries') }}</div></div>
+  </div>
+  <div class=chartbox><h4>{{ t('ch_countries_title') }}</h4><div class=chartwrap><canvas id="chCountries"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('ch_stock_title') }}</h4><div class="chartwrap" style="height:260px"><canvas id="chStock"></canvas></div></div>
+ {% else %}
+  <p class=muted>{{ t('st_wip') }}</p>
+ {% endif %}
 </section>
 {% endfor %}
 <script src="/static/chart.umd.js"></script>
-<script>var STATS = {{ data|tojson }};</script>
+<script>var STATS = {{ data|tojson }}; var STATS_L = {{ l10n|tojson }};</script>
+<script src="/static/stats.js"></script>
 {% endif %}
 {% endblock %}"""
 
@@ -796,11 +813,36 @@ async def h_board(req):
     return resp
 
 
+def _stats_l10n(lang: str, data: dict) -> dict:
+    """Sprachabhängige Beschriftungen für die JS-Diagramme (die Rohzahlen in `data`
+    sind sprachneutral). Wird als eigene JSON-Insel `STATS_L` an die Seite gegeben."""
+    ov = data["overview"]
+    cs = ov.get("countries", [])
+    top = cs[:12]
+    rest = sum(n for _, n in cs[12:])
+    countries = [[country_name(lang, iso), n] for iso, n in top]
+    if rest:
+        countries.append([translate(lang, "lbl_other"), rest])
+    return {
+        "countries": {
+            "title": translate(lang, "ch_countries_title"),
+            "axis": translate(lang, "ch_countries_axis"),
+            "labels": [c[0] for c in countries],
+            "values": [c[1] for c in countries],
+        },
+        "stock": {
+            "title": translate(lang, "ch_stock_title"),
+            "labels": [translate(lang, "lbl_instock"), translate(lang, "lbl_outstock")],
+            "values": [ov.get("instock_live", 0), ov.get("out_of_stock_live", 0)],
+        },
+    }
+
+
 async def h_stats(req):
     """Öffentliche Statistik-Seite. Aggregiert live aus shops_data.json (15-min-Cache).
     Währungskurse werden zuvor sichergestellt (für die späteren EUR-Preisblöcke)."""
     lang = pick_lang(req)
-    data = None
+    data = l10n = None
     try:
         await ensure_rates()                                   # EZB/Frankfurter + Fallback
         data = await asyncio.to_thread(shop_stats.compute)     # Datei-I/O + CPU im Thread
@@ -808,7 +850,9 @@ async def h_stats(req):
         logger.warning("📊 Stats: shops_data.json nicht gefunden (%s)", SHOPS_DATA_FILE)
     except Exception as e:
         logger.warning("📊 Stats-Aggregation fehlgeschlagen: %s", e, exc_info=True)
-    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data)
+    if data:
+        l10n = _stats_l10n(lang, data)
+    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
