@@ -528,6 +528,24 @@ CREATE TABLE IF NOT EXISTS product_price_reason (
     new_price     REAL,
     currency_iso  TEXT
 );
+
+-- Bestands-Historie (aenderungsbasiert): nur bei Wechsel lagernd<->nicht lagernd
+-- wird ein Eintrag geschrieben; der Snapshot haelt den letzten Stand je Produkt.
+CREATE TABLE IF NOT EXISTS product_stock_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id  INTEGER NOT NULL,
+    in_stock    INTEGER NOT NULL,
+    recorded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_psh_product
+    ON product_stock_history(product_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_psh_time
+    ON product_stock_history(recorded_at);
+
+CREATE TABLE IF NOT EXISTS product_stock_snapshot (
+    product_id INTEGER PRIMARY KEY,
+    in_stock   INTEGER NOT NULL
+);
 """
 
 def _instock_variants(product: dict) -> dict:
@@ -611,7 +629,24 @@ def _store_reason(cur, pid, reason, currency) -> None:
     )
 
 
-def _track_prices(shop_map: dict) -> tuple[int, int]:
+def _track_stock(cur, pid, product) -> int:
+    """Schreibt einen Bestands-Historien-Eintrag NUR bei Wechsel (lagernd<->nicht).
+    Bestand = Produkt aktiv UND auf Lager. Rueckgabe: 1 wenn ein Eintrag geschrieben wurde."""
+    cur_stock = 1 if (product.get("in_stock") and product.get("is_active")) else 0
+    cur.execute("SELECT in_stock FROM product_stock_snapshot WHERE product_id=?", (pid,))
+    row = cur.fetchone()
+    if row is None:
+        cur.execute("INSERT INTO product_stock_history (product_id, in_stock) VALUES (?,?)", (pid, cur_stock))
+        cur.execute("INSERT OR REPLACE INTO product_stock_snapshot (product_id, in_stock) VALUES (?,?)", (pid, cur_stock))
+        return 1
+    if row[0] != cur_stock:
+        cur.execute("INSERT INTO product_stock_history (product_id, in_stock) VALUES (?,?)", (pid, cur_stock))
+        cur.execute("UPDATE product_stock_snapshot SET in_stock=? WHERE product_id=?", (cur_stock, pid))
+        return 1
+    return 0
+
+
+def _track_prices(shop_map: dict) -> tuple[int, int, int, int, int]:
     """
     Vergleicht aktuelle Preise mit dem letzten Eintrag in price_history.db.
     Schreibt nur einen neuen Eintrag wenn sich der Preis geaendert hat.
@@ -628,12 +663,15 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
         checked = 0
         new_variant_entries = 0
         checked_variants = 0
+        new_stock_entries = 0
 
         for shop in shop_map.values():
             for p in shop.get("products", []):
                 pid = p.get("id")
                 if pid is None:
                     continue
+                # Bestands-Historie fuer ALLE Produkte (auch 0€), vor dem 0€-Skip.
+                new_stock_entries += _track_stock(cur, pid, p)
                 try:
                     min_p = float(p.get("min_price") or 0)
                     max_p = float(p.get("max_price") or 0)
@@ -709,7 +747,7 @@ def _track_prices(shop_map: dict) -> tuple[int, int]:
                         new_variant_entries += 1
 
         conn.commit()
-        return new_entries, checked, new_variant_entries, checked_variants
+        return new_entries, checked, new_variant_entries, checked_variants, new_stock_entries
     finally:
         conn.close()
 
@@ -771,10 +809,10 @@ def main():
 
         # 4. Preis-History tracken
         try:
-            new_entries, checked, v_new, v_checked = _track_prices(shop_map)
+            new_entries, checked, v_new, v_checked, s_new = _track_prices(shop_map)
             logger.info(
                 f"💶 Preis-Tracking: {checked} Produkte ({new_entries} neu), "
-                f"{v_checked} Varianten ({v_new} neu) -> {PRICE_HISTORY_DB}"
+                f"{v_checked} Varianten ({v_new} neu), Bestand ({s_new} Änderungen) -> {PRICE_HISTORY_DB}"
             )
             # Heartbeat: mtime nach JEDEM erfolgreichen Preis-Lauf aktualisieren.
             # Ohne dies bewegt sich die mtime nur bei tatsächlichen Preisänderungen

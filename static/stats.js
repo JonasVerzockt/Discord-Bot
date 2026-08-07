@@ -26,6 +26,13 @@
 
   function el(id) { return document.getElementById(id); }
 
+  // Treemap-Plugin registrieren (self-hosted). Falls der UMD-Build sich bereits
+  // selbst registriert hat, wird der Fehler ignoriert.
+  try {
+    var TM = window["chartjs-chart-treemap"];
+    if (TM && TM.TreemapController) Chart.register(TM.TreemapController, TM.TreemapElement);
+  } catch (e) { /* bereits registriert */ }
+
   // ── Shops pro Land (horizontaler Balken) ──────────────────────────────────
   (function () {
     var c = el("chCountries"); if (!c || !L.countries) return;
@@ -82,4 +89,230 @@
       },
     });
   })();
+
+  // ── Top-Gattungen (Treemap) ───────────────────────────────────────────────
+  (function () {
+    var c = el("chGenera"); if (!c || !L.genera) return;
+    try {
+      new Chart(c, {
+        type: "treemap",
+        data: {
+          datasets: [{
+            tree: L.genera.data,
+            key: "v",
+            spacing: 1,
+            borderWidth: 1,
+            borderColor: "#0f141a",
+            backgroundColor: function (ctx) {
+              return ctx.type === "data" ? PALETTE[ctx.dataIndex % PALETTE.length] : "transparent";
+            },
+            labels: {
+              display: true, color: "#fff", font: { size: 11 },
+              formatter: function (ctx) { var d = ctx.raw._data || {}; return [d.g, "" + ctx.raw.v]; },
+            },
+          }],
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function (items) { return items[0].raw._data.g; },
+                label: function (ctx) { return "" + ctx.raw.v; },
+              },
+            },
+          },
+        },
+      });
+    } catch (e) { /* Treemap-Plugin nicht verfügbar -> Diagramm überspringen */ }
+  })();
+
+  // ── Beliebteste Arten nach Shop-Reichweite (horizontaler Balken) ──────────
+  (function () {
+    var c = el("chReach"); if (!c || !L.reach) return;
+    new Chart(c, {
+      type: "bar",
+      data: {
+        labels: L.reach.labels,
+        datasets: [{ label: L.reach.axis, data: L.reach.values, backgroundColor: OK, borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#21262d" } },
+          y: { grid: { display: false } },
+        },
+      },
+    });
+  })();
+
+  // ── Long-Tail: Arten nach Shop-Reichweite (vertikaler Balken) ─────────────
+  (function () {
+    var c = el("chLongtail"); if (!c || !L.longtail) return;
+    new Chart(c, {
+      type: "bar",
+      data: {
+        labels: L.longtail.labels,
+        datasets: [{ label: L.longtail.y, data: L.longtail.values, backgroundColor: ACCENT }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { title: { display: true, text: L.longtail.x }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: L.longtail.y }, grid: { color: "#21262d" } },
+        },
+      },
+    });
+  })();
+
+  // ── Block 3: Shop-Vergleich (horizontale Balken) ──────────────────────────
+  function hbar(id, cfg, color, xmax) {
+    var c = el(id); if (!c || !cfg) return;
+    var x = { beginAtZero: true, grid: { color: "#21262d" } };
+    if (xmax) { x.max = xmax; }
+    new Chart(c, {
+      type: "bar",
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.values, backgroundColor: color, borderRadius: 4 }] },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false } },
+        scales: { x: x, y: { grid: { display: false } } },
+      },
+    });
+  }
+  hbar("chShopOffers", L.shop_offers, ACCENT);
+  hbar("chShopBreadth", L.shop_breadth, OK);
+  hbar("chShopExclusive", L.shop_exclusive, "#d29922");
+
+  // ── Breite vs. Tiefe (Streudiagramm, alle Shops) ──────────────────────────
+  (function () {
+    var c = el("chShopScatter"); if (!c || !L.shop_scatter) return;
+    new Chart(c, {
+      type: "scatter",
+      data: { datasets: [{ label: L.shop_scatter.title, data: L.shop_scatter.points,
+                           backgroundColor: ACCENT, pointRadius: 4, pointHoverRadius: 6 }] },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) {
+            var p = ctx.raw; return p.label + ": " + p.x + " " + L.shop_scatter.x + ", " + p.y + " " + L.shop_scatter.y;
+          } } },
+        },
+        scales: {
+          x: { title: { display: true, text: L.shop_scatter.x }, beginAtZero: true, grid: { color: "#21262d" } },
+          y: { title: { display: true, text: L.shop_scatter.y }, beginAtZero: true, grid: { color: "#21262d" } },
+        },
+      },
+    });
+  })();
+
+  // ── Block 4: Preise ───────────────────────────────────────────────────────
+  (function () {
+    var c = el("chPriceHist"); if (!c || !L.price_hist) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: L.price_hist.labels, datasets: [{ label: L.price_hist.y, data: L.price_hist.values, backgroundColor: ACCENT }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { title: { display: true, text: L.price_hist.x }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: L.price_hist.y }, grid: { color: "#21262d" } },
+        },
+      },
+    });
+  })();
+
+  hbar("chPriceGenus", L.price_genus, "#d29922");
+
+  // ── Preisspanne je Art (Floating-Bar: min–max) ────────────────────────────
+  (function () {
+    var c = el("chPriceSpread"); if (!c || !L.price_spread) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: L.price_spread.labels, datasets: [{ label: L.price_spread.axis, data: L.price_spread.ranges, backgroundColor: OK, borderRadius: 3 }] },
+      options: {
+        indexAxis: "y",
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) {
+            var r = ctx.raw; return r[0] + " € – " + r[1] + " €";
+          } } },
+        },
+        scales: {
+          x: { beginAtZero: true, title: { display: true, text: L.price_spread.axis }, grid: { color: "#21262d" } },
+          y: { grid: { display: false } },
+        },
+      },
+    });
+  })();
+
+  // ── Block 5: Verfügbarkeit (Lagerquoten in %, x bis 100) ──────────────────
+  hbar("chAvGenus", L.av_genus, OK, 100);
+  hbar("chAvCountry", L.av_country, ACCENT, 100);
+  hbar("chAvShopBest", L.av_shop_best, OK, 100);
+  hbar("chAvShopWorst", L.av_shop_worst, "#f85149", 100);
+  hbar("chAvHardest", L.av_hardest, "#d29922", 100);
+
+  // ── Block 6: Datenqualität ────────────────────────────────────────────────
+  hbar("chDqShopUncanon", L.dq_shop_uncanon, "#f85149");
+  hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922", 100);
+  hbar("chDqVariants", L.dq_variants, ACCENT);
+
+  // ── Block 7: Zeitverläufe ─────────────────────────────────────────────────
+  function line(id, cfg, color, ymax) {
+    var c = el(id); if (!c || !cfg || !cfg.labels || !cfg.labels.length) return;
+    var y = { beginAtZero: true, grid: { color: "#21262d" } };
+    if (ymax) { y.max = ymax; }
+    if (cfg.axis) { y.title = { display: true, text: cfg.axis }; }
+    new Chart(c, {
+      type: "line",
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis || "", data: cfg.values,
+              borderColor: color, backgroundColor: color, tension: 0.25, pointRadius: 2, fill: false }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, title: cfg.x ? { display: true, text: cfg.x } : undefined }, y: y },
+      },
+    });
+  }
+  line("chTrPrice", L.tr_price, ACCENT);
+  line("chTrAvail", L.tr_avail, OK, 100);
+
+  // Preisänderungen je Monat (gruppierte Balken: Senkungen/Erhöhungen)
+  (function () {
+    var c = el("chTrChanges"); if (!c || !L.tr_changes) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: L.tr_changes.labels, datasets: [
+        { label: L.tr_changes.down_label, data: L.tr_changes.down, backgroundColor: OK },
+        { label: L.tr_changes.up_label, data: L.tr_changes.up, backgroundColor: "#f85149" },
+      ] },
+      options: {
+        plugins: { legend: { position: "bottom" } },
+        scales: { x: { grid: { display: false } },
+                  y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: L.tr_changes.y }, grid: { color: "#21262d" } } },
+      },
+    });
+  })();
+
+  // Aktuelle größte Preis-Senkungen / -Erhöhungen (horizontale %-Balken, Tooltip alt→neu)
+  function drbar(id, cfg, color) {
+    var c = el(id); if (!c || !cfg || !cfg.labels || !cfg.labels.length) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.values, backgroundColor: color, borderRadius: 3 }] },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) {
+            var info = cfg.info && cfg.info[ctx.dataIndex] ? "  (" + cfg.info[ctx.dataIndex] + ")" : "";
+            return ctx.parsed.x + " %" + info;
+          } } } },
+        scales: { x: { title: { display: true, text: cfg.axis }, grid: { color: "#21262d" } },
+                  y: { grid: { display: false } } },
+      },
+    });
+  }
+  drbar("chTrDrops", L.tr_drops, OK);
+  drbar("chTrIncreases", L.tr_increases, "#f85149");
 })();

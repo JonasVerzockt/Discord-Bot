@@ -37,6 +37,8 @@ import os
 import re
 import secrets
 import time
+
+import psutil
 from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlparse
@@ -67,6 +69,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 # hier eintragen (der /static-Handler baut den Pfad nur aus diesen Literalen).
 _STATIC_FILES = {
     "chart.umd.js": "application/javascript",
+    "chartjs-chart-treemap.min.js": "application/javascript",
     "stats.js": "application/javascript",
 }
 
@@ -152,6 +155,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .status-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600;font-size:15px;margin-bottom:0}
  details[open]>.status-head{margin-bottom:4px}
  .status-ver{color:#8b949e;font-size:12px;font-weight:600;border:1px solid #30363d;border-radius:20px;padding:2px 9px;white-space:nowrap}
+ .status-metrics{font-size:12px;color:#8b949e;font-weight:400;white-space:nowrap}
+ .status-metrics .mok{color:#3fb950} .status-metrics .mwarn{color:#d29922} .status-metrics .mdown{color:#f85149}
  .status-stand{margin-left:auto;color:#6e7681;font-size:11px;font-weight:400;white-space:nowrap}
  .status-toggle{color:#8b949e;font-size:12px;font-weight:400;white-space:nowrap}
  .status-toggle::after{content:"▸";display:inline-block;margin-left:6px;transition:transform .15s}
@@ -196,6 +201,12 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .chartbox{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px;margin-top:12px}
  .chartbox h4{margin:0 0 8px;font-size:14px;color:#c9d1d9;font-weight:600}
  .chartwrap{position:relative;height:320px}
+ .raritygrid{columns:2;column-gap:18px;margin-top:8px;font-size:13px;color:#8b949e}
+ .raritygrid div{break-inside:avoid;padding:1px 0;font-style:italic}
+ @media(max-width:640px){.raritygrid{columns:1}}
+ .rangesw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+ .rangesw a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
+ .rangesw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
@@ -215,6 +226,7 @@ BOARD = """{% extends "base" %}{% block body %}
  <summary class="status-head">{{ t('status_head') }}
   <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
   <span id="hc-ver" class="status-ver" title="{{ t('ver_title') }}">v{{ version }}</span>
+  <span id="hc-metrics" class="status-metrics">{{ metrics_html|safe }}</span>
   <span id="hc-stand" class="status-stand" title="{{ t('stand_title') }}">{{ t('stand_label') }} {{ generated }}</span>
   <span class="status-toggle">{{ t('details') }}</span></summary>
  <div id="hc-body" class="status-body">
@@ -239,6 +251,15 @@ var I18N={incident:{{ t('incident_history')|tojson }},stand:{{ t('stand_label')|
   // last=null → der erste Poll (nach 5 s) gleicht die Anzeige einmal mit dem Server
   // ab, danach wird ausschließlich bei echten Änderungen neu gezeichnet.
   var last = null;
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function _gbjs(b){return (b/1073741824).toFixed(1);}
+  function _seg(part,label,val,title){ if(!part){return '';} var cls={ok:'mok',warn:'mwarn',down:'mdown'}[part.state]||''; return '<span class="'+cls+'" title="'+esc(title)+'">'+label+' '+val+'</span>'; }
+  function buildMetrics(m){ if(!m){return '';} var p=[];
+    if(m.cpu){ var lo=m.cpu.load; p.push(_seg(m.cpu,'Load',lo[0].toFixed(2),'1/5/15 min: '+lo[0].toFixed(2)+' / '+lo[1].toFixed(2)+' / '+lo[2].toFixed(2)+' · '+m.cpu.cores+' Kerne')); }
+    if(m.ram){ p.push(_seg(m.ram,'RAM',m.ram.percent+'%',_gbjs(m.ram.used)+'/'+_gbjs(m.ram.total)+' GB')); }
+    if(m.disk){ p.push(_seg(m.disk,'SSD',m.disk.percent+'%',_gbjs(m.disk.used)+'/'+_gbjs(m.disk.total)+' GB')); }
+    return p.length ? '⚙️ '+p.join(' · ') : ''; }
+  function setMetrics(m){ var e=document.getElementById('hc-metrics'); if(e){ e.innerHTML=buildMetrics(m); } }
   function build(d){
     var badge=document.getElementById('hc-badge');
     if(badge){ badge.className='status-badge s-'+d.overall[0]; badge.textContent=d.overall[1]; }
@@ -274,6 +295,7 @@ var I18N={incident:{{ t('incident_history')|tojson }},stand:{{ t('stand_label')|
       return r.json();
     }).then(function(d){
       setStand(I18N.stand+' '+d.generated);   // Zeitstempel bei JEDEM Poll aktualisieren
+      setMetrics(d.metrics);                  // CPU-Load/RAM/SSD bei JEDEM Poll aktualisieren
       var sig=JSON.stringify([d.overall, d.version, d.sections]);  // 'generated' bewusst NICHT vergleichen
       if(sig===last){ return; }   // Health unverändert -> Kacheln nicht neu rendern
       last=sig; build(d);
@@ -447,12 +469,81 @@ STATS = """{% extends "base" %}{% block body %}
   </div>
   <div class=chartbox><h4>{{ t('ch_countries_title') }}</h4><div class=chartwrap><canvas id="chCountries"></canvas></div></div>
   <div class=chartbox><h4>{{ t('ch_stock_title') }}</h4><div class="chartwrap" style="height:260px"><canvas id="chStock"></canvas></div></div>
+ {% elif aid=='species' %}
+  {% set sp = data.species %}
+  <div class=chartbox><h4>{{ t('sp_genera_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chGenera"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_reach_title') }}</h4><div class="chartwrap" style="height:400px"><canvas id="chReach"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_longtail_title') }}</h4><div class=chartwrap><canvas id="chLongtail"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_rarities_title') }}</h4>
+   <p class=muted style="margin-top:0">{{ t('sp_rarities_count', n=sp.rarities_count) }}</p>
+   {% if sp.rarities_sample %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=sp.rarities_sample|length) }}</summary>
+    <div class=raritygrid>{% for r in sp.rarities_sample %}<div>{{ r }}</div>{% endfor %}</div></details>{% endif %}
+  </div>
+ {% elif aid=='shops' %}
+  <div class=chartbox><h4>{{ t('sh_offers_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopOffers"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_breadth_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopBreadth"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_exclusive_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopExclusive"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_scatter_title') }}</h4><div class="chartwrap" style="height:380px"><canvas id="chShopScatter"></canvas></div></div>
+ {% elif aid=='prices' %}
+  {% set ps = data.prices.stats %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ ps.median }}&nbsp;€</div><div class=l>{{ t('kpi_price_median') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.mean }}&nbsp;€</div><div class=l>{{ t('kpi_price_mean') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.p25 }}&nbsp;€</div><div class=l>{{ t('kpi_price_p25') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.p75 }}&nbsp;€</div><div class=l>{{ t('kpi_price_p75') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.min }}&nbsp;€</div><div class=l>{{ t('kpi_price_min') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.max }}&nbsp;€</div><div class=l>{{ t('kpi_price_max') }}</div></div>
+  </div>
+  <p class=muted style="margin-top:8px">{{ t('pr_basis_note') }}</p>
+  <div class=chartbox><h4>{{ t('pr_hist_title') }}</h4><div class=chartwrap><canvas id="chPriceHist"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceGenus"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_spread_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpread"></canvas></div></div>
+ {% elif aid=='availability' %}
+  <div class=chartbox><h4>{{ t('av_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvGenus"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_country_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvCountry"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_shop_best_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopBest"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_shop_worst_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopWorst"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_hardest_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvHardest"></canvas></div></div>
+ {% elif aid=='quality' %}
+  {% set q = data.quality %}
+  <p class=muted style="margin-top:0">{{ t('dq_intro') }}</p>
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ q.coverage_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_coverage') }}</div></div>
+   <div class=kpi><div class=v>{{ q.uncanon }}</div><div class=l>{{ t('kpi_dq_uncanon') }}</div></div>
+   <div class=kpi><div class=v>{{ q.adjusted_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_adjusted') }}</div></div>
+  </div>
+  <div class=chartbox><h4>{{ t('dq_shop_uncanon_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopUncanon"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_shop_adjusted_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopAdjusted"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_variants_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqVariants"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_uncanon_list_title') }}</h4>
+   {% if q.uncanon_raw %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('dq_uncanon_show', n=q.uncanon_raw|length) }}</summary>
+    <div class=raritygrid>{% for name,cnt in q.uncanon_raw %}<div>{{ name }} <span class=muted>· {{ cnt }}</span></div>{% endfor %}</div></details>{% endif %}
+  </div>
+ {% elif aid=='trends' %}
+  <div class="rangesw">
+   <span class=muted>{{ t('tr_range_label') }}</span>
+   <a class="{{ 'on' if ts_range=='3' }}" href="/stats?lang={{ lang }}&range=3#trends">{{ t('tr_range_3') }}</a>
+   <a class="{{ 'on' if ts_range=='12' }}" href="/stats?lang={{ lang }}&range=12#trends">{{ t('tr_range_12') }}</a>
+   <a class="{{ 'on' if ts_range=='all' }}" href="/stats?lang={{ lang }}&range=all#trends">{{ t('tr_range_all') }}</a>
+  </div>
+  {% if not ts_available %}
+   <p class=muted>{{ t('tr_unavailable') }}</p>
+  {% else %}
+   <div class=chartbox><h4>{{ t('tr_price_title') }}</h4><p class=muted style="margin:0 0 6px">{{ t('tr_price_note') }}</p><div class=chartwrap><canvas id="chTrPrice"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_changes_title') }}</h4><div class=chartwrap><canvas id="chTrChanges"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_drops_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chTrDrops"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_increases_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chTrIncreases"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_avail_title') }}</h4>
+    {% if l10n.tr_avail and l10n.tr_avail.empty %}<p class=muted>{{ t('tr_avail_empty') }}</p>{% else %}<div class=chartwrap><canvas id="chTrAvail"></canvas></div>{% endif %}
+   </div>
+  {% endif %}
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
 </section>
 {% endfor %}
 <script src="/static/chart.umd.js"></script>
+<script src="/static/chartjs-chart-treemap.min.js"></script>
 <script>var STATS = {{ data|tojson }}; var STATS_L = {{ l10n|tojson }};</script>
 <script src="/static/stats.js"></script>
 {% endif %}
@@ -540,6 +631,59 @@ def _fmt_age(sec: float | None) -> str:
         return f"vor {h} h {rem} min" if rem else f"vor {h} h"
     d = h // 24
     return f"vor {d} {'Tag' if d == 1 else 'Tagen'}"
+
+
+def _gb(nbytes) -> str:
+    """Bytes -> GB-String mit einer Nachkommastelle."""
+    try:
+        return f"{nbytes / 1024 ** 3:.1f}"
+    except (TypeError, ValueError, ZeroDivisionError):
+        return "?"
+
+
+def _system_metrics() -> dict:
+    """Momentane Systemauslastung (anzeige-only, KEIN Incident-Logging, ohne Einfluss
+    auf den Gesamtstatus): CPU als Load-Average (1/5/15 min, relativ zu den Kernen),
+    RAM- und SSD-Auslastung. Ampel je Metrik. Einzelne Fehler -> None für die Metrik."""
+    out: dict = {}
+    try:
+        la1, la5, la15 = os.getloadavg()                 # nur Linux/Unix
+        cores = psutil.cpu_count() or 1
+        ratio = la1 / cores
+        out["cpu"] = {"state": "ok" if ratio < 0.7 else ("warn" if ratio < 1.0 else "down"),
+                      "load": [round(la1, 2), round(la5, 2), round(la15, 2)], "cores": cores}
+    except Exception:                                    # z.B. kein getloadavg (Windows)
+        out["cpu"] = None
+    try:
+        vm = psutil.virtual_memory()
+        out["ram"] = {"state": "ok" if vm.percent < 75 else ("warn" if vm.percent < 90 else "down"),
+                      "percent": round(vm.percent), "used": vm.used, "total": vm.total}
+    except Exception:
+        out["ram"] = None
+    try:
+        du = psutil.disk_usage("/")
+        out["disk"] = {"state": "ok" if du.percent < 80 else ("warn" if du.percent < 90 else "down"),
+                       "percent": round(du.percent), "used": du.used, "total": du.total}
+    except Exception:
+        out["disk"] = None
+    return out
+
+
+def _metrics_chip(m: dict) -> str:
+    """Kompakte, farbige HTML-Zeile (Load · RAM · SSD) für die Status-Übersicht.
+    Wird server-seitig gerendert (No-JS-Fallback) und vom 5-s-Poll aktualisiert."""
+    _cls = {"ok": "mok", "warn": "mwarn", "down": "mdown"}
+    parts = []
+    cpu, ram, disk = m.get("cpu"), m.get("ram"), m.get("disk")
+    if cpu:
+        lo = cpu["load"]
+        title = f"1/5/15 min: {lo[0]:.2f} / {lo[1]:.2f} / {lo[2]:.2f} · {cpu['cores']} Kerne"
+        parts.append(f'<span class="{_cls.get(cpu["state"], "")}" title="{title}">Load {lo[0]:.2f}</span>')
+    if ram:
+        parts.append(f'<span class="{_cls.get(ram["state"], "")}" title="{_gb(ram["used"])}/{_gb(ram["total"])} GB">RAM {ram["percent"]}%</span>')
+    if disk:
+        parts.append(f'<span class="{_cls.get(disk["state"], "")}" title="{_gb(disk["used"])}/{_gb(disk["total"])} GB">SSD {disk["percent"]}%</span>')
+    return "⚙️ " + " · ".join(parts) if parts else ""
 
 
 _WD_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -814,27 +958,41 @@ async def h_board(req):
     flash = flash_text(lang, req.query.get("m", ""), n=req.query.get("n", ""), s=req.query.get("s", ""))
     resp = _render(req, "board", title=translate(lang, "nav_board"), items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
-                   generated=now_berlin("%H:%M:%S"), flash=flash)
+                   generated=now_berlin("%H:%M:%S"), metrics_html=_metrics_chip(_system_metrics()),
+                   flash=flash)
     resp.headers["Cache-Control"] = "no-store"   # kein veraltetes HTML aus Proxy/Browser-Cache
     return resp
 
 
-def _stats_l10n(lang: str, data: dict) -> dict:
+def _top10(pairs, other_label=None):
+    """Aus [(label, wert), …] die Top 10 als (labels, values). Ist *other_label*
+    gesetzt und gibt es einen Rest, wird dieser als eine „übrige"-Position summiert."""
+    top = pairs[:10]
+    labels = [k for k, _ in top]
+    values = [v for _, v in top]
+    if other_label is not None:
+        rest = sum(v for _, v in pairs[10:])
+        if rest:
+            labels.append(other_label)
+            values.append(rest)
+    return labels, values
+
+
+def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
     """Sprachabhängige Beschriftungen für die JS-Diagramme (die Rohzahlen in `data`
-    sind sprachneutral). Wird als eigene JSON-Insel `STATS_L` an die Seite gegeben."""
+    sind sprachneutral). Wird als eigene JSON-Insel `STATS_L` an die Seite gegeben.
+    Ranglisten: Top 10, Rest wo sinnvoll als „übrige" gruppiert."""
     ov = data["overview"]
-    cs = ov.get("countries", [])
-    top = cs[:12]
-    rest = sum(n for _, n in cs[12:])
-    countries = [[country_name(lang, iso), n] for iso, n in top]
-    if rest:
-        countries.append([translate(lang, "lbl_other"), rest])
-    return {
+    other = translate(lang, "lbl_other")
+
+    # Block 1: Länder (lokalisierte Namen), Top 10 + übrige
+    named = [(country_name(lang, iso), n) for iso, n in ov.get("countries", [])]
+    c_labels, c_values = _top10(named, other)
+    out = {
         "countries": {
             "title": translate(lang, "ch_countries_title"),
             "axis": translate(lang, "ch_countries_axis"),
-            "labels": [c[0] for c in countries],
-            "values": [c[1] for c in countries],
+            "labels": c_labels, "values": c_values,
         },
         "stock": {
             "title": translate(lang, "ch_stock_title"),
@@ -843,22 +1001,155 @@ def _stats_l10n(lang: str, data: dict) -> dict:
         },
     }
 
+    # ── Block 2: Arten & Gattungen ──────────────────────────────────────────
+    sp = data.get("species")
+    if sp:
+        gtop = sp["genera"][:10]
+        grest = sum(n for _, n in sp["genera"][10:])
+        gdata = [{"g": g, "v": n} for g, n in gtop]
+        if grest:
+            gdata.append({"g": other, "v": grest})
+        out["genera"] = {"title": translate(lang, "sp_genera_title"), "data": gdata}
+        r_labels, r_values = _top10(sp["reach"])           # Arten: kein „übrige"
+        out["reach"] = {"title": translate(lang, "sp_reach_title"),
+                        "axis": translate(lang, "lbl_shops"),
+                        "labels": r_labels, "values": r_values}
+        out["longtail"] = {
+            "title": translate(lang, "sp_longtail_title"),
+            "x": translate(lang, "sp_longtail_x"),
+            "y": translate(lang, "sp_longtail_y"),
+            "labels": [str(k) for k, _ in sp["longtail"]],
+            "values": [n for _, n in sp["longtail"]],
+        }
+
+    # ── Block 3: Shop-Vergleich ─────────────────────────────────────────────
+    sh = data.get("shops")
+    if sh:
+        o_labels, o_values = _top10(sh["by_offers"], other)
+        out["shop_offers"] = {"title": translate(lang, "sh_offers_title"),
+                              "axis": translate(lang, "lbl_offers"),
+                              "labels": o_labels, "values": o_values}
+        b_labels, b_values = _top10(sh["by_breadth"])      # Breite: kein sinnvoller Summen-Rest
+        out["shop_breadth"] = {"title": translate(lang, "sh_breadth_title"),
+                               "axis": translate(lang, "lbl_species"),
+                               "labels": b_labels, "values": b_values}
+        e_labels, e_values = _top10(sh["by_exclusive"], other)
+        out["shop_exclusive"] = {"title": translate(lang, "sh_exclusive_title"),
+                                 "axis": translate(lang, "lbl_species"),
+                                 "labels": e_labels, "values": e_values}
+        out["shop_scatter"] = {
+            "title": translate(lang, "sh_scatter_title"),
+            "x": translate(lang, "sh_scatter_x"),
+            "y": translate(lang, "sh_scatter_y"),
+            "points": [{"x": p["species"], "y": p["offers"], "label": p["shop"]}
+                       for p in sh["scatter"]],
+        }
+
+    # ── Block 4: Preise ─────────────────────────────────────────────────────
+    pr = data.get("prices")
+    if pr and pr.get("stats", {}).get("n"):
+        out["price_hist"] = {"title": translate(lang, "pr_hist_title"),
+                             "x": translate(lang, "pr_hist_x"),
+                             "y": translate(lang, "pr_hist_y"),
+                             "labels": pr["hist"]["labels"], "values": pr["hist"]["counts"]}
+        out["price_genus"] = {"title": translate(lang, "pr_genus_title"),
+                              "axis": translate(lang, "pr_genus_axis"),
+                              "labels": [g for g, _ in pr["genus_median"]],
+                              "values": [v for _, v in pr["genus_median"]]}
+        out["price_spread"] = {"title": translate(lang, "pr_spread_title"),
+                               "axis": translate(lang, "pr_spread_axis"),
+                               "labels": [s[0] for s in pr["spread"]],
+                               "ranges": [[s[1], s[2]] for s in pr["spread"]]}
+
+    # ── Block 5: Verfügbarkeit ──────────────────────────────────────────────
+    av = data.get("availability")
+    if av:
+        rate_axis = translate(lang, "lbl_instock_rate")
+        out["av_genus"] = {"title": translate(lang, "av_genus_title"), "axis": rate_axis,
+                           "labels": [g for g, _ in av["by_genus"]],
+                           "values": [r for _, r in av["by_genus"]]}
+        out["av_country"] = {"title": translate(lang, "av_country_title"), "axis": rate_axis,
+                             "labels": [country_name(lang, iso) for iso, _, _ in av["by_country"]],
+                             "values": [r for _, r, _ in av["by_country"]]}
+        out["av_shop_best"] = {"title": translate(lang, "av_shop_best_title"), "axis": rate_axis,
+                               "labels": [s for s, _, _ in av["shop_best"]],
+                               "values": [r for _, r, _ in av["shop_best"]]}
+        out["av_shop_worst"] = {"title": translate(lang, "av_shop_worst_title"), "axis": rate_axis,
+                                "labels": [s for s, _, _ in av["shop_worst"]],
+                                "values": [r for _, r, _ in av["shop_worst"]]}
+        out["av_hardest"] = {"title": translate(lang, "av_hardest_title"), "axis": rate_axis,
+                             "labels": [s for s, _, _, _ in av["hardest"]],
+                             "values": [r for _, r, _, _ in av["hardest"]]}
+
+    # ── Block 6: Datenqualität ──────────────────────────────────────────────
+    q = data.get("quality")
+    if q:
+        out["dq_shop_uncanon"] = {"title": translate(lang, "dq_shop_uncanon_title"),
+                                  "axis": translate(lang, "dq_shop_uncanon_axis"),
+                                  "labels": [s for s, _ in q["shop_uncanon"]],
+                                  "values": [n for _, n in q["shop_uncanon"]]}
+        out["dq_shop_adjusted"] = {"title": translate(lang, "dq_shop_adjusted_title"),
+                                   "axis": translate(lang, "dq_shop_adjusted_axis"),
+                                   "labels": [s for s, _, _ in q["shop_adjusted"]],
+                                   "values": [r for _, r, _ in q["shop_adjusted"]]}
+        out["dq_variants"] = {"title": translate(lang, "dq_variants_title"),
+                              "axis": translate(lang, "dq_variants_axis"),
+                              "labels": [s for s, _ in q["variants"]],
+                              "values": [n for _, n in q["variants"]]}
+
+    # ── Block 7: Zeitverläufe ───────────────────────────────────────────────
+    if ts and ts.get("available"):
+        pot = ts.get("price_over_time", [])
+        out["tr_price"] = {"title": translate(lang, "tr_price_title"),
+                           "note": translate(lang, "tr_price_note"),
+                           "axis": translate(lang, "tr_price_axis"),
+                           "x": translate(lang, "tr_month_axis"),
+                           "labels": [m for m, _, _ in pot], "values": [v for _, v, _ in pot]}
+        ch = ts.get("changes_per_month", [])
+        out["tr_changes"] = {"title": translate(lang, "tr_changes_title"),
+                             "x": translate(lang, "tr_month_axis"),
+                             "y": translate(lang, "tr_count_axis"),
+                             "down_label": translate(lang, "tr_changes_down"),
+                             "up_label": translate(lang, "tr_changes_up"),
+                             "labels": [m for m, _, _ in ch],
+                             "down": [d for _, d, _ in ch], "up": [u for _, _, u in ch]}
+
+        def _dr(items):
+            return {"labels": [i[0] for i in items], "values": [i[3] for i in items],
+                    "info": [f"{i[1]} € → {i[2]} €" for i in items]}
+        out["tr_drops"] = {"title": translate(lang, "tr_drops_title"),
+                           "axis": translate(lang, "tr_pct_change"), **_dr(ts.get("price_drops", []))}
+        out["tr_increases"] = {"title": translate(lang, "tr_increases_title"),
+                               "axis": translate(lang, "tr_pct_change"), **_dr(ts.get("price_increases", []))}
+        av = ts.get("avail_over_time") or []
+        out["tr_avail"] = {"title": translate(lang, "tr_avail_title"),
+                           "axis": translate(lang, "lbl_instock_rate"),
+                           "x": translate(lang, "tr_month_axis"),
+                           "labels": [m for m, _, _ in av], "values": [r for _, r, _ in av],
+                           "empty": not ts.get("has_stock")}
+    return out
+
 
 async def h_stats(req):
     """Öffentliche Statistik-Seite. Aggregiert live aus shops_data.json (15-min-Cache).
     Währungskurse werden zuvor sichergestellt (für die späteren EUR-Preisblöcke)."""
     lang = pick_lang(req)
-    data = l10n = None
+    range_key = req.query.get("range", "12")
+    if range_key not in shop_stats.RANGE_MONTHS:
+        range_key = "12"
+    data = l10n = ts = None
     try:
         await ensure_rates()                                   # EZB/Frankfurter + Fallback
         data = await asyncio.to_thread(shop_stats.compute)     # Datei-I/O + CPU im Thread
+        ts = await asyncio.to_thread(shop_stats.compute_timeseries, range_key)
     except FileNotFoundError:
         logger.warning("📊 Stats: shops_data.json nicht gefunden (%s)", SHOPS_DATA_FILE)
     except Exception as e:
         logger.warning("📊 Stats-Aggregation fehlgeschlagen: %s", e, exc_info=True)
     if data:
-        l10n = _stats_l10n(lang, data)
-    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n)
+        l10n = _stats_l10n(lang, data, ts)
+    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n,
+                   ts_available=bool(ts and ts.get("available")), ts_range=range_key)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -887,7 +1178,7 @@ async def h_status_json(req):
     overall, sections = await _collect_health(req.app, pick_lang(req))
     return web.json_response(
         {"overall": overall, "version": VERSION, "sections": sections,
-         "generated": now_berlin("%H:%M:%S")},
+         "metrics": _system_metrics(), "generated": now_berlin("%H:%M:%S")},
         headers={"Cache-Control": "no-store"},
     )
 
