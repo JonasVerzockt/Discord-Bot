@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import math
+import sqlite3
 import threading
 import time
 from collections import Counter, defaultdict
@@ -406,4 +407,196 @@ def compute(force: bool = False) -> dict:
     with _lock:
         _cache["data"] = data
         _cache["at"] = now
+    return data
+
+
+# ── Block 7: Zeitverläufe aus price_history.db ──────────────────────────────────
+# Umschaltbarer Zeitraum: 3 / 12 Monate oder gesamte Historie.
+RANGE_MONTHS = {"3": 3, "12": 12, "all": None}
+_ts_lock = threading.Lock()
+_ts_cache: dict = {}                                  # range_key -> {"at":, "data":}
+_pid_cache: dict = {"at": 0.0, "map": None}
+
+
+def _pid_species() -> dict:
+    """{product_id: Artname} für lebende (Nicht-Merch-)Angebote – für Labels/Mapping
+    der Preis-Historie (die nur product_id kennt). 15-min-Cache."""
+    now = time.time()
+    if _pid_cache["map"] is not None and now - _pid_cache["at"] < _TTL:
+        return _pid_cache["map"]
+    m: dict = {}
+    try:
+        with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        for s in _iter_shops(d):
+            for p in (s.get("products") or []):
+                pid = p.get("id")
+                sp = (p.get("canonical_species") or p.get("species") or "").strip()
+                if pid is not None and sp and not is_merch_product(p):
+                    m[pid] = sp
+    except Exception:
+        pass
+    _pid_cache["map"] = m
+    _pid_cache["at"] = now
+    return m
+
+
+def _parse_dt(s: str) -> datetime:
+    return datetime.fromisoformat(str(s)).replace(tzinfo=timezone.utc)
+
+
+def _month_end(y: int, m: int) -> datetime:
+    return datetime(y + 1, 1, 1, tzinfo=timezone.utc) if m == 12 else datetime(y, m + 1, 1, tzinfo=timezone.utc)
+
+
+def _months_list(months: int | None, earliest: datetime | None) -> list:
+    """Liste der (Jahr, Monat)-Paare bis zum aktuellen Monat. months=None -> ab earliest."""
+    now = datetime.now(timezone.utc)
+    if months:
+        y, m, out = now.year, now.month, []
+        for _ in range(months):
+            out.append((y, m))
+            m -= 1
+            if m == 0:
+                m = 12
+                y -= 1
+        return list(reversed(out))
+    if not earliest:
+        return [(now.year, now.month)]
+    out, y, m = [], earliest.year, earliest.month
+    while (y, m) <= (now.year, now.month):
+        out.append((y, m))
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return out
+
+
+def _carry_forward_monthly(rows, months_list, pidmap, valuefn):
+    """Generisch: rows=[(pid, wert, recorded_at)] zeitlich sortiert. Trägt je Produkt
+    den letzten Wert fort und liefert je Monat aggregierte Werte via valuefn(dict)."""
+    current: dict = {}
+    idx, N = 0, len(rows)
+    series = []
+    for (y, m) in months_list:
+        end = _month_end(y, m)
+        while idx < N and _parse_dt(rows[idx][2]) < end:
+            pid, val, _ = rows[idx]
+            idx += 1
+            if pid in pidmap and val is not None:
+                current[pid] = val
+        series.append((f"{y:04d}-{m:02d}", valuefn(current), len(current)))
+    return series
+
+
+def _compute_timeseries(months: int | None) -> dict:
+    if not PRICE_HISTORY_DB.exists():
+        return {"available": False}
+    pidmap = _pid_species()
+    out = {"available": True, "has_stock": False}
+    cutoff = None
+    if months:
+        now = datetime.now(timezone.utc)
+        y, m = now.year, now.month - months + 1
+        while m <= 0:
+            m += 12
+            y -= 1
+        cutoff = f"{y:04d}-{m:02d}-01 00:00:00"
+    try:
+        conn = sqlite3.connect(f"file:{PRICE_HISTORY_DB}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return {"available": False}
+    try:
+        cur = conn.cursor()
+
+        def _q(sql, params=()):
+            try:
+                return cur.execute(sql, params).fetchall()
+            except sqlite3.Error:
+                return []
+
+        # frühester Monat (für „gesamte Historie")
+        earliest = None
+        r = _q("SELECT MIN(recorded_at) FROM product_price_history")
+        if r and r[0][0]:
+            try:
+                earliest = _parse_dt(r[0][0])
+            except Exception:
+                earliest = None
+        months_list = _months_list(months, earliest)
+
+        # 1) Preisentwicklung: Median-Einstiegspreis (EUR) je Monat, fortgeschrieben.
+        rows = [(pid, to_eur(mn, ci or "EUR"), rec)
+                for pid, mn, ci, rec in _q(
+                    "SELECT product_id, min_price, currency_iso, recorded_at "
+                    "FROM product_price_history ORDER BY recorded_at")]
+        rows = [(pid, e, rec) for pid, e, rec in rows if e and e > 0]
+        price_series = _carry_forward_monthly(
+            rows, months_list, pidmap,
+            lambda cur_d: round(_median(list(cur_d.values())), 2) if cur_d else 0.0)
+        out["price_over_time"] = price_series
+
+        # 2) Preisänderungen je Monat (Senkungen vs. Erhöhungen) aus Folge-Diffs.
+        chg: dict = {}
+        prev: dict = {}
+        for pid, mn, rec in _q("SELECT product_id, min_price, recorded_at "
+                               "FROM product_price_history ORDER BY product_id, recorded_at"):
+            if pid not in pidmap:
+                continue
+            if pid in prev and abs(mn - prev[pid]) > 1e-9:
+                dt = _parse_dt(rec)
+                b = chg.setdefault((dt.year, dt.month), [0, 0])
+                b[0 if mn < prev[pid] else 1] += 1
+            prev[pid] = mn
+        out["changes_per_month"] = [(f"{y:04d}-{m:02d}", chg.get((y, m), [0, 0])[0],
+                                     chg.get((y, m), [0, 0])[1]) for (y, m) in months_list]
+
+        # 3) Aktuelle größte Preis-Senkungen/-Erhöhungen (letzte Änderungs-Ursache).
+        rq = ("SELECT product_id, old_price, new_price, currency_iso, recorded_at "
+              "FROM product_price_reason WHERE old_price IS NOT NULL AND new_price IS NOT NULL")
+        params = ()
+        if cutoff:
+            rq += " AND recorded_at >= ?"
+            params = (cutoff,)
+        drops, incs = [], []
+        for pid, op, np, ci, rec in _q(rq, params):
+            if pid not in pidmap or not op or op <= 0:
+                continue
+            pct = round((np - op) / op * 100, 1)
+            item = (pidmap[pid], to_eur(op, ci or "EUR"), to_eur(np, ci or "EUR"), pct)
+            if np < op:
+                drops.append(item)
+            elif np > op:
+                incs.append(item)
+        drops.sort(key=lambda x: x[3])
+        incs.sort(key=lambda x: -x[3])
+        out["price_drops"] = drops[:10]
+        out["price_increases"] = incs[:10]
+
+        # 4) Verfügbarkeit über Zeit (aus Bestands-Historie; anfangs leer).
+        srows = _q("SELECT product_id, in_stock, recorded_at "
+                   "FROM product_stock_history ORDER BY recorded_at")
+        out["has_stock"] = bool(srows)
+        out["avail_over_time"] = _carry_forward_monthly(
+            srows, months_list, pidmap,
+            lambda cur_d: round(100 * sum(cur_d.values()) / len(cur_d), 1) if cur_d else 0.0) if srows else []
+        return out
+    finally:
+        conn.close()
+
+
+def compute_timeseries(range_key: str = "12") -> dict:
+    """Zeitreihen aus price_history.db mit umschaltbarem Zeitraum (3/12/all),
+    je Zeitraum 15-min-Cache. Synchron -> via asyncio.to_thread aufrufen."""
+    if range_key not in RANGE_MONTHS:
+        range_key = "12"
+    now = time.time()
+    with _ts_lock:
+        c = _ts_cache.get(range_key)
+        if c and now - c["at"] < _TTL:
+            return c["data"]
+    data = _compute_timeseries(RANGE_MONTHS[range_key])
+    with _ts_lock:
+        _ts_cache[range_key] = {"at": now, "data": data}
     return data

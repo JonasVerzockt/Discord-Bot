@@ -204,6 +204,9 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .raritygrid{columns:2;column-gap:18px;margin-top:8px;font-size:13px;color:#8b949e}
  .raritygrid div{break-inside:avoid;padding:1px 0;font-style:italic}
  @media(max-width:640px){.raritygrid{columns:1}}
+ .rangesw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+ .rangesw a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
+ .rangesw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
@@ -516,6 +519,24 @@ STATS = """{% extends "base" %}{% block body %}
    {% if q.uncanon_raw %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('dq_uncanon_show', n=q.uncanon_raw|length) }}</summary>
     <div class=raritygrid>{% for name,cnt in q.uncanon_raw %}<div>{{ name }} <span class=muted>· {{ cnt }}</span></div>{% endfor %}</div></details>{% endif %}
   </div>
+ {% elif aid=='trends' %}
+  <div class="rangesw">
+   <span class=muted>{{ t('tr_range_label') }}</span>
+   <a class="{{ 'on' if ts_range=='3' }}" href="/stats?lang={{ lang }}&range=3#trends">{{ t('tr_range_3') }}</a>
+   <a class="{{ 'on' if ts_range=='12' }}" href="/stats?lang={{ lang }}&range=12#trends">{{ t('tr_range_12') }}</a>
+   <a class="{{ 'on' if ts_range=='all' }}" href="/stats?lang={{ lang }}&range=all#trends">{{ t('tr_range_all') }}</a>
+  </div>
+  {% if not ts_available %}
+   <p class=muted>{{ t('tr_unavailable') }}</p>
+  {% else %}
+   <div class=chartbox><h4>{{ t('tr_price_title') }}</h4><p class=muted style="margin:0 0 6px">{{ t('tr_price_note') }}</p><div class=chartwrap><canvas id="chTrPrice"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_changes_title') }}</h4><div class=chartwrap><canvas id="chTrChanges"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_drops_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chTrDrops"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_increases_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chTrIncreases"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_avail_title') }}</h4>
+    {% if l10n.tr_avail and l10n.tr_avail.empty %}<p class=muted>{{ t('tr_avail_empty') }}</p>{% else %}<div class=chartwrap><canvas id="chTrAvail"></canvas></div>{% endif %}
+   </div>
+  {% endif %}
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
@@ -957,7 +978,7 @@ def _top10(pairs, other_label=None):
     return labels, values
 
 
-def _stats_l10n(lang: str, data: dict) -> dict:
+def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
     """Sprachabhängige Beschriftungen für die JS-Diagramme (die Rohzahlen in `data`
     sind sprachneutral). Wird als eigene JSON-Insel `STATS_L` an die Seite gegeben.
     Ranglisten: Top 10, Rest wo sinnvoll als „übrige" gruppiert."""
@@ -1075,6 +1096,37 @@ def _stats_l10n(lang: str, data: dict) -> dict:
                               "axis": translate(lang, "dq_variants_axis"),
                               "labels": [s for s, _ in q["variants"]],
                               "values": [n for _, n in q["variants"]]}
+
+    # ── Block 7: Zeitverläufe ───────────────────────────────────────────────
+    if ts and ts.get("available"):
+        pot = ts.get("price_over_time", [])
+        out["tr_price"] = {"title": translate(lang, "tr_price_title"),
+                           "note": translate(lang, "tr_price_note"),
+                           "axis": translate(lang, "tr_price_axis"),
+                           "x": translate(lang, "tr_month_axis"),
+                           "labels": [m for m, _, _ in pot], "values": [v for _, v, _ in pot]}
+        ch = ts.get("changes_per_month", [])
+        out["tr_changes"] = {"title": translate(lang, "tr_changes_title"),
+                             "x": translate(lang, "tr_month_axis"),
+                             "y": translate(lang, "tr_count_axis"),
+                             "down_label": translate(lang, "tr_changes_down"),
+                             "up_label": translate(lang, "tr_changes_up"),
+                             "labels": [m for m, _, _ in ch],
+                             "down": [d for _, d, _ in ch], "up": [u for _, _, u in ch]}
+
+        def _dr(items):
+            return {"labels": [i[0] for i in items], "values": [i[3] for i in items],
+                    "info": [f"{i[1]} € → {i[2]} €" for i in items]}
+        out["tr_drops"] = {"title": translate(lang, "tr_drops_title"),
+                           "axis": translate(lang, "tr_pct_change"), **_dr(ts.get("price_drops", []))}
+        out["tr_increases"] = {"title": translate(lang, "tr_increases_title"),
+                               "axis": translate(lang, "tr_pct_change"), **_dr(ts.get("price_increases", []))}
+        av = ts.get("avail_over_time") or []
+        out["tr_avail"] = {"title": translate(lang, "tr_avail_title"),
+                           "axis": translate(lang, "lbl_instock_rate"),
+                           "x": translate(lang, "tr_month_axis"),
+                           "labels": [m for m, _, _ in av], "values": [r for _, r, _ in av],
+                           "empty": not ts.get("has_stock")}
     return out
 
 
@@ -1082,17 +1134,22 @@ async def h_stats(req):
     """Öffentliche Statistik-Seite. Aggregiert live aus shops_data.json (15-min-Cache).
     Währungskurse werden zuvor sichergestellt (für die späteren EUR-Preisblöcke)."""
     lang = pick_lang(req)
-    data = l10n = None
+    range_key = req.query.get("range", "12")
+    if range_key not in shop_stats.RANGE_MONTHS:
+        range_key = "12"
+    data = l10n = ts = None
     try:
         await ensure_rates()                                   # EZB/Frankfurter + Fallback
         data = await asyncio.to_thread(shop_stats.compute)     # Datei-I/O + CPU im Thread
+        ts = await asyncio.to_thread(shop_stats.compute_timeseries, range_key)
     except FileNotFoundError:
         logger.warning("📊 Stats: shops_data.json nicht gefunden (%s)", SHOPS_DATA_FILE)
     except Exception as e:
         logger.warning("📊 Stats-Aggregation fehlgeschlagen: %s", e, exc_info=True)
     if data:
-        l10n = _stats_l10n(lang, data)
-    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n)
+        l10n = _stats_l10n(lang, data, ts)
+    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n,
+                   ts_available=bool(ts and ts.get("available")), ts_range=range_key)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 

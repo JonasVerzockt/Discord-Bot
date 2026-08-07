@@ -258,4 +258,61 @@
   hbar("chDqShopUncanon", L.dq_shop_uncanon, "#f85149");
   hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922", 100);
   hbar("chDqVariants", L.dq_variants, ACCENT);
+
+  // ── Block 7: Zeitverläufe ─────────────────────────────────────────────────
+  function line(id, cfg, color, ymax) {
+    var c = el(id); if (!c || !cfg || !cfg.labels || !cfg.labels.length) return;
+    var y = { beginAtZero: true, grid: { color: "#21262d" } };
+    if (ymax) { y.max = ymax; }
+    if (cfg.axis) { y.title = { display: true, text: cfg.axis }; }
+    new Chart(c, {
+      type: "line",
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis || "", data: cfg.values,
+              borderColor: color, backgroundColor: color, tension: 0.25, pointRadius: 2, fill: false }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, title: cfg.x ? { display: true, text: cfg.x } : undefined }, y: y },
+      },
+    });
+  }
+  line("chTrPrice", L.tr_price, ACCENT);
+  line("chTrAvail", L.tr_avail, OK, 100);
+
+  // Preisänderungen je Monat (gruppierte Balken: Senkungen/Erhöhungen)
+  (function () {
+    var c = el("chTrChanges"); if (!c || !L.tr_changes) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: L.tr_changes.labels, datasets: [
+        { label: L.tr_changes.down_label, data: L.tr_changes.down, backgroundColor: OK },
+        { label: L.tr_changes.up_label, data: L.tr_changes.up, backgroundColor: "#f85149" },
+      ] },
+      options: {
+        plugins: { legend: { position: "bottom" } },
+        scales: { x: { grid: { display: false } },
+                  y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: L.tr_changes.y }, grid: { color: "#21262d" } } },
+      },
+    });
+  })();
+
+  // Aktuelle größte Preis-Senkungen / -Erhöhungen (horizontale %-Balken, Tooltip alt→neu)
+  function drbar(id, cfg, color) {
+    var c = el(id); if (!c || !cfg || !cfg.labels || !cfg.labels.length) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.values, backgroundColor: color, borderRadius: 3 }] },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) {
+            var info = cfg.info && cfg.info[ctx.dataIndex] ? "  (" + cfg.info[ctx.dataIndex] + ")" : "";
+            return ctx.parsed.x + " %" + info;
+          } } } },
+        scales: { x: { title: { display: true, text: cfg.axis }, grid: { color: "#21262d" } },
+                  y: { grid: { display: false } } },
+      },
+    });
+  }
+  drbar("chTrDrops", L.tr_drops, OK);
+  drbar("chTrIncreases", L.tr_increases, "#f85149");
 })();
