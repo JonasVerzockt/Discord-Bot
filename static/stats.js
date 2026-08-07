@@ -207,4 +207,44 @@
       },
     });
   })();
+
+  // ── Block 4: Preise ───────────────────────────────────────────────────────
+  (function () {
+    var c = el("chPriceHist"); if (!c || !L.price_hist) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: L.price_hist.labels, datasets: [{ label: L.price_hist.y, data: L.price_hist.values, backgroundColor: ACCENT }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { title: { display: true, text: L.price_hist.x }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: L.price_hist.y }, grid: { color: "#21262d" } },
+        },
+      },
+    });
+  })();
+
+  hbar("chPriceGenus", L.price_genus, "#d29922");
+
+  // ── Preisspanne je Art (Floating-Bar: min–max) ────────────────────────────
+  (function () {
+    var c = el("chPriceSpread"); if (!c || !L.price_spread) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: L.price_spread.labels, datasets: [{ label: L.price_spread.axis, data: L.price_spread.ranges, backgroundColor: OK, borderRadius: 3 }] },
+      options: {
+        indexAxis: "y",
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) {
+            var r = ctx.raw; return r[0] + " € – " + r[1] + " €";
+          } } },
+        },
+        scales: {
+          x: { beginAtZero: true, title: { display: true, text: L.price_spread.axis }, grid: { color: "#21262d" } },
+          y: { grid: { display: false } },
+        },
+      },
+    });
+  })();
 })();

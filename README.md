@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.2.1` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.2.2` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1140,6 +1140,7 @@ Umgesetzt sind bislang:
 - **Block 1 „Marktüberblick"**: KPI-Kacheln (Shops, Shops mit Produkten, Ameisen-Angebote, Merch, Arten, Gattungen, Lagerquote, Länder), ein Balkendiagramm „Shops pro Land" (Top 12 + übrige) und ein Verfügbarkeits-Donut (lagernd vs. nicht lagernd).
 - **Block 2 „Arten & Gattungen"**: Top-Gattungen als **Treemap** (self-hosted Plugin `chartjs-chart-treemap`), beliebteste Arten nach Shop-Reichweite, Raritäten (Arten in nur 1 Shop – Anzahl + Auszug) und eine Long-Tail-Verteilung (Arten je Shop-Reichweite).
 - **Block 3 „Shop-Vergleich"**: Sortimentsgröße (Angebote je Shop), Sortimentsbreite (verschiedene Arten je Shop), Exklusiv-Arten (Shop ist einziger Anbieter) und ein Streudiagramm Breite vs. Tiefe (alle Shops).
+- **Block 4 „Preise"** (alles in EUR): KPI-Kacheln (Median, Ø, p25/p75, Min/Max), Preis-Histogramm (bis 99. Perzentil, Rest gebündelt), Median-Preis je Top-Gattung und die größten Preisspannen je Art (günstigster–teuerster Anbieter). Preisbasis: niedrigster positiver Variantenpreis je Angebot; Umrechnung via `utils/currency.py` (EZB/Frankfurter + Fallback).
 
 Ranglisten zeigen generell die **Top 10**; ein sinnvoller Rest wird als „übrige" zusammengefasst. Zeitstempel (Datenstand/Erzeugt) werden in Berliner Zeit mit MEZ/MESZ angezeigt. *(Die weiteren Blöcke werden schrittweise ausgebaut.)*
 

@@ -466,6 +466,20 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('sh_breadth_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopBreadth"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sh_exclusive_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopExclusive"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sh_scatter_title') }}</h4><div class="chartwrap" style="height:380px"><canvas id="chShopScatter"></canvas></div></div>
+ {% elif aid=='prices' %}
+  {% set ps = data.prices.stats %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ ps.median }}&nbsp;€</div><div class=l>{{ t('kpi_price_median') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.mean }}&nbsp;€</div><div class=l>{{ t('kpi_price_mean') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.p25 }}&nbsp;€</div><div class=l>{{ t('kpi_price_p25') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.p75 }}&nbsp;€</div><div class=l>{{ t('kpi_price_p75') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.min }}&nbsp;€</div><div class=l>{{ t('kpi_price_min') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.max }}&nbsp;€</div><div class=l>{{ t('kpi_price_max') }}</div></div>
+  </div>
+  <p class=muted style="margin-top:8px">{{ t('pr_basis_note') }}</p>
+  <div class=chartbox><h4>{{ t('pr_hist_title') }}</h4><div class=chartwrap><canvas id="chPriceHist"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceGenus"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_spread_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpread"></canvas></div></div>
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
@@ -919,6 +933,22 @@ def _stats_l10n(lang: str, data: dict) -> dict:
             "points": [{"x": p["species"], "y": p["offers"], "label": p["shop"]}
                        for p in sh["scatter"]],
         }
+
+    # ── Block 4: Preise ─────────────────────────────────────────────────────
+    pr = data.get("prices")
+    if pr and pr.get("stats", {}).get("n"):
+        out["price_hist"] = {"title": translate(lang, "pr_hist_title"),
+                             "x": translate(lang, "pr_hist_x"),
+                             "y": translate(lang, "pr_hist_y"),
+                             "labels": pr["hist"]["labels"], "values": pr["hist"]["counts"]}
+        out["price_genus"] = {"title": translate(lang, "pr_genus_title"),
+                              "axis": translate(lang, "pr_genus_axis"),
+                              "labels": [g for g, _ in pr["genus_median"]],
+                              "values": [v for _, v in pr["genus_median"]]}
+        out["price_spread"] = {"title": translate(lang, "pr_spread_title"),
+                               "axis": translate(lang, "pr_spread_axis"),
+                               "labels": [s[0] for s in pr["spread"]],
+                               "ranges": [[s[1], s[2]] for s in pr["spread"]]}
     return out
 
 
