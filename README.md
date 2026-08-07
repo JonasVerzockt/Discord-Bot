@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.2.6` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.2.7` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1145,7 +1145,11 @@ Umgesetzt sind bislang:
 - **Block 6 „Datenqualität"** (canonical): KPIs (Abdeckung %, Angebote ohne canonical, Anteil angepasster Namen), Shops mit den meisten „ohne canonical"-Angeboten, Shops mit höchster Anpassungsquote (ab 20 Angeboten), Arten mit den meisten zusammengeführten Schreibweisen und eine Liste der häufigsten unaufgelösten Rohnamen. „Angepasst" = normalisierter Rohname ≠ canonical (echte Tippfehler-/Synonym-Korrektur, via `utils/availability.normalize_species_name`).
 - **Block 7 „Zeitverläufe"** (aus `price_history.db`, Zeitraum-Umschalter **3 / 12 Monate / gesamt**): Preisentwicklung über Zeit (Median-Einstiegspreis je Monat, zwischen Änderungen fortgeschrieben, EUR zu aktuellen Kursen), Preisänderungen je Monat (Senkungen vs. Erhöhungen), aktuelle größte Preis-Senkungen/-Erhöhungen (aus der letzten Änderungs-Ursache) sowie **Verfügbarkeit über Zeit**. Letztere speist sich aus einer neuen, **änderungsbasierten Bestands-Historie**, die der Grabber ab jetzt mitschreibt (`product_stock_history` + `product_stock_snapshot`, Eintrag nur bei Wechsel lagernd↔nicht lagernd) — die Kurve füllt sich also mit der Zeit.
 
-Ranglisten zeigen generell die **Top 10**; ein sinnvoller Rest wird als „übrige" zusammengefasst. Zeitstempel (Datenstand/Erzeugt) werden in Berliner Zeit mit MEZ/MESZ angezeigt. *(Die weiteren Blöcke werden schrittweise ausgebaut.)*
+Ranglisten zeigen generell die **Top 10**; ein sinnvoller Rest wird als „übrige" zusammengefasst. Zeitstempel (Datenstand/Erzeugt) werden in Berliner Zeit mit MEZ/MESZ angezeigt.
+
+Jede Statistik hat ein **Info-Symbol (ⓘ) mit Hover-Erklärung** (lokalisiert de/en/eo); die Sektions-Überschriften erklären den jeweiligen Block. Die self-hosted Assets (`chart.umd.js`, `chartjs-chart-treemap.min.js`, `stats.js`) werden mit **`?v=<Version>`** ausgeliefert (Cache-Busting), damit nach jedem Update sofort die neue Version geladen wird.
+
+**Rechtsseiten:** Unter `/impressum` (§ 5 DDG) und `/datenschutz` (Art. 13 DSGVO) liegen **Platzhalter-Entwürfe** (deutscher, rechtlich maßgeblicher Text mit `[[…]]`-Platzhaltern; Titel/Hinweis lokalisiert), verlinkt im Footer. Vor Veröffentlichung ausfüllen und rechtlich prüfen. **Reverse-Proxy:** `impressum|datenschutz` in die Standort-Allowlist aufnehmen (zusätzlich zu `stats|static/`).
 
 ### Was ist das Board?
 

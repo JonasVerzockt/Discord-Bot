@@ -200,6 +200,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .kpi .v{font-size:22px;font-weight:700} .kpi .l{color:#8b949e;font-size:12px;margin-top:2px}
  .chartbox{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px;margin-top:12px}
  .chartbox h4{margin:0 0 8px;font-size:14px;color:#c9d1d9;font-weight:600}
+ .info{cursor:help;color:#8b949e;font-size:12px;font-weight:400;user-select:none}
+ .info:hover{color:#58a6ff}
  .chartwrap{position:relative;height:320px}
  .raritygrid{columns:2;column-gap:18px;margin-top:8px;font-size:13px;color:#8b949e}
  .raritygrid div{break-inside:avoid;padding:1px 0;font-style:italic}
@@ -207,6 +209,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .rangesw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
  .rangesw a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
  .rangesw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
+ .legal{max-width:820px} .legal h3{margin:18px 0 6px;font-size:15px;color:#c9d1d9} .legal p{margin:0 0 8px} .legal code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:1px 5px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
@@ -218,6 +221,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   💖 <strong>{{ t('footer_run') }}</strong>
   <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
   · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">{{ t('footer_source') }}</a>
+  · <a href="/impressum?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_impressum') }}</a>
+  · <a href="/datenschutz?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_privacy') }}</a>
 </footer>
 </body></html>"""
 
@@ -454,7 +459,7 @@ STATS = """{% extends "base" %}{% block body %}
 </nav>
 {% for aid,key in sections %}
 <section id="{{ aid }}" class="statsec">
- <h3>{{ t(key) }}</h3>
+ <h3>{{ t(key) }} <span class="info" title="{{ t('exp_sec_' ~ aid) }}">ⓘ</span></h3>
  {% if aid=='overview' %}
   {% set o = data.overview %}
   <div class=kpigrid>
@@ -474,7 +479,7 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('sp_genera_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chGenera"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sp_reach_title') }}</h4><div class="chartwrap" style="height:400px"><canvas id="chReach"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sp_longtail_title') }}</h4><div class=chartwrap><canvas id="chLongtail"></canvas></div></div>
-  <div class=chartbox><h4>{{ t('sp_rarities_title') }}</h4>
+  <div class=chartbox><h4>{{ t('sp_rarities_title') }} <span class="info" title="{{ t('exp_rarities') }}">ⓘ</span></h4>
    <p class=muted style="margin-top:0">{{ t('sp_rarities_count', n=sp.rarities_count) }}</p>
    {% if sp.rarities_sample %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=sp.rarities_sample|length) }}</summary>
     <div class=raritygrid>{% for r in sp.rarities_sample %}<div>{{ r }}</div>{% endfor %}</div></details>{% endif %}
@@ -542,17 +547,69 @@ STATS = """{% extends "base" %}{% block body %}
  {% endif %}
 </section>
 {% endfor %}
-<script src="/static/chart.umd.js"></script>
-<script src="/static/chartjs-chart-treemap.min.js"></script>
+<script src="/static/chart.umd.js?v={{ ver }}"></script>
+<script src="/static/chartjs-chart-treemap.min.js?v={{ ver }}"></script>
 <script>var STATS = {{ data|tojson }}; var STATS_L = {{ l10n|tojson }};</script>
-<script src="/static/stats.js"></script>
+<script src="/static/stats.js?v={{ ver }}"></script>
 {% endif %}
+{% endblock %}"""
+
+IMPRESSUM = """{% extends "base" %}{% block body %}
+<h2>{{ t('nav_impressum') }}</h2>
+<div class=flash>{{ t('legal_draft_note') }}</div>
+<p class=muted>{{ t('legal_lang_note') }}</p>
+<div class="legal">
+ <h3>Angaben gemäß § 5 DDG</h3>
+ <p>[[Name des Betreibers / bei Verein: Vereinsname]]<br>
+ [[Straße und Hausnummer]]<br>
+ [[PLZ und Ort]]<br>
+ [[Land]]</p>
+ <h3>Vertreten durch</h3>
+ <p>[[nur bei Verein/juristischer Person: Name der/des Vertretungsberechtigten]]</p>
+ <h3>Kontakt</h3>
+ <p>E-Mail: [[E-Mail-Adresse]]<br>
+ [[optional: weiterer schneller Kontakt, z. B. Kontaktformular/Discord]]</p>
+ <h3>Registereintrag</h3>
+ <p>[[nur falls vorhanden: Registergericht und Registernummer, z. B. Vereinsregister Amtsgericht … VR …]]</p>
+ <h3>Umsatzsteuer-Identifikationsnummer</h3>
+ <p>[[nur falls vorhanden: USt-IdNr. gemäß § 27a UStG]]</p>
+ <h3>Verantwortlich für journalistisch-redaktionelle Inhalte (§ 18 Abs. 2 MStV)</h3>
+ <p>[[optional, nur falls einschlägig: Name und Anschrift]]</p>
+ <h3>Haftung für Inhalte und Links</h3>
+ <p>Für eigene Inhalte sind wir nach den allgemeinen Gesetzen verantwortlich (§§ 7 ff. DDG). Für von Nutzer:innen eingereichte Inhalte (Feedback-Board) besteht keine Pflicht zur proaktiven Überwachung; rechtswidrige Inhalte entfernen wir nach Kenntnisnahme unverzüglich. Für Inhalte verlinkter externer Seiten ist der jeweilige Anbieter verantwortlich.</p>
+</div>
+{% endblock %}"""
+
+DATENSCHUTZ = """{% extends "base" %}{% block body %}
+<h2>{{ t('nav_privacy') }}</h2>
+<div class=flash>{{ t('legal_draft_note') }}</div>
+<p class=muted>{{ t('legal_lang_note') }}</p>
+<div class="legal">
+ <h3>1. Verantwortlicher</h3>
+ <p>[[Name / Verein]], [[Anschrift]], E-Mail: [[E-Mail]].</p>
+ <h3>2. Hosting</h3>
+ <p>Diese Website wird bei [[Hoster, Anschrift]] betrieben (Auftragsverarbeitung gem. Art. 28 DSGVO). Zur Auslieferung werden technisch notwendige Verbindungsdaten verarbeitet.</p>
+ <h3>3. Server-Logfiles</h3>
+ <p>Beim Zugriff werden automatisch Daten in Server-Logfiles verarbeitet: IP-Adresse, Datum/Uhrzeit, angeforderte URL, Referrer und User-Agent. Zweck: sicherer und stabiler Betrieb sowie Abwehr von Missbrauch. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Speicherdauer: [[z. B. 7 oder 14 Tage]].</p>
+ <h3>4. Feedback-Board</h3>
+ <p>Beim anonymen Einreichen und Hochvoten wird <b>keine rohe IP-Adresse gespeichert</b>, sondern nur ein mit geheimem Schlüssel gebildeter, nicht direkt rückrechenbarer HMAC-Hash (Schutz vor Missbrauch/Mehrfachabstimmung; Art. 6 Abs. 1 lit. f DSGVO). Ein optional angegebener Name wird mit dem Beitrag veröffentlicht. Öffentlich sichtbar werden nach Freigabe nur: Typ, Titel, Beschreibung, ggf. Name, Status, Upvote-Anzahl und Kommentare.</p>
+ <h3>5. Cookies</h3>
+ <p>Es werden ausschließlich technisch notwendige Cookies gesetzt, die keiner Einwilligung bedürfen (§ 25 Abs. 2 TDDDG): <code>board_admin</code> (nur bei Owner-Login) und <code>board_vid</code> (verhindert Mehrfach-Upvotes; Laufzeit [[z. B. 1 Jahr]]). Es findet <b>kein Tracking</b> und keine Analyse statt; Diagramm-Bibliotheken werden selbst gehostet (keine Drittanbieter/CDN). Die Sprachwahl erfolgt ohne Cookie über die URL.</p>
+ <h3>6. Empfänger</h3>
+ <p>Eine Weitergabe an Dritte erfolgt nicht, außer an den unter 2. genannten Hoster im Rahmen der Auftragsverarbeitung.</p>
+ <h3>7. Ihre Rechte</h3>
+ <p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch gegen Verarbeitungen auf Grundlage berechtigter Interessen (Art. 15–21 DSGVO). Es besteht ein Beschwerderecht bei einer Aufsichtsbehörde (Art. 77 DSGVO): [[zuständige Aufsichtsbehörde nach Bundesland]].</p>
+ <h3>8. Kontakt für Datenschutzanfragen</h3>
+ <p>[[E-Mail für Datenschutzanfragen]].</p>
+ <p class=muted>Stand: [[Datum]].</p>
+</div>
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
-                                     "stats": STATS}),
+                                     "stats": STATS, "impressum": IMPRESSUM,
+                                     "datenschutz": DATENSCHUTZ}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -964,6 +1021,22 @@ async def h_board(req):
     return resp
 
 
+# Zuordnung Diagramm-Canvas -> i18n-Erklärungsschlüssel (für Hover-Tooltips, via stats.js).
+_CHART_EXP = {
+    "chCountries": "exp_countries", "chStock": "exp_stock",
+    "chGenera": "exp_genera", "chReach": "exp_reach", "chLongtail": "exp_longtail",
+    "chShopOffers": "exp_shop_offers", "chShopBreadth": "exp_shop_breadth",
+    "chShopExclusive": "exp_shop_exclusive", "chShopScatter": "exp_shop_scatter",
+    "chPriceHist": "exp_price_hist", "chPriceGenus": "exp_price_genus", "chPriceSpread": "exp_price_spread",
+    "chAvGenus": "exp_av_genus", "chAvCountry": "exp_av_country", "chAvShopBest": "exp_av_shop_best",
+    "chAvShopWorst": "exp_av_shop_worst", "chAvHardest": "exp_av_hardest",
+    "chDqShopUncanon": "exp_dq_shop_uncanon", "chDqShopAdjusted": "exp_dq_shop_adjusted",
+    "chDqVariants": "exp_dq_variants",
+    "chTrPrice": "exp_tr_price", "chTrChanges": "exp_tr_changes", "chTrDrops": "exp_tr_drops",
+    "chTrIncreases": "exp_tr_increases", "chTrAvail": "exp_tr_avail",
+}
+
+
 def _top10(pairs, other_label=None):
     """Aus [(label, wert), …] die Top 10 als (labels, values). Ist *other_label*
     gesetzt und gibt es einen Rest, wird dieser als eine „übrige"-Position summiert."""
@@ -1127,7 +1200,20 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                            "x": translate(lang, "tr_month_axis"),
                            "labels": [m for m, _, _ in av], "values": [r for _, r, _ in av],
                            "empty": not ts.get("has_stock")}
+
+    # Hover-Erklärungen je Diagramm (Canvas-ID -> Text); stats.js hängt das ⓘ an die Überschrift.
+    out["exp"] = {cid: translate(lang, key) for cid, key in _CHART_EXP.items()}
     return out
+
+
+async def h_impressum(req):
+    """Impressum (§ 5 DDG) – Platzhalter-Entwurf, vor Veröffentlichung auszufüllen/prüfen."""
+    return _render(req, "impressum", title=translate(pick_lang(req), "nav_impressum"))
+
+
+async def h_datenschutz(req):
+    """Datenschutzerklärung (Art. 13 DSGVO) – Platzhalter-Entwurf."""
+    return _render(req, "datenschutz", title=translate(pick_lang(req), "nav_privacy"))
 
 
 async def h_stats(req):
@@ -1149,7 +1235,7 @@ async def h_stats(req):
     if data:
         l10n = _stats_l10n(lang, data, ts)
     resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n,
-                   ts_available=bool(ts and ts.get("available")), ts_range=range_key)
+                   ts_available=bool(ts and ts.get("available")), ts_range=range_key, ver=VERSION)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -1558,6 +1644,7 @@ def build_app(bot) -> web.Application:
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
+        web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
         web.get("/status.json", h_status_json),
         web.get("/status/check/{key}", h_status_detail),
         web.post("/status/incident/{id}/note", h_incident_note),

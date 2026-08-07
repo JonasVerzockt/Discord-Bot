@@ -9,8 +9,21 @@
  */
 (function () {
   "use strict";
-  if (typeof Chart === "undefined" || typeof STATS === "undefined" || !STATS) return;
   var L = (typeof STATS_L !== "undefined" && STATS_L) ? STATS_L : {};
+
+  // Hover-Erklärungen: ⓘ an jede Diagramm-Überschrift hängen (unabhängig von Chart.js).
+  if (L.exp) {
+    Object.keys(L.exp).forEach(function (id) {
+      var c = document.getElementById(id); if (!c) return;
+      var box = c.closest ? c.closest(".chartbox") : null; if (!box) return;
+      var h = box.querySelector("h4"); if (!h || h.querySelector(".info")) return;
+      var s = document.createElement("span");
+      s.className = "info"; s.title = L.exp[id]; s.textContent = "ⓘ";
+      h.appendChild(document.createTextNode(" ")); h.appendChild(s);
+    });
+  }
+
+  if (typeof Chart === "undefined" || typeof STATS === "undefined" || !STATS) return;
 
   // Dark-Theme-Defaults
   Chart.defaults.color = "#8b949e";
