@@ -72,16 +72,23 @@ FLAG_TITLE = {
 
 
 def pick_lang(req) -> str:
-    """Ermittelt die Sprache: ?lang= (falls gültig) > Accept-Language > Standard (de)."""
+    """Ermittelt die Sprache: ?lang= (falls gültig) > Accept-Language > Standard (de).
+
+    Gibt bewusst die WHITELIST-Konstante aus LANGS zurück (nicht den rohen User-Wert):
+    So ist der Rückgabewert nachweislich untainted – er fließt in Redirect-Locations
+    (`?lang=…`) ein, und diese Konstruktion verhindert Open-Redirect/Header-Injection
+    (CodeQL py/url-redirection) unabhängig von der Eingabe."""
     q = (req.query.get("lang") or "").lower().strip()
-    if q in LANGS:
-        return q
+    for code in LANGS:
+        if q == code:
+            return code                      # Literal aus LANGS -> untainted
     accept = (req.headers.get("Accept-Language") or "").lower()
     # Grobe, robuste Auswertung: erste passende Sprache im Header gewinnt.
     for part in accept.replace(" ", "").split(","):
-        code = part.split(";")[0].split("-")[0]
-        if code in LANGS:
-            return code
+        want = part.split(";")[0].split("-")[0]
+        for code in LANGS:
+            if want == code:
+                return code                  # ebenfalls Literal aus LANGS
     return DEFAULT_LANG
 
 
