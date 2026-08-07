@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import SHOPS_DATA_FILE, DATA_DIRECTORY
+from utils.availability import is_merch_product
 
 PRICE_HISTORY_DB = Path(DATA_DIRECTORY) / "price_history.db"
 
@@ -65,12 +66,6 @@ def _iter_shops(d: dict):
         yield v
 
 
-def _is_live(p: dict) -> bool:
-    """Lebendtier-Angebot (Ameise) vs. Merch (Zubehör/Formicarien).
-    Kriterium: ein Artname (canonical_species ODER species) ist vorhanden."""
-    return bool((p.get("canonical_species") or p.get("species") or "").strip())
-
-
 def _in_stock(p: dict) -> bool:
     return bool(p.get("in_stock") and p.get("is_active"))
 
@@ -94,7 +89,7 @@ def _compute(d: dict) -> dict:
 
     shops_total = len(shops)
     shops_with_products = 0
-    products_total = live_products = merch_products = instock_products = 0
+    products_total = live_products = merch_products = instock_live = 0
     canon_species: set[str] = set()
     genera: set[str] = set()
     countries: dict[str, int] = {}
@@ -107,18 +102,22 @@ def _compute(d: dict) -> dict:
         countries[c] = countries.get(c, 0) + 1
         for p in ps:
             products_total += 1
-            if _is_live(p):
-                live_products += 1
-                cs = (p.get("canonical_species") or "").strip()
-                if cs:
-                    canon_species.add(cs.lower())
-                    genera.add(cs.split()[0])
-            else:
+            # Merch/Zubehör (Sticker, Poster, Sets …) exakt wie im Bot erkennen und
+            # aus den Lebendtier-Kennzahlen ausschließen. Produkte ganz ohne Artnamen
+            # zählen ebenfalls als Nicht-Lebendtier.
+            species = (p.get("canonical_species") or p.get("species") or "").strip()
+            if is_merch_product(p) or not species:
                 merch_products += 1
+                continue
+            live_products += 1
+            cs = (p.get("canonical_species") or "").strip()
+            if cs:
+                canon_species.add(cs.lower())
+                genera.add(cs.split()[0])
             if _in_stock(p):
-                instock_products += 1
+                instock_live += 1
 
-    instock_pct = round(100 * instock_products / products_total, 1) if products_total else 0.0
+    instock_pct = round(100 * instock_live / live_products, 1) if live_products else 0.0
     countries_sorted = sorted(countries.items(), key=lambda kv: (-kv[1], kv[0]))
 
     overview = {
@@ -129,9 +128,10 @@ def _compute(d: dict) -> dict:
         "merch_products": merch_products,
         "species_total": len(canon_species),
         "genera_total": len(genera),
-        "instock_products": instock_products,
+        "instock_live": instock_live,
+        "out_of_stock_live": live_products - instock_live,
         "instock_pct": instock_pct,
-        "countries": countries_sorted,          # [(iso, count), …]
+        "countries": countries_sorted,          # [(iso, count), …] absteigend
     }
 
     return {
