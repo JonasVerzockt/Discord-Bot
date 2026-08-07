@@ -40,6 +40,7 @@ from pathlib import Path
 
 from config import SHOPS_DATA_FILE, DATA_DIRECTORY
 from utils.availability import is_merch_product
+from utils.timez import BERLIN
 
 PRICE_HISTORY_DB = Path(DATA_DIRECTORY) / "price_history.db"
 
@@ -71,12 +72,17 @@ def _in_stock(p: dict) -> bool:
 
 
 def _fmt_ts(iso: str | None) -> str:
-    """ISO-Zeitstempel -> 'YYYY-MM-DD HH:MM UTC' (kurz, ohne Sekunden)."""
+    """ISO-Zeitstempel -> 'YYYY-MM-DD HH:MM MEZ/MESZ' in Berliner Zeit (ohne Sekunden).
+    Zeitzonenlose Werte werden als UTC interpretiert. Label je nach Sommerzeit."""
     if not iso:
         return "?"
     try:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
-        return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local = dt.astimezone(BERLIN)
+        label = "MESZ" if local.dst() else "MEZ"
+        return local.strftime("%Y-%m-%d %H:%M ") + label
     except (ValueError, TypeError):
         return str(iso)[:16].replace("T", " ")
 
