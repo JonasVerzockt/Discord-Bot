@@ -67,6 +67,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 # hier eintragen (der /static-Handler baut den Pfad nur aus diesen Literalen).
 _STATIC_FILES = {
     "chart.umd.js": "application/javascript",
+    "chartjs-chart-treemap.min.js": "application/javascript",
     "stats.js": "application/javascript",
 }
 
@@ -196,6 +197,9 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .chartbox{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px;margin-top:12px}
  .chartbox h4{margin:0 0 8px;font-size:14px;color:#c9d1d9;font-weight:600}
  .chartwrap{position:relative;height:320px}
+ .raritygrid{columns:2;column-gap:18px;margin-top:8px;font-size:13px;color:#8b949e}
+ .raritygrid div{break-inside:avoid;padding:1px 0;font-style:italic}
+ @media(max-width:640px){.raritygrid{columns:1}}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
@@ -447,12 +451,23 @@ STATS = """{% extends "base" %}{% block body %}
   </div>
   <div class=chartbox><h4>{{ t('ch_countries_title') }}</h4><div class=chartwrap><canvas id="chCountries"></canvas></div></div>
   <div class=chartbox><h4>{{ t('ch_stock_title') }}</h4><div class="chartwrap" style="height:260px"><canvas id="chStock"></canvas></div></div>
+ {% elif aid=='species' %}
+  {% set sp = data.species %}
+  <div class=chartbox><h4>{{ t('sp_genera_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chGenera"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_reach_title') }}</h4><div class="chartwrap" style="height:400px"><canvas id="chReach"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_longtail_title') }}</h4><div class=chartwrap><canvas id="chLongtail"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_rarities_title') }}</h4>
+   <p class=muted style="margin-top:0">{{ t('sp_rarities_count', n=sp.rarities_count) }}</p>
+   {% if sp.rarities_sample %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=sp.rarities_sample|length) }}</summary>
+    <div class=raritygrid>{% for r in sp.rarities_sample %}<div>{{ r }}</div>{% endfor %}</div></details>{% endif %}
+  </div>
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
 </section>
 {% endfor %}
 <script src="/static/chart.umd.js"></script>
+<script src="/static/chartjs-chart-treemap.min.js"></script>
 <script>var STATS = {{ data|tojson }}; var STATS_L = {{ l10n|tojson }};</script>
 <script src="/static/stats.js"></script>
 {% endif %}
@@ -829,7 +844,7 @@ def _stats_l10n(lang: str, data: dict) -> dict:
     countries = [[country_name(lang, iso), n] for iso, n in top]
     if rest:
         countries.append([translate(lang, "lbl_other"), rest])
-    return {
+    out = {
         "countries": {
             "title": translate(lang, "ch_countries_title"),
             "axis": translate(lang, "ch_countries_axis"),
@@ -842,6 +857,30 @@ def _stats_l10n(lang: str, data: dict) -> dict:
             "values": [ov.get("instock_live", 0), ov.get("out_of_stock_live", 0)],
         },
     }
+
+    # ── Block 2: Arten & Gattungen ──────────────────────────────────────────
+    sp = data.get("species")
+    if sp:
+        gtop = sp["genera"][:18]
+        grest = sum(n for _, n in sp["genera"][18:])
+        gdata = [{"g": g, "v": n} for g, n in gtop]
+        if grest:
+            gdata.append({"g": translate(lang, "lbl_other"), "v": grest})
+        out["genera"] = {"title": translate(lang, "sp_genera_title"), "data": gdata}
+        out["reach"] = {
+            "title": translate(lang, "sp_reach_title"),
+            "axis": translate(lang, "lbl_shops"),
+            "labels": [s for s, _ in sp["reach"]],
+            "values": [n for _, n in sp["reach"]],
+        }
+        out["longtail"] = {
+            "title": translate(lang, "sp_longtail_title"),
+            "x": translate(lang, "sp_longtail_x"),
+            "y": translate(lang, "sp_longtail_y"),
+            "labels": [str(k) for k, _ in sp["longtail"]],
+            "values": [n for _, n in sp["longtail"]],
+        }
+    return out
 
 
 async def h_stats(req):

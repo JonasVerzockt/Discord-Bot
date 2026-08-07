@@ -26,6 +26,13 @@
 
   function el(id) { return document.getElementById(id); }
 
+  // Treemap-Plugin registrieren (self-hosted). Falls der UMD-Build sich bereits
+  // selbst registriert hat, wird der Fehler ignoriert.
+  try {
+    var TM = window["chartjs-chart-treemap"];
+    if (TM && TM.TreemapController) Chart.register(TM.TreemapController, TM.TreemapElement);
+  } catch (e) { /* bereits registriert */ }
+
   // ── Shops pro Land (horizontaler Balken) ──────────────────────────────────
   (function () {
     var c = el("chCountries"); if (!c || !L.countries) return;
@@ -78,6 +85,82 @@
               },
             },
           },
+        },
+      },
+    });
+  })();
+
+  // ── Top-Gattungen (Treemap) ───────────────────────────────────────────────
+  (function () {
+    var c = el("chGenera"); if (!c || !L.genera) return;
+    try {
+      new Chart(c, {
+        type: "treemap",
+        data: {
+          datasets: [{
+            tree: L.genera.data,
+            key: "v",
+            spacing: 1,
+            borderWidth: 1,
+            borderColor: "#0f141a",
+            backgroundColor: function (ctx) {
+              return ctx.type === "data" ? PALETTE[ctx.dataIndex % PALETTE.length] : "transparent";
+            },
+            labels: {
+              display: true, color: "#fff", font: { size: 11 },
+              formatter: function (ctx) { var d = ctx.raw._data || {}; return [d.g, "" + ctx.raw.v]; },
+            },
+          }],
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function (items) { return items[0].raw._data.g; },
+                label: function (ctx) { return "" + ctx.raw.v; },
+              },
+            },
+          },
+        },
+      });
+    } catch (e) { /* Treemap-Plugin nicht verfügbar -> Diagramm überspringen */ }
+  })();
+
+  // ── Beliebteste Arten nach Shop-Reichweite (horizontaler Balken) ──────────
+  (function () {
+    var c = el("chReach"); if (!c || !L.reach) return;
+    new Chart(c, {
+      type: "bar",
+      data: {
+        labels: L.reach.labels,
+        datasets: [{ label: L.reach.axis, data: L.reach.values, backgroundColor: OK, borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#21262d" } },
+          y: { grid: { display: false } },
+        },
+      },
+    });
+  })();
+
+  // ── Long-Tail: Arten nach Shop-Reichweite (vertikaler Balken) ─────────────
+  (function () {
+    var c = el("chLongtail"); if (!c || !L.longtail) return;
+    new Chart(c, {
+      type: "bar",
+      data: {
+        labels: L.longtail.labels,
+        datasets: [{ label: L.longtail.y, data: L.longtail.values, backgroundColor: ACCENT }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { title: { display: true, text: L.longtail.x }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: L.longtail.y }, grid: { color: "#21262d" } },
         },
       },
     });

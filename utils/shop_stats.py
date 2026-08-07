@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -99,11 +100,14 @@ def _compute(d: dict) -> dict:
     canon_species: set[str] = set()
     genera: set[str] = set()
     countries: dict[str, int] = {}
+    genus_offers: Counter = Counter()               # Gattung -> Zahl der Angebote
+    species_shops: dict[str, set] = defaultdict(set)  # Art -> Menge der Shops
 
     for s in shops:
         ps = s.get("products") or []
         if ps:
             shops_with_products += 1
+        shop_id = s.get("id") or s.get("name") or id(s)
         c = (s.get("country") or "??").lower()
         countries[c] = countries.get(c, 0) + 1
         for p in ps:
@@ -119,12 +123,23 @@ def _compute(d: dict) -> dict:
             cs = (p.get("canonical_species") or "").strip()
             if cs:
                 canon_species.add(cs.lower())
-                genera.add(cs.split()[0])
+                genus = cs.split()[0]
+                genera.add(genus)
+                genus_offers[genus] += 1
+                species_shops[cs].add(shop_id)
             if _in_stock(p):
                 instock_live += 1
 
     instock_pct = round(100 * instock_live / live_products, 1) if live_products else 0.0
     countries_sorted = sorted(countries.items(), key=lambda kv: (-kv[1], kv[0]))
+
+    # ── Block 2: Arten & Gattungen ──────────────────────────────────────────
+    genera_ranked = genus_offers.most_common()          # [(Gattung, Angebote)] absteigend
+    reach = sorted(species_shops.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    top_reach = [(sp, len(sh)) for sp, sh in reach[:15]]
+    rarities = sorted(sp for sp, sh in species_shops.items() if len(sh) == 1)
+    longtail = Counter(len(sh) for sh in species_shops.values())  # k Shops -> Zahl Arten
+    longtail_ranked = sorted(longtail.items())           # [(Shops, Artenzahl)] aufsteigend
 
     overview = {
         "shops_total": shops_total,
@@ -149,6 +164,13 @@ def _compute(d: dict) -> dict:
             "variant_count": meta.get("variant_count"),
         },
         "overview": overview,
+        "species": {
+            "genera": genera_ranked,             # [(Gattung, Angebote)]
+            "reach": top_reach,                  # [(Art, Shop-Anzahl)] Top 15
+            "rarities_count": len(rarities),
+            "rarities_sample": rarities[:60],    # Arten in nur 1 Shop (Auszug)
+            "longtail": longtail_ranked,         # [(Shops, Artenzahl)]
+        },
     }
 
 
