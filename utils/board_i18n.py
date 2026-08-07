@@ -166,6 +166,13 @@ T: dict[str, dict[str, str]] = {
     "pr_genus_axis": {"de": "Median in EUR", "en": "Median in EUR", "eo": "Mediano en EUR"},
     "pr_spread_title": {"de": "Größte Preisspanne je Art (günstigster–teuerster Anbieter, EUR)", "en": "Largest price range per species (cheapest–priciest seller, EUR)", "eo": "Plej granda prezintervalo po specio (plej malmultekosta–plej multekosta vendanto, EUR)"},
     "pr_spread_axis": {"de": "EUR", "en": "EUR", "eo": "EUR"},
+    # Punkt 5: Verfügbarkeit
+    "lbl_instock_rate": {"de": "Lagerquote %", "en": "In-stock rate %", "eo": "Stok-kvoto %"},
+    "av_genus_title": {"de": "Lagerquote je Top-Gattung", "en": "In-stock rate per top genus", "eo": "Stok-kvoto po supra genro"},
+    "av_country_title": {"de": "Lagerquote je Land (ab 20 Angeboten)", "en": "In-stock rate per country (min. 20 offers)", "eo": "Stok-kvoto po lando (min. 20 ofertoj)"},
+    "av_shop_best_title": {"de": "Beste Shop-Verfügbarkeit (ab 20 Angeboten)", "en": "Best shop availability (min. 20 offers)", "eo": "Plej bona butik-havebleco (min. 20 ofertoj)"},
+    "av_shop_worst_title": {"de": "Niedrigste Shop-Verfügbarkeit (ab 20 Angeboten)", "en": "Lowest shop availability (min. 20 offers)", "eo": "Plej malalta butik-havebleco (min. 20 ofertoj)"},
+    "av_hardest_title": {"de": "Am schwersten erhältlich (breit gelistet, selten lagernd; ab 5 Shops)", "en": "Hardest to get (widely listed, rarely in stock; min. 5 shops)", "eo": "Plej malfacile akireblaj (vaste listigitaj, malofte en stoko; min. 5 butikoj)"},
     "nav_support": {"de": "💖 Unterstützen", "en": "💖 Support", "eo": "💖 Subteni"},
     "nav_owner": {"de": "Owner", "en": "Owner", "eo": "Posedanto"},
     "nav_admin": {"de": "Admin", "en": "Admin", "eo": "Administro"},

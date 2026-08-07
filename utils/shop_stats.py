@@ -163,6 +163,12 @@ def _compute(d: dict) -> dict:
     all_prices: list = []                            # Einstiegspreise (EUR) aller Angebote
     genus_prices: dict[str, list] = defaultdict(list)   # Gattung -> EUR-Preise
     species_prices: dict[str, list] = defaultdict(list)  # Art -> EUR-Preise
+    genus_instock: Counter = Counter()               # Gattung -> lagernde Angebote
+    country_live: Counter = Counter()                # Land -> Angebote (Lebendtiere)
+    country_instock: Counter = Counter()             # Land -> lagernde Angebote
+    shop_instock: Counter = Counter()                # Shop -> lagernde Angebote
+    species_offers: Counter = Counter()              # Art -> Angebote
+    species_instock: Counter = Counter()             # Art -> lagernde Angebote
 
     for s in shops:
         ps = s.get("products") or []
@@ -183,6 +189,12 @@ def _compute(d: dict) -> dict:
                 continue
             live_products += 1
             shop_offers[shop_id] += 1
+            instock = _in_stock(p)
+            country_live[c] += 1
+            if instock:
+                instock_live += 1
+                shop_instock[shop_id] += 1
+                country_instock[c] += 1
             cs = (p.get("canonical_species") or "").strip()
             if cs:
                 canon_species.add(cs.lower())
@@ -191,6 +203,10 @@ def _compute(d: dict) -> dict:
                 genus_offers[genus] += 1
                 species_shops[cs].add(shop_id)
                 shop_species[shop_id].add(cs)
+                species_offers[cs] += 1
+                if instock:
+                    genus_instock[genus] += 1
+                    species_instock[cs] += 1
             # Einstiegspreis (niedrigster positiver Variantenpreis) in EUR.
             eur = _entry_price_eur(p)
             if eur is not None and eur > 0:
@@ -198,8 +214,6 @@ def _compute(d: dict) -> dict:
                 if cs:
                     genus_prices[genus].append(eur)
                     species_prices[cs].append(eur)
-            if _in_stock(p):
-                instock_live += 1
 
     instock_pct = round(100 * instock_live / live_products, 1) if live_products else 0.0
     countries_sorted = sorted(countries.items(), key=lambda kv: (-kv[1], kv[0]))
@@ -264,6 +278,25 @@ def _compute(d: dict) -> dict:
         spread.sort(key=lambda x: -x[3])
         spread = spread[:10]
 
+    # ── Block 5: Verfügbarkeit (Lagerquoten, Snapshot) ──────────────────────
+    def _rate(num, den):
+        return round(100 * num / den, 1) if den else 0.0
+    avail_genus = [(g, _rate(genus_instock.get(g, 0), genus_offers[g]))
+                   for g, _ in genera_ranked[:10]]
+    avail_country = sorted(
+        [(c, _rate(country_instock.get(c, 0), country_live[c]), country_live[c])
+         for c in country_live if country_live[c] >= 20],
+        key=lambda x: -x[1])[:10]
+    shop_rates = [(shop_name[i], _rate(shop_instock.get(i, 0), shop_offers[i]), shop_offers[i])
+                  for i in shop_offers if shop_offers[i] >= 20]
+    shop_best = sorted(shop_rates, key=lambda x: (-x[1], -x[2]))[:10]
+    shop_worst = sorted(shop_rates, key=lambda x: (x[1], -x[2]))[:10]
+    hardest = sorted(
+        [(sp, _rate(species_instock.get(sp, 0), species_offers[sp]),
+          len(species_shops[sp]), species_offers[sp])
+         for sp in species_offers if len(species_shops.get(sp, ())) >= 5],
+        key=lambda x: (x[1], -x[2]))[:10]
+
     overview = {
         "shops_total": shops_total,
         "shops_with_products": shops_with_products,
@@ -305,6 +338,13 @@ def _compute(d: dict) -> dict:
             "hist": hist,                        # {labels, counts}
             "genus_median": genus_median,        # [(Gattung, Median-EUR)] Top 10
             "spread": spread,                    # [(Art, min, max, spanne, shops)] Top 10
+        },
+        "availability": {
+            "by_genus": avail_genus,             # [(Gattung, Quote%)] Top-10-Gattungen
+            "by_country": avail_country,         # [(ISO, Quote%, Angebote)] ab 20 Angeboten
+            "shop_best": shop_best,              # [(Shop, Quote%, Angebote)] ab 20 Angeboten
+            "shop_worst": shop_worst,            # [(Shop, Quote%, Angebote)]
+            "hardest": hardest,                  # [(Art, Quote%, Shops, Angebote)] ab 5 Shops
         },
     }
 

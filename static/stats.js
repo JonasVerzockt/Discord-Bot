@@ -167,18 +167,17 @@
   })();
 
   // ── Block 3: Shop-Vergleich (horizontale Balken) ──────────────────────────
-  function hbar(id, cfg, color) {
+  function hbar(id, cfg, color, xmax) {
     var c = el(id); if (!c || !cfg) return;
+    var x = { beginAtZero: true, grid: { color: "#21262d" } };
+    if (xmax) { x.max = xmax; }
     new Chart(c, {
       type: "bar",
       data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.values, backgroundColor: color, borderRadius: 4 }] },
       options: {
         indexAxis: "y",
         plugins: { legend: { display: false } },
-        scales: {
-          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#21262d" } },
-          y: { grid: { display: false } },
-        },
+        scales: { x: x, y: { grid: { display: false } } },
       },
     });
   }
@@ -247,4 +246,11 @@
       },
     });
   })();
+
+  // ── Block 5: Verfügbarkeit (Lagerquoten in %, x bis 100) ──────────────────
+  hbar("chAvGenus", L.av_genus, OK, 100);
+  hbar("chAvCountry", L.av_country, ACCENT, 100);
+  hbar("chAvShopBest", L.av_shop_best, OK, 100);
+  hbar("chAvShopWorst", L.av_shop_worst, "#f85149", 100);
+  hbar("chAvHardest", L.av_hardest, "#d29922", 100);
 })();

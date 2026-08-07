@@ -495,6 +495,12 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('pr_hist_title') }}</h4><div class=chartwrap><canvas id="chPriceHist"></canvas></div></div>
   <div class=chartbox><h4>{{ t('pr_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceGenus"></canvas></div></div>
   <div class=chartbox><h4>{{ t('pr_spread_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpread"></canvas></div></div>
+ {% elif aid=='availability' %}
+  <div class=chartbox><h4>{{ t('av_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvGenus"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_country_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvCountry"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_shop_best_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopBest"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_shop_worst_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopWorst"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_hardest_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvHardest"></canvas></div></div>
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
@@ -1018,6 +1024,26 @@ def _stats_l10n(lang: str, data: dict) -> dict:
                                "axis": translate(lang, "pr_spread_axis"),
                                "labels": [s[0] for s in pr["spread"]],
                                "ranges": [[s[1], s[2]] for s in pr["spread"]]}
+
+    # ── Block 5: Verfügbarkeit ──────────────────────────────────────────────
+    av = data.get("availability")
+    if av:
+        rate_axis = translate(lang, "lbl_instock_rate")
+        out["av_genus"] = {"title": translate(lang, "av_genus_title"), "axis": rate_axis,
+                           "labels": [g for g, _ in av["by_genus"]],
+                           "values": [r for _, r in av["by_genus"]]}
+        out["av_country"] = {"title": translate(lang, "av_country_title"), "axis": rate_axis,
+                             "labels": [country_name(lang, iso) for iso, _, _ in av["by_country"]],
+                             "values": [r for _, r, _ in av["by_country"]]}
+        out["av_shop_best"] = {"title": translate(lang, "av_shop_best_title"), "axis": rate_axis,
+                               "labels": [s for s, _, _ in av["shop_best"]],
+                               "values": [r for _, r, _ in av["shop_best"]]}
+        out["av_shop_worst"] = {"title": translate(lang, "av_shop_worst_title"), "axis": rate_axis,
+                                "labels": [s for s, _, _ in av["shop_worst"]],
+                                "values": [r for _, r, _ in av["shop_worst"]]}
+        out["av_hardest"] = {"title": translate(lang, "av_hardest_title"), "axis": rate_axis,
+                             "labels": [s for s, _, _, _ in av["hardest"]],
+                             "values": [r for _, r, _, _ in av["hardest"]]}
     return out
 
 
