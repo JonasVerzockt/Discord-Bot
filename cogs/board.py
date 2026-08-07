@@ -65,6 +65,24 @@ from utils import shop_stats
 
 # Vendored statische Assets (Chart.js self-hosted, kein CDN) unter <repo>/static/.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+# Rechtsseiten-Inhalte unter <repo>/legal/. Echte Datei (z.B. impressum.html) liegt
+# NICHT im Git (gitignored) und wird bevorzugt geladen; sonst die .example-Vorlage.
+LEGAL_DIR = Path(__file__).resolve().parent.parent / "legal"
+_LEGAL_PAGES = {"impressum", "datenschutz"}
+
+
+def _legal_content(name: str) -> tuple[str, bool]:
+    """Lädt den HTML-Body einer Rechtsseite. Rückgabe: (html, is_example).
+    Reihenfolge: legal/<name>.html (echt) > legal/<name>.example.html (Vorlage)."""
+    if name not in _LEGAL_PAGES:
+        return ("", True)
+    for path, is_example in ((LEGAL_DIR / f"{name}.html", False),
+                             (LEGAL_DIR / f"{name}.example.html", True)):
+        try:
+            return (path.read_text(encoding="utf-8"), is_example)
+        except OSError:
+            continue
+    return ("<p>[[Seite noch nicht konfiguriert]]</p>", True)
 # Strikte Allowlist auslieferbarer Dateien -> {Dateiname: Content-Type}. Neue Assets
 # hier eintragen (der /static-Handler baut den Pfad nur aus diesen Literalen).
 _STATIC_FILES = {
@@ -554,62 +572,19 @@ STATS = """{% extends "base" %}{% block body %}
 {% endif %}
 {% endblock %}"""
 
-IMPRESSUM = """{% extends "base" %}{% block body %}
-<h2>{{ t('nav_impressum') }}</h2>
-<div class=flash>{{ t('legal_draft_note') }}</div>
+# Rechtsseiten (Impressum/Datenschutz): schlanker Wrapper; der eigentliche Inhalt
+# kommt aus Dateien in legal/ (echte Datei bevorzugt, sonst .example, siehe _legal_content).
+LEGAL = """{% extends "base" %}{% block body %}
+<h2>{{ heading }}</h2>
+{% if is_example %}<div class=flash>{{ t('legal_draft_note') }}</div>{% endif %}
 <p class=muted>{{ t('legal_lang_note') }}</p>
-<div class="legal">
- <h3>Angaben gemäß § 5 DDG</h3>
- <p>[[Name des Betreibers / bei Verein: Vereinsname]]<br>
- [[Straße und Hausnummer]]<br>
- [[PLZ und Ort]]<br>
- [[Land]]</p>
- <h3>Vertreten durch</h3>
- <p>[[nur bei Verein/juristischer Person: Name der/des Vertretungsberechtigten]]</p>
- <h3>Kontakt</h3>
- <p>E-Mail: [[E-Mail-Adresse]]<br>
- [[optional: weiterer schneller Kontakt, z. B. Kontaktformular/Discord]]</p>
- <h3>Registereintrag</h3>
- <p>[[nur falls vorhanden: Registergericht und Registernummer, z. B. Vereinsregister Amtsgericht … VR …]]</p>
- <h3>Umsatzsteuer-Identifikationsnummer</h3>
- <p>[[nur falls vorhanden: USt-IdNr. gemäß § 27a UStG]]</p>
- <h3>Verantwortlich für journalistisch-redaktionelle Inhalte (§ 18 Abs. 2 MStV)</h3>
- <p>[[optional, nur falls einschlägig: Name und Anschrift]]</p>
- <h3>Haftung für Inhalte und Links</h3>
- <p>Für eigene Inhalte sind wir nach den allgemeinen Gesetzen verantwortlich (§§ 7 ff. DDG). Für von Nutzer:innen eingereichte Inhalte (Feedback-Board) besteht keine Pflicht zur proaktiven Überwachung; rechtswidrige Inhalte entfernen wir nach Kenntnisnahme unverzüglich. Für Inhalte verlinkter externer Seiten ist der jeweilige Anbieter verantwortlich.</p>
-</div>
-{% endblock %}"""
-
-DATENSCHUTZ = """{% extends "base" %}{% block body %}
-<h2>{{ t('nav_privacy') }}</h2>
-<div class=flash>{{ t('legal_draft_note') }}</div>
-<p class=muted>{{ t('legal_lang_note') }}</p>
-<div class="legal">
- <h3>1. Verantwortlicher</h3>
- <p>[[Name / Verein]], [[Anschrift]], E-Mail: [[E-Mail]].</p>
- <h3>2. Hosting</h3>
- <p>Diese Website wird bei [[Hoster, Anschrift]] betrieben (Auftragsverarbeitung gem. Art. 28 DSGVO). Zur Auslieferung werden technisch notwendige Verbindungsdaten verarbeitet.</p>
- <h3>3. Server-Logfiles</h3>
- <p>Beim Zugriff werden automatisch Daten in Server-Logfiles verarbeitet: IP-Adresse, Datum/Uhrzeit, angeforderte URL, Referrer und User-Agent. Zweck: sicherer und stabiler Betrieb sowie Abwehr von Missbrauch. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Speicherdauer: [[z. B. 7 oder 14 Tage]].</p>
- <h3>4. Feedback-Board</h3>
- <p>Beim anonymen Einreichen und Hochvoten wird <b>keine rohe IP-Adresse gespeichert</b>, sondern nur ein mit geheimem Schlüssel gebildeter, nicht direkt rückrechenbarer HMAC-Hash (Schutz vor Missbrauch/Mehrfachabstimmung; Art. 6 Abs. 1 lit. f DSGVO). Ein optional angegebener Name wird mit dem Beitrag veröffentlicht. Öffentlich sichtbar werden nach Freigabe nur: Typ, Titel, Beschreibung, ggf. Name, Status, Upvote-Anzahl und Kommentare.</p>
- <h3>5. Cookies</h3>
- <p>Es werden ausschließlich technisch notwendige Cookies gesetzt, die keiner Einwilligung bedürfen (§ 25 Abs. 2 TDDDG): <code>board_admin</code> (nur bei Owner-Login) und <code>board_vid</code> (verhindert Mehrfach-Upvotes; Laufzeit [[z. B. 1 Jahr]]). Es findet <b>kein Tracking</b> und keine Analyse statt; Diagramm-Bibliotheken werden selbst gehostet (keine Drittanbieter/CDN). Die Sprachwahl erfolgt ohne Cookie über die URL.</p>
- <h3>6. Empfänger</h3>
- <p>Eine Weitergabe an Dritte erfolgt nicht, außer an den unter 2. genannten Hoster im Rahmen der Auftragsverarbeitung.</p>
- <h3>7. Ihre Rechte</h3>
- <p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch gegen Verarbeitungen auf Grundlage berechtigter Interessen (Art. 15–21 DSGVO). Es besteht ein Beschwerderecht bei einer Aufsichtsbehörde (Art. 77 DSGVO): [[zuständige Aufsichtsbehörde nach Bundesland]].</p>
- <h3>8. Kontakt für Datenschutzanfragen</h3>
- <p>[[E-Mail für Datenschutzanfragen]].</p>
- <p class=muted>Stand: [[Datum]].</p>
-</div>
+<div class="legal">{{ body|safe }}</div>
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
-                                     "stats": STATS, "impressum": IMPRESSUM,
-                                     "datenschutz": DATENSCHUTZ}),
+                                     "stats": STATS, "legal": LEGAL}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -1207,13 +1182,19 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
 
 
 async def h_impressum(req):
-    """Impressum (§ 5 DDG) – Platzhalter-Entwurf, vor Veröffentlichung auszufüllen/prüfen."""
-    return _render(req, "impressum", title=translate(pick_lang(req), "nav_impressum"))
+    """Impressum (§ 5 DDG) – Inhalt aus legal/impressum(.example).html."""
+    lang = pick_lang(req)
+    body, is_example = _legal_content("impressum")
+    return _render(req, "legal", title=translate(lang, "nav_impressum"),
+                   heading=translate(lang, "nav_impressum"), body=body, is_example=is_example)
 
 
 async def h_datenschutz(req):
-    """Datenschutzerklärung (Art. 13 DSGVO) – Platzhalter-Entwurf."""
-    return _render(req, "datenschutz", title=translate(pick_lang(req), "nav_privacy"))
+    """Datenschutzerklärung (Art. 13 DSGVO) – Inhalt aus legal/datenschutz(.example).html."""
+    lang = pick_lang(req)
+    body, is_example = _legal_content("datenschutz")
+    return _render(req, "legal", title=translate(lang, "nav_privacy"),
+                   heading=translate(lang, "nav_privacy"), body=body, is_example=is_example)
 
 
 async def h_stats(req):
