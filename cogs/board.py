@@ -859,15 +859,17 @@ async def h_stats(req):
 
 async def h_static(req):
     """Liefert vendored statische Assets (z.B. self-hosted Chart.js) aus <repo>/static/.
-    Nur einfache Dateinamen (kein Pfad-Traversal), nur bekannte Endungen."""
+
+    Sicherheit gegen Pfad-Traversal (CodeQL py/path-injection): der aufgelöste Pfad
+    MUSS unterhalb von STATIC_DIR liegen (Containment-Prüfung via is_relative_to) –
+    eine echte Eingrenzung statt einer Zeichen-Blacklist."""
     name = req.match_info["name"]
-    if "/" in name or "\\" in name or ".." in name or name.startswith("."):
-        raise web.HTTPNotFound()
-    p = STATIC_DIR / name
-    if not p.is_file():
+    base = STATIC_DIR.resolve()
+    p = (base / name).resolve()
+    if not p.is_relative_to(base) or not p.is_file():
         raise web.HTTPNotFound()
     ct = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml"}.get(
-        name.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+        p.suffix.lower().lstrip("."), "application/octet-stream")
     return web.FileResponse(p, headers={"Cache-Control": "public, max-age=86400",
                                         "Content-Type": ct})
 
