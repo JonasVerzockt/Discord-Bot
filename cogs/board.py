@@ -63,6 +63,12 @@ from utils import shop_stats
 
 # Vendored statische Assets (Chart.js self-hosted, kein CDN) unter <repo>/static/.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+# Strikte Allowlist auslieferbarer Dateien -> {Dateiname: Content-Type}. Neue Assets
+# hier eintragen (der /static-Handler baut den Pfad nur aus diesen Literalen).
+_STATIC_FILES = {
+    "chart.umd.js": "application/javascript",
+    "stats.js": "application/javascript",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -858,20 +864,21 @@ async def h_stats(req):
 
 
 async def h_static(req):
-    """Liefert vendored statische Assets (z.B. self-hosted Chart.js) aus <repo>/static/.
+    """Liefert vendored statische Assets (self-hosted Chart.js / stats.js) aus <repo>/static/.
 
-    Sicherheit gegen Pfad-Traversal (CodeQL py/path-injection): der aufgelöste Pfad
-    MUSS unterhalb von STATIC_DIR liegen (Containment-Prüfung via is_relative_to) –
-    eine echte Eingrenzung statt einer Zeichen-Blacklist."""
+    Sicherheit gegen Pfad-Traversal (CodeQL py/path-injection): strikte ALLOWLIST.
+    Der Dateiname aus der URL wird nur mit festen Literalen verglichen; der Pfad wird
+    ausschließlich aus der Konstante gebaut (nie aus dem User-Wert) -> untainted.
+    Neue Assets hier explizit eintragen."""
     name = req.match_info["name"]
-    base = STATIC_DIR.resolve()
-    p = (base / name).resolve()
-    if not p.is_relative_to(base) or not p.is_file():
-        raise web.HTTPNotFound()
-    ct = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml"}.get(
-        p.suffix.lower().lstrip("."), "application/octet-stream")
-    return web.FileResponse(p, headers={"Cache-Control": "public, max-age=86400",
-                                        "Content-Type": ct})
+    for fname, ct in _STATIC_FILES.items():
+        if name == fname:
+            p = STATIC_DIR / fname          # Pfad aus Literal, nicht aus dem User-Wert
+            if not p.is_file():
+                raise web.HTTPNotFound()
+            return web.FileResponse(p, headers={"Cache-Control": "public, max-age=86400",
+                                                "Content-Type": ct})
+    raise web.HTTPNotFound()
 
 
 async def h_status_json(req):
