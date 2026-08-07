@@ -461,6 +461,11 @@ STATS = """{% extends "base" %}{% block body %}
    {% if sp.rarities_sample %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=sp.rarities_sample|length) }}</summary>
     <div class=raritygrid>{% for r in sp.rarities_sample %}<div>{{ r }}</div>{% endfor %}</div></details>{% endif %}
   </div>
+ {% elif aid=='shops' %}
+  <div class=chartbox><h4>{{ t('sh_offers_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopOffers"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_breadth_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopBreadth"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_exclusive_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopExclusive"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_scatter_title') }}</h4><div class="chartwrap" style="height:380px"><canvas id="chShopScatter"></canvas></div></div>
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
  {% endif %}
@@ -834,22 +839,35 @@ async def h_board(req):
     return resp
 
 
+def _top10(pairs, other_label=None):
+    """Aus [(label, wert), …] die Top 10 als (labels, values). Ist *other_label*
+    gesetzt und gibt es einen Rest, wird dieser als eine „übrige"-Position summiert."""
+    top = pairs[:10]
+    labels = [k for k, _ in top]
+    values = [v for _, v in top]
+    if other_label is not None:
+        rest = sum(v for _, v in pairs[10:])
+        if rest:
+            labels.append(other_label)
+            values.append(rest)
+    return labels, values
+
+
 def _stats_l10n(lang: str, data: dict) -> dict:
     """Sprachabhängige Beschriftungen für die JS-Diagramme (die Rohzahlen in `data`
-    sind sprachneutral). Wird als eigene JSON-Insel `STATS_L` an die Seite gegeben."""
+    sind sprachneutral). Wird als eigene JSON-Insel `STATS_L` an die Seite gegeben.
+    Ranglisten: Top 10, Rest wo sinnvoll als „übrige" gruppiert."""
     ov = data["overview"]
-    cs = ov.get("countries", [])
-    top = cs[:12]
-    rest = sum(n for _, n in cs[12:])
-    countries = [[country_name(lang, iso), n] for iso, n in top]
-    if rest:
-        countries.append([translate(lang, "lbl_other"), rest])
+    other = translate(lang, "lbl_other")
+
+    # Block 1: Länder (lokalisierte Namen), Top 10 + übrige
+    named = [(country_name(lang, iso), n) for iso, n in ov.get("countries", [])]
+    c_labels, c_values = _top10(named, other)
     out = {
         "countries": {
             "title": translate(lang, "ch_countries_title"),
             "axis": translate(lang, "ch_countries_axis"),
-            "labels": [c[0] for c in countries],
-            "values": [c[1] for c in countries],
+            "labels": c_labels, "values": c_values,
         },
         "stock": {
             "title": translate(lang, "ch_stock_title"),
@@ -861,24 +879,45 @@ def _stats_l10n(lang: str, data: dict) -> dict:
     # ── Block 2: Arten & Gattungen ──────────────────────────────────────────
     sp = data.get("species")
     if sp:
-        gtop = sp["genera"][:18]
-        grest = sum(n for _, n in sp["genera"][18:])
+        gtop = sp["genera"][:10]
+        grest = sum(n for _, n in sp["genera"][10:])
         gdata = [{"g": g, "v": n} for g, n in gtop]
         if grest:
-            gdata.append({"g": translate(lang, "lbl_other"), "v": grest})
+            gdata.append({"g": other, "v": grest})
         out["genera"] = {"title": translate(lang, "sp_genera_title"), "data": gdata}
-        out["reach"] = {
-            "title": translate(lang, "sp_reach_title"),
-            "axis": translate(lang, "lbl_shops"),
-            "labels": [s for s, _ in sp["reach"]],
-            "values": [n for _, n in sp["reach"]],
-        }
+        r_labels, r_values = _top10(sp["reach"])           # Arten: kein „übrige"
+        out["reach"] = {"title": translate(lang, "sp_reach_title"),
+                        "axis": translate(lang, "lbl_shops"),
+                        "labels": r_labels, "values": r_values}
         out["longtail"] = {
             "title": translate(lang, "sp_longtail_title"),
             "x": translate(lang, "sp_longtail_x"),
             "y": translate(lang, "sp_longtail_y"),
             "labels": [str(k) for k, _ in sp["longtail"]],
             "values": [n for _, n in sp["longtail"]],
+        }
+
+    # ── Block 3: Shop-Vergleich ─────────────────────────────────────────────
+    sh = data.get("shops")
+    if sh:
+        o_labels, o_values = _top10(sh["by_offers"], other)
+        out["shop_offers"] = {"title": translate(lang, "sh_offers_title"),
+                              "axis": translate(lang, "lbl_offers"),
+                              "labels": o_labels, "values": o_values}
+        b_labels, b_values = _top10(sh["by_breadth"])      # Breite: kein sinnvoller Summen-Rest
+        out["shop_breadth"] = {"title": translate(lang, "sh_breadth_title"),
+                               "axis": translate(lang, "lbl_species"),
+                               "labels": b_labels, "values": b_values}
+        e_labels, e_values = _top10(sh["by_exclusive"], other)
+        out["shop_exclusive"] = {"title": translate(lang, "sh_exclusive_title"),
+                                 "axis": translate(lang, "lbl_species"),
+                                 "labels": e_labels, "values": e_values}
+        out["shop_scatter"] = {
+            "title": translate(lang, "sh_scatter_title"),
+            "x": translate(lang, "sh_scatter_x"),
+            "y": translate(lang, "sh_scatter_y"),
+            "points": [{"x": p["species"], "y": p["offers"], "label": p["shop"]}
+                       for p in sh["scatter"]],
         }
     return out
 

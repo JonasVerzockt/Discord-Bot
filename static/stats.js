@@ -165,4 +165,46 @@
       },
     });
   })();
+
+  // ── Block 3: Shop-Vergleich (horizontale Balken) ──────────────────────────
+  function hbar(id, cfg, color) {
+    var c = el(id); if (!c || !cfg) return;
+    new Chart(c, {
+      type: "bar",
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.values, backgroundColor: color, borderRadius: 4 }] },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#21262d" } },
+          y: { grid: { display: false } },
+        },
+      },
+    });
+  }
+  hbar("chShopOffers", L.shop_offers, ACCENT);
+  hbar("chShopBreadth", L.shop_breadth, OK);
+  hbar("chShopExclusive", L.shop_exclusive, "#d29922");
+
+  // ── Breite vs. Tiefe (Streudiagramm, alle Shops) ──────────────────────────
+  (function () {
+    var c = el("chShopScatter"); if (!c || !L.shop_scatter) return;
+    new Chart(c, {
+      type: "scatter",
+      data: { datasets: [{ label: L.shop_scatter.title, data: L.shop_scatter.points,
+                           backgroundColor: ACCENT, pointRadius: 4, pointHoverRadius: 6 }] },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) {
+            var p = ctx.raw; return p.label + ": " + p.x + " " + L.shop_scatter.x + ", " + p.y + " " + L.shop_scatter.y;
+          } } },
+        },
+        scales: {
+          x: { title: { display: true, text: L.shop_scatter.x }, beginAtZero: true, grid: { color: "#21262d" } },
+          y: { title: { display: true, text: L.shop_scatter.y }, beginAtZero: true, grid: { color: "#21262d" } },
+        },
+      },
+    });
+  })();
 })();

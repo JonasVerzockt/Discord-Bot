@@ -102,12 +102,16 @@ def _compute(d: dict) -> dict:
     countries: dict[str, int] = {}
     genus_offers: Counter = Counter()               # Gattung -> Zahl der Angebote
     species_shops: dict[str, set] = defaultdict(set)  # Art -> Menge der Shops
+    shop_name: dict = {}                             # Shop-ID -> Anzeigename
+    shop_offers: Counter = Counter()                # Shop-ID -> Ameisen-Angebote
+    shop_species: dict[str, set] = defaultdict(set)  # Shop-ID -> Menge Arten
 
     for s in shops:
         ps = s.get("products") or []
         if ps:
             shops_with_products += 1
         shop_id = s.get("id") or s.get("name") or id(s)
+        shop_name[shop_id] = s.get("name") or str(shop_id)
         c = (s.get("country") or "??").lower()
         countries[c] = countries.get(c, 0) + 1
         for p in ps:
@@ -120,6 +124,7 @@ def _compute(d: dict) -> dict:
                 merch_products += 1
                 continue
             live_products += 1
+            shop_offers[shop_id] += 1
             cs = (p.get("canonical_species") or "").strip()
             if cs:
                 canon_species.add(cs.lower())
@@ -127,6 +132,7 @@ def _compute(d: dict) -> dict:
                 genera.add(genus)
                 genus_offers[genus] += 1
                 species_shops[cs].add(shop_id)
+                shop_species[shop_id].add(cs)
             if _in_stock(p):
                 instock_live += 1
 
@@ -136,10 +142,24 @@ def _compute(d: dict) -> dict:
     # ── Block 2: Arten & Gattungen ──────────────────────────────────────────
     genera_ranked = genus_offers.most_common()          # [(Gattung, Angebote)] absteigend
     reach = sorted(species_shops.items(), key=lambda kv: (-len(kv[1]), kv[0]))
-    top_reach = [(sp, len(sh)) for sp, sh in reach[:15]]
+    top_reach = [(sp, len(sh)) for sp, sh in reach[:10]]
     rarities = sorted(sp for sp, sh in species_shops.items() if len(sh) == 1)
     longtail = Counter(len(sh) for sh in species_shops.values())  # k Shops -> Zahl Arten
     longtail_ranked = sorted(longtail.items())           # [(Shops, Artenzahl)] aufsteigend
+
+    # ── Block 3: Shop-Vergleich ─────────────────────────────────────────────
+    exclusive: Counter = Counter()                       # Shop-ID -> Zahl exklusiver Arten
+    for sp, sh in species_shops.items():
+        if len(sh) == 1:
+            exclusive[next(iter(sh))] += 1
+    shops_by_offers = sorted(((shop_name[i], c) for i, c in shop_offers.items()),
+                             key=lambda x: (-x[1], x[0]))
+    shops_by_breadth = sorted(((shop_name[i], len(sp)) for i, sp in shop_species.items()),
+                              key=lambda x: (-x[1], x[0]))
+    shops_by_exclusive = sorted(((shop_name[i], exclusive.get(i, 0)) for i in shop_offers),
+                                key=lambda x: (-x[1], x[0]))
+    scatter = [{"shop": shop_name[i], "species": len(shop_species.get(i, ())), "offers": c}
+               for i, c in shop_offers.items()]
 
     overview = {
         "shops_total": shops_total,
@@ -166,10 +186,16 @@ def _compute(d: dict) -> dict:
         "overview": overview,
         "species": {
             "genera": genera_ranked,             # [(Gattung, Angebote)]
-            "reach": top_reach,                  # [(Art, Shop-Anzahl)] Top 15
+            "reach": top_reach,                  # [(Art, Shop-Anzahl)] Top 10
             "rarities_count": len(rarities),
             "rarities_sample": rarities[:60],    # Arten in nur 1 Shop (Auszug)
             "longtail": longtail_ranked,         # [(Shops, Artenzahl)]
+        },
+        "shops": {
+            "by_offers": shops_by_offers,        # [(Shop, Angebote)]
+            "by_breadth": shops_by_breadth,      # [(Shop, versch. Arten)]
+            "by_exclusive": shops_by_exclusive,  # [(Shop, exkl. Arten)]
+            "scatter": scatter,                  # [{shop, species, offers}] alle Shops
         },
     }
 
