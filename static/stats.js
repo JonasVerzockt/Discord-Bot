@@ -189,6 +189,7 @@
       data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.values, backgroundColor: color, borderRadius: 4 }] },
       options: {
         indexAxis: "y",
+        interaction: { mode: "nearest", axis: "y", intersect: false },  // ganze Zeile hoverbar
         plugins: { legend: { display: false } },
         scales: { x: x, y: { grid: { display: false } } },
       },
@@ -246,10 +247,12 @@
       data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.ranges, backgroundColor: color, borderRadius: 3 }] },
       options: {
         indexAxis: "y",
+        interaction: { mode: "nearest", axis: "y", intersect: false },  // dünne Spannen-Balken: ganze Zeile hoverbar
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: function (ctx) {
-            var r = ctx.raw; return r[0] + " € – " + r[1] + " €";
+            var r = ctx.raw;
+            return r[0].toFixed(2) + " € – " + r[1].toFixed(2) + " € (Δ " + (r[1] - r[0]).toFixed(2) + " €)";
           } } },
         },
         scales: {
