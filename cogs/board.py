@@ -1167,15 +1167,16 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                               "axis": translate(lang, "pr_genus_axis"),
                               "labels": [g for g, _ in pr["genus_median"]],
                               "values": [v for _, v in pr["genus_median"]]}
+        _shops_lbl = translate(lang, "lbl_shops")
         out["price_spread"] = {"title": translate(lang, "pr_spread_title"),
                                "axis": translate(lang, "pr_spread_axis"),
-                               "labels": [s[0] for s in pr["spread"]],
+                               "labels": [f"{s[0]} ({s[4]} {_shops_lbl})" for s in pr["spread"]],
                                "ranges": [[s[1], s[2]] for s in pr["spread"]]}
         # Kleinste Spanne (min≈max) -> normaler Balken mit dem einheitlichen Preis (min),
         # ein Floating-Bar wäre bei Spanne 0 unsichtbar.
         out["price_spread_small"] = {"title": translate(lang, "pr_spread_small_title"),
                                      "axis": translate(lang, "pr_spread_axis"),
-                                     "labels": [s[0] for s in pr.get("spread_small", [])],
+                                     "labels": [f"{s[0]} ({s[4]} {_shops_lbl})" for s in pr.get("spread_small", [])],
                                      "values": [s[1] for s in pr.get("spread_small", [])]}
 
     # ── Block 5: Verfügbarkeit ──────────────────────────────────────────────
