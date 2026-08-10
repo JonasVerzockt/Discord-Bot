@@ -535,12 +535,13 @@ STATS = """{% extends "base" %}{% block body %}
    <div class=kpi><div class=v>{{ q.uncanon }}</div><div class=l>{{ t('kpi_dq_uncanon') }}</div></div>
    <div class=kpi><div class=v>{{ q.adjusted_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_adjusted') }}</div></div>
   </div>
-  <div class=chartbox><h4>{{ t('dq_shop_uncanon_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopUncanon"></canvas></div></div>
+  {% if q.shop_uncanon %}<div class=chartbox><h4>{{ t('dq_shop_uncanon_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopUncanon"></canvas></div></div>{% endif %}
   <div class=chartbox><h4>{{ t('dq_shop_adjusted_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopAdjusted"></canvas></div></div>
   <div class=chartbox><h4>{{ t('dq_variants_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqVariants"></canvas></div></div>
   <div class=chartbox><h4>{{ t('dq_uncanon_list_title') }}</h4>
    {% if q.uncanon_raw %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('dq_uncanon_show', n=q.uncanon_raw|length) }}</summary>
-    <div class=raritygrid>{% for name,cnt in q.uncanon_raw %}<div>{{ name }} <span class=muted>· {{ cnt }}</span></div>{% endfor %}</div></details>{% endif %}
+    <div class=raritygrid>{% for name,cnt in q.uncanon_raw %}<div>{{ name }} <span class=muted>· {{ cnt }}</span></div>{% endfor %}</div></details>
+   {% else %}<p class=muted style="margin-top:0">{{ t('dq_all_resolved') }}</p>{% endif %}
   </div>
  {% elif aid=='trends' %}
   <div class="rangesw">

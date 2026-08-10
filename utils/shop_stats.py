@@ -490,6 +490,16 @@ def _carry_forward_monthly(rows, months_list, pidmap, valuefn):
     return series
 
 
+def _trim_leading(series: list, is_empty) -> list:
+    """Entfernt FÜHRENDE datenlose Monate (bevor überhaupt Historie vorlag), damit
+    Linien/Balken dort beginnen, wo echte Daten anfangen – statt irreführender Nullen.
+    Innenliegende Werte bleiben erhalten."""
+    i = 0
+    while i < len(series) and is_empty(series[i]):
+        i += 1
+    return series[i:]
+
+
 def _compute_timeseries(months: int | None) -> dict:
     if not PRICE_HISTORY_DB.exists():
         return {"available": False}
@@ -535,7 +545,7 @@ def _compute_timeseries(months: int | None) -> dict:
         price_series = _carry_forward_monthly(
             rows, months_list, pidmap,
             lambda cur_d: round(_median(list(cur_d.values())), 2) if cur_d else 0.0)
-        out["price_over_time"] = price_series
+        out["price_over_time"] = _trim_leading(price_series, lambda r: r[2] == 0)
 
         # 2) Preisänderungen je Monat (Senkungen vs. Erhöhungen) aus Folge-Diffs.
         chg: dict = {}
@@ -549,8 +559,9 @@ def _compute_timeseries(months: int | None) -> dict:
                 b = chg.setdefault((dt.year, dt.month), [0, 0])
                 b[0 if mn < prev[pid] else 1] += 1
             prev[pid] = mn
-        out["changes_per_month"] = [(f"{y:04d}-{m:02d}", chg.get((y, m), [0, 0])[0],
-                                     chg.get((y, m), [0, 0])[1]) for (y, m) in months_list]
+        changes = [(f"{y:04d}-{m:02d}", chg.get((y, m), [0, 0])[0], chg.get((y, m), [0, 0])[1])
+                   for (y, m) in months_list]
+        out["changes_per_month"] = _trim_leading(changes, lambda r: r[1] == 0 and r[2] == 0)
 
         # 3) Aktuelle größte Preis-Senkungen/-Erhöhungen (letzte Änderungs-Ursache).
         rq = ("SELECT product_id, old_price, new_price, currency_iso, recorded_at "
@@ -564,23 +575,37 @@ def _compute_timeseries(months: int | None) -> dict:
             if pid not in pidmap or not op or op <= 0:
                 continue
             pct = round((np - op) / op * 100, 1)
+            # Unplausible Ausreißer aussortieren (z.B. Platzhalterpreis 1,20 € -> 1.199 €).
+            if abs(pct) > 500:
+                continue
             item = (pidmap[pid], to_eur(op, ci or "EUR"), to_eur(np, ci or "EUR"), pct)
             if np < op:
                 drops.append(item)
             elif np > op:
                 incs.append(item)
+
+        def _dedupe(items):
+            """Je Art nur den stärksten Eintrag behalten (Liste ist bereits sortiert)."""
+            seen, res = set(), []
+            for it in items:
+                if it[0] in seen:
+                    continue
+                seen.add(it[0])
+                res.append(it)
+            return res
         drops.sort(key=lambda x: x[3])
         incs.sort(key=lambda x: -x[3])
-        out["price_drops"] = drops[:10]
-        out["price_increases"] = incs[:10]
+        out["price_drops"] = _dedupe(drops)[:10]
+        out["price_increases"] = _dedupe(incs)[:10]
 
         # 4) Verfügbarkeit über Zeit (aus Bestands-Historie; anfangs leer).
         srows = _q("SELECT product_id, in_stock, recorded_at "
                    "FROM product_stock_history ORDER BY recorded_at")
         out["has_stock"] = bool(srows)
-        out["avail_over_time"] = _carry_forward_monthly(
+        out["avail_over_time"] = _trim_leading(_carry_forward_monthly(
             srows, months_list, pidmap,
-            lambda cur_d: round(100 * sum(cur_d.values()) / len(cur_d), 1) if cur_d else 0.0) if srows else []
+            lambda cur_d: round(100 * sum(cur_d.values()) / len(cur_d), 1) if cur_d else 0.0),
+            lambda r: r[2] == 0) if srows else []
         return out
     finally:
         conn.close()
