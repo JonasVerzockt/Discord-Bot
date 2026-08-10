@@ -34,6 +34,7 @@ import io
 import json
 import logging
 import os
+import random
 import re
 import secrets
 import time
@@ -69,6 +70,48 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 # NICHT im Git (gitignored) und wird bevorzugt geladen; sonst die .example-Vorlage.
 LEGAL_DIR = Path(__file__).resolve().parent.parent / "legal"
 _LEGAL_PAGES = {"impressum", "datenschutz"}
+
+
+def _make_captcha() -> tuple[str, str]:
+    """Zufällige kleine Rechenaufgabe als leichter Bot-Schutz. Stateless: Rückgabe
+    (Frage, signierte Antwort). Die Antwort selbst steht nie im Klartext im Formular –
+    nur ihr HMAC; bei der Prüfung wird der HMAC der eingegebenen Zahl verglichen."""
+    a, b = random.randint(2, 9), random.randint(2, 9)
+    op = random.choice(["+", "-", "×"])
+    if op == "-" and b > a:
+        a, b = b, a
+    ans = a + b if op == "+" else (a - b if op == "-" else a * b)
+    return f"{a} {op} {b}", _hmac("captcha", str(ans))
+
+
+def _captcha_ok(form) -> bool:
+    sig = form.get("captcha_sig", "")
+    raw = (form.get("captcha") or "").strip().replace(" ", "")
+    try:
+        val = str(int(raw))
+    except (TypeError, ValueError):
+        return False
+    return bool(sig) and hmac.compare_digest(sig, _hmac("captcha", val))
+
+
+async def _send_contact_dm(app, message: str, name: str, email: str, tel: str) -> bool:
+    """Kontaktformular-Nachricht als Discord-DM an den Owner (BOARD_OWNER_ID)."""
+    bot = app.get("bot")
+    if not BOARD_OWNER_ID or bot is None:
+        logger.warning("✉️ Kontaktformular: BOARD_OWNER_ID/Bot fehlt – Nachricht verworfen.")
+        return False
+    try:
+        user = await bot.fetch_user(BOARD_OWNER_ID)
+        e = discord.Embed(title="✉️ Board-Kontaktformular", description=message[:4000], color=0x1F6FEB)
+        e.add_field(name="Name", value=name or "—")
+        e.add_field(name="E-Mail", value=email or "—")
+        if tel:
+            e.add_field(name="Telefon", value=tel, inline=False)
+        await user.send(embed=e)
+        return True
+    except Exception as ex:  # noqa: BLE001
+        logger.error("✉️ Kontaktformular-DM fehlgeschlagen: %s", ex)
+        return False
 
 
 def _legal_content(name: str) -> tuple[str, bool]:
@@ -580,6 +623,23 @@ LEGAL = """{% extends "base" %}{% block body %}
 {% if is_example %}<div class=flash>{{ t('legal_draft_note') }}</div>{% endif %}
 <p class=muted>{{ t('legal_lang_note') }}</p>
 <div class="legal">{{ body|safe }}</div>
+{% if show_contact %}
+<div class="legal" style="margin-top:18px">
+ <h3>{{ t('contact_h') }}</h3>
+ <div class=flash style="max-width:640px">{{ t('contact_intro')|safe }}</div>
+ <form method=post action="/impressum/contact?lang={{ lang }}" style="max-width:640px">
+  <label>{{ t('contact_name') }}</label><input name=name maxlength=80 required>
+  <label>{{ t('contact_email') }}</label><input name=email type=email maxlength=120 required>
+  <label>{{ t('contact_tel') }}</label><input name=tel maxlength=40>
+  <label>{{ t('contact_msg') }}</label><textarea name=message rows=5 maxlength=2000 required></textarea>
+  <label>{{ t('contact_captcha', q=captcha_q) }}</label><input name=captcha maxlength=6 required autocomplete=off inputmode=numeric>
+  <input type=hidden name=captcha_sig value="{{ captcha_sig }}">
+  <input class=hp type=text name=website tabindex=-1 autocomplete=off>
+  <div style="margin-top:12px"><button class=btn>{{ t('contact_send') }}</button></div>
+  <p class=muted style="margin-top:8px">{{ t('contact_privacy') }} <a href="/datenschutz?lang={{ lang }}">{{ t('nav_privacy') }}</a></p>
+ </form>
+</div>
+{% endif %}
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
@@ -1183,11 +1243,14 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
 
 
 async def h_impressum(req):
-    """Impressum (§ 5 DDG) – Inhalt aus legal/impressum(.example).html."""
+    """Impressum (§ 5 DDG) – Inhalt aus legal/impressum(.example).html + Kontaktformular."""
     lang = pick_lang(req)
     body, is_example = _legal_content("impressum")
+    q, sig = _make_captcha()
+    flash = flash_text(lang, req.query.get("m", ""))
     return _render(req, "legal", title=translate(lang, "nav_impressum"),
-                   heading=translate(lang, "nav_impressum"), body=body, is_example=is_example)
+                   heading=translate(lang, "nav_impressum"), body=body, is_example=is_example,
+                   show_contact=bool(BOARD_OWNER_ID), captcha_q=q, captcha_sig=sig, flash=flash)
 
 
 async def h_datenschutz(req):
@@ -1195,7 +1258,28 @@ async def h_datenschutz(req):
     lang = pick_lang(req)
     body, is_example = _legal_content("datenschutz")
     return _render(req, "legal", title=translate(lang, "nav_privacy"),
-                   heading=translate(lang, "nav_privacy"), body=body, is_example=is_example)
+                   heading=translate(lang, "nav_privacy"), body=body, is_example=is_example,
+                   show_contact=False)
+
+
+async def h_impressum_contact(req):
+    """Kontaktformular der Impressum-Seite -> Discord-DM an den Owner.
+    Schutz: Honeypot, Rate-Limit, Rechenaufgabe (Captcha). Pflicht: Name, E-Mail, Nachricht."""
+    lang = pick_lang(req)
+    d = await req.post()
+    if (d.get("website") or "").strip():                          # Honeypot -> still „ok"
+        raise web.HTTPFound(f"/impressum?m=contact_sent&lang={lang}")
+    if not _rate("contact:" + _ip(req), 3, 3600):
+        raise web.HTTPFound(f"/impressum?m=contact_toomany&lang={lang}")
+    if not _captcha_ok(d):
+        raise web.HTTPFound(f"/impressum?m=contact_captcha&lang={lang}")
+    name = (d.get("name") or "").strip()[:80]
+    email = (d.get("email") or "").strip()[:120]
+    message = (d.get("message") or "").strip()[:2000]
+    if not name or not message or "@" not in email:
+        raise web.HTTPFound(f"/impressum?m=contact_empty&lang={lang}")
+    ok = await _send_contact_dm(req.app, message, name, email, (d.get("tel") or "").strip()[:40])
+    raise web.HTTPFound(f"/impressum?m={'contact_sent' if ok else 'contact_fail'}&lang={lang}")
 
 
 async def h_stats(req):
@@ -1627,6 +1711,7 @@ def build_app(bot) -> web.Application:
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
         web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
+        web.post("/impressum/contact", h_impressum_contact),
         web.get("/status.json", h_status_json),
         web.get("/status/check/{key}", h_status_detail),
         web.post("/status/incident/{id}/note", h_incident_note),
