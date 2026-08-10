@@ -251,7 +251,8 @@
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: function (ctx) {
-            var r = ctx.raw; return r[0] + " € – " + r[1] + " €";
+            var r = ctx.raw;
+            return r[0].toFixed(2) + " € – " + r[1].toFixed(2) + " € (Δ " + (r[1] - r[0]).toFixed(2) + " €)";
           } } },
         },
         scales: {
