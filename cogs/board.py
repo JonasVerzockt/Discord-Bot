@@ -564,10 +564,7 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('pr_hist_title') }}</h4><div class=chartwrap><canvas id="chPriceHist"></canvas></div></div>
   <div class=chartbox><h4>{{ t('pr_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceGenus"></canvas></div></div>
   <div class=chartbox><h4>{{ t('pr_spread_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpread"></canvas></div></div>
-  <div class=chartbox><h4>{{ t('pr_spread_small_title') }} <span class="info" title="{{ t('exp_price_spread_small') }}">ⓘ</span></h4>
-   <table><tr><th>{{ t('th_species') }}</th><th>{{ t('pr_range_col') }}</th><th>{{ t('pr_delta_col') }}</th><th>{{ t('lbl_shops') }}</th></tr>
-   {% for s in data.prices.spread_small %}<tr><td><i>{{ s[0] }}</i></td><td>{{ '%.2f'|format(s[1]) }}–{{ '%.2f'|format(s[2]) }} €</td><td>{{ '%.2f'|format(s[3]) }} €</td><td>{{ s[4] }}</td></tr>{% endfor %}</table>
-  </div>
+  <div class=chartbox><h4>{{ t('pr_spread_small_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpreadSmall"></canvas></div></div>
  {% elif aid=='availability' %}
   <div class=chartbox><h4>{{ t('av_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvGenus"></canvas></div></div>
   <div class=chartbox><h4>{{ t('av_country_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvCountry"></canvas></div></div>
@@ -1068,6 +1065,7 @@ _CHART_EXP = {
     "chShopOffers": "exp_shop_offers", "chShopBreadth": "exp_shop_breadth",
     "chShopExclusive": "exp_shop_exclusive", "chShopScatter": "exp_shop_scatter",
     "chPriceHist": "exp_price_hist", "chPriceGenus": "exp_price_genus", "chPriceSpread": "exp_price_spread",
+    "chPriceSpreadSmall": "exp_price_spread_small",
     "chAvGenus": "exp_av_genus", "chAvCountry": "exp_av_country", "chAvShopBest": "exp_av_shop_best",
     "chAvShopWorst": "exp_av_shop_worst", "chAvHardest": "exp_av_hardest",
     "chDqShopUncanon": "exp_dq_shop_uncanon", "chDqShopAdjusted": "exp_dq_shop_adjusted",
@@ -1174,8 +1172,10 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                                "axis": translate(lang, "pr_spread_axis"),
                                "labels": [f"{s[0]} ({s[4]} {_shops_lbl})" for s in pr["spread"]],
                                "ranges": [[s[1], s[2]] for s in pr["spread"]]}
-        # „Kleinste Preisspanne" wird serverseitig als Tabelle gerendert (siehe STATS-Template),
-        # da die Spannen ≈ 0 sind und ein Diagramm dafür nichts hergibt.
+        out["price_spread_small"] = {"title": translate(lang, "pr_spread_small_title"),
+                                     "axis": translate(lang, "pr_spread_axis"),
+                                     "labels": [f"{s[0]} ({s[4]} {_shops_lbl})" for s in pr.get("spread_small", [])],
+                                     "ranges": [[s[1], s[2]] for s in pr.get("spread_small", [])]}
 
     # ── Block 5: Verfügbarkeit ──────────────────────────────────────────────
     av = data.get("availability")

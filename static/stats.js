@@ -260,7 +260,7 @@
     });
   }
   rangebar("chPriceSpread", L.price_spread, OK);
-  // „Kleinste Preisspanne" ist eine serverseitige Tabelle (kein Chart).
+  rangebar("chPriceSpreadSmall", L.price_spread_small, ACCENT);
 
   // ── Block 5: Verfügbarkeit (Lagerquoten in %, x bis 100) ──────────────────
   hbar("chAvGenus", L.av_genus, OK, 100);
