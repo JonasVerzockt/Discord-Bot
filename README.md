@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.2.9` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.3.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1149,7 +1149,7 @@ Ranglisten zeigen generell die **Top 10**; ein sinnvoller Rest wird als „übri
 
 Jede Statistik hat ein **Info-Symbol (ⓘ) mit Hover-Erklärung** (lokalisiert de/en/eo); die Sektions-Überschriften erklären den jeweiligen Block. Die self-hosted Assets (`chart.umd.js`, `chartjs-chart-treemap.min.js`, `stats.js`) werden mit **`?v=<Version>`** ausgeliefert (Cache-Busting), damit nach jedem Update sofort die neue Version geladen wird.
 
-**Rechtsseiten:** Unter `/impressum` (§ 5 DDG) und `/datenschutz` (Art. 13 DSGVO), verlinkt im Footer. Der **Inhalt liegt in Dateien** unter `legal/`: die Vorlagen `legal/impressum.example.html` und `legal/datenschutz.example.html` sind im Git (deutscher, rechtlich maßgeblicher Text mit `[[…]]`-Platzhaltern). Für den Echtbetrieb die jeweilige Datei nach `legal/impressum.html` bzw. `legal/datenschutz.html` **kopieren, Platzhalter ausfüllen und rechtlich prüfen** – diese echten Dateien sind **gitignored** und werden vom Board **bevorzugt** geladen (sonst greift die `.example`-Vorlage mit „ENTWURF"-Banner). **Reverse-Proxy:** `impressum|datenschutz` in die Standort-Allowlist aufnehmen (zusätzlich zu `stats|static/`).
+**Rechtsseiten:** Unter `/impressum` (§ 5 DDG) und `/datenschutz` (Art. 13 DSGVO), verlinkt im Footer. Der **Inhalt liegt in Dateien** unter `legal/`: die Vorlagen `legal/impressum.example.html` und `legal/datenschutz.example.html` sind im Git (deutscher, rechtlich maßgeblicher Text mit `[[…]]`-Platzhaltern). Für den Echtbetrieb die jeweilige Datei nach `legal/impressum.html` bzw. `legal/datenschutz.html` **kopieren, Platzhalter ausfüllen und rechtlich prüfen** – diese echten Dateien sind **gitignored** und werden vom Board **bevorzugt** geladen (sonst greift die `.example`-Vorlage mit „ENTWURF"-Banner). Auf der Impressum-Seite gibt es zusätzlich ein **Kontaktformular** (Pflichtfelder Name/E-Mail/Nachricht, Telefon optional), das die Nachricht als **Discord-Direktnachricht an den Owner** (`BOARD_OWNER_ID`) zustellt – mit deutlichem Discord-Hinweis, Honeypot, Rate-Limit und einer kleinen **Rechenaufgabe** (stateless, HMAC-signiert) als Bot-Schutz. Das Formular erscheint nur, wenn `BOARD_OWNER_ID` gesetzt ist; die Discord-Übermittlung ist in der Datenschutzerklärung ausgewiesen. **Reverse-Proxy:** `impressum|datenschutz` in die Standort-Allowlist aufnehmen (zusätzlich zu `stats|static/`); die POST-Route `/impressum/contact` ist davon abgedeckt.
 
 ### Was ist das Board?
 

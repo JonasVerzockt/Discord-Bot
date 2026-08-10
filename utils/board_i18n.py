@@ -256,6 +256,21 @@ T: dict[str, dict[str, str]] = {
     "nav_privacy": {"de": "Datenschutz", "en": "Privacy", "eo": "Privateco"},
     "legal_lang_note": {"de": "Hinweis: Rechtlich maßgeblich ist ausschließlich die deutsche Fassung dieser Seite.", "en": "Note: Only the German version of this page is legally authoritative.", "eo": "Noto: Jure decida estas ekskluzive la germana versio de ĉi tiu paĝo."},
     "legal_draft_note": {"de": "ENTWURF – enthält Platzhalter [[…]] und ist vor Veröffentlichung auszufüllen und rechtlich zu prüfen.", "en": "DRAFT – contains placeholders [[…]] and must be completed and legally reviewed before publication.", "eo": "SKIZO – enhavas lokokupilojn [[…]] kaj devas esti kompletigita kaj jure kontrolita antaŭ publikigo."},
+    # Kontaktformular (Impressum) -> Discord-DM an den Owner
+    "contact_h": {"de": "Kontakt aufnehmen", "en": "Get in touch", "eo": "Kontaktu nin"},
+    "contact_intro": {"de": "📨 Hinweis: Deine Nachricht wird als <b>Discord-Direktnachricht</b> an den Betreiber zugestellt (nicht per E-Mail) und zeitnah beantwortet.", "en": "📨 Note: Your message is delivered to the operator as a <b>Discord direct message</b> (not by e-mail) and answered promptly.", "eo": "📨 Noto: Via mesaĝo estas liverata al la funkciiganto kiel <b>Discord-rekta mesaĝo</b> (ne per retpoŝto) kaj respondata baldaŭ."},
+    "contact_msg": {"de": "Nachricht *", "en": "Message *", "eo": "Mesaĝo *"},
+    "contact_name": {"de": "Name *", "en": "Name *", "eo": "Nomo *"},
+    "contact_email": {"de": "E-Mail *", "en": "E-mail *", "eo": "Retpoŝto *"},
+    "contact_tel": {"de": "Telefon (optional)", "en": "Phone (optional)", "eo": "Telefono (nedeviga)"},
+    "contact_send": {"de": "Senden", "en": "Send", "eo": "Sendi"},
+    "contact_privacy": {"de": "Mit dem Absenden wird deine Nachricht zur Zustellung über Discord an den Betreiber übermittelt. Details:", "en": "By sending, your message is transmitted to the operator via Discord for delivery. Details:", "eo": "Sendante, via mesaĝo estas transdonata al la funkciiganto per Discord por livero. Detaloj:"},
+    "flash_contact_sent": {"de": "Danke! Deine Nachricht wurde übermittelt.", "en": "Thanks! Your message has been delivered.", "eo": "Dankon! Via mesaĝo estis liverita."},
+    "flash_contact_fail": {"de": "Nachricht konnte nicht zugestellt werden – bitte per E-Mail versuchen.", "en": "Message could not be delivered – please try via e-mail.", "eo": "Mesaĝo ne livereblis – bonvolu provi per retpoŝto."},
+    "flash_contact_toomany": {"de": "Zu viele Nachrichten – bitte später erneut.", "en": "Too many messages – please try again later.", "eo": "Tro multaj mesaĝoj – bonvolu reprovi poste."},
+    "flash_contact_empty": {"de": "Bitte Name, E-Mail und Nachricht ausfüllen.", "en": "Please fill in name, e-mail and message.", "eo": "Bonvolu plenigi nomon, retpoŝton kaj mesaĝon."},
+    "contact_captcha": {"de": "Sicherheitsfrage: Wie viel ist {q}?", "en": "Security question: what is {q}?", "eo": "Sekureca demando: kiom estas {q}?"},
+    "flash_contact_captcha": {"de": "Sicherheitsfrage falsch beantwortet – bitte erneut versuchen.", "en": "Security question answered incorrectly – please try again.", "eo": "Sekureca demando malĝuste respondita – bonvolu reprovi."},
 
     # Board-Seite
     "status_head": {"de": "🩺 Bot- & Server-Status", "en": "🩺 Bot & server status", "eo": "🩺 Roboto- & servilstato"},
