@@ -301,7 +301,9 @@ def _compute(d: dict) -> dict:
                 spread_all.append((sp, round(mn, 2), round(mx, 2), round(mx - mn, 2),
                                    len(species_shops[sp])))
         spread = sorted(spread_all, key=lambda x: -x[3])[:10]              # größte Spanne
-        spread_small = sorted(spread_all, key=lambda x: (x[3], x[0]))[:10]  # kleinste Spanne
+        # kleinste ECHTE Spanne (> 0): perfekt identische Preise (Δ 0) ignorieren
+        spread_small = sorted([s for s in spread_all if s[3] > 0],
+                              key=lambda x: (x[3], x[0]))[:10]
 
     # ── Block 5: Verfügbarkeit (Lagerquoten, Snapshot) ──────────────────────
     def _rate(num, den):
