@@ -260,7 +260,7 @@
     });
   }
   rangebar("chPriceSpread", L.price_spread, OK);
-  hbar("chPriceSpreadSmall", L.price_spread_small, ACCENT);  // Spanne ~0 -> Preis als Balken
+  rangebar("chPriceSpreadSmall", L.price_spread_small, ACCENT);
 
   // ── Block 5: Verfügbarkeit (Lagerquoten in %, x bis 100) ──────────────────
   hbar("chAvGenus", L.av_genus, OK, 100);
