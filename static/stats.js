@@ -238,12 +238,12 @@
 
   hbar("chPriceGenus", L.price_genus, "#d29922");
 
-  // ── Preisspanne je Art (Floating-Bar: min–max) ────────────────────────────
-  (function () {
-    var c = el("chPriceSpread"); if (!c || !L.price_spread) return;
+  // ── Preisspanne je Art (Floating-Bar: min–max) – größte und kleinste ──────
+  function rangebar(id, cfg, color) {
+    var c = el(id); if (!c || !cfg || !cfg.labels || !cfg.labels.length) return;
     new Chart(c, {
       type: "bar",
-      data: { labels: L.price_spread.labels, datasets: [{ label: L.price_spread.axis, data: L.price_spread.ranges, backgroundColor: OK, borderRadius: 3 }] },
+      data: { labels: cfg.labels, datasets: [{ label: cfg.axis, data: cfg.ranges, backgroundColor: color, borderRadius: 3 }] },
       options: {
         indexAxis: "y",
         plugins: {
@@ -253,23 +253,25 @@
           } } },
         },
         scales: {
-          x: { beginAtZero: true, title: { display: true, text: L.price_spread.axis }, grid: { color: "#21262d" } },
+          x: { beginAtZero: true, title: { display: true, text: cfg.axis }, grid: { color: "#21262d" } },
           y: { grid: { display: false } },
         },
       },
     });
-  })();
+  }
+  rangebar("chPriceSpread", L.price_spread, OK);
+  hbar("chPriceSpreadSmall", L.price_spread_small, ACCENT);  // Spanne ~0 -> Preis als Balken
 
   // ── Block 5: Verfügbarkeit (Lagerquoten in %, x bis 100) ──────────────────
   hbar("chAvGenus", L.av_genus, OK, 100);
   hbar("chAvCountry", L.av_country, ACCENT, 100);
   hbar("chAvShopBest", L.av_shop_best, OK, 100);
   hbar("chAvShopWorst", L.av_shop_worst, "#f85149", 100);
-  hbar("chAvHardest", L.av_hardest, "#d29922", 100);
+  hbar("chAvHardest", L.av_hardest, "#d29922");
 
   // ── Block 6: Datenqualität ────────────────────────────────────────────────
   hbar("chDqShopUncanon", L.dq_shop_uncanon, "#f85149");
-  hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922", 100);
+  hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922");
   hbar("chDqVariants", L.dq_variants, ACCENT);
 
   // ── Block 7: Zeitverläufe ─────────────────────────────────────────────────

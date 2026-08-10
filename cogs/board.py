@@ -564,6 +564,7 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('pr_hist_title') }}</h4><div class=chartwrap><canvas id="chPriceHist"></canvas></div></div>
   <div class=chartbox><h4>{{ t('pr_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceGenus"></canvas></div></div>
   <div class=chartbox><h4>{{ t('pr_spread_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpread"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_spread_small_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpreadSmall"></canvas></div></div>
  {% elif aid=='availability' %}
   <div class=chartbox><h4>{{ t('av_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvGenus"></canvas></div></div>
   <div class=chartbox><h4>{{ t('av_country_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvCountry"></canvas></div></div>
@@ -1064,6 +1065,7 @@ _CHART_EXP = {
     "chShopOffers": "exp_shop_offers", "chShopBreadth": "exp_shop_breadth",
     "chShopExclusive": "exp_shop_exclusive", "chShopScatter": "exp_shop_scatter",
     "chPriceHist": "exp_price_hist", "chPriceGenus": "exp_price_genus", "chPriceSpread": "exp_price_spread",
+    "chPriceSpreadSmall": "exp_price_spread_small",
     "chAvGenus": "exp_av_genus", "chAvCountry": "exp_av_country", "chAvShopBest": "exp_av_shop_best",
     "chAvShopWorst": "exp_av_shop_worst", "chAvHardest": "exp_av_hardest",
     "chDqShopUncanon": "exp_dq_shop_uncanon", "chDqShopAdjusted": "exp_dq_shop_adjusted",
@@ -1169,6 +1171,12 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                                "axis": translate(lang, "pr_spread_axis"),
                                "labels": [s[0] for s in pr["spread"]],
                                "ranges": [[s[1], s[2]] for s in pr["spread"]]}
+        # Kleinste Spanne (min≈max) -> normaler Balken mit dem einheitlichen Preis (min),
+        # ein Floating-Bar wäre bei Spanne 0 unsichtbar.
+        out["price_spread_small"] = {"title": translate(lang, "pr_spread_small_title"),
+                                     "axis": translate(lang, "pr_spread_axis"),
+                                     "labels": [s[0] for s in pr.get("spread_small", [])],
+                                     "values": [s[1] for s in pr.get("spread_small", [])]}
 
     # ── Block 5: Verfügbarkeit ──────────────────────────────────────────────
     av = data.get("availability")
@@ -1186,9 +1194,10 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
         out["av_shop_worst"] = {"title": translate(lang, "av_shop_worst_title"), "axis": rate_axis,
                                 "labels": [s for s, _, _ in av["shop_worst"]],
                                 "values": [r for _, r, _ in av["shop_worst"]]}
-        out["av_hardest"] = {"title": translate(lang, "av_hardest_title"), "axis": rate_axis,
-                             "labels": [s for s, _, _, _ in av["hardest"]],
-                             "values": [r for _, r, _, _ in av["hardest"]]}
+        out["av_hardest"] = {"title": translate(lang, "av_hardest_title"),
+                             "axis": translate(lang, "lbl_shops"),
+                             "labels": [f"{s} ({r}%)" for s, r, sh, of in av["hardest"]],
+                             "values": [sh for s, r, sh, of in av["hardest"]]}
 
     # ── Block 6: Datenqualität ──────────────────────────────────────────────
     q = data.get("quality")
@@ -1198,9 +1207,9 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                                   "labels": [s for s, _ in q["shop_uncanon"]],
                                   "values": [n for _, n in q["shop_uncanon"]]}
         out["dq_shop_adjusted"] = {"title": translate(lang, "dq_shop_adjusted_title"),
-                                   "axis": translate(lang, "dq_shop_adjusted_axis"),
-                                   "labels": [s for s, _, _ in q["shop_adjusted"]],
-                                   "values": [r for _, r, _ in q["shop_adjusted"]]}
+                                   "axis": translate(lang, "lbl_adjusted"),
+                                   "labels": [f"{s} ({r}%)" for s, r, ac, cn in q["shop_adjusted"]],
+                                   "values": [ac for s, r, ac, cn in q["shop_adjusted"]]}
         out["dq_variants"] = {"title": translate(lang, "dq_variants_title"),
                               "axis": translate(lang, "dq_variants_axis"),
                               "labels": [s for s, _ in q["variants"]],

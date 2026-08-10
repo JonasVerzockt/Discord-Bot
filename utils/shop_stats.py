@@ -269,6 +269,7 @@ def _compute(d: dict) -> dict:
     hist = {"labels": [], "counts": []}
     genus_median = []
     spread = []
+    spread_small = []
     if prices_sorted:
         price_stats.update({
             "median": round(_median(prices_sorted), 2),
@@ -292,14 +293,15 @@ def _compute(d: dict) -> dict:
         # Median-Preis je Top-10-Gattung (Reihenfolge = Angebots-Ranking)
         genus_median = [(g, round(_median(genus_prices.get(g, [])), 2))
                         for g, _ in genera_ranked[:10] if genus_prices.get(g)]
-        # Größte Preisspanne je Art (nur Arten in ≥ 2 Shops), Top 10 nach Spanne
+        # Preisspanne je Art (nur Arten in ≥ 2 Shops): größte UND kleinste
+        spread_all = []
         for sp, pl in species_prices.items():
             if len(species_shops.get(sp, ())) >= 2 and pl:
                 mn, mx = min(pl), max(pl)
-                spread.append((sp, round(mn, 2), round(mx, 2), round(mx - mn, 2),
-                               len(species_shops[sp])))
-        spread.sort(key=lambda x: -x[3])
-        spread = spread[:10]
+                spread_all.append((sp, round(mn, 2), round(mx, 2), round(mx - mn, 2),
+                                   len(species_shops[sp])))
+        spread = sorted(spread_all, key=lambda x: -x[3])[:10]              # größte Spanne
+        spread_small = sorted(spread_all, key=lambda x: (x[3], x[0]))[:10]  # kleinste Spanne
 
     # ── Block 5: Verfügbarkeit (Lagerquoten, Snapshot) ──────────────────────
     def _rate(num, den):
@@ -331,9 +333,10 @@ def _compute(d: dict) -> dict:
         "shop_uncanon": sorted(((shop_name[i], shop_uncanon[i]) for i in shop_uncanon),
                                key=lambda x: -x[1])[:10],
         "shop_adjusted": sorted(
-            [(shop_name[i], _rate(shop_adjusted.get(i, 0), shop_canon.get(i, 0)), shop_canon.get(i, 0))
+            [(shop_name[i], _rate(shop_adjusted.get(i, 0), shop_canon.get(i, 0)),
+              shop_adjusted.get(i, 0), shop_canon.get(i, 0))
              for i in shop_offers if shop_offers[i] >= 20 and shop_canon.get(i, 0) > 0],
-            key=lambda x: -x[1])[:10],
+            key=lambda x: -x[2])[:10],   # nach absoluter Anzahl angepasster Namen
         "variants": sorted(((sp, len(f)) for sp, f in species_rawforms.items() if len(f) > 1),
                            key=lambda x: (-x[1], x[0]))[:10],
         "uncanon_raw": uncanon_raw.most_common(40),
@@ -379,7 +382,8 @@ def _compute(d: dict) -> dict:
             "stats": price_stats,                # n, median, mean, p25, p75, min, max (EUR)
             "hist": hist,                        # {labels, counts}
             "genus_median": genus_median,        # [(Gattung, Median-EUR)] Top 10
-            "spread": spread,                    # [(Art, min, max, spanne, shops)] Top 10
+            "spread": spread,                    # [(Art, min, max, spanne, shops)] größte
+            "spread_small": spread_small,        # [(Art, min, max, spanne, shops)] kleinste
         },
         "availability": {
             "by_genus": avail_genus,             # [(Gattung, Quote%)] Top-10-Gattungen
