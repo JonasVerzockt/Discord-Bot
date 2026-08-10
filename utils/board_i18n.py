@@ -164,8 +164,8 @@ T: dict[str, dict[str, str]] = {
     "pr_hist_y": {"de": "Angebote", "en": "Offers", "eo": "Ofertoj"},
     "pr_genus_title": {"de": "Median-Preis je Top-Gattung (EUR)", "en": "Median price per top genus (EUR)", "eo": "Mediana prezo po supra genro (EUR)"},
     "pr_genus_axis": {"de": "Median in EUR", "en": "Median in EUR", "eo": "Mediano en EUR"},
-    "pr_spread_title": {"de": "Größte Preisspanne je Art (günstigster–teuerster Anbieter, EUR)", "en": "Largest price range per species (cheapest–priciest seller, EUR)", "eo": "Plej granda prezintervalo po specio (plej malmultekosta–plej multekosta vendanto, EUR)"},
-    "pr_spread_small_title": {"de": "Kleinste Preisspanne je Art (einheitlichster Preis, EUR)", "en": "Smallest price range per species (most uniform price, EUR)", "eo": "Plej malgranda prezintervalo po specio (plej unueca prezo, EUR)"},
+    "pr_spread_title": {"de": "Größte Preisspanne je Art (günstigster–teuerster Anbieter, EUR; ab 5 Shops)", "en": "Largest price range per species (cheapest–priciest seller, EUR; min. 5 shops)", "eo": "Plej granda prezintervalo po specio (plej malmultekosta–plej multekosta vendanto, EUR; min. 5 butikoj)"},
+    "pr_spread_small_title": {"de": "Kleinste Preisspanne je Art (einheitlichster Preis, EUR; ab 5 Shops)", "en": "Smallest price range per species (most uniform price, EUR; min. 5 shops)", "eo": "Plej malgranda prezintervalo po specio (plej unueca prezo, EUR; min. 5 butikoj)"},
     "pr_spread_axis": {"de": "EUR", "en": "EUR", "eo": "EUR"},
     "lbl_adjusted": {"de": "Angepasste Angebote", "en": "Adjusted offers", "eo": "Alĝustigitaj ofertoj"},
     # Punkt 5: Verfügbarkeit

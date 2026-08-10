@@ -293,10 +293,10 @@ def _compute(d: dict) -> dict:
         # Median-Preis je Top-10-Gattung (Reihenfolge = Angebots-Ranking)
         genus_median = [(g, round(_median(genus_prices.get(g, [])), 2))
                         for g, _ in genera_ranked[:10] if genus_prices.get(g)]
-        # Preisspanne je Art (nur Arten in ≥ 2 Shops): größte UND kleinste
+        # Preisspanne je Art (nur Arten in ≥ 5 Shops): größte UND kleinste
         spread_all = []
         for sp, pl in species_prices.items():
-            if len(species_shops.get(sp, ())) >= 2 and pl:
+            if len(species_shops.get(sp, ())) >= 5 and pl:
                 mn, mx = min(pl), max(pl)
                 spread_all.append((sp, round(mn, 2), round(mx, 2), round(mx - mn, 2),
                                    len(species_shops[sp])))
