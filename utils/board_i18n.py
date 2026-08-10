@@ -186,6 +186,7 @@ T: dict[str, dict[str, str]] = {
     "dq_variants_axis": {"de": "Schreibweisen", "en": "Spellings", "eo": "Skribmanieroj"},
     "dq_uncanon_list_title": {"de": "Häufigste unaufgelöste Rohnamen", "en": "Most frequent unresolved raw names", "eo": "Plej oftaj nesolvitaj krudaj nomoj"},
     "dq_uncanon_show": {"de": "Liste anzeigen ({n})", "en": "Show list ({n})", "eo": "Montri liston ({n})"},
+    "dq_all_resolved": {"de": "Alle Artnamen sind aufgelöst – aktuell keine offenen Rohnamen. 🎉", "en": "All species names are resolved – currently no unresolved raw names. 🎉", "eo": "Ĉiuj specinomoj estas solvitaj – nun neniuj nesolvitaj krudaj nomoj. 🎉"},
     # Punkt 7: Zeitverläufe
     "tr_range_label": {"de": "Zeitraum:", "en": "Period:", "eo": "Periodo:"},
     "tr_range_3": {"de": "3 Monate", "en": "3 months", "eo": "3 monatoj"},
