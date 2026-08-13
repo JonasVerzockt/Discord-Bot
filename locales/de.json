@@ -111,7 +111,7 @@
   "species_synonym": "ℹ️ „{input}“ ist ein veralteter/anderer Name. Der akzeptierte Name ist **{correct}** – bitte damit erneut suchen (oder `force` nutzen).",
   "species_suggest": "❓ „{input}“ kenne ich nicht – meintest du **{correct}**? Bitte mit korrekter Schreibweise erneut versuchen (oder `force` nutzen).",
   "species_unknown": "❌ „{input}“ ist keine bekannte Ameisenart/-gattung. Bitte Schreibweise prüfen (oder mit `force` trotzdem fortfahren).",
-  "help_sells": "🛒 `/sells` – Angebote einer Art/Gattung über alle Shops vergleichen (nur lebende Ameisen, Preise inkl. EUR-Umrechnung, optional Länderfilter)",
+  "help_sells": "🛒 `/sells` – Angebote einer Art/Gattung über alle Shops vergleichen (nur lebende Ameisen, Preise inkl. EUR-Umrechnung, optional Länderfilter; `eu` = ganze EU)",
   "offers_no_shop": "❌ Kein Shop passend zu „{query}“ gefunden.",
   "offers_multi": "🔎 Mehrere Shops gefunden – bitte grenze die Suche ein:\n{shops}",
   "offers_none": "🛒 **{shop}** hat derzeit keine gelisteten Ameisen-Angebote.",

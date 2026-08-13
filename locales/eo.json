@@ -111,7 +111,7 @@
   "species_synonym": "ℹ️ „{input}“ estas malnova/alia nomo. La akceptita nomo estas **{correct}** – bonvolu reserĉi per ĝi (aŭ uzu `force`).",
   "species_suggest": "❓ Mi ne konas „{input}“ – ĉu vi celis **{correct}**? Bonvolu reprovi kun ĝusta literumo (aŭ uzu `force`).",
   "species_unknown": "❌ „{input}“ ne estas konata formik-specio/-genro. Bonvolu kontroli la literumon (aŭ daŭrigu per `force`).",
-  "help_sells": "🛒 `/sells` – Komparu ofertojn de specio/genro tra ĉiuj butikoj (nur vivaj formikoj, prezoj kun EUR-konverto, laŭvola landfiltrilo)",
+  "help_sells": "🛒 `/sells` – Komparu ofertojn de specio/genro tra ĉiuj butikoj (nur vivaj formikoj, prezoj kun EUR-konverto, laŭvola landfiltrilo; `eu` = tuta EU)",
   "offers_no_shop": "❌ Neniu butiko kongrua kun „{query}“.",
   "offers_multi": "🔎 Pluraj butikoj trovitaj – bonvolu malvastigi la serĉon:\n{shops}",
   "offers_none": "🛒 **{shop}** nuntempe havas neniujn listigitajn formik-ofertojn.",

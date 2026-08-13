@@ -34,7 +34,7 @@ from discord.ext import commands
 
 from config import SHOPS_DATA_FILE
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species, matches_species_query, is_merch_product
+from utils.availability import load_shop_data, normalize_species_name, strip_html, format_rating, is_live_ant_species, matches_species_query, is_merch_product, expand_regions
 from utils.currency import ensure_rates, to_eur
 from utils.timez import berlin_from_iso
 from utils.text_chunks import chunk_paragraphs
@@ -144,8 +144,8 @@ class SellsCog(commands.Cog, name="Sells"):
         ),
         country: discord.Option(  # type: ignore[valid-type]
             str,
-            "Optional: filter by country code (de, at, pl, ...)",
-            description_localizations={"de": "Optional: nach Ländercode filtern (de, at, pl, ...)", "en-US": "Optional: filter by country code (de, at, pl, ...)"},
+            "Optional: filter by country code (de, at, pl, ...) or 'eu' for the whole EU",
+            description_localizations={"de": "Optional: nach Ländercode filtern (de, at, pl, ...) oder 'eu' für die ganze EU", "en-US": "Optional: filter by country code (de, at, pl, ...) or 'eu' for the whole EU"},
             required=False,
             default=None,
         ),
@@ -161,7 +161,7 @@ class SellsCog(commands.Cog, name="Sells"):
         lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         query  = species.strip()
         search = normalize_species_name(query)
-        cc     = (country or "").strip().lower() or None
+        cc_raw = (country or "").strip().lower() or None
 
         # Namensprüfung gegen die Artenliste (außer bei force): bei Synonym/
         # Tippfehler/unbekannt Hinweis + korrekte Schreibweise, dann abbrechen.
@@ -173,6 +173,10 @@ class SellsCog(commands.Cog, name="Sells"):
 
         await ensure_rates()
         shop_data = await load_shop_data(self.bot)
+
+        # Länderfilter: 'eu' wird über expand_regions zu allen EU-Ländercodes aufgelöst
+        # (sonst würde 'eu' als wörtlicher Ländercode nirgends matchen). allowed=None -> kein Filter.
+        allowed = set(await expand_regions(self.bot, [cc_raw])) if cc_raw else None
 
         def _collect(match_fn, collapse_key: str | None = None, collapse_disp: str | None = None):
             """Sammelt Arten + Angebote aus allen (Länder-gefilterten) Shops für
@@ -190,7 +194,7 @@ class SellsCog(commands.Cog, name="Sells"):
             names: dict[str, Counter] = {}
             for shop in shop_data.values():
                 scountry = (shop.get("country") or "").strip().lower()
-                if cc and scountry != cc:
+                if allowed is not None and scountry not in allowed:
                     continue
                 for p in shop.get("products", []):
                     sp = (p.get("species") or "").strip()
@@ -303,7 +307,9 @@ class SellsCog(commands.Cog, name="Sells"):
         # zusätzlich nach Shop-Region (Land) gruppiert – mit Regions-Unterüberschrift.
         species_blocks: dict[str, list] = {}
         for sp in sorted(offers.keys()):
-            if cc is None:
+            # Nach Land gruppieren, wenn kein Filter ODER eine Mehr-Länder-Region ('eu');
+            # bei genau einem Land flache Liste ohne Regions-Unterüberschrift.
+            if allowed is None or len(allowed) > 1:
                 by_country: dict[str, list] = {}
                 for o in offers[sp]:
                     by_country.setdefault(o["country"], []).append(o)
