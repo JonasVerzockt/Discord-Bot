@@ -37,7 +37,7 @@ from discord.ext import commands, tasks
 
 from config import MOD_LOG_CHANNEL_ID, COMMAND_LOG_RETENTION_DAYS
 from utils.db import execute_db
-from utils.localization import l10n, get_user_lang
+from utils.localization import l10n, get_user_lang, get_guild_lang
 from utils.timez import now_berlin, berlin_from_utc_naive, align_delay_seconds
 from utils.embeds import ADMIN_COLOR
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
@@ -151,6 +151,33 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
             )
         except Exception as e:
             logger.debug("command_log completion error: %s", e)
+
+    @commands.Cog.listener(name="on_application_command_completion")
+    async def _attribute_command_output(self, ctx: discord.ApplicationContext):
+        """Hängt an die erste ÖFFENTLICHE Antwort eines Slash-Befehls eine dezente
+        Kopfzeile: wer ihn ausgeführt hat + welcher Befehl (ohne Parameter). Ephemere
+        (nur-für-dich) Antworten und Fehlerfälle bleiben unberührt. Zentral -> gilt für
+        alle Slash-Befehle, ohne die einzelnen Cogs anzufassen."""
+        try:
+            msg = await ctx.interaction.original_response()
+        except Exception:
+            return
+        try:
+            if msg is None or (getattr(msg, "flags", None) and msg.flags.ephemeral):
+                return
+            existing = msg.content or ""
+            if existing.startswith("-#"):          # schon attribuiert -> nichts tun
+                return
+            name = getattr(ctx.author, "display_name", None) or getattr(ctx.author, "name", "?")
+            cmd = ctx.command.qualified_name if ctx.command else "?"
+            lang = await get_guild_lang(self.bot, ctx.guild_id) if ctx.guild_id else "en"
+            line = l10n.get("cmd_attribution", lang, user=name, cmd=cmd)
+            new = line + ("\n" + existing if existing else "")
+            if len(new) > 2000:
+                return
+            await msg.edit(content=new, allowed_mentions=discord.AllowedMentions.none())
+        except Exception as e:
+            logger.debug("command attribution error: %s", e)
 
     @commands.Cog.listener()
     async def on_application_command_error(self, ctx: discord.ApplicationContext, error):

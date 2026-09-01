@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.4.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `2.4.1` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1105,6 +1105,8 @@ Zusätzlich sind im Discord-Befehlsmenü für **de/en** lokalisiert: die **Befeh
 3. Fallback `en`
 
 Für Bot-initiierte Kanal-Nachrichten ohne direkten User-Kontext wird die Server-Sprache verwendet.
+
+**Befehls-Attribution:** Über der **öffentlichen** Ausgabe jedes Slash-Befehls steht eine dezente Kopfzeile (Discord-Kleinschrift), die zeigt, **wer** den Befehl ausgeführt hat und **welcher Befehl** es war (ohne Parameter, in Server-Sprache), z. B. „angefragt von Jonas · `/sells`". Umgesetzt zentral über einen `on_application_command_completion`-Listener (`cogs/command_log.py`), der die erste Antwortnachricht ergänzt; ephemere (nur-für-dich) Antworten und Fehlerfälle bleiben unberührt.
 
 **Technik:**
 
