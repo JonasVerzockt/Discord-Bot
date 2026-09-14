@@ -188,6 +188,32 @@ def resolve_field(species_str: str) -> str | None:
     return None
 
 
+def resolve_genus(raw: str) -> str | None:
+    """
+    Zieht aus einem (evtl. verrauschten) String – z.B. einem Shop-/Produkttitel –
+    den enthaltenen Gattungsnamen und gibt den akzeptierten Anzeigenamen der
+    GATTUNG zurück. Ignoriert führende Nicht-Ameisen-Wörter (z.B. „Ameisenfigur",
+    „Präparat", „Ant Queen …") und greift erst beim ersten bekannten Gattungs-/
+    Artnamen. Deterministisch, ohne Fuzzy – zum Gruppieren gedacht.
+
+    Reihenfolge der Erkennung:
+      1) vollständiges bekanntes Binomen (resolve_field) → dessen Gattung
+         (löst auch Synonym-Gattungen auf den akzeptierten Namen auf),
+      2) sonst das erste Token, das eine bekannte Gattung ist.
+    None, wenn nichts Bekanntes gefunden wird oder keine Liste vorhanden ist.
+    """
+    _load()
+    if not _accepted and not _genera:
+        return None
+    binom = resolve_field(raw)
+    if binom:
+        return binom.split()[0]
+    for t in _alpha_tokens(raw):
+        if t in _genera:
+            return _genera[t]
+    return None
+
+
 def canonical(name: str) -> str | None:
     """
     Akzeptierter Anzeigename für einen SAUBEREN Gattungs-/Artnamen (nicht verrauscht):
