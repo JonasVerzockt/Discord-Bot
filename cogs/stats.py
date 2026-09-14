@@ -207,7 +207,8 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_rescan", "help_reprocess",
         ]),
         ("help_grp_codes_admin", [
-            "help_codes_set", "help_codes_date", "help_codes_fix_links", "help_codes_rescan",
+            "help_codes_set", "help_codes_date", "help_codes_edit",
+            "help_codes_fix_links", "help_codes_rescan",
         ]),
         ("help_grp_infoentries", [
             "help_info_add", "help_info_edit", "help_info_remove", "help_info_raw",
