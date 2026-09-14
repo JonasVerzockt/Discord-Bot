@@ -17,7 +17,8 @@
 """
 cogs/discount_codes.py – Rabattcode-Tracker.
 
-Liest in einem konfigurierten Kanal (DISCOUNT_CHANNEL_ID) alle Nachrichten,
+Liest in einem oder mehreren konfigurierten Kanälen (DISCOUNT_CHANNEL_IDS,
+zusammengeführt aus DISCOUNT_CHANNEL_ID + DISCOUNT_CHANNEL_ID_2 + Liste) alle Nachrichten,
 extrahiert per Claude Haiku Rabattcodes und speichert sie in der DB. Jede
 Nachricht wird – über ihre message_id – nur EINMAL an Haiku geschickt
 (Tabelle discount_scanned). Kein Keyword-Vorfilter: Haiku entscheidet selbst.
@@ -54,7 +55,7 @@ import discord
 from discord.ext import commands
 
 from config import (
-    DISCOUNT_CHANNEL_ID, DISCOUNT_VISION_ENABLED,
+    DISCOUNT_CHANNEL_IDS, DISCOUNT_VISION_ENABLED,
     DISCOUNT_VISION_MAX_IMAGES, DISCOUNT_VISION_MAX_BYTES,
     ACCUMULATION_DELAY,
 )
@@ -288,21 +289,26 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def on_ready(self):
         if self._backfill_done:
             return
-        channel = self.bot.get_channel(DISCOUNT_CHANNEL_ID)
-        if not channel:
-            if DISCOUNT_CHANNEL_ID:
-                logger.warning("⚠️ Rabattcode-Kanal nicht gefunden (DISCOUNT_CHANNEL_ID)")
+        if not DISCOUNT_CHANNEL_IDS:
             return  # nicht konfiguriert → Feature inaktiv
-        logger.info("🏷️ Rabattcode-Backfill startet…")
-        checked, found = await self._backfill(channel)
+        logger.info("🏷️ Rabattcode-Backfill startet… (%d Kanal/Kanäle)", len(DISCOUNT_CHANNEL_IDS))
+        total_checked = total_found = 0
+        for cid in DISCOUNT_CHANNEL_IDS:
+            channel = self.bot.get_channel(cid)
+            if not channel:
+                logger.warning("⚠️ Rabattcode-Kanal nicht gefunden (ID %s)", cid)
+                continue
+            checked, found = await self._backfill(channel)
+            total_checked += checked
+            total_found += found
         self._backfill_done = True
-        logger.info(f"🏷️ Rabattcode-Backfill fertig – {checked} neue Nachrichten, {found} Codes")
+        logger.info(f"🏷️ Rabattcode-Backfill fertig – {total_checked} neue Nachrichten, {total_found} Codes")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
-        if not DISCOUNT_CHANNEL_ID or message.channel.id != DISCOUNT_CHANNEL_ID:
+        if message.channel.id not in DISCOUNT_CHANNEL_IDS:
             return
         if await self._is_scanned(str(message.id)):
             return
@@ -552,6 +558,160 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         logger.info(f"🏷️ codes_date: '{code}' (shop={shop or '*'}) → {'; '.join(changes)} ({rc} Zeilen) von {ctx.author.id}")
 
     @discord.slash_command(
+        name="codes_edit",
+        description="(Admin) Adjust ANY field of a discount code",
+        description_localizations={"de": "(Admin) Beliebige Felder eines Rabattcodes anpassen"},
+    )
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def codes_edit(
+        self,
+        ctx: discord.ApplicationContext,
+        code: discord.Option(
+            str, "The discount code to edit (target)",
+            description_localizations={"de": "Der zu bearbeitende Rabattcode (Ziel)"},
+            required=True),
+        shop: discord.Option(
+            str, "Only edit rows of this shop (target filter, optional)",
+            description_localizations={"de": "Nur Einträge dieses Shops bearbeiten (Ziel-Filter, optional)"},
+            required=False, default=None),
+        new_code: discord.Option(
+            str, "Rename the code",
+            name_localizations={"de": "neuer_code"},
+            description_localizations={"de": "Code umbenennen"},
+            required=False, default=None),
+        new_shop: discord.Option(
+            str, "Set shop name ('-' to clear)",
+            name_localizations={"de": "neuer_shop"},
+            description_localizations={"de": "Shop-Namen setzen ('-' zum Leeren)"},
+            required=False, default=None),
+        url: discord.Option(
+            str, "Set shop URL ('-' to clear)",
+            name_localizations={"de": "shop_url"},
+            description_localizations={"de": "Shop-URL setzen ('-' zum Leeren)"},
+            required=False, default=None),
+        discount: discord.Option(
+            str, "Set discount text, e.g. '10%' ('-' to clear)",
+            name_localizations={"de": "rabatt"},
+            description_localizations={"de": "Rabatt-Text setzen, z.B. '10%' ('-' zum Leeren)"},
+            required=False, default=None),
+        min_order: discord.Option(
+            str, "Set minimum order value ('-' to clear)",
+            name_localizations={"de": "mindestbestellwert"},
+            description_localizations={"de": "Mindestbestellwert setzen ('-' zum Leeren)"},
+            required=False, default=None),
+        valid_from: discord.Option(
+            str, "Valid from: YYYY-MM-DD or DD.MM.YYYY ('-' to clear)",
+            name_localizations={"de": "gueltig_ab"},
+            description_localizations={"de": "Gültig ab: JJJJ-MM-TT oder TT.MM.JJJJ ('-' zum Löschen)"},
+            required=False, default=None),
+        valid_until: discord.Option(
+            str, "Valid until: YYYY-MM-DD or DD.MM.YYYY ('-' to clear)",
+            name_localizations={"de": "gueltig_bis"},
+            description_localizations={"de": "Gültig bis: JJJJ-MM-TT oder TT.MM.JJJJ ('-' zum Löschen)"},
+            required=False, default=None),
+        permanent: discord.Option(
+            bool, "Mark as permanent (no expiry)",
+            name_localizations={"de": "dauerhaft"},
+            description_localizations={"de": "Als dauerhaft markieren (kein Ablauf)"},
+            required=False, default=None),
+        status: discord.Option(
+            str, "valid = always, invalid = never, auto = by date",
+            name_localizations={"de": "status"},
+            choices=[
+                discord.OptionChoice(name="valid", value="valid", name_localizations={"de": "gültig", "en-US": "valid"}),
+                discord.OptionChoice(name="invalid", value="invalid", name_localizations={"de": "ungültig", "en-US": "invalid"}),
+                discord.OptionChoice(name="auto", value="auto", name_localizations={"de": "automatisch", "en-US": "auto"}),
+            ], required=False, default=None,
+            description_localizations={"de": "gültig = immer, ungültig = nie, automatisch = nach Datum"}),
+    ):
+        """Passt beliebige Felder eines Codes an. Nur angegebene Optionen werden
+        geändert; Textfelder mit `-` leeren. Ziel = <code> (+ optional <shop>)."""
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+
+        set_parts: list[str] = []
+        params: list = []
+        changes: list[str] = []
+        cleared = l10n.get("discount_edit_cleared", lang)
+
+        def _lbl(key: str) -> str:
+            return l10n.get(key, lang)
+
+        if new_shop is not None:
+            v = new_shop.strip()
+            val = "" if v.lower() in _CLEAR_TOKENS else v
+            set_parts.append("shop=?"); params.append(val)
+            changes.append(f"• {_lbl('discount_field_shop')}: {val or cleared}")
+        if url is not None:
+            v = url.strip()
+            val = "" if v.lower() in _CLEAR_TOKENS else ensure_url_scheme(v)
+            set_parts.append("shop_url=?"); params.append(val)
+            changes.append(f"• {_lbl('discount_field_url')}: {val or cleared}")
+        if discount is not None:
+            v = discount.strip()
+            val = "" if v.lower() in _CLEAR_TOKENS else v
+            set_parts.append("discount=?"); params.append(val)
+            changes.append(f"• {_lbl('discount_field_discount')}: {val or cleared}")
+        if min_order is not None:
+            v = min_order.strip()
+            val = None if v.lower() in _CLEAR_TOKENS else v
+            set_parts.append("min_order=?"); params.append(val)
+            changes.append(f"• {_lbl('discount_field_min_order')}: {val or cleared}")
+        if valid_from is not None:
+            k, val = _parse_date_arg(valid_from)
+            if k == "invalid":
+                await ctx.followup.send(l10n.get("discount_date_invalid", lang, value=valid_from), ephemeral=True)
+                return
+            set_parts.append("valid_from=?"); params.append(val)
+            changes.append(f"• {_lbl('discount_field_valid_from')}: {_fmt_date(val) or cleared}")
+        if valid_until is not None:
+            k, val = _parse_date_arg(valid_until)
+            if k == "invalid":
+                await ctx.followup.send(l10n.get("discount_date_invalid", lang, value=valid_until), ephemeral=True)
+                return
+            set_parts.append("valid_until=?"); params.append(val)
+            changes.append(f"• {_lbl('discount_field_valid_until')}: {_fmt_date(val) or cleared}")
+        if permanent is not None:
+            set_parts.append("is_permanent=?"); params.append(1 if permanent else 0)
+            changes.append(f"• {_lbl('discount_field_permanent')}: {'✅' if permanent else '❌'}")
+        if status is not None:
+            override = None if status == "auto" else status
+            set_parts.append("status_override=?"); params.append(override)
+            changes.append(f"• {_lbl('discount_field_status')}: {l10n.get(f'discount_set_state_{status}', lang)}")
+        if new_code is not None and new_code.strip():
+            nc = new_code.strip()
+            set_parts.append("code=?"); params.append(nc)
+            changes.append(f"• {_lbl('discount_field_code')}: `{nc}`")
+
+        if not set_parts:
+            await ctx.followup.send(l10n.get("discount_edit_nothing", lang), ephemeral=True)
+            return
+
+        query = f"UPDATE discount_codes SET {', '.join(set_parts)} WHERE lower(code)=lower(?)"
+        params.append(code.strip())
+        if shop:
+            query += " AND lower(shop)=lower(?)"
+            params.append(shop.strip())
+
+        try:
+            rc = await execute_db(self.bot, query, tuple(params), commit=True)
+        except Exception as e:
+            logger.warning(f"🏷️ codes_edit fehlgeschlagen für '{code}': {e}")
+            await ctx.followup.send(l10n.get("discount_edit_conflict", lang, code=code), ephemeral=True)
+            return
+
+        if not rc:
+            await ctx.followup.send(l10n.get("discount_set_none", lang, code=code), ephemeral=True)
+            return
+
+        await ctx.followup.send(
+            l10n.get("discount_edit_done", lang, count=rc, code=code, changes="\n".join(changes)),
+            ephemeral=True,
+        )
+        logger.info(f"🏷️ codes_edit: '{code}' (shop={shop or '*'}) → {len(changes)} Felder ({rc} Zeilen) von {ctx.author.id}")
+
+    @discord.slash_command(
         name="codes_fix_links",
         description="(Admin) Resolve short links in already-stored codes to the real shop URL",
         description_localizations={"de": "(Admin) Kurzlinks in bereits gespeicherten Codes zur echten Shop-URL auflösen"},
@@ -610,14 +770,18 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def codes_rescan(self, ctx: discord.ApplicationContext):
         """Inkrementeller Scan: bereits gescannte Nachrichten werden übersprungen."""
         await ctx.defer(ephemeral=True)
-        lang    = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        channel = self.bot.get_channel(DISCOUNT_CHANNEL_ID)
-        if not channel:
+        lang     = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        channels = [c for c in (self.bot.get_channel(cid) for cid in DISCOUNT_CHANNEL_IDS) if c]
+        if not channels:
             await ctx.followup.send(l10n.get("discount_channel_missing", lang), ephemeral=True)
             return
 
         await ctx.followup.send(l10n.get("discount_rescan_start", lang), ephemeral=True)
-        checked, found = await self._backfill(channel)
+        checked = found = 0
+        for channel in channels:
+            c, f = await self._backfill(channel)
+            checked += c
+            found   += f
         await ctx.followup.send(
             l10n.get("discount_rescan_done", lang, scanned=checked, codes=found),
             ephemeral=True,

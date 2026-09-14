@@ -40,7 +40,8 @@ from config import DATA_DIRECTORY, DB_FILE
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from cogs.server_settings import allowed_channel
-from utils.availability import load_shop_data
+from utils.availability import load_shop_data, is_merch_product
+from utils import species_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +307,8 @@ class DigestCog(commands.Cog, name="Digest"):
             name = shop.get("name") or str(shop_id)
             cur_shops[str(shop_id)] = name
             for prod in shop.get("products", []):
+                if is_merch_product(prod):   # Merch/Präparate/Bausätze/Poster raus –
+                    continue                 # weder „Neue Arten" noch Preissturz
                 sp  = (prod.get("species") or "").strip()
                 pid = prod.get("id")
                 if sp:
@@ -373,11 +376,19 @@ class DigestCog(commands.Cog, name="Digest"):
             has_content = True
 
         if new_species:
-            # Nach Gattung (erstes Wort) gruppieren; alle Arten anzeigen (keine Kürzung).
+            # Nach Gattung gruppieren; alle Arten anzeigen (keine Kürzung).
+            # Die Gattung wird aus dem GESAMTEN String ermittelt (species_catalog):
+            # führende Nicht-Ameisen-Wörter wie „Ameisenfigur", „Präparat" oder
+            # „Ant Queen …" werden übersprungen, damit z.B. „Präparat Camponotus
+            # japonicus" unter Camponotus landet und nicht unter „Präparat".
+            # Fällt zurück auf das erste Wort, wenn kein bekannter Gattungsname
+            # gefunden wird (bzw. keine Artenliste geladen ist).
             by_genus: dict[str, list] = {}
             for sp in new_species:
-                genus = sp.split()[0] if sp.split() else sp
+                genus = species_catalog.resolve_genus(sp) or (sp.split()[0] if sp.split() else sp)
                 by_genus.setdefault(genus, []).append(sp)
+            for lst in by_genus.values():
+                lst.sort(key=str.lower)
             for idx, genus in enumerate(sorted(by_genus, key=str.lower)):
                 gb: list[str] = []
                 if idx == 0:                      # Abschnitts-Überschrift an 1. Genus-Block
