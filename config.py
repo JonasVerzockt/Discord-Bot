@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "2.4.4"
+VERSION = "2.4.5"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -77,8 +77,21 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 REVIEW_PARSER_MODEL = os.getenv("REVIEW_PARSER_MODEL", "claude-haiku-4-5-20251001")
 
 # ── Rabattcode-Tracker ────────────────────────────────────────────────────────
-# Kanal, in dem Rabattcodes gepostet werden (0 = Feature inaktiv).
+# Kanäle, in denen Rabattcodes gepostet werden (leer = Feature inaktiv).
+# Primär: DISCOUNT_CHANNEL_ID (rückwärtskompatibel). Optional ein zweiter Kanal
+# über DISCOUNT_CHANNEL_ID_2, oder beliebig viele kommagetrennt über
+# DISCOUNT_CHANNEL_IDS. Alle Quellen werden zu DISCOUNT_CHANNEL_IDS zusammengeführt
+# (dedupliziert, Reihenfolge erhalten).
 DISCOUNT_CHANNEL_ID = int(os.getenv("DISCOUNT_CHANNEL_ID", "0"))
+DISCOUNT_CHANNEL_ID_2 = int(os.getenv("DISCOUNT_CHANNEL_ID_2", "0"))
+DISCOUNT_CHANNEL_IDS: list[int] = []
+for _cid in [
+    DISCOUNT_CHANNEL_ID,
+    DISCOUNT_CHANNEL_ID_2,
+    *[int(x) for x in os.getenv("DISCOUNT_CHANNEL_IDS", "").split(",") if x.strip()],
+]:
+    if _cid and _cid not in DISCOUNT_CHANNEL_IDS:
+        DISCOUNT_CHANNEL_IDS.append(_cid)
 # Modell für die Code-Extraktion (günstiges Haiku für strukturierte Parserei).
 DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-4-5-20251001")
 # Bild-Analyse: gepostete Screenshots/Flyer/Werbung ebenfalls per Vision auf

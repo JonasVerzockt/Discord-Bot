@@ -17,7 +17,8 @@
 """
 cogs/discount_codes.py – Rabattcode-Tracker.
 
-Liest in einem konfigurierten Kanal (DISCOUNT_CHANNEL_ID) alle Nachrichten,
+Liest in einem oder mehreren konfigurierten Kanälen (DISCOUNT_CHANNEL_IDS,
+zusammengeführt aus DISCOUNT_CHANNEL_ID + DISCOUNT_CHANNEL_ID_2 + Liste) alle Nachrichten,
 extrahiert per Claude Haiku Rabattcodes und speichert sie in der DB. Jede
 Nachricht wird – über ihre message_id – nur EINMAL an Haiku geschickt
 (Tabelle discount_scanned). Kein Keyword-Vorfilter: Haiku entscheidet selbst.
@@ -54,7 +55,7 @@ import discord
 from discord.ext import commands
 
 from config import (
-    DISCOUNT_CHANNEL_ID, DISCOUNT_VISION_ENABLED,
+    DISCOUNT_CHANNEL_IDS, DISCOUNT_VISION_ENABLED,
     DISCOUNT_VISION_MAX_IMAGES, DISCOUNT_VISION_MAX_BYTES,
     ACCUMULATION_DELAY,
 )
@@ -288,21 +289,26 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def on_ready(self):
         if self._backfill_done:
             return
-        channel = self.bot.get_channel(DISCOUNT_CHANNEL_ID)
-        if not channel:
-            if DISCOUNT_CHANNEL_ID:
-                logger.warning("⚠️ Rabattcode-Kanal nicht gefunden (DISCOUNT_CHANNEL_ID)")
+        if not DISCOUNT_CHANNEL_IDS:
             return  # nicht konfiguriert → Feature inaktiv
-        logger.info("🏷️ Rabattcode-Backfill startet…")
-        checked, found = await self._backfill(channel)
+        logger.info("🏷️ Rabattcode-Backfill startet… (%d Kanal/Kanäle)", len(DISCOUNT_CHANNEL_IDS))
+        total_checked = total_found = 0
+        for cid in DISCOUNT_CHANNEL_IDS:
+            channel = self.bot.get_channel(cid)
+            if not channel:
+                logger.warning("⚠️ Rabattcode-Kanal nicht gefunden (ID %s)", cid)
+                continue
+            checked, found = await self._backfill(channel)
+            total_checked += checked
+            total_found += found
         self._backfill_done = True
-        logger.info(f"🏷️ Rabattcode-Backfill fertig – {checked} neue Nachrichten, {found} Codes")
+        logger.info(f"🏷️ Rabattcode-Backfill fertig – {total_checked} neue Nachrichten, {total_found} Codes")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
-        if not DISCOUNT_CHANNEL_ID or message.channel.id != DISCOUNT_CHANNEL_ID:
+        if message.channel.id not in DISCOUNT_CHANNEL_IDS:
             return
         if await self._is_scanned(str(message.id)):
             return
@@ -764,14 +770,18 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
     async def codes_rescan(self, ctx: discord.ApplicationContext):
         """Inkrementeller Scan: bereits gescannte Nachrichten werden übersprungen."""
         await ctx.defer(ephemeral=True)
-        lang    = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        channel = self.bot.get_channel(DISCOUNT_CHANNEL_ID)
-        if not channel:
+        lang     = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        channels = [c for c in (self.bot.get_channel(cid) for cid in DISCOUNT_CHANNEL_IDS) if c]
+        if not channels:
             await ctx.followup.send(l10n.get("discount_channel_missing", lang), ephemeral=True)
             return
 
         await ctx.followup.send(l10n.get("discount_rescan_start", lang), ephemeral=True)
-        checked, found = await self._backfill(channel)
+        checked = found = 0
+        for channel in channels:
+            c, f = await self._backfill(channel)
+            checked += c
+            found   += f
         await ctx.followup.send(
             l10n.get("discount_rescan_done", lang, scanned=checked, codes=found),
             ephemeral=True,

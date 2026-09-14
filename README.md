@@ -155,6 +155,8 @@ AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + K
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
+# DISCOUNT_CHANNEL_ID_2=234567890123456789          # optionaler 2. Rabattcode-Kanal
+# DISCOUNT_CHANNEL_IDS=111...,222...                # alternativ mehrere kommagetrennt (wird zusammengeführt)
 # DISCOUNT_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Code-Extraktion
 # DISCOUNT_VISION_ENABLED=true             # Bilder (Screenshots/Flyer) auf Codes prüfen
 # DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
@@ -500,13 +502,13 @@ An-/Abmelden und Status prüfen über `/digest` (`aktivieren` / `deaktivieren` /
 
 ## Rabattcode-Tracker
 
-Liest in einem konfigurierten Kanal (`DISCOUNT_CHANNEL_ID`) Nachrichten, extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatthöhe, Gültigkeitszeitraum, ggf. Mindestbestellwert) und speichert sie in der Datenbank. Die Extraktion nutzt **Structured Outputs** (JSON-Schema `{codes:[…]}`) – die KI liefert damit garantiert valides JSON, kein Parse-Fehler-Risiko. Codes werden dabei sowohl aus dem Text als auch – sofern `DISCOUNT_VISION_ENABLED` (Standard an) – aus geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision erkannt. Ist kein Kanal gesetzt, bleibt das Feature inaktiv.
+Liest in einem oder mehreren konfigurierten Kanälen Nachrichten, extrahiert per Claude Haiku Rabattcodes (Shop, Code, Rabatthöhe, Gültigkeitszeitraum, ggf. Mindestbestellwert) und speichert sie in der Datenbank. Die Kanäle werden aus `DISCOUNT_CHANNEL_ID` (primär), dem optionalen zweiten Kanal `DISCOUNT_CHANNEL_ID_2` und der optionalen kommagetrennten Liste `DISCOUNT_CHANNEL_IDS` zusammengeführt (dedupliziert). Die Extraktion nutzt **Structured Outputs** (JSON-Schema `{codes:[…]}`) – die KI liefert damit garantiert valides JSON, kein Parse-Fehler-Risiko. Codes werden dabei sowohl aus dem Text als auch – sofern `DISCOUNT_VISION_ENABLED` (Standard an) – aus geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision erkannt. Ist kein Kanal gesetzt, bleibt das Feature inaktiv.
 
 ### Funktionsweise
 
 - **Einmal pro Nachricht:** Jede verarbeitete `message_id` wird in `discount_scanned` festgehalten, damit dieselbe Nachricht nie zweimal an Haiku geschickt wird.
-- **Backfill beim Start:** Beim ersten `on_ready` wird der gesamte Kanal (älteste zuerst) durchgegangen; bereits gescannte Nachrichten werden übersprungen. Mehrfaches `on_ready` (Reconnects) löst keinen erneuten Scan aus.
-- **Live:** Neue Posts im Kanal werden sofort verarbeitet (Reaktion 🏷️ bei gefundenem Code).
+- **Backfill beim Start:** Beim ersten `on_ready` wird jeder konfigurierte Kanal (älteste zuerst) durchgegangen; bereits gescannte Nachrichten werden übersprungen. Mehrfaches `on_ready` (Reconnects) löst keinen erneuten Scan aus.
+- **Live:** Neue Posts in einem der konfigurierten Kanäle werden sofort verarbeitet (Reaktion 🏷️ bei gefundenem Code).
 - **Kein Keyword-Vorfilter:** Jede Nachricht mit Text und/oder Bild-Anhang geht an Haiku, das im Zweifel selbst entscheidet (kein Code → leeres Ergebnis). Nur Nachrichten ganz ohne Text und ohne verwertbares Bild werden ohne API-Aufruf übersprungen und nur als gescannt markiert.
 - **Bild-Analyse (`DISCOUNT_VISION_ENABLED`, Standard an):** Datei-Anhänge (jpg, jpeg, png, gif, webp) werden per Vision mitgeschickt – so werden auch Codes erkannt, die nur im Bild stehen. Max. `DISCOUNT_VISION_MAX_IMAGES` Bilder pro Nachricht (Standard 4), jeweils ≤ `DISCOUNT_VISION_MAX_BYTES` (Standard 4 MB); größere/andere Anhänge werden übersprungen. Text und Bilder einer Nachricht gehen gemeinsam in **einen** Haiku-Aufruf. Nur Datei-Anhänge, keine verlinkten Bilder/Embeds.
 - **Datumslogik:** Relative/teilweise Angaben werden anhand des Nachrichtendatums aufgelöst (`nur heute`, `bis morgen`, `bis 14.06.`, `vom X bis Y`); Saison-Aktionen ohne Enddatum (Black Friday, Ostern, …) erhalten ein geschätztes Enddatum; `dauerhaft`/`immer` ⇒ permanenter Code ohne Enddatum. Codes **ohne** Enddatum (und nicht permanent) gelten ab 90 Tagen nach der Quellnachricht automatisch als abgelaufen, damit alte Saison-Codes nicht ewig als „aktuell" erscheinen.
