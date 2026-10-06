@@ -230,7 +230,10 @@ class MapJoinModal(discord.ui.Modal):
         super().__init__(title=l10n.get("map_wiz_modal_title", lang)[:45])
         self.wizard = wizard
         if geo.is_dach(wizard.country):
-            self.add_item(discord.ui.InputText(label=l10n.get("map_wiz_plz", lang)[:45],
+            # Auch beim groben PLZ-Gebiet wird die volle PLZ erwartet (Prüfung + Gebietsermittlung);
+            # gespeichert werden nur Region, PLZ-Präfix und die gefuzzte Gebietsmitte.
+            plz_key = "map_wiz_plz_coarse" if wizard.coarse else "map_wiz_plz"
+            self.add_item(discord.ui.InputText(label=l10n.get(plz_key, lang)[:45],
                                                required=True, max_length=10))
         else:
             self.add_item(discord.ui.InputText(label=l10n.get("map_wiz_cc", lang)[:45],
