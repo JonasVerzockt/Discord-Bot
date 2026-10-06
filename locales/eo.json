@@ -532,7 +532,7 @@
   "help_export_chat": "📤 `/export_chat <channel> [de] [ĝis] [reago_detalo]` – Eksporti tutan kanalon kiel JSON (dosier-elŝuto, efemera)",
   "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Ŝlosilvorto-atentigoj por la ofert-kanalo (pluraj perkome; PM ĉe trafoj; ✅ preta / 🔄 plu)",
   "help_offer_alert_check": "🔎 `/offer_alert check` – Listigi ĉiujn nun kiel haveblajn rekonitajn ofertojn (kontrolo)",
-  "map_wiz_intro": "🗺️ **Bredista mapo: aliĝi**\nElektu landon kaj aĝon sube. Sub **Opcioj** vi povas resti anonima, proponi kontakton aŭ uzi nur **malprecizan poŝtkodan zonon** anstataŭ via poŝtkodo (lastaj du ciferoj forigitaj, pinglo en la mezo de la zono). Per **Konsenti kaj daŭrigi** vi konsentas, ke via enskribo aperu proksimume sur la mapo (pinglo ŝovita je ĉ. 3 km, sub 18 nur anonime kalkulita). Poŝtkodon kaj laŭvolan antaŭnomon vi enigos en la sekva paŝo. Forigi iam ajn: /map_remove",
+  "map_wiz_intro": "🗺️ **Bredista mapo: aliĝi**\nElektu landon kaj aĝon sube. Sub **Opcioj** vi povas resti anonima, proponi kontakton aŭ uzi nur **malprecizan poŝtkodan zonon** anstataŭ via poŝtkodo (lastaj du ciferoj forigitaj, pinglo en la mezo de la zono). Ankaŭ tiam vi enigas vian **plenan poŝtkodon** en la sekva paŝo: ĝi estas nur kontrolata por determini la zonon, sed **ne konservata**. Per **Konsenti kaj daŭrigi** vi konsentas, ke via enskribo aperu proksimume sur la mapo (pinglo ŝovita je ĉ. 3 km, sub 18 nur anonime kalkulita). Poŝtkodon kaj laŭvolan antaŭnomon vi enigos en la sekva paŝo. Forigi iam ajn: /map_remove",
   "map_wiz_country_ph": "Elektu landon",
   "map_wiz_other": "Alia lando",
   "map_wiz_age_ph": "Elektu aĝon",
@@ -546,6 +546,7 @@
   "map_wiz_cancelled": "Nuligita, nenio estis konservita.",
   "map_wiz_modal_title": "Bredista mapo: detaloj",
   "map_wiz_plz": "Poŝtkodo",
+  "map_wiz_plz_coarse": "Plena poŝtkodo (ne estos konservata)",
   "map_wiz_cc": "Landokodo (2 literoj, ekz. us)",
   "map_wiz_fn": "Antaŭnomo (laŭvola, sen familia nomo)",
   "event_wiz_modal_title": "Proponi eventon",
@@ -579,8 +580,8 @@
   "event_recur_yearly": "Ĉiujare",
   "map_wiz_opts_ph": "Opcioj (laŭvolaj, plurelekto)",
   "map_wiz_coarse": "Nur malpreciza poŝtkoda zono",
-  "map_wiz_coarse_desc": "Lastaj du ciferoj forigitaj, pinglo en la mezo de ĉiuj poŝtkodoj de la zono",
+  "map_wiz_coarse_desc": "La plena poŝtkodo estas kontrolata sed ne konservata; pinglo en la mezo de la zono",
   "map_unknown_plz": "La poŝtkodo {plz} ne ekzistas en ĉi tiu lando. Bonvolu kontroli ĝin kaj reprovi.",
-  "map_saved_coarse": "🎯 Via pinglo estas en la mezo de la poŝtkoda zono {area} kaj havas alian koloron sur la mapo.",
+  "map_saved_coarse": "🎯 Via pinglo estas en la mezo de la poŝtkoda zono {area} kaj havas alian koloron sur la mapo. Via plena poŝtkodo estis uzata nur por la kontrolo kaj ne estis konservita.",
   "event_bad_url": "La ligilo devas komenciĝi per https:// aŭ http://."
 }

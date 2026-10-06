@@ -532,7 +532,7 @@
   "help_export_chat": "📤 `/export_chat <channel> [from] [to] [reactions_detail]` – Export a whole channel as JSON (file download, ephemeral)",
   "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Keyword alerts for the offers channel (several comma-separated; DM on matches; ✅ done / 🔄 keep)",
   "help_offer_alert_check": "🔎 `/offer_alert check` – List all offers currently recognized as available (verification)",
-  "map_wiz_intro": "🗺️ **Keeper map: sign up**\nPick your country and age below. Under **Options** you can stay anonymous, offer contact or use only a **rough postcode area** instead of your postcode (last two digits dropped, pin in the middle of the area). By clicking **Agree and continue** you consent to your entry being shown roughly on the map (pin shifted by about 3 km, under 18 only counted anonymously). Postcode and optional first name follow in the next step. Remove any time: /map_remove",
+  "map_wiz_intro": "🗺️ **Keeper map: sign up**\nPick your country and age below. Under **Options** you can stay anonymous, offer contact or use only a **rough postcode area** instead of your postcode (last two digits dropped, pin in the middle of the area). You still enter your **full postcode** in the next step: it is only checked and used to determine the area, but **not stored**. By clicking **Agree and continue** you consent to your entry being shown roughly on the map (pin shifted by about 3 km, under 18 only counted anonymously). Postcode and optional first name follow in the next step. Remove any time: /map_remove",
   "map_wiz_country_ph": "Choose country",
   "map_wiz_other": "Other country",
   "map_wiz_age_ph": "Choose age",
@@ -546,6 +546,7 @@
   "map_wiz_cancelled": "Cancelled, nothing was saved.",
   "map_wiz_modal_title": "Keeper map: details",
   "map_wiz_plz": "Postal code",
+  "map_wiz_plz_coarse": "Full postcode (will not be stored)",
   "map_wiz_cc": "Country code (2 letters, e.g. us)",
   "map_wiz_fn": "First name (optional, no surname)",
   "event_wiz_modal_title": "Suggest an event",
@@ -579,8 +580,8 @@
   "event_recur_yearly": "Yearly",
   "map_wiz_opts_ph": "Options (optional, multiple choice)",
   "map_wiz_coarse": "Only rough postcode area",
-  "map_wiz_coarse_desc": "Last two digits dropped, pin in the middle of all postcodes in the area",
+  "map_wiz_coarse_desc": "Full postcode is checked but not stored; pin in the middle of the area (last 2 digits dropped)",
   "map_unknown_plz": "The postcode {plz} does not exist in this country. Please check it and try again.",
-  "map_saved_coarse": "🎯 Your pin sits in the middle of postcode area {area} and has a different colour on the map.",
+  "map_saved_coarse": "🎯 Your pin sits in the middle of postcode area {area} and has a different colour on the map. Your full postcode was only used for the check and was not stored.",
   "event_bad_url": "The link must start with https:// or http://."
 }

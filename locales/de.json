@@ -532,7 +532,7 @@
   "help_export_chat": "📤 `/export_chat <channel> [von] [bis] [reaktionen_detail]` – Kompletten Channel als JSON exportieren (Datei-Download, ephemer)",
   "help_offer_alert": "🔎 `/offer_alert add|list|remove` – Schlagwort-Alerts für den Angebote-Kanal (mehrere kommagetrennt möglich; PN bei passenden Angeboten; ✅ erledigt / 🔄 weiter)",
   "help_offer_alert_check": "🔎 `/offer_alert check` – Alle aktuell als verfügbar erkannten Angebote auflisten (Prüfung)",
-  "map_wiz_intro": "🗺️ **Halter-Karte: Eintragen**\nWähle unten Land und Alter. Unter **Optionen** kannst du anonym bleiben, Kontakt anbieten oder statt deiner PLZ nur ein **grobes PLZ-Gebiet** nutzen (letzte zwei Ziffern weg, Pin in der Mitte des Gebiets). Mit **Zustimmen und weiter** willigst du ein, dass dein Eintrag grob auf der Karte erscheint (Pin um ca. 3 km verschoben, unter 18 nur anonym gezählt). PLZ und optional Vorname gibst du im nächsten Schritt ein. Löschen jederzeit: /map_remove",
+  "map_wiz_intro": "🗺️ **Halter-Karte: Eintragen**\nWähle unten Land und Alter. Unter **Optionen** kannst du anonym bleiben, Kontakt anbieten oder statt deiner PLZ nur ein **grobes PLZ-Gebiet** nutzen (letzte zwei Ziffern weg, Pin in der Mitte des Gebiets). Auch dann gibst du im nächsten Schritt deine **vollständige PLZ** ein: Sie wird nur geprüft und daraus das Gebiet ermittelt, aber **nicht gespeichert**. Mit **Zustimmen und weiter** willigst du ein, dass dein Eintrag grob auf der Karte erscheint (Pin um ca. 3 km verschoben, unter 18 nur anonym gezählt). PLZ und optional Vorname gibst du im nächsten Schritt ein. Löschen jederzeit: /map_remove",
   "map_wiz_country_ph": "Land wählen",
   "map_wiz_other": "Anderes Land",
   "map_wiz_age_ph": "Alter wählen",
@@ -546,6 +546,7 @@
   "map_wiz_cancelled": "Abgebrochen, es wurde nichts gespeichert.",
   "map_wiz_modal_title": "Halter-Karte: Angaben",
   "map_wiz_plz": "PLZ",
+  "map_wiz_plz_coarse": "Vollständige PLZ (wird nicht gespeichert)",
   "map_wiz_cc": "Länderkürzel (2 Buchstaben, z.B. us)",
   "map_wiz_fn": "Vorname (optional, kein Nachname)",
   "event_wiz_modal_title": "Termin vorschlagen",
@@ -579,8 +580,8 @@
   "event_recur_yearly": "Jährlich",
   "map_wiz_opts_ph": "Optionen (freiwillig, Mehrfachauswahl)",
   "map_wiz_coarse": "Nur grobes PLZ-Gebiet",
-  "map_wiz_coarse_desc": "Letzte zwei Ziffern weg, Pin in der Mitte aller PLZ des Gebiets",
+  "map_wiz_coarse_desc": "Volle PLZ wird geprüft, aber nicht gespeichert; Pin in der Mitte des Gebiets (ohne letzte 2 Ziffern)",
   "map_unknown_plz": "Die PLZ {plz} gibt es in diesem Land nicht. Bitte prüfe sie und versuche es noch einmal.",
-  "map_saved_coarse": "🎯 Dein Pin liegt in der Mitte des PLZ-Gebiets {area} und ist auf der Karte anders eingefärbt.",
+  "map_saved_coarse": "🎯 Dein Pin liegt in der Mitte des PLZ-Gebiets {area} und ist auf der Karte anders eingefärbt. Deine vollständige PLZ wurde nur zur Prüfung genutzt und nicht gespeichert.",
   "event_bad_url": "Der Link muss mit https:// oder http:// beginnen."
 }
