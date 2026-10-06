@@ -666,12 +666,15 @@ LEGAL = """{% extends "base" %}{% block body %}
 MAP = """{% extends "base" %}{% block body %}
 <link rel="stylesheet" href="/static/leaflet.css?v={{ v }}">
 <style>
- .mapgrid{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start}
+ .mapgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
+ .mapgrid>*{min-width:0}   /* Inhalt darf die Spalten nicht aufweiten (Karte bleibt 2/3 breit) */
  @media(max-width:820px){.mapgrid{grid-template-columns:1fr}}
  .mrow{display:flex;gap:9px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid #21262d}
  .mrow .fl2{font-size:13px;color:#8b949e;white-space:nowrap}
  .mrow .nm{font-weight:600;font-size:14px;overflow-wrap:anywhere}
  .mrow .tg{font-size:11px;color:#8b949e;margin-top:2px}
+ .mrow>div{min-width:0}
+ #agenda .fl2{white-space:normal;overflow-wrap:anywhere}   /* Termine: lange Orte umbrechen */
  .mrow[data-ref]{cursor:pointer} .mrow.hl{background:#1f6feb33;border-radius:6px}
  /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
  .leaflet-container{background:#0f141a}
