@@ -57,6 +57,51 @@ _DATA: dict[tuple[str, str], dict] = {}
 _COARSE: dict[tuple[str, str], tuple[float, float]] = {}   # (country, gekürzte PLZ) -> Mitte
 _mtime: float | None = None
 
+# ── Regionen vereinheitlichen (ISO 3166-2, wie in den geoBoundaries-Umrissen) ──
+# GeoNames liefert für DE gemischte Codes ("11" und "BB" = Brandenburg), für AT "01".."09"
+# und teils englische/französische Namen. Für Zählung und Anzeige wird alles auf den
+# ISO-Code (ohne Länderpräfix, z. B. "BB", "9", "ZH") und einen deutschen Namen gebracht.
+_REGIONS = {
+    "de": {"BW": "Baden-Württemberg", "BY": "Bayern", "BE": "Berlin", "BB": "Brandenburg",
+           "HB": "Bremen", "HH": "Hamburg", "HE": "Hessen", "MV": "Mecklenburg-Vorpommern",
+           "NI": "Niedersachsen", "NW": "Nordrhein-Westfalen", "RP": "Rheinland-Pfalz",
+           "SL": "Saarland", "SN": "Sachsen", "ST": "Sachsen-Anhalt", "SH": "Schleswig-Holstein",
+           "TH": "Thüringen"},
+    "at": {"1": "Burgenland", "2": "Kärnten", "3": "Niederösterreich", "4": "Oberösterreich",
+           "5": "Salzburg", "6": "Steiermark", "7": "Tirol", "8": "Vorarlberg", "9": "Wien"},
+    "ch": {"AG": "Aargau", "AI": "Appenzell Innerrhoden", "AR": "Appenzell Ausserrhoden",
+           "BE": "Bern", "BL": "Basel-Landschaft", "BS": "Basel-Stadt", "FR": "Freiburg",
+           "GE": "Genf", "GL": "Glarus", "GR": "Graubünden", "JU": "Jura", "LU": "Luzern",
+           "NE": "Neuenburg", "NW": "Nidwalden", "OW": "Obwalden", "SG": "St. Gallen",
+           "SH": "Schaffhausen", "SO": "Solothurn", "SZ": "Schwyz", "TG": "Thurgau",
+           "TI": "Tessin", "UR": "Uri", "VD": "Waadt", "VS": "Wallis", "ZG": "Zug",
+           "ZH": "Zürich"},
+}
+_DE_NUM = {"01": "BW", "02": "BY", "03": "HB", "04": "HH", "05": "HE", "06": "NI",
+           "07": "NW", "08": "RP", "09": "SL", "10": "SH", "11": "BB", "12": "MV",
+           "13": "SN", "14": "ST", "15": "TH", "16": "BE"}
+# Alte Fallback-Kürzel (vor der Vereinheitlichung gespeichert) -> ISO
+_AT_OLD = {"B": "1", "K": "2", "NO": "3", "OO": "4", "S": "5", "ST": "6", "T": "7",
+           "V": "8", "W": "9"}
+
+
+def canon_region(country: str, code: str, name: str = "") -> tuple[str, str]:
+    """(ISO-Regionscode ohne Länderpräfix, deutscher Name). Unbekanntes bleibt unverändert.
+    Liechtenstein wird als Ganzes gezählt (Code "LI"); der Gemeindename bleibt erhalten."""
+    c = (country or "").strip().lower()
+    k = (code or "").strip().upper()
+    if c == "li":
+        return "LI", (name or "Liechtenstein")
+    if c == "de":
+        k = _DE_NUM.get(k, k)
+    elif c == "at":
+        k = _AT_OLD.get(k, k.lstrip("0") or k)
+    table = _REGIONS.get(c, {})
+    if k in table:
+        return k, table[k]
+    return k, name or ""
+
+
 # ── Grober Fallback: PLZ-Leitziffer → (region_code, region_name, lat, lon) ──────
 # NUR ungefähre Regions-Zentroide als Rückfallebene ohne Datensatz. Bewusst grob.
 _FALLBACK = {
@@ -73,15 +118,15 @@ _FALLBACK = {
         "9": ("BY", "Bayern (Nord)/Thüringen",  49.45, 11.08),
     },
     "at": {
-        "1": ("W",  "Wien",                     48.21, 16.37),
-        "2": ("NO", "Niederösterreich",         48.20, 15.63),
-        "3": ("NO", "Niederösterreich/OÖ",      48.30, 15.00),
-        "4": ("OO", "Oberösterreich",           48.31, 14.29),
-        "5": ("S",  "Salzburg",                 47.81, 13.04),
-        "6": ("T",  "Tirol/Vorarlberg",         47.27, 11.39),
-        "7": ("B",  "Burgenland",               47.85, 16.52),
-        "8": ("ST", "Steiermark",               47.07, 15.44),
-        "9": ("K",  "Kärnten",                  46.62, 14.31),
+        "1": ("9",  "Wien",                     48.21, 16.37),
+        "2": ("3",  "Niederösterreich",         48.20, 15.63),
+        "3": ("3",  "Niederösterreich/OÖ",      48.30, 15.00),
+        "4": ("4",  "Oberösterreich",           48.31, 14.29),
+        "5": ("5",  "Salzburg",                 47.81, 13.04),
+        "6": ("7",  "Tirol/Vorarlberg",         47.27, 11.39),
+        "7": ("1",  "Burgenland",               47.85, 16.52),
+        "8": ("6",  "Steiermark",               47.07, 15.44),
+        "9": ("2",  "Kärnten",                  46.62, 14.31),
     },
     "ch": {
         "1": ("VD", "Waadt/Genf",               46.52,  6.63),
@@ -154,11 +199,12 @@ def _load() -> None:
                     lat = float(row["lat"]); lon = float(row["lon"])
                 except (KeyError, ValueError):
                     continue
+                rc, rn = canon_region(c, row.get("region_code") or "",
+                                      (row.get("region_name") or "").strip())
                 data[(c, plz)] = {
                     "country": c, "plz": plz,
                     "place": (row.get("place") or "").strip(),
-                    "region_code": (row.get("region_code") or "").strip(),
-                    "region_name": (row.get("region_name") or "").strip(),
+                    "region_code": rc, "region_name": rn,
                     "lat": lat, "lon": lon,
                 }
         # Mittelpunkte der groben PLZ-Gebiete (alle PLZ mit gleichen Anfangsziffern).

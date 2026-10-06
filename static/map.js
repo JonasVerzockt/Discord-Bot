@@ -22,6 +22,11 @@
 
   var map = L.map("map", { worldCopyJump: false, maxZoom: CFG.maxZoom, minZoom: 4 })
     .setView([49.5, 9.5], 5);
+  // Feste Stapelreihenfolge: Umrisse (overlayPane 400) < PLZ-Blasen < Halter-Pins < Termine.
+  // So liegen Pins immer oben und bleiben anklickbar, egal was zuletzt geladen wurde.
+  map.createPane("bubblePane").style.zIndex = 450;
+  map.createPane("pinPane").style.zIndex = 620;
+  map.createPane("eventPane").style.zIndex = 630;
 
   var choroLayer = null, pinLayer = null, eventLayer = null;
   var pinByRef = {};        // ref -> Leaflet-Marker (Pin ↔ Listenzeile)
@@ -43,19 +48,22 @@
     });
   }
 
-  function countFor(level, feat) {
-    // Versucht gängige Property-Namen für Regions-/PLZ-Codes zu matchen.
+  // Zahl je Bundesland/Kanton: Abgleich über den ISO-Code der Umrisse
+  // (shapeISO "DE-BB", "AT-9", "CH-ZH"; Liechtenstein als Ganzes), Name als Rückfallebene.
+  function countFor(feat) {
     var p = feat.properties || {};
-    var keys = level === "plz"
-      ? ["plz", "plz_prefix", "PLZ", "postcode", "code"]
-      : ["region_code", "shapeName", "shapeISO", "AGS", "GEN", "name", "NAME_1", "id", "code"];
-    var val = null;
-    for (var i = 0; i < keys.length; i++) { if (p[keys[i]] != null) { val = String(p[keys[i]]); break; } }
-    if (val == null) return 0;
-    var arr = regionData[level] || [];
+    var iso = String(p.shapeISO || "");
+    var cc = null, code = null;
+    var dash = iso.indexOf("-");
+    if (dash > 0) { cc = iso.slice(0, dash).toLowerCase(); code = iso.slice(dash + 1).toUpperCase(); }
+    else if (iso === "LIE" || String(p.shapeName || "") === "Liechtenstein") { cc = "li"; code = "LI"; }
+    if (cc === "li") code = "LI";
+    var nm = String(p.shapeName || p.region_name || p.name || "").toLowerCase();
+    var arr = regionData.bundesland || [];
     for (var j = 0; j < arr.length; j++) {
-      var rc = level === "plz" ? arr[j].plz_prefix : arr[j].region_code;
-      if (rc && (val === rc || val.indexOf(rc) === 0 || rc.indexOf(val) === 0)) return arr[j].count;
+      var e = arr[j];
+      if (cc && code && e.country === cc && String(e.region_code).toUpperCase() === code) return e.count;
+      if (!code && nm && String(e.region_name || "").toLowerCase() === nm) return e.count;
     }
     return 0;
   }
@@ -68,8 +76,10 @@
   function drawChoropleth() {
     if (choroLayer) { map.removeLayer(choroLayer); choroLayer = null; }
     // PLZ-Ebene: Blasen je PLZ-Gebiet (Zentroide aus GeoNames) – keine Polygon-Datei nötig.
-    if (curLevel === "plz") {
-      var group = L.layerGroup();
+    var plzMode = (curLevel === "plz");
+    var bubbles = null;
+    if (plzMode) {
+      bubbles = L.layerGroup();
       var arr = regionData.plz || [];
       if (!arr.length) {
         note(CFG.lang === "en" ? "No postcode data yet (geodata still loading)."
@@ -78,14 +88,13 @@
       arr.forEach(function (e) {
         if (e.lat == null || e.lon == null) return;
         var r = 4 + Math.min(e.count, 24) * 0.5;
-        var m = L.circleMarker([e.lat, e.lon], { radius: r, color: "#0d1117", weight: 0.8,
+        var m = L.circleMarker([e.lat, e.lon], { pane: "bubblePane", radius: r, color: "#0d1117", weight: 0.8,
                                                  fillColor: color(e.count), fillOpacity: 0.75 });
         var xs = (e.country === "de") ? "xxx" : "xx";
         m.bindPopup("<b>PLZ " + esc(e.plz_prefix) + xs + "</b><br>" + e.count + " " +
                     (CFG.lang === "en" ? "keepers" : "Halter"));
-        m.addTo(group);
+        m.addTo(bubbles);
       });
-      group.addTo(map); choroLayer = group; return;
     }
     // Bundesland/Kanton-Ebene: echte Polygone (geoBoundaries).
     var files = ["/static/de_bundeslaender.geojson", "/static/at_bundeslaender.geojson",
@@ -97,12 +106,15 @@
       p.then(function (gj) {
         loaded++;
         L.geoJSON(gj, {
+          interactive: !plzMode,
           style: function (feat) {
-            var n = countFor(curLevel, feat);
+            if (plzMode) return { color: "#6e7681", weight: 1, opacity: 0.7, fillColor: "#30363d", fillOpacity: 0.35 };
+            var n = countFor(feat);
             return { color: "#6e7681", weight: 1, opacity: 0.9, fillColor: color(n), fillOpacity: 0.55 };
           },
           onEachFeature: function (feat, layer) {
-            var n = countFor(curLevel, feat);
+            if (plzMode) return;               // PLZ-Ebene: Umrisse nur als Hintergrund
+            var n = countFor(feat);
             var nm = (feat.properties && (feat.properties.region_name || feat.properties.shapeName ||
                       feat.properties.GEN || feat.properties.name || feat.properties.NAME_1)) || "";
             layer.bindPopup("<b>" + esc(nm) + "</b><br>" + n + " " + (CFG.lang === "en" ? "keepers" : "Halter"));
@@ -115,6 +127,7 @@
                                    : "Regions-Umrisse (GeoJSON) noch nicht hinterlegt – Zahlen stehen in der Liste.");
         });
     });
+    if (bubbles) bubbles.addTo(group);     // Blasen liegen über den Umrissen (eigene Ebene)
     group.addTo(map);
     choroLayer = group;
   }
@@ -127,7 +140,7 @@
       pinByRef = {};
       (d.pins || []).forEach(function (p) {
         var st = p.coarse ? PIN_STYLE.coarse : PIN_STYLE.exact;
-        var m = L.circleMarker([p.lat, p.lon], { radius: 7, color: st.color, fillColor: st.fillColor, fillOpacity: 0.9, weight: 2 });
+        var m = L.circleMarker([p.lat, p.lon], { pane: "pinPane", radius: 7, color: st.color, fillColor: st.fillColor, fillOpacity: 0.9, weight: 2 });
         var tags = (p.tags && p.tags.length) ? "<br><span style='color:#8b949e'>" + esc(p.tags.join(", ")) + "</span>" : "";
         var contact = p.contact ? ("<br><i>" + esc(PL.contact) + "</i>") : "";
         var area = p.coarse ? ("<br><span style='color:#f778ba'>" + esc(PL.coarseNote) + "</span>") : "";
@@ -249,7 +262,7 @@
            (link ? "<a class=fl2 href='" + link + "' target=_blank rel='noopener noreferrer'>Link</a>" : "") + "</div></div>";
       if (e.lat && e.lon) {
         var col = EVENT_COLORS[e.type] || EVENT_COLORS.other;
-        var m = L.circleMarker([e.lat, e.lon], { radius: 8, color: "#fff", weight: 2, fillColor: col, fillOpacity: 0.95 });
+        var m = L.circleMarker([e.lat, e.lon], { pane: "eventPane", radius: 8, color: "#fff", weight: 2, fillColor: col, fillOpacity: 0.95 });
         m.bindPopup("<b>" + esc(e.title) + "</b><br>" + esc(ds) + (e.venue ? "<br>" + esc(e.venue) : ""));
         m.addTo(eventLayer);
       }

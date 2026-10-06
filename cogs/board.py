@@ -1979,9 +1979,13 @@ async def h_map_regions(req):
         c = r["country"]
         by_country[c] = by_country.get(c, 0) + 1
         if c in _DACH and r["region_code"]:
-            k = f'{c}:{r["region_code"]}'
-            e = by_state.setdefault(k, {"country": c, "region_code": r["region_code"],
-                                        "region_name": r["region_name"], "count": 0})
+            # Codes vereinheitlichen (ISO wie in den Umrissen; auch für ältere Einträge)
+            rc, rn = geo.canon_region(c, r["region_code"], r["region_name"] or "")
+            if c == "li":
+                rn = "Liechtenstein"
+            k = f'{c}:{rc}'
+            e = by_state.setdefault(k, {"country": c, "region_code": rc,
+                                        "region_name": rn, "count": 0})
             e["count"] += 1
         if c in _DACH and r["plz_prefix"]:
             k = f'{c}:{r["plz_prefix"]}'
@@ -2011,7 +2015,7 @@ async def h_map_pins(req):
         raise web.HTTPForbidden(text="login required")
     bot = req.app["bot"]
     rows = await execute_db(bot,
-        "SELECT user_id, country, region_name, first_name, show_name, contact_ok, coarse, "
+        "SELECT user_id, country, region_code, region_name, first_name, show_name, contact_ok, coarse, "
         "lat_fuzzed, lon_fuzzed FROM map_entries WHERE show_entry=1 "
         "AND lat_fuzzed IS NOT NULL LIMIT 2000", fetch=True) or []
     tags = await _map_tags_for(req.app, {r["user_id"] for r in rows})
@@ -2029,7 +2033,8 @@ async def h_map_pins(req):
         out.append({
             "ref": _hmac("mapref", r["user_id"])[:12],   # opak, korreliert Pin ↔ Listenzeile
             "lat": r["lat_fuzzed"], "lon": r["lon_fuzzed"], "name": disp,
-            "country": r["country"], "region": r["region_name"] or "",
+            "country": r["country"],
+            "region": geo.canon_region(r["country"], r["region_code"] or "", r["region_name"] or "")[1],
             "contact": bool(r["contact_ok"]),
             "coarse": bool(r["coarse"]),             # Pin = Mitte des groben PLZ-Gebiets
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
@@ -2053,7 +2058,7 @@ async def h_map_list(req):
                         "country_name": country_name(pick_lang(req), r["country"]),
                         "count": r["n"]} for r in rows]})
     rows = await execute_db(bot,
-        "SELECT user_id, country, region_name, first_name, show_name, contact_ok "
+        "SELECT user_id, country, region_code, region_name, first_name, show_name, contact_ok "
         "FROM map_entries WHERE show_entry=1 LIMIT 5000", fetch=True) or []
     tags = await _map_tags_for(req.app, {r["user_id"] for r in rows})
     lang = pick_lang(req)
@@ -2071,7 +2076,7 @@ async def h_map_list(req):
             "ref": _hmac("mapref", r["user_id"])[:12],   # opak, korreliert Listenzeile ↔ Pin
             "name": disp, "country": r["country"],
             "country_name": country_name(lang, r["country"]),
-            "region": r["region_name"] or "",
+            "region": geo.canon_region(r["country"], r["region_code"] or "", r["region_name"] or "")[1],
             "dach": r["country"] in _DACH,
             "contact": bool(r["contact_ok"]),
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
