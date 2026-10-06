@@ -517,19 +517,43 @@ async def _submit_event(bot, user, d: dict):
             "SELECT id FROM map_events WHERE submitted_by=? ORDER BY id DESC LIMIT 1",
             (str(user.id),), fetch=True)
         eid = ev[0]["id"] if ev else "?"
-        when = dt.strftime("%d.%m.%Y %H:%M") if d["has_time"] else dt.strftime("%d.%m.%Y")
-        if end_dt:
-            when += " bis " + end_dt.strftime("%d.%m.%Y")
         owner = await bot.fetch_user(BOARD_OWNER_ID)
-        await owner.send(
-            f"🗺️ **Neuer Event-Vorschlag #{eid}** (zur Freigabe)\n"
-            f"• Titel: {d['title'][:120]}\n"
-            f"• Wann: {when}\n"
-            f"• Ort: {d['location'][:160]}" + (f" ({cc.upper()})" if cc else "") + "\n"
-            f"• Von: {getattr(user, 'display_name', user.name)} ({user.id})\n"
+        olang = await get_user_lang(bot, BOARD_OWNER_ID, None)
+        L = lambda k: l10n.get(k, olang)
+
+        when = dt.strftime("%d.%m.%Y %H:%M") if d["has_time"] else dt.strftime("%d.%m.%Y") + " (ganztägig)"
+        if end_dt and end_dt.date() != dt.date():   # gleicher Tag -> kein "bis" anzeigen
+            when += " bis " + end_dt.strftime("%d.%m.%Y")
+        if lat is not None:
+            pin = f"✅ ja ({lat:.4f}, {lon:.4f})"
+        elif plz and cc and geo.is_dach(cc):
+            pin = "⚠️ nein – PLZ nicht auflösbar"
+        elif not cc:
+            pin = "⚠️ nein – kein Land gewählt (nur Liste/Kalender)"
+        elif not geo.is_dach(cc):
+            pin = "⚠️ nein – Land außerhalb DACH (nur Liste/Kalender)"
+        else:
+            pin = "⚠️ nein – keine PLZ angegeben (nur Liste/Kalender)"
+        desc = (d.get("description") or "").strip()
+        if len(desc) > 300:
+            desc = desc[:300].rstrip() + " …"
+
+        lines = [
+            f"🗺️ **Neuer Event-Vorschlag #{eid}** (zur Freigabe)",
+            f"• Titel: {d['title'][:120]}",
+            f"• Art: {L('event_type_' + d['etype'])}",
+            f"• Wann: {when}",
+            f"• Wiederholung: {L('event_recur_' + d['recurring'])}" + (f" (`{rrule}`)" if rrule else ""),
+            f"• Ort: {d['location'][:160]}",
+            f"• Land: {cc.upper() if cc else '–'} · PLZ: {plz or '–'}",
+            f"• Karten-Pin: {pin}",
+            f"• Link: <{d['url']}>" if d.get("url") else "• Link: –",
+            f"• Beschreibung: {desc}" if desc else "• Beschreibung: –",
+            f"• Von: {getattr(user, 'display_name', user.name)} ({user.id})",
             f"Freigeben: `/event_approve event_id:{eid}` · Ablehnen: `/event_reject event_id:{eid}` · "
-            f"Anpassen: `/event_edit event_id:{eid}`"
-        )
+            f"Anpassen: `/event_edit event_id:{eid}`",
+        ]
+        await owner.send("\n".join(lines)[:2000])
     except Exception as e:
         logger.debug("event_add Owner-PN fehlgeschlagen: %s", e)
 
