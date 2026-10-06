@@ -28,7 +28,7 @@ from datetime import datetime
 import discord
 from discord.ext import commands
 
-from config import MAP_ENABLED, MAP_JITTER_METERS, BOARD_OWNER_ID
+from config import MAP_ENABLED, MAP_JITTER_METERS, BOARD_OWNER_ID, BOARD_PUBLIC_URL
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils import geo, map_tags, map_geodata
@@ -148,6 +148,11 @@ async def _delete_entry(bot, uid):
     uid = str(uid)
     await execute_db(bot, "DELETE FROM map_entry_tags WHERE user_id=?", (uid,), commit=True)
     await execute_db(bot, "DELETE FROM map_entries WHERE user_id=?", (uid,), commit=True)
+
+
+async def _delete_rsvps(bot, uid):
+    """Alle Teilnahme-Angaben einer Person löschen (z. B. beim Server-Austritt)."""
+    await execute_db(bot, "DELETE FROM map_event_rsvp WHERE user_id=?", (str(uid),), commit=True)
 
 
 def _rrule_from(kind: str, dt: datetime) -> str | None:
@@ -287,13 +292,17 @@ class MapJoinModal(discord.ui.Modal):
             # Auch beim groben PLZ-Gebiet wird die volle PLZ erwartet (Prüfung + Gebietsermittlung);
             # gespeichert werden nur Region, PLZ-Präfix und die gefuzzte Gebietsmitte.
             plz_key = "map_wiz_plz_coarse" if wizard.coarse else "map_wiz_plz"
+            # Die PLZ wird nie gespeichert -> kann auch beim Bearbeiten nicht vorausgefüllt werden.
             self.add_item(discord.ui.InputText(label=l10n.get(plz_key, lang)[:45],
                                                required=True, max_length=10))
         else:
+            ex_cc = (wizard.existing or {}).get("country") or ""
             self.add_item(discord.ui.InputText(label=l10n.get("map_wiz_cc", lang)[:45],
-                                               required=True, min_length=2, max_length=2))
+                                               required=True, min_length=2, max_length=2,
+                                               value=ex_cc if (ex_cc and not geo.is_dach(ex_cc)) else None))
         self.add_item(discord.ui.InputText(label=l10n.get("map_wiz_fn", lang)[:45],
-                                           required=False, max_length=40))
+                                           required=False, max_length=40,
+                                           value=(wizard.existing or {}).get("first_name") or None))
 
     async def callback(self, interaction: discord.Interaction):
         w = self.wizard
@@ -312,21 +321,30 @@ class MapJoinModal(discord.ui.Modal):
         w.stop()
         logger.info("🗺️ map_join: %s (%s)", interaction.user.id, cc.upper())
         try:
-            await interaction.response.edit_message(content=msg, view=TagView(w.lang))
+            await interaction.response.edit_message(content=msg, view=TagView(w.lang, w.tags))
         except Exception:
-            await interaction.response.send_message(msg, view=TagView(w.lang), ephemeral=True)
+            await interaction.response.send_message(msg, view=TagView(w.lang, w.tags), ephemeral=True)
 
 
 class MapJoinView(discord.ui.View):
     """Schritt 1 von /map_join: Land, Alter, Namensanzeige, Kontakt + Einwilligung per Button."""
-    def __init__(self, lang: str):
+    def __init__(self, lang: str, existing: dict | None = None, tags=None):
         super().__init__(timeout=900)
         self.lang = lang
+        self.existing = existing      # vorhandener Eintrag -> Auswahl vorausfüllen
+        self.tags = list(tags or [])  # vorhandene Tags -> in der Tag-Auswahl vorausgewählt
         self.country = None
         self.age_18 = None
         self.show_name = True         # Standard: Name anzeigen (falls Vorname angegeben)
         self.contactable = False      # Standard: NICHT kontaktierbar (nur bei aktivem Ja)
         self.coarse = False           # Standard: genaue PLZ (gefuzzt); optional grobes PLZ-Gebiet
+        if existing:
+            cc = (existing.get("country") or "").lower()
+            self.country = cc if geo.is_dach(cc) else ("other" if cc else None)
+            self.age_18 = bool(existing.get("age_ok"))
+            self.show_name = bool(existing.get("show_name", 1))
+            self.contactable = bool(existing.get("contact_ok"))
+            self.coarse = bool(existing.get("coarse"))
 
         c = discord.ui.Select(placeholder=l10n.get("map_wiz_country_ph", lang), row=0,
             options=[discord.SelectOption(label=(n or l10n.get("map_wiz_other", lang)), value=v,
@@ -360,6 +378,16 @@ class MapJoinView(discord.ui.View):
             for opt in o.options:
                 opt.default = opt.value in vals
             await interaction.response.defer()
+
+        # Vorhandenen Eintrag als Vorauswahl markieren.
+        if self.country:
+            _mark_default(c, self.country)
+        if self.age_18 is not None:
+            _mark_default(a, "18" if self.age_18 else "u18")
+        for opt in o.options:
+            opt.default = ((opt.value == "anon" and not self.show_name) or
+                           (opt.value == "contact" and self.contactable) or
+                           (opt.value == "coarse" and self.coarse))
 
         c.callback, a.callback, o.callback = on_country, on_age, on_opts
         for item in (c, a, o):
@@ -563,55 +591,236 @@ async def _submit_event(bot, user, d: dict):
         commit=True)
     logger.info("🗺️ event_add: '%s' von %s (pending)", d["title"][:60], user.id)
 
-    # Betreiber-PN bei jeder Einreichung (zum Freigeben/Ablehnen).
+    # Betreiber-PN bei jeder Einreichung – mit Buttons zum Freigeben/Ablehnen/Bearbeiten.
     if not BOARD_OWNER_ID:
         return
     try:
         ev = await execute_db(bot,
             "SELECT id FROM map_events WHERE submitted_by=? ORDER BY id DESC LIMIT 1",
             (str(user.id),), fetch=True)
-        eid = ev[0]["id"] if ev else "?"
+        row = await _event_row(bot, ev[0]["id"]) if ev else None
+        if not row:
+            return
         owner = await bot.fetch_user(BOARD_OWNER_ID)
         olang = await get_user_lang(bot, BOARD_OWNER_ID, None)
-        L = lambda k: l10n.get(k, olang)
-
-        when = _fmt_when(dt, d["has_time"], end_dt, d.get("end_has_time", False), "bis")
-        if not d["has_time"]:
-            when += " (ganztägig)"
-        elif not d.get("end_has_time"):
-            when += " (keine Endzeit)"
-        if lat is not None:
-            pin = f"✅ ja ({lat:.4f}, {lon:.4f})"
-        elif plz and cc and geo.is_dach(cc):
-            pin = "⚠️ nein – PLZ nicht auflösbar"
-        elif not cc:
-            pin = "⚠️ nein – kein Land gewählt (nur Liste/Kalender)"
-        elif not geo.is_dach(cc):
-            pin = "⚠️ nein – Land außerhalb DACH (nur Liste/Kalender)"
-        else:
-            pin = "⚠️ nein – keine PLZ angegeben (nur Liste/Kalender)"
-        desc = (d.get("description") or "").strip()
-        if len(desc) > 300:
-            desc = desc[:300].rstrip() + " …"
-
-        lines = [
-            f"🗺️ **Neuer Event-Vorschlag #{eid}** (zur Freigabe)",
-            f"• Titel: {d['title'][:120]}",
-            f"• Art: {L('event_type_' + d['etype'])}",
-            f"• Wann: {when}",
-            f"• Wiederholung: {L('event_recur_' + d['recurring'])}" + (f" (`{rrule}`)" if rrule else ""),
-            f"• Ort: {d['location'][:160]}",
-            f"• Land: {cc.upper() if cc else '–'} · PLZ: {plz or '–'}",
-            f"• Karten-Pin: {pin}",
-            f"• Link: <{d['url']}>" if d.get("url") else "• Link: –",
-            f"• Beschreibung: {desc}" if desc else "• Beschreibung: –",
-            f"• Von: {getattr(user, 'display_name', user.name)} ({user.id})",
-            f"Freigeben: `/event_approve event_id:{eid}` · Ablehnen: `/event_reject event_id:{eid}` · "
-            f"Anpassen: `/event_edit event_id:{eid}`",
-        ]
-        await owner.send("\n".join(lines)[:2000])
+        await owner.send(await _event_admin_text(bot, row, olang), view=_event_admin_view(row["id"]))
     except Exception as e:
         logger.debug("event_add Owner-PN fehlgeschlagen: %s", e)
+
+
+# ── Event-Freigabe: Admin-PN mit Buttons, Benachrichtigung der Einreichenden ─────
+def _recur_code(rrule) -> str:
+    """Gespeicherte RRULE -> Code der Wiederholungs-Auswahl (für Anzeige/Neuberechnung)."""
+    r = (rrule or "").upper()
+    if "FREQ=WEEKLY" in r:
+        return "weekly"
+    if "FREQ=MONTHLY" in r:
+        return "monthly_weekday" if "BYDAY" in r else "monthly_day"
+    if "FREQ=YEARLY" in r:
+        return "yearly"
+    return "none"
+
+
+def _row_dt(s):
+    try:
+        return datetime.fromisoformat(str(s).replace("T", " ")) if s else None
+    except ValueError:
+        return None
+
+
+def _event_when(row, until: str = "bis", notes: bool = True) -> str:
+    """Zeitraum eines gespeicherten Events (DB-Zeile) als Text."""
+    st, en = _row_dt(row["start_at"]), _row_dt(row["end_at"])
+    if st is None:
+        return "?"
+    has_time = not row["all_day"]
+    end_has_time = bool(en and has_time and (en.hour or en.minute))
+    when = _fmt_when(st, has_time, en, end_has_time, until)
+    if notes:
+        if not has_time:
+            when += " (ganztägig)"
+        elif not end_has_time:
+            when += " (keine Endzeit)"
+    return when
+
+
+async def _event_row(bot, eid):
+    rows = await execute_db(bot, "SELECT * FROM map_events WHERE id=?", (int(eid),), fetch=True)
+    return rows[0] if rows else None
+
+
+async def _event_admin_text(bot, row, lang: str) -> str:
+    """Text der Betreiber-PN (alle Felder) aus der DB-Zeile."""
+    L = lambda k: l10n.get(k, lang)
+    cc, plz = row["country"], row["plz"]
+    if row["lat"] is not None:
+        pin = f"✅ ja ({row['lat']:.4f}, {row['lon']:.4f})"
+    elif plz and cc and geo.is_dach(cc):
+        pin = "⚠️ nein – PLZ nicht auflösbar"
+    elif not cc:
+        pin = "⚠️ nein – kein Land gewählt (nur Liste/Kalender)"
+    elif not geo.is_dach(cc):
+        pin = "⚠️ nein – Land außerhalb DACH (nur Liste/Kalender)"
+    else:
+        pin = "⚠️ nein – keine PLZ angegeben (nur Liste/Kalender)"
+    desc = (row["description"] or "").strip()
+    if len(desc) > 300:
+        desc = desc[:300].rstrip() + " …"
+    who = "?"
+    if row["submitted_by"]:
+        try:
+            u = bot.get_user(int(row["submitted_by"])) or await bot.fetch_user(int(row["submitted_by"]))
+            who = f"{getattr(u, 'display_name', u.name)} ({row['submitted_by']})"
+        except Exception:
+            who = str(row["submitted_by"])
+    rrule = row["rrule"]
+    status = {"pending": "zur Freigabe", "approved": "✅ freigegeben",
+              "rejected": "🗑 abgelehnt"}.get(row["status"], row["status"])
+    lines = [
+        f"🗺️ **Event-Vorschlag #{row['id']}** ({status})",
+        f"• Titel: {row['title']}",
+        f"• Art: {L('event_type_' + (row['type'] or 'other'))}",
+        f"• Wann: {_event_when(row)}",
+        f"• Wiederholung: {L('event_recur_' + _recur_code(rrule))}" + (f" (`{rrule}`)" if rrule else ""),
+        f"• Ort: {row['venue'] or '–'}",
+        f"• Land: {cc.upper() if cc else '–'} · PLZ: {plz or '–'}",
+        f"• Karten-Pin: {pin}",
+        f"• Link: <{row['url']}>" if row["url"] else "• Link: –",
+        f"• Beschreibung: {desc}" if desc else "• Beschreibung: –",
+        f"• Von: {who}",
+    ]
+    if row["status"] == "pending":
+        lines.append("Buttons unten – oder `/event_edit event_id:%s` für Land, PLZ, Art, Link usw." % row["id"])
+    return "\n".join(lines)[:2000]
+
+
+def _event_admin_view(eid) -> discord.ui.View:
+    """Buttons der Betreiber-PN. Feste custom_ids (mapev:<aktion>:<id>) -> wirken auch nach
+    einem Bot-Neustart, ausgewertet in MapCog.on_interaction."""
+    v = discord.ui.View(timeout=None)
+    v.add_item(discord.ui.Button(label="Freigeben", emoji="✅", style=discord.ButtonStyle.success,
+                                 custom_id=f"mapev:approve:{eid}"))
+    v.add_item(discord.ui.Button(label="Ablehnen", emoji="🗑", style=discord.ButtonStyle.danger,
+                                 custom_id=f"mapev:reject:{eid}"))
+    v.add_item(discord.ui.Button(label="Bearbeiten", emoji="✏️", style=discord.ButtonStyle.secondary,
+                                 custom_id=f"mapev:edit:{eid}"))
+    return v
+
+
+def _map_url() -> str:
+    return f"{BOARD_PUBLIC_URL}/map" if BOARD_PUBLIC_URL else ""
+
+
+async def _notify_submitter(bot, row, approved: bool, reason: str | None, actor_id=None):
+    """PN an die einreichende Person (nicht, wenn sie selbst freigibt/ablehnt)."""
+    uid = row["submitted_by"]
+    if not uid or (actor_id is not None and str(actor_id) == str(uid)):
+        return
+    try:
+        user = await bot.fetch_user(int(uid))
+        lang = await get_user_lang(bot, int(uid), None)
+        if approved:
+            msg = l10n.get("event_approved_dm", lang, title=row["title"], when=_event_when(row, notes=False))
+            if _map_url():
+                msg += "\n" + _map_url()
+        else:
+            msg = l10n.get("event_rejected_dm", lang, title=row["title"], when=_event_when(row, notes=False))
+            if reason:
+                msg += "\n" + l10n.get("event_rejected_reason", lang, reason=reason[:500])
+        await user.send(msg[:2000])
+    except Exception as e:
+        logger.debug("Event-Benachrichtigung an %s fehlgeschlagen: %s", uid, e)
+
+
+async def _set_event_status(bot, eid, status: str, reason: str | None = None, actor_id=None):
+    """pending -> approved/rejected. Gibt die aktualisierte Zeile zurück (None = nicht offen)."""
+    rc = await execute_db(bot,
+        "UPDATE map_events SET status=? WHERE id=? AND status='pending'",
+        (status, int(eid)), commit=True)
+    if not rc:
+        return None
+    row = await _event_row(bot, eid)
+    if row:
+        await _notify_submitter(bot, row, status == "approved", reason, actor_id)
+        logger.info("🗺️ Event #%s %s von %s", eid, status, actor_id)
+    return row
+
+
+class EventRejectModal(discord.ui.Modal):
+    def __init__(self, eid: int):
+        super().__init__(title=f"Event #{eid} ablehnen")
+        self.eid = eid
+        self.add_item(discord.ui.InputText(label="Grund (optional, geht an Einreichende)",
+                                           required=False, max_length=500,
+                                           style=discord.InputTextStyle.long))
+
+    async def callback(self, interaction: discord.Interaction):
+        reason = (self.children[0].value or "").strip() or None
+        row = await _set_event_status(interaction.client, self.eid, "rejected", reason, interaction.user.id)
+        await _refresh_admin_message(interaction, self.eid, row is None)
+
+
+class EventQuickEditModal(discord.ui.Modal):
+    """Schnell-Bearbeitung aus der PN: Titel, Datum, Uhrzeit, Ende, Ort."""
+    def __init__(self, row):
+        super().__init__(title=f"Event #{row['id']} bearbeiten")
+        self.eid = row["id"]
+        st, en = _row_dt(row["start_at"]), _row_dt(row["end_at"])
+        has_time = not row["all_day"]
+        end_txt = ""
+        if en:
+            end_txt = en.strftime("%d.%m.%Y")
+            if has_time and (en.hour or en.minute):
+                end_txt = (en.strftime("%H:%M") if st and en.date() == st.date()
+                           else en.strftime("%d.%m.%Y %H:%M"))
+        self.add_item(discord.ui.InputText(label="Titel", max_length=120, value=row["title"]))
+        self.add_item(discord.ui.InputText(label="Datum TT.MM.JJJJ", max_length=10,
+                                           value=st.strftime("%d.%m.%Y") if st else None))
+        self.add_item(discord.ui.InputText(label="Uhrzeit HH:MM (leer = ganztägig)", required=False,
+                                           max_length=5, value=st.strftime("%H:%M") if (st and has_time) else None))
+        self.add_item(discord.ui.InputText(label="Ende: TT.MM.JJJJ und/oder HH:MM (optional)", required=False,
+                                           max_length=16, value=end_txt or None))
+        self.add_item(discord.ui.InputText(label="Ort", max_length=160, value=row["venue"] or None))
+
+    async def callback(self, interaction: discord.Interaction):
+        title, date, time, end, loc = ((c.value or "").strip() for c in self.children)
+        bot = interaction.client
+        row = await _event_row(bot, self.eid)
+        if not row:
+            await interaction.response.send_message("❌ Event nicht gefunden.", ephemeral=True); return
+        dt = _parse_date(date, time or None)
+        if dt is None or not title or not loc:
+            await interaction.response.send_message(l10n.get("event_bad_date", "de"), ephemeral=True); return
+        end_date = " ".join(p for p in end.split() if ":" not in p)
+        end_time = " ".join(p for p in end.split() if ":" in p)
+        end_dt, _eht, err = _combine_end(dt, bool(time), end_date, end_time)
+        if err:
+            await interaction.response.send_message(l10n.get(err, "de"), ephemeral=True); return
+        rrule = row["rrule"]
+        if rrule:                                  # Serienregel an neues Datum anpassen
+            rrule = _rrule_from(_recur_code(rrule), dt) or rrule
+        await execute_db(bot,
+            "UPDATE map_events SET title=?, venue=?, start_at=?, end_at=?, all_day=?, rrule=? WHERE id=?",
+            (title[:120], loc[:160], dt.strftime("%Y-%m-%dT%H:%M:%S"),
+             end_dt.strftime("%Y-%m-%dT%H:%M:%S") if end_dt else None,
+             0 if time else 1, rrule, self.eid), commit=True)
+        logger.info("🗺️ Event #%s per PN bearbeitet von %s", self.eid, interaction.user.id)
+        await _refresh_admin_message(interaction, self.eid, False)
+
+
+async def _refresh_admin_message(interaction: discord.Interaction, eid, not_open: bool):
+    """Betreiber-PN nach einer Aktion neu aufbauen (Buttons nur solange offen)."""
+    bot = interaction.client
+    row = await _event_row(bot, eid)
+    if row is None:
+        await interaction.response.edit_message(content=f"❌ Event #{eid} existiert nicht mehr.", view=None)
+        return
+    lang = await get_user_lang(bot, interaction.user.id, None)
+    text = await _event_admin_text(bot, row, lang)
+    if not_open:
+        text = (text + f"\n\nℹ️ War bereits bearbeitet (Status: {row['status']}).")[:2000]
+    view = _event_admin_view(eid) if row["status"] == "pending" else None
+    await interaction.response.edit_message(content=text, view=view)
 
 
 class MapCog(commands.Cog, name="Map"):
@@ -630,13 +839,52 @@ class MapCog(commands.Cog, name="Map"):
         except Exception as e:
             logger.debug("geo.load beim Start: %s", e)
 
+    # ── Buttons der Betreiber-PN (persistente custom_ids "mapev:<aktion>:<id>") ──
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if interaction.type != discord.InteractionType.component:
+            return
+        cid = interaction.custom_id or ""
+        if not cid.startswith("mapev:"):
+            return
+        try:
+            _, action, eid = cid.split(":", 2)
+            eid = int(eid)
+        except ValueError:
+            return
+        if not BOARD_OWNER_ID or interaction.user.id != BOARD_OWNER_ID:
+            await interaction.response.send_message("❌ Nur für den Betreiber.", ephemeral=True)
+            return
+        if action == "approve":
+            row = await _set_event_status(self.bot, eid, "approved", actor_id=interaction.user.id)
+            await _refresh_admin_message(interaction, eid, row is None)
+        elif action == "reject":
+            await interaction.response.send_modal(EventRejectModal(eid))
+        elif action == "edit":
+            row = await _event_row(self.bot, eid)
+            if not row:
+                await interaction.response.send_message("❌ Event nicht gefunden.", ephemeral=True)
+                return
+            await interaction.response.send_modal(EventQuickEditModal(row))
+
     # ── /map_join (geführt) ──────────────────────────────────────────────────
     @discord.slash_command(name="map_join",
         description="Auf der Halter-Karte eintragen (freiwillig, grob, DSGVO-konform)")
     @allowed_channel()
     async def map_join(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        await ctx.respond(l10n.get("map_wiz_intro", lang), view=MapJoinView(lang), ephemeral=True)
+        uid = str(ctx.author.id)
+        rows = await execute_db(self.bot, "SELECT * FROM map_entries WHERE user_id=?", (uid,), fetch=True)
+        existing = dict(rows[0]) if rows else None
+        tags = []
+        if existing:
+            cur = await execute_db(self.bot, "SELECT tag_code FROM map_entry_tags WHERE user_id=?",
+                                   (uid,), fetch=True) or []
+            tags = [r["tag_code"] for r in cur]
+        intro = l10n.get("map_wiz_intro", lang)
+        if existing:
+            intro = l10n.get("map_wiz_existing", lang) + "\n\n" + intro
+        await ctx.respond(intro[:2000], view=MapJoinView(lang, existing, tags), ephemeral=True)
 
     # ── /map_remove ──────────────────────────────────────────────────────────
     @discord.slash_command(name="map_remove", description="Eigenen Karteneintrag löschen")
@@ -718,10 +966,8 @@ class MapCog(commands.Cog, name="Map"):
     async def event_approve(self, ctx: discord.ApplicationContext,
                             event_id: discord.Option(int, "Event-ID", required=True)):
         await ctx.defer(ephemeral=True)
-        rc = await execute_db(self.bot,
-            "UPDATE map_events SET status='approved' WHERE id=? AND status='pending'",
-            (event_id,), commit=True)
-        await ctx.followup.send(("✅ Freigegeben." if rc else "❌ Nicht gefunden/bereits bearbeitet."),
+        row = await _set_event_status(self.bot, event_id, "approved", actor_id=ctx.author.id)
+        await ctx.followup.send(("✅ Freigegeben." if row else "❌ Nicht gefunden/bereits bearbeitet."),
                                 ephemeral=True)
 
     @discord.slash_command(name="event_reject", description="🔒 [Admin] Event ablehnen",
@@ -729,12 +975,13 @@ class MapCog(commands.Cog, name="Map"):
     @admin_or_manage_messages()
     @allowed_channel()
     async def event_reject(self, ctx: discord.ApplicationContext,
-                           event_id: discord.Option(int, "Event-ID", required=True)):
+                           event_id: discord.Option(int, "Event-ID", required=True),
+                           reason: discord.Option(str, "Grund (optional, geht an die einreichende Person)",
+                                                  required=False, default=None)):
         await ctx.defer(ephemeral=True)
-        rc = await execute_db(self.bot,
-            "UPDATE map_events SET status='rejected' WHERE id=? AND status='pending'",
-            (event_id,), commit=True)
-        await ctx.followup.send(("🗑 Abgelehnt." if rc else "❌ Nicht gefunden/bereits bearbeitet."),
+        row = await _set_event_status(self.bot, event_id, "rejected", (reason or "").strip() or None,
+                                      actor_id=ctx.author.id)
+        await ctx.followup.send(("🗑 Abgelehnt." if row else "❌ Nicht gefunden/bereits bearbeitet."),
                                 ephemeral=True)
 
     @discord.slash_command(name="event_exclude",

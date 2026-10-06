@@ -336,10 +336,13 @@ class AdminCog(commands.Cog, name="Admin"):
                         self.bot, "SELECT * FROM map_entry_tags WHERE user_id=?", (uid,), fetch=True)]
                     data["map_events_submitted"] = [dict(r) for r in await execute_db(
                         self.bot, "SELECT * FROM map_events WHERE submitted_by=?", (uid,), fetch=True)]
+                    data["map_event_rsvp"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM map_event_rsvp WHERE user_id=?", (uid,), fetch=True)]
                 except Exception:
                     data.setdefault("map_entry", [])
                     data.setdefault("map_entry_tags", [])
                     data.setdefault("map_events_submitted", [])
+                    data.setdefault("map_event_rsvp", [])
 
                 payload = json.dumps(data, ensure_ascii=False, indent=2, default=str)
                 buf = io.BytesIO(payload.encode("utf-8"))
@@ -393,6 +396,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 "map_entries",
                 "map_entry_tags",
                 "map_events",
+                "map_event_rsvp",
             ]
             export: dict = {"exported_at": datetime.utcnow().isoformat() + "Z", "tables": {}}
             for table in tables:
@@ -536,7 +540,7 @@ class AdminCog(commands.Cog, name="Admin"):
             ("achievements", "user_id"), ("user_events", "user_id"),
             ("command_log", "user_id"),
             ("offer_keywords", "user_id"), ("offer_alert_seen", "user_id"),
-            ("map_entries", "user_id"),
+            ("map_entries", "user_id"), ("map_event_rsvp", "user_id"),
         ]
 
         ids: set[int] = set()

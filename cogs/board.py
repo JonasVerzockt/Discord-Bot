@@ -141,6 +141,10 @@ _STATIC_FILES = {
     # degradiert sauber). Alle Namen sind feste Literale (CodeQL path-injection safe).
     "leaflet.js": "application/javascript",
     "leaflet.css": "text/css",
+    # Pin-Clustering (Leaflet.markercluster, MIT) – optional, ohne Datei ungeclustert.
+    "leaflet.markercluster.js": "application/javascript",
+    "MarkerCluster.css": "text/css",
+    "MarkerCluster.Default.css": "text/css",
     "map.js": "application/javascript",
     "de_bundeslaender.geojson": "application/geo+json",
     "at_bundeslaender.geojson": "application/geo+json",
@@ -665,6 +669,8 @@ LEGAL = """{% extends "base" %}{% block body %}
 
 MAP = """{% extends "base" %}{% block body %}
 <link rel="stylesheet" href="/static/leaflet.css?v={{ v }}">
+<link rel="stylesheet" href="/static/MarkerCluster.css?v={{ v }}">
+<link rel="stylesheet" href="/static/MarkerCluster.Default.css?v={{ v }}">
 <style>
  .mapgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
  .mapgrid>*{min-width:0}   /* Inhalt darf die Spalten nicht aufweiten (Karte bleibt 2/3 breit) */
@@ -676,10 +682,14 @@ MAP = """{% extends "base" %}{% block body %}
  .mrow>div{min-width:0}
  a.cbtn{display:inline-block;margin-top:4px;padding:2px 9px;border:1px solid #5865f2;border-radius:6px;color:#c9d1d9;background:#5865f222;font-size:12px;text-decoration:none}
  a.cbtn:hover{background:#5865f255}
+ .evact{margin-top:4px} .evact a.cbtn{margin:2px 4px 2px 0} a.cbtn.rsvp.on{border-color:#3fb950;background:#3fb95022}
  #agenda .fl2{white-space:normal;overflow-wrap:anywhere}   /* Termine: lange Orte umbrechen */
  .mrow[data-ref]{cursor:pointer} .mrow.hl{background:#1f6feb33;border-radius:6px}
  /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
  .leaflet-container{background:#0f141a}
+ .marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background-color:#1f6feb55}
+ .marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background-color:#1f6febdd;color:#fff;font-weight:600}
+ #tagfilter a{font-size:12px;padding:2px 9px} #tagfilter .tgrp{font-size:12px;margin-left:6px}
  .leaflet-bar a,.leaflet-bar a:hover{background:#161b22;color:#e6edf3;border-bottom-color:#30363d}
  .leaflet-bar{border:1px solid #30363d}
  .leaflet-control-attribution{background:#161b22cc !important;color:#8b949e}
@@ -711,6 +721,16 @@ MAP = """{% extends "base" %}{% block body %}
 </div>
 <div id=evlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
 <div id=pinlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+{% if member and tag_groups %}
+<details id=tagfilterbox style="margin:4px 0 10px">
+<summary class=muted style="cursor:pointer;font-size:13px">🏷️ {{ t('map_tag_filter') }} <span id=tagcount></span></summary>
+<div class=rangesw id=tagfilter style="margin-top:8px">
+  {% for g in tag_groups %}<span class="muted tgrp">{{ g.label }}</span>
+  {% for code, label in g.tags %}<a href="#" data-tag="{{ code }}">{{ label }}</a>{% endfor %}{% endfor %}
+  <a href="#" id=tagreset style="display:none">✕ {{ t('map_tag_reset') }}</a>
+</div>
+</details>
+{% endif %}
 <div id=mapnotice class=muted style="margin:6px 0"></div>
 <div class=mapgrid>
   <div id=map style="height:70vh;min-height:420px;background:#0f141a;border:1px solid #21262d;border-radius:10px"></div>
@@ -770,10 +790,14 @@ MAP = """{% extends "base" %}{% block body %}
 </div>
 <p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
 <script>window.MAP_CFG={lang:"{{ lang }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
- emptyText:"{{ t('map_list_empty') }}",
+ emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}",
+ csrf:"{{ member_csrf }}",
+ evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
+         count:"{{ t('map_ev_count') }}"},
  pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}"},
  evlabels:{fair:"{{ t('map_evtype_fair') }}",meetup:"{{ t('map_evtype_meetup') }}",shop:"{{ t('map_evtype_shop') }}",talk:"{{ t('map_evtype_talk') }}",field:"{{ t('map_evtype_field') }}",other:"{{ t('map_evtype_other') }}"}};</script>
 <script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
+<script src="/static/leaflet.markercluster.js?v={{ v }}"></script>
 <script src="/static/map.js?v={{ v }}"></script>
 {% endblock %}"""
 
@@ -1945,9 +1969,13 @@ async def h_map(req):
                        v=_map_asset_v(), member=False, max_zoom=MAP_MAX_ZOOM)
     ics_url = _ics_calendar_url(req)
     webcal_url = "webcal://" + ics_url.split("://", 1)[-1]
+    tag_groups = [{"label": (g["label"].get(lang) or g["label"].get("de")),
+                   "tags": [(c, (l.get(lang) or l.get("de") or c)) for c, l in g["tags"]]}
+                  for g in map_tags.TAG_GROUPS]
     return _render(req, "map", title=translate(lang, "map_h"),
                    v=_map_asset_v(), member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
-                   ics_url=ics_url, webcal_url=webcal_url)
+                   ics_url=ics_url, webcal_url=webcal_url, tag_groups=tag_groups,
+                   member_csrf=(_member_csrf(_is_member(req)) if _is_member(req) else ""))
 
 
 async def h_map_login(req):
@@ -2114,6 +2142,7 @@ async def h_map_pins(req):
             "contact_url": _contact_url(r["user_id"]) if r["contact_ok"] else "",
             "coarse": bool(r["coarse"]),             # Pin = Mitte des groben PLZ-Gebiets
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
+            "tag_codes": [c for c in tags.get(r["user_id"], []) if map_tags.is_valid(c)],
         })
     return web.json_response({"pins": out})
 
@@ -2158,6 +2187,7 @@ async def h_map_list(req):
             # Profil-Link NUR bei aktivem Opt-in "Kontakt über Discord" (nur für eingeloggte Mitglieder).
             "contact_url": _contact_url(r["user_id"]) if r["contact_ok"] else "",
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
+            "tag_codes": [c for c in tags.get(r["user_id"], []) if map_tags.is_valid(c)],
         })
     items.sort(key=lambda x: (x["country_name"], x["name"].lower()))
     return web.json_response({"member": True, "items": items})
@@ -2197,7 +2227,10 @@ def _event_next(ev) -> datetime | None:
             rs = _rrulestr(rr, dtstart=start, forceset=True)
             for ex in _event_exdates(ev, start):
                 rs.exdate(ex)
-            return rs.after(now, inc=True)
+            # Laufendes Vorkommen bleibt sichtbar: um die Termindauer zurückversetzt suchen.
+            end = _event_end(ev, start)
+            dur = (end - start) if end else timedelta(0)
+            return rs.after(now - dur, inc=True)
         except Exception:
             pass
     end = _event_end(ev, start)
@@ -2211,7 +2244,8 @@ def _event_end(ev, start):
     except Exception:
         e = None
     if e is None:
-        return None
+        # Ganztägig ohne Enddatum: gilt bis Tagesende des Starttags.
+        return start.replace(hour=23, minute=59, second=59) if ev["all_day"] else None
     if ev["all_day"] or not (e.hour or e.minute):
         e = e.replace(hour=23, minute=59, second=59)
     return e if e >= start else None
@@ -2230,11 +2264,47 @@ async def _approved_events(app):
     return out
 
 
+def _occ_date(nxt) -> str:
+    """Datum (Berliner Zeit) des Vorkommens – Schlüssel für die Teilnahme."""
+    return nxt.astimezone(BERLIN).strftime("%Y-%m-%d")
+
+
+def _member_csrf(uid: str) -> str:
+    """CSRF-Token für Mitglieder-Aktionen (zusätzlich zu SameSite=Lax am Login-Cookie)."""
+    return _hmac("mcsrf", str(uid))[:32]
+
+
+async def _rsvp_info(app, keys, me):
+    """{(event_id, occ): {"count", "going", "names"}} für die angefragten Vorkommen."""
+    out = {k: {"count": 0, "going": False, "names": []} for k in keys}
+    if not keys:
+        return out
+    oldest = min(k[1] for k in keys)
+    rows = await execute_db(app["bot"],
+        "SELECT event_id, occ_date, user_id FROM map_event_rsvp WHERE occ_date >= ? "
+        "ORDER BY created_at", (oldest,), fetch=True) or []
+    for r in rows:
+        k = (r["event_id"], r["occ_date"])
+        if k not in out:
+            continue
+        name = _member_name(app, r["user_id"])
+        if not name:                                  # kein Mitglied mehr -> nicht mitzählen
+            continue
+        out[k]["count"] += 1
+        out[k]["names"].append(name)
+        if me and str(r["user_id"]) == str(me):
+            out[k]["going"] = True
+    return out
+
+
 async def h_map_events(req):
-    """ÖFFENTLICH: kommende, freigegebene Events."""
+    """ÖFFENTLICH: kommende, freigegebene Events (+ Teilnahme: Anzahl öffentlich,
+    Namen und eigener Status nur für eingeloggte Mitglieder)."""
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
     evs = await _approved_events(req.app)
+    me = _is_member(req)
+    rsvp = await _rsvp_info(req.app, [(r["id"], _occ_date(n)) for n, r in evs], me)
     data = []
     for nxt, r in evs:
         end_iso, end_has_time = "", False
@@ -2253,8 +2323,46 @@ async def h_map_events(req):
             "venue": r["venue"] or "", "url": r["url"] or "",
             "description": r["description"] or "",
             "next": nxt.isoformat(), "recurring": bool(r["rrule"]),
+            "occ": _occ_date(nxt),
+            "going_count": rsvp[(r["id"], _occ_date(nxt))]["count"],
+            "going": rsvp[(r["id"], _occ_date(nxt))]["going"] if me else False,
+            "going_names": rsvp[(r["id"], _occ_date(nxt))]["names"] if me else [],
         })
-    return web.json_response({"events": data})
+    return web.json_response({"events": data}, headers={"Cache-Control": "no-store"})
+
+
+async def h_map_event_rsvp(req):
+    """Mitglieder: Teilnahme am NÄCHSTEN Vorkommen eines Events an/aus (Toggle)."""
+    uid = _is_member(req)
+    if not uid:
+        raise web.HTTPForbidden(text="login required")
+    if not hmac.compare_digest(req.headers.get("X-Map-CSRF", ""), _member_csrf(uid)):
+        raise web.HTTPForbidden(text="bad csrf")
+    if not _rate("rsvp:" + _hmac("rsvp", uid), 30, 300):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    try:
+        eid = int(req.match_info["eid"])
+    except (KeyError, ValueError):
+        raise web.HTTPNotFound()
+    rows = await execute_db(req.app["bot"],
+        "SELECT * FROM map_events WHERE id=? AND status='approved'", (eid,), fetch=True) or []
+    nxt = _event_next(rows[0]) if rows else None
+    if not nxt:
+        raise web.HTTPNotFound()
+    occ = _occ_date(nxt)
+    bot = req.app["bot"]
+    have = await execute_db(bot,
+        "SELECT 1 FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
+        (eid, occ, str(uid)), fetch=True)
+    if have:
+        await execute_db(bot, "DELETE FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
+                         (eid, occ, str(uid)), commit=True)
+    else:
+        await execute_db(bot, "INSERT OR IGNORE INTO map_event_rsvp (event_id, occ_date, user_id) "
+                              "VALUES (?,?,?)", (eid, occ, str(uid)), commit=True)
+    info = (await _rsvp_info(req.app, [(eid, occ)], uid))[(eid, occ)]
+    return web.json_response({"occ": occ, "going": info["going"], "going_count": info["count"],
+                              "going_names": info["names"]}, headers={"Cache-Control": "no-store"})
 
 
 def _ics_escape(s: str) -> str:
@@ -2310,25 +2418,25 @@ def _ics_calendar_url(req) -> str:
     return f"{base}/map/events.ics"
 
 
-async def h_map_events_ics(req):
-    """ICS-Feed (abonnierbar) der freigegebenen Events – RFC 5545.
+def _ics_build(req, rows, feed: bool = True) -> bytes:
+    """iCalendar (RFC 5545) für die übergebenen Event-Zeilen.
+    feed=True: abonnierbarer Feed (Name, Abruf-Intervall, Quelle); False: Einzeltermin-Download.
 
     - Ganztägige Events als DATE (DTEND exklusiv = Folgetag des letzten Tages).
     - Termine mit Uhrzeit in Europe/Berlin (TZID + VTIMEZONE), Serien via RRULE/EXDATE.
     - Mit Endzeit -> echtes DTEND; nur Enddatum (ohne Endzeit) -> Ende = 23:59 des letzten Tages.
     """
-    rows = await execute_db(req.app["bot"],
-        "SELECT * FROM map_events WHERE status='approved' ORDER BY start_at", fetch=True) or []
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     host = urlparse(BOARD_PUBLIC_URL).hostname if BOARD_PUBLIC_URL else (req.host or "board").split(":")[0]
     lang = pick_lang(req)
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AAM-Bot//Map//DE",
-             "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-             "NAME:AAM – Termine", "X-WR-CALNAME:AAM – Termine",
-             f"X-WR-TIMEZONE:{_ICS_TZID}",
-             f"REFRESH-INTERVAL;VALUE=DURATION:{_ICS_REFRESH}",
-             f"X-PUBLISHED-TTL:{_ICS_REFRESH}",
-             f"SOURCE;VALUE=URI:{_ics_calendar_url(req)}"]
+             "CALSCALE:GREGORIAN", "METHOD:PUBLISH"]
+    if feed:
+        lines += ["NAME:AAM – Termine", "X-WR-CALNAME:AAM – Termine",
+                  f"X-WR-TIMEZONE:{_ICS_TZID}",
+                  f"REFRESH-INTERVAL;VALUE=DURATION:{_ICS_REFRESH}",
+                  f"X-PUBLISHED-TTL:{_ICS_REFRESH}",
+                  f"SOURCE;VALUE=URI:{_ics_calendar_url(req)}"]
     lines += _ICS_VTIMEZONE
     dfmt, tfmt = "%Y%m%d", "%Y%m%dT%H%M%S"
     for r in rows:
@@ -2383,10 +2491,34 @@ async def h_map_events_ics(req):
         ev += ["STATUS:CONFIRMED", "TRANSP:TRANSPARENT", "END:VEVENT"]
         lines += ev
     lines.append("END:VCALENDAR")
-    body = "\r\n".join(_ics_fold(l) for l in lines) + "\r\n"
-    return web.Response(body=body.encode("utf-8"),
+    return ("\r\n".join(_ics_fold(l) for l in lines) + "\r\n").encode("utf-8")
+
+
+async def h_map_events_ics(req):
+    """Abonnierbarer ICS-Feed aller freigegebenen Events."""
+    rows = await execute_db(req.app["bot"],
+        "SELECT * FROM map_events WHERE status='approved' ORDER BY start_at", fetch=True) or []
+    return web.Response(body=_ics_build(req, rows, feed=True),
                         headers={"Content-Type": "text/calendar; charset=utf-8",
                                  "Content-Disposition": "inline; filename=aam-events.ics",
+                                 "Cache-Control": "public, max-age=3600"})
+
+
+async def h_map_event_ics(req):
+    """Einzelner freigegebener Termin als .ics-Download („In Kalender“)."""
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    try:
+        eid = int(req.match_info["eid"])
+    except (KeyError, ValueError):
+        raise web.HTTPNotFound()
+    rows = await execute_db(req.app["bot"],
+        "SELECT * FROM map_events WHERE id=? AND status='approved'", (eid,), fetch=True) or []
+    if not rows:
+        raise web.HTTPNotFound()
+    return web.Response(body=_ics_build(req, rows, feed=False),
+                        headers={"Content-Type": "text/calendar; charset=utf-8",
+                                 "Content-Disposition": f"attachment; filename=aam-event-{eid}.ics",
                                  "Cache-Control": "public, max-age=3600"})
 
 
@@ -2420,6 +2552,8 @@ def build_app(bot) -> web.Application:
         web.get("/map/list.json", h_map_list),
         web.get("/map/events.json", h_map_events),
         web.get("/map/events.ics", h_map_events_ics),
+        web.get(r"/map/events/{eid:\d+}.ics", h_map_event_ics),
+        web.post(r"/map/events/{eid:\d+}/rsvp", h_map_event_rsvp),
     ])
     return app
 

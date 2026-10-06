@@ -35,7 +35,7 @@ from config import (MAP_ENABLED, MAP_GUILD_ID, MAP_REMIND_MONTHS, MAP_DELETE_MON
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils import geo, map_geodata
-from cogs.map import MapConfirmView, _delete_entry
+from cogs.map import MapConfirmView, _delete_entry, _delete_rsvps
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
             return
         try:
             await _delete_entry(self.bot, member.id)
+            await _delete_rsvps(self.bot, member.id)
         except Exception as e:
             logger.debug("map on_member_remove delete: %s", e)
 
@@ -101,6 +102,7 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
                         m = await guild.fetch_member(int(uid))
                     except discord.NotFound:
                         await _delete_entry(self.bot, uid); pruned += 1
+                        await _delete_rsvps(self.bot, uid)
                         continue
                     except Exception:
                         pass  # unsicher -> diesen Zyklus überspringen
@@ -146,6 +148,11 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
             (cutoff,), commit=True)
         if rc:
             logger.info("🗺️ Event-Cleanup: %d vergangene Einmal-Events entfernt", rc)
+        # Teilnahmen: 30 Tage nach dem Termin bzw. bei gelöschten/abgelehnten Events entfernen.
+        await execute_db(self.bot,
+            "DELETE FROM map_event_rsvp WHERE occ_date < ? OR event_id NOT IN "
+            "(SELECT id FROM map_events WHERE status='approved')",
+            (cutoff[:10],), commit=True)
 
     @event_cleanup.before_loop
     async def _before_cleanup(self):
