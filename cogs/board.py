@@ -687,9 +687,6 @@ MAP = """{% extends "base" %}{% block body %}
   <a href="#" class="on" data-layer="map">{{ t('map_layer_map') }}</a>
   <a href="#" data-layer="events">{{ t('map_layer_events') }}</a>
   <a href="#" data-layer="all">{{ t('map_layer_all') }}</a>
-  <span class=grow></span>
-  {% if member %}<span class=muted>{{ t('map_member_on') }}</span> <a href="/map/logout?lang={{ lang }}">{{ t('map_logout') }}</a>
-  {% else %}<a class=btn href="/map/login?lang={{ lang }}">{{ t('map_login') }}</a>{% endif %}
 </div>
 <div class=rangesw id=choroswitch>
   <span class=muted>{{ t('map_region_level') }}:</span>
@@ -708,6 +705,11 @@ MAP = """{% extends "base" %}{% block body %}
 <div class=mapgrid>
   <div id=map style="height:70vh;min-height:420px;background:#0f141a;border:1px solid #21262d;border-radius:10px"></div>
   <div>
+    <div class=chartbox style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      {% if member %}<span class=muted>✅ {{ t('map_member_on') }}</span><span class=grow></span>
+      <a href="/map/logout?lang={{ lang }}">{{ t('map_logout') }}</a>
+      {% else %}<a class=btn href="/map/login?lang={{ lang }}" style="width:100%;box-sizing:border-box;text-align:center">{{ t('map_login') }}</a>{% endif %}
+    </div>
     <div class=chartbox id=listbox>
       <h4>{{ t('map_list_title') }}</h4>
       <input id=listsearch placeholder="{{ t('map_search') }}" autocomplete=off>
