@@ -457,6 +457,7 @@ T: dict[str, dict[str, str]] = {
         "en": "Discord login is not configured yet (BOARD_OAUTH_*).",
         "eo": "Discord-ensaluto ankoraŭ ne agordita (BOARD_OAUTH_*)."},
     "map_anon": {"de": "Halter:in (anonym)", "en": "Keeper (anonymous)", "eo": "Bredisto (anonima)"},
+    "map_list_empty": {"de": "Noch keine Einträge. Trag dich im Discord mit /map_join ein.", "en": "No entries yet. Add yourself on Discord with /map_join.", "eo": "Ankoraŭ neniuj enskriboj. Aldonu vin en Discord per /map_join."},
     "map_pin_exact": {"de": "Pin nach PLZ", "en": "Pin by postcode", "eo": "Pinglo laŭ poŝtkodo"},
     "map_pin_coarse": {"de": "Pin im groben PLZ-Gebiet", "en": "Pin in rough postcode area", "eo": "Pinglo en malpreciza poŝtkoda zono"},
     "map_pin_coarse_note": {"de": "grobes PLZ-Gebiet", "en": "rough postcode area", "eo": "malpreciza poŝtkoda zono"},
