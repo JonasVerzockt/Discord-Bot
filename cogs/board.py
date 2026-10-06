@@ -58,7 +58,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     MAP_ENABLED, MAP_GUILD_ID, MAP_JITTER_METERS, MAP_MAX_ZOOM,
                     BOARD_OAUTH_CLIENT_ID, BOARD_OAUTH_CLIENT_SECRET, BOARD_OAUTH_REDIRECT_URI)
 from utils import geo, map_tags
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
 from utils.timez import BERLIN, now_berlin, berlin_from_utc_naive
@@ -722,7 +722,18 @@ MAP = """{% extends "base" %}{% block body %}
     </div>
     <div class=chartbox id=agendabox style="display:none">
       <h4>{{ t('map_agenda_title') }}</h4>
-      <div id=agenda class=col-body style="max-height:58vh"></div>
+      <div id=agenda class=col-body style="max-height:50vh"></div>
+      {% if ics_url %}
+      <div id=calsub style="border-top:1px solid #21262d;margin-top:10px;padding-top:10px">
+        <h4>📅 {{ t('map_cal_title') }}</h4>
+        <a class=btn href="{{ webcal_url }}" style="width:100%;box-sizing:border-box;text-align:center">{{ t('map_cal_subscribe') }}</a>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id=calurl value="{{ ics_url }}" readonly style="flex:1;min-width:0;font-size:12px" onclick="this.select()">
+          <button type=button class=btn id=calcopy data-done="{{ t('map_cal_copied') }}">{{ t('map_cal_copy') }}</button>
+        </div>
+        <p class=muted style="font-size:12px;margin:8px 0 0">{{ t('map_cal_hint') }}</p>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -1884,8 +1895,11 @@ async def h_map(req):
         return _render(req, "map", title=translate(lang, "map_h"),
                        flash=translate(lang, "map_disabled"),
                        v=VERSION, member=False, max_zoom=MAP_MAX_ZOOM)
+    ics_url = _ics_calendar_url(req)
+    webcal_url = "webcal://" + ics_url.split("://", 1)[-1]
     return _render(req, "map", title=translate(lang, "map_h"),
-                   v=VERSION, member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM)
+                   v=VERSION, member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
+                   ics_url=ics_url, webcal_url=webcal_url)
 
 
 async def h_map_login(req):
@@ -2167,46 +2181,132 @@ async def h_map_events(req):
 
 
 def _ics_escape(s: str) -> str:
-    return (s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+    """TEXT-Werte nach RFC 5545 §3.3.11 maskieren."""
+    return ((s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+            .replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n"))
+
+
+def _ics_fold(line: str) -> str:
+    """Zeilen > 75 Oktette falten (RFC 5545 §3.1), ohne UTF-8-Zeichen zu zerteilen."""
+    out, cur, size = [], "", 0
+    for ch in line:
+        n = len(ch.encode("utf-8"))
+        limit = 75 if not out else 74          # Folgezeilen beginnen mit einem Leerzeichen
+        if size + n > limit:
+            out.append(cur); cur, size = "", 0
+        cur += ch; size += n
+    out.append(cur)
+    return "\r\n ".join(out)
+
+
+# Alle Event-Zeiten werden als Berliner Ortszeit gespeichert (naiv). Damit Serien auch über
+# die Sommer-/Winterzeit-Umstellung zur richtigen Uhrzeit liegen, wird TZID=Europe/Berlin
+# mit passender VTIMEZONE ausgeliefert (statt UTC oder "floating time").
+_ICS_TZID = "Europe/Berlin"
+_ICS_VTIMEZONE = [
+    "BEGIN:VTIMEZONE", f"TZID:{_ICS_TZID}",
+    "BEGIN:DAYLIGHT", "TZOFFSETFROM:+0100", "TZOFFSETTO:+0200", "TZNAME:CEST",
+    "DTSTART:19700329T020000", "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU", "END:DAYLIGHT",
+    "BEGIN:STANDARD", "TZOFFSETFROM:+0200", "TZOFFSETTO:+0100", "TZNAME:CET",
+    "DTSTART:19701025T030000", "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU", "END:STANDARD",
+    "END:VTIMEZONE",
+]
+_ICS_REFRESH = "PT12H"   # Empfohlenes Abruf-Intervall für Kalender-Abos
+
+
+def _naive(s):
+    """ISO-String -> naive datetime (Berliner Ortszeit) oder None."""
+    if not s:
+        return None
+    try:
+        d = _isoparse(str(s))
+    except Exception:
+        return None
+    if d.tzinfo is not None:
+        d = d.astimezone(BERLIN).replace(tzinfo=None)
+    return d
+
+
+def _ics_calendar_url(req) -> str:
+    """Absolute https-URL des Feeds (BOARD_PUBLIC_URL bevorzugt, sonst aus dem Request)."""
+    base = BOARD_PUBLIC_URL or f"{req.scheme}://{req.host}"
+    return f"{base}/map/events.ics"
 
 
 async def h_map_events_ics(req):
-    """ICS-Feed der freigegebenen Events (DTSTART/DTEND + RRULE nativ)."""
+    """ICS-Feed (abonnierbar) der freigegebenen Events – RFC 5545.
+
+    - Ganztägige Events als DATE (DTEND exklusiv = Folgetag des letzten Tages).
+    - Termine mit Uhrzeit in Europe/Berlin (TZID + VTIMEZONE), Serien via RRULE/EXDATE.
+    - Für mehrtägige Termine mit Uhrzeit ist keine Endzeit erfasst -> Ende = 23:59 des letzten Tages.
+    """
     rows = await execute_db(req.app["bot"],
-        "SELECT * FROM map_events WHERE status='approved'", fetch=True) or []
-    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AAM-Bot//Map//DE", "CALSCALE:GREGORIAN"]
+        "SELECT * FROM map_events WHERE status='approved' ORDER BY start_at", fetch=True) or []
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    host = urlparse(BOARD_PUBLIC_URL).hostname if BOARD_PUBLIC_URL else (req.host or "board").split(":")[0]
+    lang = pick_lang(req)
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AAM-Bot//Map//DE",
+             "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+             "NAME:AAM – Termine", "X-WR-CALNAME:AAM – Termine",
+             f"X-WR-TIMEZONE:{_ICS_TZID}",
+             f"REFRESH-INTERVAL;VALUE=DURATION:{_ICS_REFRESH}",
+             f"X-PUBLISHED-TTL:{_ICS_REFRESH}",
+             f"SOURCE;VALUE=URI:{_ics_calendar_url(req)}"]
+    lines += _ICS_VTIMEZONE
+    dfmt, tfmt = "%Y%m%d", "%Y%m%dT%H%M%S"
     for r in rows:
-        try:
-            start = _isoparse(r["start_at"])
-        except Exception:
+        start = _naive(r["start_at"])
+        if start is None:
             continue
-        end = None
-        if r["end_at"]:
-            try:
-                end = _isoparse(r["end_at"])
-            except Exception:
-                end = None
-        fmt = "%Y%m%dT%H%M%S"
-        lines += ["BEGIN:VEVENT", f"UID:aam-event-{r['id']}@board",
-                  f"SUMMARY:{_ics_escape(r['title'])}",
-                  f"DTSTART:{start.strftime(fmt)}"]
-        if end:
-            lines.append(f"DTEND:{end.strftime(fmt)}")
+        end = _naive(r["end_at"])
+        all_day = bool(r["all_day"])
+        ev = ["BEGIN:VEVENT", f"UID:aam-event-{r['id']}@{host}", f"DTSTAMP:{stamp}",
+              f"SUMMARY:{_ics_escape(r['title'])}"]
+        if all_day:
+            last = end.date() if end and end.date() >= start.date() else start.date()
+            ev += [f"DTSTART;VALUE=DATE:{start.strftime(dfmt)}",
+                   f"DTEND;VALUE=DATE:{(last + timedelta(days=1)).strftime(dfmt)}"]
+        else:
+            ev.append(f"DTSTART;TZID={_ICS_TZID}:{start.strftime(tfmt)}")
+            if end and end.date() > start.date():
+                fin = end if (end.hour or end.minute) else end.replace(hour=23, minute=59, second=0)
+                ev.append(f"DTEND;TZID={_ICS_TZID}:{fin.strftime(tfmt)}")
+            # gleicher Tag ohne Endzeit -> kein DTEND (RFC 5545: Ende = Beginn)
         if r["rrule"]:
-            lines.append(f"RRULE:{r['rrule']}")
-            exs = _event_exdates(r, start)
+            ev.append(f"RRULE:{r['rrule']}")
+            exs = [d for d in (_naive(x.strip()) for x in (r["exdates"] or "").split(",")) if d]
             if exs:
-                lines.append("EXDATE:" + ",".join(e.strftime(fmt) for e in exs))
-        if r["venue"]:
-            lines.append(f"LOCATION:{_ics_escape(r['venue'])}")
+                if all_day:
+                    ev.append("EXDATE;VALUE=DATE:" + ",".join(d.strftime(dfmt) for d in exs))
+                else:
+                    ev.append(f"EXDATE;TZID={_ICS_TZID}:" + ",".join(
+                        d.replace(hour=start.hour, minute=start.minute, second=start.second).strftime(tfmt)
+                        for d in exs))
+        loc = r["venue"] or ""
+        if r["plz"] and r["plz"] not in loc:
+            loc = f"{loc}, {r['plz']}" if loc else r["plz"]
+        if r["country"]:
+            loc = f"{loc} ({r['country'].upper()})" if loc else r["country"].upper()
+        if loc:
+            ev.append(f"LOCATION:{_ics_escape(loc)}")
+        if r["lat"] is not None and r["lon"] is not None:
+            ev.append(f"GEO:{float(r['lat']):.6f};{float(r['lon']):.6f}")
+        ev.append(f"CATEGORIES:{_ics_escape(translate(lang, 'map_evtype_' + (r['type'] or 'other')))}")
         if r["url"]:
-            lines.append(f"URL:{r['url']}")
-        if r["description"]:
-            lines.append(f"DESCRIPTION:{_ics_escape(r['description'])}")
-        lines.append("END:VEVENT")
+            ev.append(f"URL:{r['url']}")
+        desc = r["description"] or ""
+        if r["url"]:
+            desc = (desc + "\n\n" if desc else "") + r["url"]
+        if desc:
+            ev.append(f"DESCRIPTION:{_ics_escape(desc)}")
+        ev += ["STATUS:CONFIRMED", "TRANSP:TRANSPARENT", "END:VEVENT"]
+        lines += ev
     lines.append("END:VCALENDAR")
-    return web.Response(text="\r\n".join(lines), content_type="text/calendar",
-                        headers={"Content-Disposition": "inline; filename=aam-events.ics"})
+    body = "\r\n".join(_ics_fold(l) for l in lines) + "\r\n"
+    return web.Response(body=body.encode("utf-8"),
+                        headers={"Content-Type": "text/calendar; charset=utf-8",
+                                 "Content-Disposition": "inline; filename=aam-events.ics",
+                                 "Cache-Control": "public, max-age=3600"})
 
 
 def build_app(bot) -> web.Application:
