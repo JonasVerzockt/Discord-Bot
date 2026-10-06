@@ -255,7 +255,17 @@
     events.forEach(function (e) {
       var dt = new Date(e.next);
       if ((dt.getTime() - now) > horizon) return;        // außerhalb des Zeitfensters
-      var ds = dt.toLocaleString(CFG.lang === "en" ? "en-GB" : "de-DE", { dateStyle: "medium", timeStyle: "short" });
+      var loc = CFG.lang === "en" ? "en-GB" : "de-DE", tz = "Europe/Berlin";
+      var dOpt = { dateStyle: "medium", timeZone: tz }, tOpt = { timeStyle: "short", timeZone: tz };
+      var ds = e.all_day ? dt.toLocaleDateString(loc, dOpt)
+                         : dt.toLocaleString(loc, { dateStyle: "medium", timeStyle: "short", timeZone: tz });
+      if (e.end) {                                         // Ende anzeigen (gleicher Tag: nur Uhrzeit)
+        var en = new Date(e.end);
+        var sameDay = en.toLocaleDateString(loc, dOpt) === dt.toLocaleDateString(loc, dOpt);
+        if (sameDay && e.end_has_time) ds += "–" + en.toLocaleTimeString(loc, tOpt);
+        else if (!sameDay) ds += " – " + (e.end_has_time ? en.toLocaleString(loc, { dateStyle: "medium", timeStyle: "short", timeZone: tz })
+                                                         : en.toLocaleDateString(loc, dOpt));
+      }
       var link = safeUrl(e.url);
       h += "<div class=mrow><div><div class=nm>" + esc(e.title) + (e.recurring ? " 🔁" : "") +
            "</div><div class=fl2>" + esc(ds) + (e.venue ? " · " + esc(e.venue) : "") + "</div>" +
