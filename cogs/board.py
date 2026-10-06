@@ -147,6 +147,11 @@ _STATIC_FILES = {
     "ch_kantone.geojson": "application/geo+json",
     "li_gemeinden.geojson": "application/geo+json",
     "li_land.geojson": "application/geo+json",
+    # Favicon: statisches PNG (alle Browser), animiertes GIF (nur Firefox animiert Favicons),
+    # Homescreen-Icon für Smartphones.
+    "favicon.png": "image/png",
+    "favicon.gif": "image/gif",
+    "apple-touch-icon.png": "image/png",
 }
 
 logger = logging.getLogger(__name__)
@@ -206,7 +211,7 @@ def _csrf_ok(form) -> bool:
 BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>{{ title }} · AAM-Bot Board</title><link rel="icon" type="image/svg+xml" href="/favicon.ico"><style>
+<title>{{ title }} · AAM-Bot Board</title><link rel="icon" id="favicon" type="image/png" href="/static/favicon.png?v={{ v }}"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ v }}"><script>if(/Firefox\//.test(navigator.userAgent)){var f=document.getElementById("favicon");f.type="image/gif";f.href="/static/favicon.gif?v={{ v }}";}</script><style>
  :root{color-scheme:only dark} html,body{background:#0d1117}
  body{color:#e6edf3;font:15px/1.5 system-ui,Segoe UI,Arial;margin:0}
  option{background:#0d1117;color:#e6edf3} ::placeholder{color:#6e7681;opacity:1}
@@ -759,7 +764,8 @@ def _render(req, name, title="Board", flash="", **ctx):
     tt = lambda key, **kw: translate(lang, key, **kw)
     i18n = dict(lang=lang, t=tt, langs=LANGS, flags=FLAGS, flag_title=FLAG_TITLE,
                 switch_urls=_switch_urls(req), qs=(lambda: "?lang=" + lang),
-                type_label=(lambda ty: type_label(lang, ty)))
+                type_label=(lambda ty: type_label(lang, ty)),
+                v=VERSION)    # Cache-Busting für statische Dateien (z. B. Favicon); Seiten dürfen überschreiben
     i18n.update(ctx)   # template-spezifischer Kontext (items, cols, …) ergänzt/gewinnt
     html = ENV.get_template(name).render(title=title, flash=flash, admin=_is_admin(req), **i18n)
     return web.Response(text=html, content_type="text/html")
@@ -1781,8 +1787,8 @@ class _DebugAccessLogger(AbstractAccessLogger):
         )
 
 
-# Kleines SVG-Ameisen-Favicon (gezeichnet, keine Emoji-Glyphe -> rendert in allen
-# Browsern; Emoji-in-SVG bleibt z.B. in Chrome leer). Verhindert die favicon-404.
+# Rückfall-Favicon (SVG-Ameise), falls static/favicon.png fehlt. Das eigentliche Favicon
+# liegt als static/favicon.png (+ animiertes favicon.gif für Firefox) im Repo.
 _FAVICON = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
     '<rect width="64" height="64" rx="14" fill="#e9a23b"/>'
@@ -1796,6 +1802,12 @@ _FAVICON = (
 
 
 async def h_favicon(req):
+    """/favicon.ico (wird von manchen Browsern direkt abgefragt): das PNG-Favicon,
+    falls vorhanden, sonst das eingebaute SVG als Rückfallebene."""
+    p = STATIC_DIR / "favicon.png"
+    if p.is_file():
+        return web.FileResponse(p, headers={"Cache-Control": "public, max-age=86400",
+                                            "Content-Type": "image/png"})
     return web.Response(text=_FAVICON, content_type="image/svg+xml")
 
 
