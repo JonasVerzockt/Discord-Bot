@@ -415,6 +415,62 @@ T: dict[str, dict[str, str]] = {
     "flash_wrong_token": {"de": "Falsches Token.", "en": "Wrong token.", "eo": "Malĝusta ĵetono."},
     "flash_imported": {"de": "{n} importiert{skipped}", "en": "{n} imported{skipped}", "eo": "{n} importitaj{skipped}"},
     "flash_skipped": {"de": ", {s} übersprungen", "en": ", {s} skipped", "eo": ", {s} preterlasitaj"},
+
+    # ── Halter-Karte ──────────────────────────────────────────────────────────
+    "nav_map": {"de": "Karte", "en": "Map", "eo": "Mapo"},
+    "map_h": {"de": "Halter-Karte", "en": "Keeper Map", "eo": "Bredista Mapo"},
+    "map_intro": {
+        "de": "Finde ungefähr, wo andere Ameisenhalter der Community sind – freiwillig, nur grob verortet. Trag dich im Discord mit /map_join ein.",
+        "en": "Find roughly where other ant keepers of the community are – voluntary, only coarse location. Join via /map_join on Discord.",
+        "eo": "Trovu proksimume kie estas aliaj formikbredistoj de la komunumo – libervola, nur malprecize. Aliĝu per /map_join en Discord."},
+    "map_u18_notice": {
+        "de": "Datenschutz: Eintrag ist freiwillig (Opt-in), zeigt nur eine grobe, zufällig verschobene Position (kein genauer Ort/Adresse) und verschwindet automatisch bei Server-Austritt. Jederzeit löschbar mit /map_remove. Wer angibt, UNTER 18 zu sein, erscheint NICHT einzeln auf der Karte/Liste, sondern wird nur anonym mitgezählt.",
+        "en": "Privacy: joining is voluntary (opt-in), shows only a coarse, randomly offset position (no exact place/address) and is removed automatically when you leave the server. Remove anytime with /map_remove. Anyone stating they are UNDER 18 is NOT shown individually on the map/list, only counted anonymously.",
+        "eo": "Privateco: aliĝo estas libervola (opt-in), montras nur malprecizan, hazarde ŝovitan pozicion (neniu preciza loko/adreso) kaj estas forigita aŭtomate kiam vi forlasas la servilon. Forigu iam ajn per /map_remove. Kiu deklaras esti SUB 18, ne aperas individue sur la mapo/listo, nur anonime kalkulita."},
+    "map_layer": {"de": "Ebene", "en": "Layer", "eo": "Tavolo"},
+    "map_layer_map": {"de": "Halter", "en": "Keepers", "eo": "Bredistoj"},
+    "map_layer_events": {"de": "Termine", "en": "Events", "eo": "Eventoj"},
+    "map_layer_all": {"de": "Alles", "en": "All", "eo": "Ĉio"},
+    "map_member_on": {"de": "Angemeldet", "en": "Logged in", "eo": "Ensalutinta"},
+    "map_login": {"de": "Mit Discord anmelden", "en": "Log in with Discord", "eo": "Ensaluti per Discord"},
+    "map_logout": {"de": "Abmelden", "en": "Log out", "eo": "Elsaluti"},
+    "map_region_level": {"de": "Regionsebene", "en": "Region level", "eo": "Regiona nivelo"},
+    "map_level_state": {"de": "Bundesland/Kanton", "en": "State/Canton", "eo": "Federacia lando/Kantono"},
+    "map_level_plz": {"de": "PLZ-Gebiet", "en": "Postcode area", "eo": "Poŝtkoda zono"},
+    "map_list_title": {"de": "Halter (Liste)", "en": "Keepers (list)", "eo": "Bredistoj (listo)"},
+    "map_search": {"de": "Suchen …", "en": "Search …", "eo": "Serĉi …"},
+    "map_agenda_title": {"de": "Kommende Termine", "en": "Upcoming events", "eo": "Venontaj eventoj"},
+    "map_attribution": {
+        "de": "Grenzen: © geoBoundaries (CC BY 4.0) · PLZ/Orte: © GeoNames (CC BY 4.0) · Karte: Leaflet",
+        "en": "Boundaries: © geoBoundaries (CC BY 4.0) · postcodes/places: © GeoNames (CC BY 4.0) · map: Leaflet",
+        "eo": "Limoj: © geoBoundaries (CC BY 4.0) · poŝtkodoj/lokoj: © GeoNames (CC BY 4.0) · mapo: Leaflet"},
+    "map_assets_missing": {
+        "de": "Kartenbibliothek fehlt (static/leaflet.js) – siehe tools/MAP_DATA_README.md.",
+        "en": "Map library missing (static/leaflet.js) – see tools/MAP_DATA_README.md.",
+        "eo": "Mapa biblioteko mankas (static/leaflet.js) – vidu tools/MAP_DATA_README.md."},
+    "map_disabled": {
+        "de": "Die Halter-Karte ist aktuell deaktiviert (MAP_ENABLED).",
+        "en": "The keeper map is currently disabled (MAP_ENABLED).",
+        "eo": "La bredista mapo estas nuntempe malŝaltita (MAP_ENABLED)."},
+    "map_oauth_unconfigured": {
+        "de": "Discord-Login ist noch nicht konfiguriert (BOARD_OAUTH_*).",
+        "en": "Discord login is not configured yet (BOARD_OAUTH_*).",
+        "eo": "Discord-ensaluto ankoraŭ ne agordita (BOARD_OAUTH_*)."},
+    "map_anon": {"de": "Halter:in (anonym)", "en": "Keeper (anonymous)", "eo": "Bredisto (anonima)"},
+    "map_pin_exact": {"de": "Pin nach PLZ", "en": "Pin by postcode", "eo": "Pinglo laŭ poŝtkodo"},
+    "map_pin_coarse": {"de": "Pin im groben PLZ-Gebiet", "en": "Pin in rough postcode area", "eo": "Pinglo en malpreciza poŝtkoda zono"},
+    "map_pin_coarse_note": {"de": "grobes PLZ-Gebiet", "en": "rough postcode area", "eo": "malpreciza poŝtkoda zono"},
+    "map_pin_contact": {"de": "Kontakt über Discord", "en": "Contact via Discord", "eo": "Kontakto per Discord"},
+    "map_range_filter": {"de": "Zeitraum", "en": "Range", "eo": "Periodo"},
+    "map_range_30": {"de": "30 Tage", "en": "30 days", "eo": "30 tagoj"},
+    "map_range_90": {"de": "90 Tage", "en": "90 days", "eo": "90 tagoj"},
+    "map_range_all": {"de": "alle", "en": "all", "eo": "ĉiuj"},
+    "map_evtype_fair": {"de": "Börse/Messe", "en": "Fair/expo", "eo": "Foiro/ekspozicio"},
+    "map_evtype_meetup": {"de": "Treffen", "en": "Meetup", "eo": "Renkontiĝo"},
+    "map_evtype_shop": {"de": "Shop-Event", "en": "Shop event", "eo": "Butika evento"},
+    "map_evtype_talk": {"de": "Workshop/Vortrag", "en": "Workshop/talk", "eo": "Laborejo/prelego"},
+    "map_evtype_field": {"de": "Exkursion", "en": "Field trip", "eo": "Ekskurso"},
+    "map_evtype_other": {"de": "Sonstiges", "en": "Other", "eo": "Alia"},
 }
 
 

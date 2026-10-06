@@ -121,6 +121,8 @@ INITIAL_COGS = [
     "cogs.offer_alerts",      # /offer_alert – Schlagwort-Alerts für den Angebote-Kanal
     "cogs.chat_export",       # /export_chat – Channel als JSON exportieren (Admin)
     "cogs.board",             # Öffentliches Feedback-Board (aiohttp, eigene DB) – nur wenn BOARD_ENABLED
+    "cogs.map",               # Halter-Karte: /map_join /map_remove /map_tags /event_add – nur wenn MAP_ENABLED
+    "cogs.map_tasks",         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup – nur wenn MAP_ENABLED
 ]
 
 

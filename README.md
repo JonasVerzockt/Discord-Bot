@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `2.4.1` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `3.0.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -60,7 +60,8 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 19. [Datenbank](#datenbank)
 20. [Projektstruktur](#projektstruktur)
 21. [Lokalisierung](#lokalisierung)
-22. [Credits & Danksagung](#credits--danksagung)
+22. [Halter-Karte](#halter-karte)
+23. [Credits & Danksagung](#credits--danksagung)
 
 ---
 
@@ -131,6 +132,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 # ── Google Sheets ─────────────────────────────────────────────
 GOOGLE_SPREADSHEET_ID=deine_spreadsheet_id_hier
 
+# ── Ameisen-Artenliste (AntCat) ───────────────────────────────
+# SPECIES_CATALOG_FILE=/pfad/zum/bot/data/ant_species.json   # AntCat-Artenliste (optional, Standard data/ant_species.json; erzeugen mit tools/build_ant_species.py)
+
 # ── AntCheck API ──────────────────────────────────────────────
 ANTCHECK_API_KEY=dein_api_key_hier
 ANTCHECK_API_URL=https://antcheck.info
@@ -152,6 +156,14 @@ AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + K
 # AI_CHAT_CONVERSATION_TTL_HOURS=24        # Aufbewahrung einer Konversation in Stunden
 # AI_CHAT_RECOMMENDED_MODEL=claude-sonnet-5   # im Modell-Dropdown mit 👍 empfohlen (leer = keine Empfehlung)
 # AI_CHAT_BUDGET_OUTPUT_RATIO=0.5          # Anteil der max. Output-Tokens für die Budget-Schätzung (0.5 realistisch, 1.0 = Maximum)
+
+# ── Schlagwort-Alerts für den Angebote-Kanal (/offer_alert) ───
+# OFFER_CHANNEL_ID=543512785171251201      # Überwachter Angebote-Kanal (leer/0 = Feature inaktiv)
+# OFFER_ALERT_DELAY_MIN=60                 # Team-Review-Puffer in Minuten
+# OFFER_BACKFILL_DAYS=90                   # Rückblick beim ersten Hinterlegen eines Schlagworts (Tage)
+# OFFER_SOLD_EMOTE_ID=577904916006174741   # Custom-Emote-ID für „verkauft“ (Text/Reaktion)
+# OFFER_QUIET_START_HOUR=23                # Nachtruhe Beginn (Berlin); START==END = aus
+# OFFER_QUIET_END_HOUR=9                   # Nachtruhe Ende (Berlin)
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
 DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
@@ -181,6 +193,21 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # BOARD_OWNER_ID=                          # Discord-User-ID für die Einreichungs-DM (leer/0 = übersprungen)
 # BOARD_DB_FILE=/opt/discord-bot/board.db  # eigene DB-Datei (getrennt von der Haupt-DB)
 # BOARD_HASH_SALT=ein-langes-zufaelliges-salt   # IP-Hashing (keine Roh-IP gespeichert)
+
+# ── Halter-Karte (optional) ───────────────────────────────────
+# Standardmäßig AUS. Benötigt das aktivierte Feedback-Board (gemeinsamer Webdienst).
+# MAP_ENABLED=false
+# MAP_GUILD_ID=123456789012345678          # Guild für Mitgliedschaftsprüfung + Auto-Löschung
+# MAP_JITTER_METERS=3000                   # fester Pin-Versatz (±, aus user_id geseedet)
+# MAP_MAX_ZOOM=10                          # max. Zoom (Stadt/Umland, keine Straßenebene)
+# MAP_REMIND_MONTHS=12                     # Jahres-Bestätigung: erinnern
+# MAP_DELETE_MONTHS=24                     # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
+# MAP_GEODATA_AUTO=false                   # Bot stellt Geodaten selbst bereit & hält sie aktuell
+# MAP_GEODATA_REFRESH_DAYS=30              # Intervall der Selbst-Aktualisierung
+# Discord-OAuth2 ("Login mit Discord", nur Scope identify) – Secrets NICHT committen:
+# BOARD_OAUTH_CLIENT_ID=
+# BOARD_OAUTH_CLIENT_SECRET=
+# BOARD_OAUTH_REDIRECT_URI=https://board.jonasants.de:4443/map/callback
 
 # ── Pfade (optional) ──────────────────────────────────────────
 DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
@@ -693,8 +720,8 @@ Sammelbare Achievements – **rein persönlich, ohne Rollen**. Abrufbar per `/ac
 | 📅 | Stammgast | An 7 verschiedenen Tagen Befehle genutzt |
 | 🏃 | Marathon | 15 Befehle an einem einzigen Tag |
 | 💪 | Power-User | Insgesamt 100 Befehle ausgeführt |
-| 🧰 | Werkzeugkasten | Befehle aus allen vier Bereichen (Verfügbarkeit, Preis, Stöbern, Community) genutzt |
-| 🏆 | Komplettist | 12 verschiedene der wichtigsten Befehle eingesetzt |
+| 🧰 | Werkzeugkasten | Befehle aus allen Bereichen (Verfügbarkeit, Preis, Stöbern, Community, bei aktiver Halter-Karte zusätzlich Karte: `/map_join`, `/map_tags`, `/event_add`) genutzt |
+| 🏆 | Komplettist | 12 von 14 der wichtigsten Befehle eingesetzt (bei aktiver Halter-Karte 15 von 17) |
 
 Die Reihe **Code-Bringer / Code-Sammler / Code-Meister** ist derselbe Erfolg in drei Stufen (1 / 5 / 15 gepostete Rabattcodes).
 
@@ -740,6 +767,11 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, **AAM-Bewertung** (falls vorhanden), Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/offers shop:Antstore` |
 | `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode), `force` (optional) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge und **AAM-Bewertung** (falls vorhanden), **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Die Gruppierung nach Art erfolgt **case-insensitiv** (Groß-/Kleinschreibung egal), sodass reine Schreibweise-Varianten desselben Artnamens nicht mehrere Gruppen bilden. Als Land ist auch **`eu`** möglich – das wird (wie bei `/notification`) automatisch auf **alle EU-Ländercodes** aufgelöst; bei `eu` bleibt die Gruppierung nach Shop-Region erhalten (nur bei genau einem Land entfällt die Regions-Unterüberschrift). Ist die Suche ein **Binomen** (Gattung + Art), werden zudem alle Treffer unter dieser einen Art gebündelt – auch abweichend benannte Bundle-/Varianten-Angebote (z. B. „Bundle Offer – …", „… 2 koninginnen met broed") erscheinen so als Unterpunkte statt als eigene „Arten". Wird **kein Land** angegeben, werden die Angebote je Art zusätzlich **nach Shop-Region** (Land) gruppiert, mit einer Regions-Unterüberschrift (Flagge + Ländername). Der eingegebene Name wird gegen die **Artenliste** geprüft (siehe unten); `force: True` überspringt das. Ist die Artenliste vorhanden, nutzt die Gattungs-/Teilsuche zusätzlich das Grabber-Feld `canonical_species`: Angebote werden dann nach dem **akzeptierten Artnamen** gruppiert und **Synonyme shopübergreifend vereinheitlicht** – eine Suche nach dem akzeptierten Namen findet auch synonym benannte Angebote. Ausgabe als Embed(s). | `/sells species:aethiops` |
+| `/map_join` | – (geführt) | **Halter-Karte (Opt-in, nur wenn `MAP_ENABLED`).** Geführter Ablauf, nur für dich sichtbar: 1) Auswahlmenüs für **Land** (DE/AT/CH/LI/anderes) und **Alter** (18+ / unter 18) sowie freiwillige **Optionen** (Mehrfachauswahl): **anonym anzeigen**, **Kontakt über Discord anbieten** (Standard: aus) und **nur grobes PLZ-Gebiet** (letzte zwei Ziffern weg: DE 3, AT/CH/LI 2 Ziffern; Pin in der Mitte aller PLZ des Gebiets, auf der Karte **pink** statt blau). 2) Button **Zustimmen und weiter** (= Einwilligung) öffnet ein Formular für **PLZ** (DACH) bzw. **Länderkürzel** (anderes Land) und optional **Vorname** (kein Nachname). Unbekannte PLZ (nicht im GeoNames-Datensatz oder falsche Länge) werden abgelehnt. 3) Danach direkt die **Tag-Auswahl**. Gespeichert wird nur ein **grober** Standort (aus der PLZ abgeleitete, **zufällig verschobene** Näherung, keine genaue Adresse). Der Discord-Name wird **nicht gespeichert**. DACH → gefuzzter Pin (nur für eingeloggte Mitglieder sichtbar), sonst Listeneintrag. Wer **unter 18** angibt, erscheint **nicht einzeln**, sondern nur in der anonymen Regionszählung. | `/map_join` |
+| `/map_tags` | – | Setzt/ändert die selbst gewählten **Schlagworte** (fester Katalog, Mehrfachauswahl) für den eigenen Karteneintrag. | `/map_tags` |
+| `/map_confirm` | – | Bestätigt, dass der eigene Karteneintrag **noch aktuell** ist (setzt die jährliche Bestätigung zurück). | `/map_confirm` |
+| `/map_remove` | – | Löscht den **eigenen** Karteneintrag vollständig (Selbstbedienung, jederzeit). | `/map_remove` |
+| `/event_add` | – (geführt) | Schlägt einen **Termin/Event** für die Karte vor (alle dürfen einreichen). Geführter Ablauf: 1) Formular mit **Titel**, **Datum** (`TT.MM.JJJJ`), **Ort** (Pflicht) sowie Uhrzeit und Beschreibung (optional). 2) Auswahlmenüs für **Art** (Börse/Messe, Treffen, Shop-Event, Workshop/Vortrag, Exkursion, Sonstiges), **Wiederholung** (einmalig/wöchentlich/monatlich/jährlich) und **Land**; Button **Weitere Angaben** für PLZ (Kartenpunkt in DACH), Enddatum (mehrtägig) und Link. 3) **Einreichen**. Erscheint **erst nach Freigabe** durch einen Admin (Betreiber bekommt eine PN). Nur **öffentliche** Veranstaltungsorte, keine Privatadressen. Wiederholungen werden als iCal-RRULE gespeichert (auch im ICS-Feed `/map/events.ics`). | `/event_add` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Der **User-Teil ist immer öffentlich** im Kanal sichtbar. Der **Admin-Abschnitt** wird nur Mitgliedern mit „Nachrichten verwalten"/„Administrator" gezeigt und kommt separat **ephemer** (nur für sie sichtbar), damit er nicht öffentlich gepostet wird. *(`!help` als Textbefehl kann nicht ephemer antworten und zeigt daher nur den öffentlichen User-Teil.)* | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
@@ -783,6 +815,12 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
 | `/shopmap list` | – | Alle Shop-Zuordnungen anzeigen (inkl. noch offener). | `/shopmap list` |
 | `/shopmap remove` | `identifier` | Eine Shop-Zuordnung entfernen. | `/shopmap remove identifier:Home of Insects` |
+| `/event_pending` | – | **Halter-Karte:** offene Event-Vorschläge (Status `pending`) mit ID auflisten (ephemeral). | `/event_pending` |
+| `/event_approve` | `event_id` | **Halter-Karte:** einen eingereichten Termin **freigeben** (erscheint danach öffentlich auf der Karte/im ICS-Feed). | `/event_approve event_id:3` |
+| `/event_reject` | `event_id` | **Halter-Karte:** einen eingereichten Termin **ablehnen**. | `/event_reject event_id:3` |
+| `/event_exclude` | `event_id`, `date` (`JJJJ-MM-TT`) | **Halter-Karte:** bei einem **Serien-Termin** ein einzelnes Vorkommen **absagen** (EXDATE; wirkt auf Karte, Agenda und ICS-Feed). | `/event_exclude event_id:3 date:2026-12-06` |
+| `/event_edit` | `event_id` (Ziel), optional: `title`, `date`, `time` (`-`=ganztägig), `end_date` (`-`=löschen), `location`, `country`, `plz`, `url` (`-`), `etype`, `recurring`, `description` (`-`), `status` | **Halter-Karte:** beliebige Felder eines eingereichten/aktiven Events anpassen (nur angegebene ändern; Koordinaten/Wiederholung werden bei Bedarf neu berechnet). | `/event_edit event_id:3 time:- location:Messe Dornbirn status:approved` |
+| `/map_refresh` | – | **Halter-Karte:** Geodaten (Leaflet, geoBoundaries-Umrisse, GeoNames-PLZ) sofort neu laden. | `/map_refresh` |
 
 ### Beispiele für umfangreiche Befehle
 
@@ -916,6 +954,11 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 | AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest die Tabs „Übersicht", „Händler A-Z", „Prüfung" (Kategorien) und „Close" (inaktive Shops) aus Google Sheet und aktualisiert den System-Prompt-Anhang |
 | Wochen-Digest | montags 09:00 (Berliner Zeit) | DM an Opt-in-Abonnenten: Preisstürze (7 Tage), neue Arten & neue Shops |
+| Halter-Karte: Wartung | täglich (nur `MAP_ENABLED`) | Gleicht Karteneinträge gegen die Guild-Mitgliedschaft ab (entfernt Ausgetretene) und steuert die **jährliche Bestätigung**: nach `MAP_REMIND_MONTHS` Erinnerungs-PN, nach `MAP_DELETE_MONTHS` ohne Reaktion Löschung + Info-PN |
+| Halter-Karte: Event-Cleanup | täglich (nur `MAP_ENABLED`) | Entfernt vergangene **Einmal-Events** (ohne RRULE); Serien bleiben bis zu ihrem Ende |
+| Halter-Karte: Geodaten-Refresh | alle `MAP_GEODATA_REFRESH_DAYS` Tage (nur `MAP_GEODATA_AUTO`) | Lädt via `utils/map_geodata.py` **vollautomatisch** Leaflet, die GeoJSON-Umrisse (geoBoundaries ADM1) und baut `data/plz_dach.csv` aus den GeoNames-PLZ-Dumps; danach wird der PLZ-Datensatz neu geladen. Kein externes Tool/cron nötig. Manuell: `/map_refresh` (Admin). |
+
+> Zusätzlich löscht ein `on_member_remove`-Listener den Karteneintrag **sofort**, wenn jemand den Server verlässt.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -1006,6 +1049,9 @@ SQLite-Datei (in `data/`), wird beim Start automatisch angelegt. Wichtige Tabell
 | `user_events` | Leichtes Event-Log (Befehlsnutzung, Zielpreis-Treffer) für Aktions-/Versteckt-Erfolge |
 | `command_log` | Befehls-Nutzungsprotokoll (User, Befehl, Parameter, Kanal, Zeit, Erfolg/Fehler) für Moderation; sensible Parameter ausgeblendet, DB-Retention 12 Monate |
 | `custom_commands` | Benutzerdefinierte Info-Einträge (`/info`): Name, Inhalt (Markdown), admin_only, as_embed, Ersteller, Aufrufzähler |
+| `map_entries` | **Halter-Karte:** Opt-in-Einträge – Discord-User-ID, Land, Region/PLZ-Präfix, **gefuzzte** Koordinate (NULL außerhalb DACH), optionaler **Vorname** (Discord-Name wird NICHT gespeichert), `coarse` (1 = Pin in der Mitte des groben PLZ-Gebiets), `show_entry` (0 = nur anonyme Zählung, z. B. U18), Einwilligungs-/Bestätigungs-Zeitstempel |
+| `map_entry_tags` | **Halter-Karte:** selbst gewählte Schlagworte je User (fester Katalog) |
+| `map_events` | **Halter-Karte:** eingereichte Termine/Events (Titel, Zeit, Ort, Koordinate, `rrule`, Status `pending`/`approved`/`rejected`) |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -1060,7 +1106,9 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   ├── offers.py            # /offers: alle lagernden Angebote eines Shops
 │   ├── custom_commands.py   # /info: benutzerdefinierte Text-Befehle (Info-Einträge)
-│   └── board.py             # Feedback-Board (aiohttp-Webserver + Admin, nur wenn BOARD_ENABLED)
+│   ├── board.py             # Feedback-Board + Halter-Karte (/map, OAuth, JSON-APIs, ICS)
+│   ├── map.py               # Halter-Karte: /map_join /map_tags /map_confirm /map_remove /event_* (nur MAP_ENABLED)
+│   └── map_tasks.py         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup (nur MAP_ENABLED)
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
@@ -1073,6 +1121,9 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── discount_parser.py   # Claude Haiku Parser (Rabattcodes)
 │   ├── link_resolver.py     # Kurzlinks auflösen + Tracking-Parameter entfernen
 │   ├── species_catalog.py   # AntCat-Artenliste: Namensprüfung/Tippfehler/Synonyme
+│   ├── geo.py               # Halter-Karte: Offline-Geocoding (PLZ→Region/Koordinate) + Fuzzing
+│   ├── map_tags.py          # Halter-Karte: fester Tag-Katalog (de/en/eo)
+│   ├── map_geodata.py       # Halter-Karte: Geodaten laden (geoBoundaries + GeoNames)
 │   ├── paths.py             # Datenordner-Migration (Root → data/)
 │   ├── ai_chat.py           # KI-Chat-Backend: Budget, History, API-Call
 │   ├── sheets_shop_data.py  # Shop-Daten aus Google Sheets für KI-System-Prompt
@@ -1085,11 +1136,18 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
 │   └── logging_setup.py     # Rotating File Handler
 │
-└── locales/
-    ├── de.json              # Deutsch
-    ├── en.json              # English
-    └── eo.json              # Esperanto
+├── locales/
+│   ├── de.json              # Deutsch
+│   ├── en.json              # English
+│   └── eo.json              # Esperanto
+│
+└── static/                  # self-hosted Assets (kein CDN): Chart.js, stats.js
+    ├── map.js               # Halter-Karte: Leaflet-Frontend (Choropleth/Pins/Liste/Events)
+    ├── leaflet.js, leaflet.css          # vom Bot geladen (utils/map_geodata.py)
+    └── *_bundeslaender.geojson, …       # GeoJSON-Umrisse (vom Bot geladen)
 ```
+
+Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geoBoundaries-Umrisse + GeoNames-PLZ → `data/plz_dach.csv`), gesteuert vom Task in `cogs/map_tasks.py` bzw. manuell per `/map_refresh`. Kein `tools/`-Script nötig.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -1234,6 +1292,28 @@ Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` s
 - Bindet nur an `127.0.0.1` – **HTTPS und öffentliche Domain macht der Reverse-Proxy** (Caddy/nginx); der aiohttp-Server wird nie direkt exponiert.
 - **Moderations-Queue** (nichts öffentlich ohne Freigabe), **Honeypot** und **Rate-Limits** gegen Spam, **CSRF-Schutz** auf Admin-Aktionen, **Jinja2-Autoescape** gegen XSS, Frontend **dark-mode-only**.
 - **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-SHA3-512-Hash** (mit geheimem `BOARD_HASH_SALT` als Schlüssel) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Halter-Karte
+
+Optionale, **datenschutzfreundliche** Karte, auf der sich Community-Mitglieder freiwillig eintragen können, um ungefähr zu sehen, wer in der Nähe ist – plus eine öffentliche Termin-/Event-Ebene (Börsen/Treffen). Standardmäßig **aus** (`MAP_ENABLED=false`).
+
+**Datenschutz-Prinzipien:** Opt-in; nur **grober** Standort (Land + aus der PLZ abgeleitete, **zufällig verschobene** Näherungs-Koordinate, kein genauer Ort/Adresse); der **Discord-Name wird nicht gespeichert**, sondern live aus der ID aufgelöst (euer **Server-Anzeigename**/Nick), auf Wunsch ganz **ausblendbar**; optional nur ein **Vorname** (kein Nachname); **Kontakt** nur, wenn aktiv erlaubt (Standard: aus); optional nur **grobes PLZ-Gebiet** (letzte zwei Ziffern weg, Pin in der Gebietsmitte, eigene Pin-Farbe). Unbekannte PLZ werden abgelehnt. Alle Nutzertexte werden auf der Kartenseite HTML-maskiert, Event-Links nur mit `http(s)://`. Öffentlich sind nur **aggregierte Zahlen** je Region/Land – einzelne Pins und die Halter-Liste sehen nur über **„Login mit Discord"** angemeldete Server-Mitglieder. **Unter 18** → keine Einzel-Anzeige, aber **anonyme Mitzählung** in den Regionszahlen. **Auto-Löschung bei Server-Austritt**, jederzeit selbst löschbar (`/map_remove`) und **jährliche Bestätigung** (ohne Reaktion Löschung im nächsten Zyklus).
+
+**Geografie:** Karte nur für **DACH** (DE/AT/CH/LI, GeoJSON-Choropleth, umschaltbar Bundesland ⇄ PLZ-Gebiet); wer außerhalb lebt, erscheint in einer **Liste** neben der Karte. Karte rein als Vektor/GeoJSON mit **Leaflet** (self-hosted, keine externen Tiles).
+
+**Befehle:** `/map_join` (geführt per Auswahlmenüs und Formular: Land, 18+, Namensanzeige, Kontakt, Einwilligung per Button, dann PLZ/Vorname und Tags), `/map_tags` (Schlagworte), `/map_confirm`, `/map_remove`. Events: `/event_add` (geführt per Formular und Auswahlmenüs; alle dürfen einreichen → Betreiber bekommt eine **PN** zur Freigabe), Admin: `/event_pending` · `/event_approve` · `/event_reject` · `/event_edit` (beliebige Felder anpassen) · `/event_exclude` (einzelnen Serientermin absagen); `/map_refresh` lädt die Geodaten sofort neu. Termine zusätzlich als **ICS-Feed** `/map/events.ics` (Wiederholungen via iCal-RRULE).
+
+**Konfiguration (.env):** `MAP_ENABLED`, `MAP_GUILD_ID`, `MAP_JITTER_METERS` (Standard 3000), `MAP_MAX_ZOOM` (10), `MAP_REMIND_MONTHS` (12), `MAP_DELETE_MONTHS` (24), `MAP_GEODATA_AUTO` (Geodaten selbst laden) + `MAP_GEODATA_REFRESH_DAYS` (30) sowie für den Mitglieder-Login `BOARD_OAUTH_CLIENT_ID` / `BOARD_OAUTH_CLIENT_SECRET` / `BOARD_OAUTH_REDIRECT_URI` (Discord-OAuth2, nur Scope `identify`; Secrets **nicht** committen). Die Einreichungs-PN nutzt `BOARD_OWNER_ID`.
+
+**Externe Geodaten:** Der Bot besorgt sie **vollautomatisch** (`MAP_GEODATA_AUTO=true`, Intervall `MAP_GEODATA_REFRESH_DAYS`, oder manuell `/map_refresh`) über `utils/map_geodata.py` – alles stabile, offen lizenzierte Direkt-Quellen, **ohne** amtliche ZIPs oder Konvertierung: **Leaflet** (BSD-2), **geoBoundaries** (CC BY 4.0, GeoJSON-Umrisse DE/AT/CH-Bundesländer/Kantone + LI-Landesumriss) und die **GeoNames-PLZ-Dumps** (CC BY 4.0 → `data/plz_dach.csv` mit PLZ, Ort, Bundesland/Kanton, Koordinaten). Ohne den PLZ-Datensatz (z. B. vor dem ersten Download) läuft ein grober PLZ-Leitziffer-Fallback; sobald er geladen ist, werden unbekannte PLZ abgelehnt. **Pflicht-Attribution** (geoBoundaries · GeoNames · Leaflet) steht auf der Kartenseite.
+
+**Server:** nginx-Allowlist um `/map`, `/map/login`, `/map/callback`, `/map/regions.json`, `/map/pins.json`, `/map/list.json`, `/map/events.json`, `/map/events.ics` erweitern; im Discord Developer Portal die Redirect-URI eintragen.
+
+> Hinweis: Vor Go-Live Datenschutzerklärung/Impressum rechtlich prüfen lassen (die Texte sind bereits um die Karte ergänzt).
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 

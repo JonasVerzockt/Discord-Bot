@@ -45,6 +45,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import discord
+import aiohttp
 from aiohttp import web
 from aiohttp.abc import AbstractAccessLogger
 from discord.ext import commands, tasks
@@ -53,7 +54,10 @@ from jinja2 import Environment, DictLoader, select_autoescape
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC,
-                    VERSION)
+                    VERSION,
+                    MAP_ENABLED, MAP_GUILD_ID, MAP_JITTER_METERS, MAP_MAX_ZOOM,
+                    BOARD_OAUTH_CLIENT_ID, BOARD_OAUTH_CLIENT_SECRET, BOARD_OAUTH_REDIRECT_URI)
+from utils import geo, map_tags
 from datetime import datetime, timezone
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
@@ -132,6 +136,17 @@ _STATIC_FILES = {
     "chart.umd.js": "application/javascript",
     "chartjs-chart-treemap.min.js": "application/javascript",
     "stats.js": "application/javascript",
+    # Halter-Karte: Leaflet self-hosted + Kartenlogik + GeoJSON-Layer.
+    # Große Dateien stellt der Bot via utils/map_geodata.py bereit (fehlen -> 404, Seite
+    # degradiert sauber). Alle Namen sind feste Literale (CodeQL path-injection safe).
+    "leaflet.js": "application/javascript",
+    "leaflet.css": "text/css",
+    "map.js": "application/javascript",
+    "de_bundeslaender.geojson": "application/geo+json",
+    "at_bundeslaender.geojson": "application/geo+json",
+    "ch_kantone.geojson": "application/geo+json",
+    "li_gemeinden.geojson": "application/geo+json",
+    "li_land.geojson": "application/geo+json",
 }
 
 logger = logging.getLogger(__name__)
@@ -273,7 +288,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .legal{max-width:820px} .legal h3{margin:18px 0 6px;font-size:15px;color:#c9d1d9} .legal p{margin:0 0 8px} .legal code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:1px 5px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
- <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
+ <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
  <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
@@ -643,10 +658,79 @@ LEGAL = """{% extends "base" %}{% block body %}
 {% endif %}
 {% endblock %}"""
 
+MAP = """{% extends "base" %}{% block body %}
+<link rel="stylesheet" href="/static/leaflet.css?v={{ v }}">
+<style>
+ .mapgrid{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start}
+ @media(max-width:820px){.mapgrid{grid-template-columns:1fr}}
+ .mrow{display:flex;gap:9px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid #21262d}
+ .mrow .fl2{font-size:13px;color:#8b949e;white-space:nowrap}
+ .mrow .nm{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+ .mrow .tg{font-size:11px;color:#8b949e;margin-top:2px}
+ .mrow[data-ref]{cursor:pointer} .mrow.hl{background:#1f6feb33;border-radius:6px}
+ /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
+ .leaflet-container{background:#0f141a}
+ .leaflet-bar a,.leaflet-bar a:hover{background:#161b22;color:#e6edf3;border-bottom-color:#30363d}
+ .leaflet-bar{border:1px solid #30363d}
+ .leaflet-control-attribution{background:#161b22cc !important;color:#8b949e}
+ .leaflet-control-attribution a{color:#58a6ff}
+ .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#161b22;color:#e6edf3;border:1px solid #30363d}
+ .leaflet-popup-content{color:#e6edf3}
+ .leaflet-popup-content a{color:#58a6ff}
+ a.leaflet-popup-close-button{color:#8b949e}
+</style>
+<h2>{{ t('map_h') }}</h2>
+<p class=muted style="max-width:860px">{{ t('map_intro') }}</p>
+<div class=flash style="max-width:860px">ℹ️ {{ t('map_u18_notice') }}</div>
+<div class=rangesw>
+  <span class=muted>{{ t('map_layer') }}:</span>
+  <a href="#" class="on" data-layer="map">{{ t('map_layer_map') }}</a>
+  <a href="#" data-layer="events">{{ t('map_layer_events') }}</a>
+  <a href="#" data-layer="all">{{ t('map_layer_all') }}</a>
+  <span class=grow></span>
+  {% if member %}<span class=muted>{{ t('map_member_on') }}</span> <a href="/map/logout?lang={{ lang }}">{{ t('map_logout') }}</a>
+  {% else %}<a class=btn href="/map/login?lang={{ lang }}">{{ t('map_login') }}</a>{% endif %}
+</div>
+<div class=rangesw id=choroswitch>
+  <span class=muted>{{ t('map_region_level') }}:</span>
+  <a href="#" class="on" data-level="bundesland">{{ t('map_level_state') }}</a>
+  <a href="#" data-level="plz">{{ t('map_level_plz') }}</a>
+</div>
+<div class=rangesw id=rangeswitch style="display:none">
+  <span class=muted>{{ t('map_range_filter') }}:</span>
+  <a href="#" data-range="30">{{ t('map_range_30') }}</a>
+  <a href="#" data-range="90">{{ t('map_range_90') }}</a>
+  <a href="#" class="on" data-range="all">{{ t('map_range_all') }}</a>
+</div>
+<div id=evlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+<div id=pinlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+<div id=mapnotice class=muted style="margin:6px 0"></div>
+<div class=mapgrid>
+  <div id=map style="height:70vh;min-height:420px;background:#0f141a;border:1px solid #21262d;border-radius:10px"></div>
+  <div>
+    <div class=chartbox id=listbox>
+      <h4>{{ t('map_list_title') }}</h4>
+      <input id=listsearch placeholder="{{ t('map_search') }}" autocomplete=off>
+      <div id=maplist class=col-body style="max-height:58vh;margin-top:8px"></div>
+    </div>
+    <div class=chartbox id=agendabox style="display:none">
+      <h4>{{ t('map_agenda_title') }}</h4>
+      <div id=agenda class=col-body style="max-height:58vh"></div>
+    </div>
+  </div>
+</div>
+<p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
+<script>window.MAP_CFG={lang:"{{ lang }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
+ pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}"},
+ evlabels:{fair:"{{ t('map_evtype_fair') }}",meetup:"{{ t('map_evtype_meetup') }}",shop:"{{ t('map_evtype_shop') }}",talk:"{{ t('map_evtype_talk') }}",field:"{{ t('map_evtype_field') }}",other:"{{ t('map_evtype_other') }}"}};</script>
+<script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
+<script src="/static/map.js?v={{ v }}"></script>
+{% endblock %}"""
+
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
-                                     "stats": STATS, "legal": LEGAL}),
+                                     "stats": STATS, "legal": LEGAL, "map": MAP}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -1712,6 +1796,399 @@ async def h_favicon(req):
     return web.Response(text=_FAVICON, content_type="image/svg+xml")
 
 
+# ════════════════════════════════════════════════════════════════════════════
+#  HALTER-KARTE (Map-Feature) – Web-Teil: OAuth-Login, Seite, JSON-APIs
+# ════════════════════════════════════════════════════════════════════════════
+try:
+    from dateutil.rrule import rrulestr as _rrulestr
+    from dateutil.parser import isoparse as _isoparse
+except Exception:                                   # dateutil optional -> Serien aus
+    _rrulestr = None
+    def _isoparse(s): return datetime.fromisoformat(s)
+
+_MEMBER_COOKIE = "board_member"
+_OAUTH_STATE_COOKIE = "board_oauth_state"
+_MEMBER_TTL = 30 * 86400                             # 30 Tage Session
+_DISCORD_AUTH = "https://discord.com/oauth2/authorize"
+_DISCORD_TOKEN = "https://discord.com/api/oauth2/token"
+_DISCORD_ME = "https://discord.com/api/users/@me"
+_DACH = ("de", "at", "ch", "li")
+
+# Rate-Limit der Karten-JSON-Endpunkte (pro IP; _ip/_rate wie beim Board, HMAC-IP-basiert).
+RATE_MAP_PER_MIN = 60
+
+
+def _map_rate_ok(req) -> bool:
+    return _rate("mapdata:" + _hmac("map", _ip(req)), RATE_MAP_PER_MIN, 60)
+
+
+def _member_sign(uid: str, exp: int) -> str:
+    return _hmac("member", str(uid), str(exp))
+
+
+def _is_member(req) -> str | None:
+    """Gibt die Discord-User-ID der gültigen Mitglieder-Session zurück, sonst None.
+    Cookie-Format: '<uid>.<exp>.<sig>' – HMAC-signiert, mit Ablauf."""
+    raw = req.cookies.get(_MEMBER_COOKIE, "")
+    parts = raw.split(".")
+    if len(parts) != 3:
+        return None
+    uid, exp_s, sig = parts
+    try:
+        exp = int(exp_s)
+    except ValueError:
+        return None
+    if exp < int(time.time()):
+        return None
+    if not hmac.compare_digest(sig, _member_sign(uid, exp)):
+        return None
+    return uid
+
+
+def _member_name(app, uid):
+    """Löst den aktuellen Discord-Anzeigenamen live über die User-ID auf (nie gespeichert).
+    None, wenn die Person nicht (mehr) Mitglied ist."""
+    if not MAP_GUILD_ID:
+        return None
+    bot = app["bot"]
+    g = bot.get_guild(MAP_GUILD_ID)
+    if not g:
+        return None
+    m = g.get_member(int(uid))
+    return m.display_name if m else None
+
+
+def _map_lang_redirect(path: str, lang: str) -> web.Response:
+    # Redirect-Ziel aus internen Literalen + Whitelist-Sprache (CodeQL url-redirection safe)
+    return web.HTTPFound(f"{path}?lang={lang}")
+
+
+async def h_map(req):
+    lang = pick_lang(req)
+    if not MAP_ENABLED:
+        return _render(req, "map", title=translate(lang, "map_h"),
+                       flash=translate(lang, "map_disabled"),
+                       v=VERSION, member=False, max_zoom=MAP_MAX_ZOOM)
+    return _render(req, "map", title=translate(lang, "map_h"),
+                   v=VERSION, member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM)
+
+
+async def h_map_login(req):
+    lang = pick_lang(req)
+    if not (BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
+        return _render(req, "map", title=translate(lang, "map_h"),
+                       flash=translate(lang, "map_oauth_unconfigured"),
+                       v=VERSION, member=False, max_zoom=MAP_MAX_ZOOM)
+    state = secrets.token_urlsafe(24)
+    params = urlencode({
+        "client_id": BOARD_OAUTH_CLIENT_ID, "response_type": "code",
+        "scope": "identify", "redirect_uri": BOARD_OAUTH_REDIRECT_URI,
+        "state": state, "prompt": "none",
+    })
+    resp = web.HTTPFound(f"{_DISCORD_AUTH}?{params}")
+    # State signiert im Cookie ablegen (CSRF-Schutz), kurzlebig.
+    resp.set_cookie(_OAUTH_STATE_COOKIE, f"{state}.{_hmac('oauthstate', state)}",
+                    max_age=600, httponly=True, samesite="Lax")
+    raise resp
+
+
+async def h_map_callback(req):
+    lang = pick_lang(req)
+    code = req.query.get("code", "")
+    state = req.query.get("state", "")
+    ck = req.cookies.get(_OAUTH_STATE_COOKIE, "")
+    ok_state = False
+    if "." in ck:
+        s0, sig0 = ck.split(".", 1)
+        ok_state = (s0 == state) and hmac.compare_digest(sig0, _hmac("oauthstate", s0))
+    if not code or not ok_state:
+        raise _map_lang_redirect("/map", lang)
+    # Code gegen Token tauschen (server-to-server), dann /users/@me – Token danach verwerfen.
+    uid = None
+    try:
+        data = {
+            "client_id": BOARD_OAUTH_CLIENT_ID,
+            "client_secret": BOARD_OAUTH_CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "code": code, "redirect_uri": BOARD_OAUTH_REDIRECT_URI,
+        }
+        async with aiohttp.ClientSession() as s:
+            async with s.post(_DISCORD_TOKEN, data=data,
+                              headers={"Content-Type": "application/x-www-form-urlencoded"},
+                              timeout=aiohttp.ClientTimeout(total=15)) as r:
+                tok = await r.json()
+            access = tok.get("access_token")
+            if access:
+                async with s.get(_DISCORD_ME,
+                                 headers={"Authorization": f"Bearer {access}"},
+                                 timeout=aiohttp.ClientTimeout(total=15)) as r2:
+                    me = await r2.json()
+                    uid = str(me.get("id") or "")
+    except Exception as e:
+        logger.warning("🗺️ OAuth-Callback-Fehler: %s", e)
+        uid = None
+    if not uid:
+        raise _map_lang_redirect("/map", lang)
+    # Mitgliedschaft serverseitig prüfen (kein guilds-Scope nötig).
+    if not _member_name(req.app, uid):
+        resp = _map_lang_redirect("/map", lang)
+        resp.del_cookie(_OAUTH_STATE_COOKIE)
+        raise resp
+    exp = int(time.time()) + _MEMBER_TTL
+    resp = _map_lang_redirect("/map", lang)
+    resp.del_cookie(_OAUTH_STATE_COOKIE)
+    resp.set_cookie(_MEMBER_COOKIE, f"{uid}.{exp}.{_member_sign(uid, exp)}",
+                    max_age=_MEMBER_TTL, httponly=True, samesite="Lax")
+    raise resp
+
+
+async def h_map_logout(req):
+    resp = _map_lang_redirect("/map", pick_lang(req))
+    resp.del_cookie(_MEMBER_COOKIE)
+    raise resp
+
+
+async def _map_tags_for(app, uids):
+    """tag_codes je user_id (dict uid->list)."""
+    if not uids:
+        return {}
+    rows = await execute_db(app["bot"],
+        "SELECT user_id, tag_code FROM map_entry_tags", fetch=True) or []
+    out: dict = {}
+    for r in rows:
+        if r["user_id"] in uids:
+            out.setdefault(r["user_id"], []).append(r["tag_code"])
+    return out
+
+
+async def h_map_regions(req):
+    """ÖFFENTLICH: nur aggregierte Zahlen (keine Identitäten)."""
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    bot = req.app["bot"]
+    # ALLE Opt-in-Einträge zählen (auch U18 anonym) – die Zahlen sind aggregiert und
+    # enthalten keine Identitäten. Einzel-Pins/-Liste bleiben getrennt auf show_entry=1.
+    rows = await execute_db(bot,
+        "SELECT country, region_code, region_name, plz_prefix FROM map_entries",
+        fetch=True) or []
+    by_state, by_plz, by_country = {}, {}, {}
+    for r in rows:
+        c = r["country"]
+        by_country[c] = by_country.get(c, 0) + 1
+        if c in _DACH and r["region_code"]:
+            k = f'{c}:{r["region_code"]}'
+            e = by_state.setdefault(k, {"country": c, "region_code": r["region_code"],
+                                        "region_name": r["region_name"], "count": 0})
+            e["count"] += 1
+        if c in _DACH and r["plz_prefix"]:
+            k = f'{c}:{r["plz_prefix"]}'
+            e = by_plz.setdefault(k, {"country": c, "plz_prefix": r["plz_prefix"], "count": 0})
+            e["count"] += 1
+    # PLZ-Ebene als Blasen: Zentroid je PLZ-Gebiet aus dem GeoNames-Datensatz anhängen
+    # (keine PLZ-Polygon-Datei nötig). Einträge ohne Zentroid werden vorne weggelassen.
+    cents = geo.plz_prefix_centroids()
+    plz_out = []
+    for e in by_plz.values():
+        ll = cents.get((e["country"], e["plz_prefix"]))
+        if ll:
+            e["lat"], e["lon"] = ll
+            plz_out.append(e)
+    return web.json_response({
+        "bundesland": list(by_state.values()),
+        "plz": plz_out,
+        "countries": [{"country": k, "count": v} for k, v in sorted(by_country.items())],
+    })
+
+
+async def h_map_pins(req):
+    """NUR eingeloggte Mitglieder: gefuzzte DACH-Pins (kleine Menge)."""
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    if not _is_member(req):
+        raise web.HTTPForbidden(text="login required")
+    bot = req.app["bot"]
+    rows = await execute_db(bot,
+        "SELECT user_id, country, region_name, first_name, show_name, contact_ok, coarse, "
+        "lat_fuzzed, lon_fuzzed FROM map_entries WHERE show_entry=1 "
+        "AND lat_fuzzed IS NOT NULL LIMIT 2000", fetch=True) or []
+    tags = await _map_tags_for(req.app, {r["user_id"] for r in rows})
+    lang = pick_lang(req)
+    anon = translate(lang, "map_anon")
+    out = []
+    for r in rows:
+        name = _member_name(req.app, r["user_id"])
+        if not name:                                 # kein Mitglied mehr -> auslassen
+            continue
+        if r["show_name"]:
+            disp = f'{r["first_name"]} ({name})' if r["first_name"] else name
+        else:
+            disp = anon                              # Name ausgeblendet (nur anonym)
+        out.append({
+            "ref": _hmac("mapref", r["user_id"])[:12],   # opak, korreliert Pin ↔ Listenzeile
+            "lat": r["lat_fuzzed"], "lon": r["lon_fuzzed"], "name": disp,
+            "country": r["country"], "region": r["region_name"] or "",
+            "contact": bool(r["contact_ok"]),
+            "coarse": bool(r["coarse"]),             # Pin = Mitte des groben PLZ-Gebiets
+            "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
+        })
+    return web.json_response({"pins": out})
+
+
+async def h_map_list(req):
+    """Mitglieder: Einzel-Einträge (DACH + International). Öffentlich: nur Länder-Zahlen."""
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    bot = req.app["bot"]
+    member = bool(_is_member(req))
+    if not member:
+        # Öffentlich: nur Länder-Zahlen (alle Opt-in-Einträge inkl. U18 anonym).
+        rows = await execute_db(bot,
+            "SELECT country, COUNT(*) AS n FROM map_entries GROUP BY country",
+            fetch=True) or []
+        return web.json_response({"member": False,
+            "counts": [{"country": r["country"],
+                        "country_name": country_name(pick_lang(req), r["country"]),
+                        "count": r["n"]} for r in rows]})
+    rows = await execute_db(bot,
+        "SELECT user_id, country, region_name, first_name, show_name, contact_ok "
+        "FROM map_entries WHERE show_entry=1 LIMIT 5000", fetch=True) or []
+    tags = await _map_tags_for(req.app, {r["user_id"] for r in rows})
+    lang = pick_lang(req)
+    anon = translate(lang, "map_anon")
+    items = []
+    for r in rows:
+        name = _member_name(req.app, r["user_id"])
+        if not name:
+            continue
+        if r["show_name"]:
+            disp = f'{r["first_name"]} ({name})' if r["first_name"] else name
+        else:
+            disp = anon
+        items.append({
+            "ref": _hmac("mapref", r["user_id"])[:12],   # opak, korreliert Listenzeile ↔ Pin
+            "name": disp, "country": r["country"],
+            "country_name": country_name(lang, r["country"]),
+            "region": r["region_name"] or "",
+            "dach": r["country"] in _DACH,
+            "contact": bool(r["contact_ok"]),
+            "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
+        })
+    items.sort(key=lambda x: (x["country_name"], x["name"].lower()))
+    return web.json_response({"member": True, "items": items})
+
+
+def _event_exdates(ev, start):
+    """Parst die ausgefallenen Serien-Termine (exdates, ISO/kommagetrennt) zu datetimes."""
+    out = []
+    raw = ev["exdates"] if "exdates" in ev.keys() else None
+    for part in (raw or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            d = _isoparse(part)
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=timezone.utc)
+            out.append(d)
+        except Exception:
+            continue
+    return out
+
+
+def _event_next(ev) -> datetime | None:
+    """Nächstes anstehendes Vorkommen (Serie via RRULE, abzüglich EXDATE), sonst start_at."""
+    now = datetime.now(timezone.utc)
+    try:
+        start = _isoparse(ev["start_at"])
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+    rr = ev["rrule"]
+    if rr and _rrulestr:
+        try:
+            rs = _rrulestr(rr, dtstart=start, forceset=True)
+            for ex in _event_exdates(ev, start):
+                rs.exdate(ex)
+            return rs.after(now, inc=True)
+        except Exception:
+            pass
+    return start if start >= now else None
+
+
+async def _approved_events(app):
+    rows = await execute_db(app["bot"],
+        "SELECT * FROM map_events WHERE status='approved'", fetch=True) or []
+    out = []
+    for r in rows:
+        nxt = _event_next(r)
+        if not nxt:
+            continue
+        out.append((nxt, r))
+    out.sort(key=lambda t: t[0])
+    return out
+
+
+async def h_map_events(req):
+    """ÖFFENTLICH: kommende, freigegebene Events."""
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    evs = await _approved_events(req.app)
+    data = []
+    for nxt, r in evs:
+        data.append({
+            "id": r["id"], "title": r["title"], "type": r["type"],
+            "country": r["country"] or "", "lat": r["lat"], "lon": r["lon"],
+            "venue": r["venue"] or "", "url": r["url"] or "",
+            "description": r["description"] or "",
+            "next": nxt.isoformat(), "recurring": bool(r["rrule"]),
+        })
+    return web.json_response({"events": data})
+
+
+def _ics_escape(s: str) -> str:
+    return (s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+async def h_map_events_ics(req):
+    """ICS-Feed der freigegebenen Events (DTSTART/DTEND + RRULE nativ)."""
+    rows = await execute_db(req.app["bot"],
+        "SELECT * FROM map_events WHERE status='approved'", fetch=True) or []
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AAM-Bot//Map//DE", "CALSCALE:GREGORIAN"]
+    for r in rows:
+        try:
+            start = _isoparse(r["start_at"])
+        except Exception:
+            continue
+        end = None
+        if r["end_at"]:
+            try:
+                end = _isoparse(r["end_at"])
+            except Exception:
+                end = None
+        fmt = "%Y%m%dT%H%M%S"
+        lines += ["BEGIN:VEVENT", f"UID:aam-event-{r['id']}@board",
+                  f"SUMMARY:{_ics_escape(r['title'])}",
+                  f"DTSTART:{start.strftime(fmt)}"]
+        if end:
+            lines.append(f"DTEND:{end.strftime(fmt)}")
+        if r["rrule"]:
+            lines.append(f"RRULE:{r['rrule']}")
+            exs = _event_exdates(r, start)
+            if exs:
+                lines.append("EXDATE:" + ",".join(e.strftime(fmt) for e in exs))
+        if r["venue"]:
+            lines.append(f"LOCATION:{_ics_escape(r['venue'])}")
+        if r["url"]:
+            lines.append(f"URL:{r['url']}")
+        if r["description"]:
+            lines.append(f"DESCRIPTION:{_ics_escape(r['description'])}")
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return web.Response(text="\r\n".join(lines), content_type="text/calendar",
+                        headers={"Content-Disposition": "inline; filename=aam-events.ics"})
+
+
 def build_app(bot) -> web.Application:
     app = web.Application(client_max_size=1024*1024)
     app["bot"] = bot
@@ -1733,6 +2210,15 @@ def build_app(bot) -> web.Application:
         web.post("/admin/{id}/comment", h_comment_add),
         web.post("/admin/comment/{cid}/delete", h_comment_del),
         web.post("/admin/import", h_import),
+        # ── Halter-Karte ──────────────────────────────────────────────────────
+        web.get("/map", h_map),
+        web.get("/map/login", h_map_login), web.get("/map/callback", h_map_callback),
+        web.get("/map/logout", h_map_logout),
+        web.get("/map/regions.json", h_map_regions),
+        web.get("/map/pins.json", h_map_pins),
+        web.get("/map/list.json", h_map_list),
+        web.get("/map/events.json", h_map_events),
+        web.get("/map/events.ics", h_map_events_ics),
     ])
     return app
 
