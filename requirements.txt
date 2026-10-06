@@ -34,3 +34,6 @@ matplotlib>=3.7.0
 # aiohttp ist ohnehin py-cord-Abhängigkeit; hier explizit + Jinja2 (Templates, Autoescape).
 aiohttp>=3.9.0
 Jinja2>=3.1.0
+
+# Halter-Karte (cogs/map.py): Event-Wiederholungen (iCal-RRULE) + ICS-Export.
+python-dateutil>=2.8.0

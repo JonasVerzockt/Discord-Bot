@@ -136,6 +136,19 @@ def _shop_display(shop: str | None, url: str | None) -> str:
     return _domain(url) or "?"
 
 
+def _shop_label(shopmap: dict, shop: str | None, url: str | None) -> str:
+    """Konsistenter Shop-Name für die Anzeige. Hat der Eintrag eine URL, wird IMMER der
+    kanonische Name aus der shops-Tabelle (per Domain) genommen – sonst die Domain selbst.
+    So erscheint derselbe Shop unter EINEM Namen, egal wie die KI ihn pro Nachricht
+    geschrieben hat (behebt „Home for Ants"/„HomeForAnts"/„homeforants.de"). Ohne URL
+    bleibt der geparste Name, sonst '?'."""
+    dom = _domain(url)
+    if dom:
+        return shopmap.get(dom) or dom
+    s = (shop or "").strip()
+    return s if (s and s != "?") else "?"
+
+
 def _state(row, today: str, cutoff: str) -> str:
     """Gibt 'valid' | 'expired' | 'invalid' anhand Override + Datum + Alter."""
     ov = row["status_override"]
@@ -235,6 +248,13 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 codes = []
 
             for c in codes:
+                # Plausibilitätsfilter: echte Rabattcodes sind kurze Tokens ohne
+                # Leerzeichen. So fliegen KI-Fehlparses wie "KEIN VERSAND" o. Ä. raus.
+                _code = (c.get("code") or "").strip()
+                if not _code or (" " in _code) or len(_code) > 32:
+                    logger.info("🏷️ Code verworfen (unplausibel): %r", _code)
+                    continue
+                c["code"] = _code
                 # Kurzlinks (share.google, bit.ly, …) und Google-Weiterleitungen
                 # zur echten Shop-Adresse auflösen + Tracking-Parameter entfernen.
                 shop_url = c["shop_url"]
@@ -383,6 +403,15 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             fetch=True,
         )
 
+        # Kanonische Shop-Namen je Domain aus der shops-Tabelle (für konsistente Anzeige).
+        shop_rows = await execute_db(
+            self.bot, "SELECT name, url, url_override FROM shops", fetch=True) or []
+        shopmap: dict = {}
+        for s in shop_rows:
+            dom = _domain(s["url_override"] or s["url"])
+            if dom and (s["name"] or "").strip():
+                shopmap.setdefault(dom, s["name"].strip())
+
         # Zustand bestimmen, gültige zuerst → Dedup behält den gültigen Eintrag
         rank = {"valid": 0, "expired": 1, "invalid": 2}
         enriched = sorted(
@@ -431,7 +460,7 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             )
             entry = l10n.get(
                 "discount_entry", lang,
-                marker=marker, shop=_shop_display(r["shop"], r["shop_url"]),
+                marker=marker, shop=_shop_label(shopmap, r["shop"], r["shop_url"]),
                 code=r["code"], discount=r["discount"] or "?",
                 validity=validity, min_part=min_part,
             )

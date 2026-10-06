@@ -328,6 +328,19 @@ class AdminCog(commands.Cog, name="Admin"):
                 except Exception:
                     data["discount_codes_posted"] = []
 
+                # Halter-Karte (DSGVO-Auskunft): eigener Eintrag, Tags und eingereichte Events
+                try:
+                    data["map_entry"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM map_entries WHERE user_id=?", (uid,), fetch=True)]
+                    data["map_entry_tags"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM map_entry_tags WHERE user_id=?", (uid,), fetch=True)]
+                    data["map_events_submitted"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM map_events WHERE submitted_by=?", (uid,), fetch=True)]
+                except Exception:
+                    data.setdefault("map_entry", [])
+                    data.setdefault("map_entry_tags", [])
+                    data.setdefault("map_events_submitted", [])
+
                 payload = json.dumps(data, ensure_ascii=False, indent=2, default=str)
                 buf = io.BytesIO(payload.encode("utf-8"))
                 buf.seek(0)
@@ -377,6 +390,9 @@ class AdminCog(commands.Cog, name="Admin"):
                 "review_tracking",
                 "review_pending",
                 "server_settings",
+                "map_entries",
+                "map_entry_tags",
+                "map_events",
             ]
             export: dict = {"exported_at": datetime.utcnow().isoformat() + "Z", "tables": {}}
             for table in tables:
@@ -520,6 +536,7 @@ class AdminCog(commands.Cog, name="Admin"):
             ("achievements", "user_id"), ("user_events", "user_id"),
             ("command_log", "user_id"),
             ("offer_keywords", "user_id"), ("offer_alert_seen", "user_id"),
+            ("map_entries", "user_id"),
         ]
 
         ids: set[int] = set()

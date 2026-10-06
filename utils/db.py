@@ -459,8 +459,68 @@ CREATE TABLE IF NOT EXISTS offer_deferred (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Halter-Karte (Map) ──────────────────────────────────────────────────────
+-- Opt-in-Einträge. Der Discord-Name wird NICHT gespeichert (live über user_id
+-- aufgelöst); nur ein optionaler Vorname. Koordinaten ausschließlich gefuzzt
+-- (PLZ-Zentroid + fester, user-ID-geseedeter Jitter); für Nicht-DACH NULL
+-- (dann nur Listeneintrag). show_entry=0 => nur anonyme Zählung (z.B. U18),
+-- kein Pin / keine Listenzeile.
+CREATE TABLE IF NOT EXISTS map_entries (
+    user_id           TEXT PRIMARY KEY,
+    country           TEXT NOT NULL DEFAULT '',   -- ISO-2 (de/at/ch/li/…)
+    region_code       TEXT,                       -- Bundesland/Kanton-Code (DACH)
+    region_name       TEXT,                       -- Anzeigename der Region
+    plz_prefix        TEXT,                       -- für PLZ-Gebiet-Choropleth
+    lat_fuzzed        REAL,                       -- NULL für Nicht-DACH
+    lon_fuzzed        REAL,
+    first_name        TEXT,                       -- optional, nur Vorname
+    show_entry        INTEGER NOT NULL DEFAULT 0, -- 1 = Pin/Listenzeile sichtbar (18+)
+    show_name         INTEGER NOT NULL DEFAULT 1, -- 0 = Name/Vorname ausblenden (anonym)
+    coarse            INTEGER NOT NULL DEFAULT 0, -- 1 = Pin auf Mitte des groben PLZ-Gebiets (letzte 2 Ziffern weg)
+    age_ok            INTEGER NOT NULL DEFAULT 0,
+    contact_ok        INTEGER NOT NULL DEFAULT 0, -- Opt-in: 1 nur wenn aktiv zugestimmt ("Kontakt über Discord")
+    consent_at        TEXT,
+    last_confirmed_at TEXT,
+    reminder_sent_at  TEXT,
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Selbst zugewiesene Tags (Mehrfachauswahl, fester Katalog in utils/map_tags.py).
+CREATE TABLE IF NOT EXISTS map_entry_tags (
+    user_id  TEXT NOT NULL,
+    tag_code TEXT NOT NULL,
+    PRIMARY KEY (user_id, tag_code)
+);
+
+-- Events / Messen / Treffpunkte: ÖFFENTLICH, nicht personenbezogen.
+-- status: pending | approved | rejected. rrule = iCal-RRULE (optional, für Serien).
+CREATE TABLE IF NOT EXISTS map_events (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    title        TEXT NOT NULL,
+    type         TEXT NOT NULL DEFAULT 'other',
+    country      TEXT,
+    lat          REAL,
+    lon          REAL,
+    venue        TEXT,
+    plz          TEXT,
+    start_at     TEXT NOT NULL,                  -- ISO (Berliner Zeit)
+    end_at       TEXT,
+    all_day      INTEGER NOT NULL DEFAULT 0,
+    rrule        TEXT,                           -- iCal RRULE (optional)
+    exdates      TEXT,                           -- ausgefallene Serien-Termine (ISO, kommagetrennt)
+    url          TEXT,
+    description  TEXT,
+    submitted_by TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
+CREATE INDEX IF NOT EXISTS idx_map_entries_country    ON map_entries (country);
+CREATE INDEX IF NOT EXISTS idx_map_entry_tags_tag     ON map_entry_tags (tag_code);
+CREATE INDEX IF NOT EXISTS idx_map_events_status      ON map_events (status);
+CREATE INDEX IF NOT EXISTS idx_map_events_start       ON map_events (start_at);
 CREATE INDEX IF NOT EXISTS idx_offer_keywords_user    ON offer_keywords (user_id);
 CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
 CREATE INDEX IF NOT EXISTS idx_ai_chat_budget_user    ON ai_chat_budget (user_id);
@@ -482,6 +542,9 @@ _MIGRATIONS = [
     ("user_price_tracking", "target_mode",  "ALTER TABLE user_price_tracking ADD COLUMN target_mode TEXT"),
     ("ai_chat_history",     "model",         "ALTER TABLE ai_chat_history ADD COLUMN model TEXT DEFAULT ''"),
     ("custom_commands",     "description",   "ALTER TABLE custom_commands ADD COLUMN description TEXT DEFAULT ''"),
+    ("map_entries",         "show_name",     "ALTER TABLE map_entries ADD COLUMN show_name INTEGER NOT NULL DEFAULT 1"),
+    ("map_events",          "exdates",       "ALTER TABLE map_events ADD COLUMN exdates TEXT"),
+    ("map_entries",         "coarse",        "ALTER TABLE map_entries ADD COLUMN coarse INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

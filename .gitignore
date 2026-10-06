@@ -58,6 +58,11 @@ build/
 .DS_Store
 Thumbs.db
 
+# ── Karten-Geodaten (lädt der Bot zur Laufzeit selbst herunter) ───────────────
+static/leaflet.js
+static/leaflet.css
+static/*.geojson
+
 # ── Lokale Planung / Notizen (NICHT tracken – nur lokal auf der Platte) ────────
 dev-notes/
 

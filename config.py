@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "2.4.5"
+VERSION = "3.0.0"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -186,6 +186,31 @@ BOARD_OWNER_ID    = int(os.getenv("BOARD_OWNER_ID", "0") or "0")
 BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(DATA_DIR / "board.db"))
 # Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
 BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", "change-me-board-salt").encode()
+
+# ── Halter-Karte (Map-Feature) ────────────────────────────────────────────────
+# Standardmäßig AUS. Zeigt Ameisenhalter grob (DACH-Karte) + International als Liste.
+MAP_ENABLED        = os.getenv("MAP_ENABLED", "false").lower() == "true"
+# Guild, gegen die die Mitgliedschaft geprüft wird (für Login + Auto-Löschung).
+MAP_GUILD_ID       = int(os.getenv("MAP_GUILD_ID", "0") or "0")
+# Fuzzing: fester, aus der user_id geseedeter Versatz (Meter). Standard ±3 km.
+MAP_JITTER_METERS  = int(os.getenv("MAP_JITTER_METERS", "3000"))
+# Max. Zoomstufe der Karte (Stadt/Umland, keine Straßenebene).
+MAP_MAX_ZOOM       = int(os.getenv("MAP_MAX_ZOOM", "10"))
+# Jahres-Bestätigung: nach so vielen Monaten erinnern bzw. löschen (voller Zweit-Zyklus).
+MAP_REMIND_MONTHS  = int(os.getenv("MAP_REMIND_MONTHS", "12"))
+MAP_DELETE_MONTHS  = int(os.getenv("MAP_DELETE_MONTHS", "24"))
+# Geodaten (Leaflet, GeoJSON-Umrisse, PLZ-Koordinaten) automatisch vom Bot bereitstellen
+# & aktuell halten (utils/map_geodata.py: geoBoundaries + GeoNames, kein externes Tool).
+# Standard AUS. Intervall in Tagen.
+MAP_GEODATA_AUTO         = os.getenv("MAP_GEODATA_AUTO", "false").lower() == "true"
+MAP_GEODATA_REFRESH_DAYS = int(os.getenv("MAP_GEODATA_REFRESH_DAYS", "30"))
+
+# ── Discord-OAuth2 ("Login mit Discord" für die Mitglieder-Kartenebene) ────────
+# Secrets gehören in die .env (NICHT committen). Scope: nur "identify".
+BOARD_OAUTH_CLIENT_ID     = os.getenv("BOARD_OAUTH_CLIENT_ID", "").strip()
+BOARD_OAUTH_CLIENT_SECRET = os.getenv("BOARD_OAUTH_CLIENT_SECRET", "").strip()
+# Muss exakt der im Discord Developer Portal hinterlegten Redirect-URI entsprechen.
+BOARD_OAUTH_REDIRECT_URI  = os.getenv("BOARD_OAUTH_REDIRECT_URI", "").strip()
 
 AI_CHAT_SYSTEM_PROMPTS: dict[str, str] = {}
 for _lang in ("de", "en", "eo"):

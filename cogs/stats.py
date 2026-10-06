@@ -196,6 +196,10 @@ class StatsCog(commands.Cog, name="Stats"):
         ("help_grp_personal", [
             "help_achievements", "help_usersetting",
         ]),
+        ("help_grp_map", [
+            "help_map_join", "help_map_tags", "help_map_confirm",
+            "help_map_remove", "help_event_add",
+        ]),
     ]
     _HELP_ADMIN_GROUPS = [
         ("help_grp_server", [
@@ -212,6 +216,10 @@ class StatsCog(commands.Cog, name="Stats"):
         ]),
         ("help_grp_infoentries", [
             "help_info_add", "help_info_edit", "help_info_remove", "help_info_raw",
+        ]),
+        ("help_grp_map_admin", [
+            "help_event_pending", "help_event_approve", "help_event_reject",
+            "help_event_edit", "help_event_exclude", "help_map_refresh",
         ]),
         ("help_grp_sysmod", [
             "help_stats", "help_system", "help_export", "help_export_chat",

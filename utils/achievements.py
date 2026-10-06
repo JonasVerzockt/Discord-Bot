@@ -48,7 +48,16 @@ _USER_CMD_AREAS = {
     "browse":    {"sells", "offers"},
     "community": {"codes", "digest", "achievements"},
 }
+# Halter-Karte zählt nur mit, wenn das Feature aktiv ist (sonst wäre der Erfolg unerreichbar).
+try:
+    from config import MAP_ENABLED as _MAP_ENABLED
+except ImportError:
+    _MAP_ENABLED = False
+if _MAP_ENABLED:
+    _USER_CMD_AREAS["map"] = {"map_join", "map_tags", "event_add"}
 _USER_COMMANDS = set().union(*_USER_CMD_AREAS.values())
+_TOOLBOX_TARGET = len(_USER_CMD_AREAS)                    # alle Bereiche (4 bzw. 5)
+_COMPLETIONIST_TARGET = len(_USER_COMMANDS) - 2           # 12 von 14 bzw. 15 von 17
 
 
 # Reihenfolge = Anzeige-Reihenfolge
@@ -70,8 +79,8 @@ ACHIEVEMENTS = [
     Ach("regular",      "📅", False, "usage", lambda s: (s["distinct_days"], 7)),
     Ach("marathon",     "🏃", False, "usage", lambda s: (s["max_per_day"], 15)),
     Ach("power_user",   "💪", False, "usage", lambda s: (s["cmd_total"], 100)),
-    Ach("toolbox",      "🧰", False, "usage", lambda s: (s["cmd_areas"], 4)),
-    Ach("completionist","🏆", False, "usage", lambda s: (s["cmd_user_done"], 12)),
+    Ach("toolbox",      "🧰", False, "usage", lambda s: (s["cmd_areas"], _TOOLBOX_TARGET)),
+    Ach("completionist","🏆", False, "usage", lambda s: (s["cmd_user_done"], _COMPLETIONIST_TARGET)),
     # Versteckte
     Ach("night_owl",   "🦉", True,  "hidden",    lambda s: (1 if s["night"] else 0, 1)),
     Ach("explorer",    "🧭", True,  "hidden",    lambda s: (s["distinct_cmds"], 8)),

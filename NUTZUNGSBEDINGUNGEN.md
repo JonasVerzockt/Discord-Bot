@@ -47,6 +47,24 @@ Diese Regeln gelten für das optionale, öffentlich einsehbare Feedback-Board, s
 
 **Ohne Gewähr:** Das Board wird ohne Gewähr betrieben; für Inhalte eingereichter Beiträge ist der jeweilige Einreichende verantwortlich.
 
+### Halter-Karte & Termine (optional)
+
+Diese Regeln gelten für die optionale Halter-Karte und die Termin-/Event-Ebene, sofern aktiviert.
+
+**Halter-Karte:**
+
+- Die Teilnahme ist **freiwillig** (Opt-in über `/map_join`) und jederzeit widerrufbar (`/map_remove`).
+- Es wird nur ein **grober** Standort angezeigt (Land bzw. aus der PLZ abgeleitete, **zufällig verschobene** Näherung – kein genauer Ort/keine Adresse). Auf Wunsch wird statt der PLZ nur ein **grobes PLZ-Gebiet** genutzt (die letzten zwei Ziffern entfallen, der Pin liegt in der Mitte des Gebiets). Bitte trage **keine** genauen oder sensiblen Standortdaten und **keinen Nachnamen** ein (es ist ohnehin nur ein optionaler Vorname vorgesehen).
+- Einzelne Einträge sehen nur angemeldete Server-Mitglieder; öffentlich sind nur aggregierte Zahlen. Wer angibt, **unter 18** zu sein, wird nicht einzeln angezeigt.
+- Mit dem Eintrag erklärst du dich einverstanden, dass dein (gefuzzter) Standort, ein optionaler Vorname und selbst gewählte Schlagworte so angezeigt werden. Kontaktaufnahme erfolgt über Discord.
+- Der Eintrag wird **automatisch gelöscht**, wenn du den Server verlässt, und du wirst **jährlich** um Bestätigung gebeten; ohne Reaktion wird der Eintrag im nächsten Zyklus gelöscht.
+
+**Termine/Events:**
+
+- Vorschläge dürfen **alle** einreichen (`/event_add`); sie erscheinen **erst nach Freigabe** durch den Betreiber.
+- Erlaubt sind nur **öffentliche** Veranstaltungen mit **öffentlichem Veranstaltungsort** – **keine privaten Wohnadressen**. Keine rechtswidrigen, irreführenden oder werblichen Fremdinhalte.
+- Der Betreiber darf Vorschläge **ohne Angabe von Gründen ablehnen, bearbeiten oder löschen**; ein Anspruch auf Veröffentlichung besteht nicht.
+
 ### Haftung
 
 Der Bot wird ohne Gewähr betrieben. Für die Richtigkeit der eingetragenen Bewertungen, der angezeigten Verfügbarkeitsdaten oder der angezeigten Preise übernimmt der Betreiber keine Haftung. Preisangaben (inkl. EUR-Umrechnung via Frankfurter API bzw. offenem fawazahmed0-Fallback) sind unverbindlich und können von tatsächlichen Preisen abweichen. Technische Ausfälle oder Fehler bei der Datenerfassung begründen keine Ansprüche.
@@ -218,6 +236,10 @@ Ausgewertete Bewertungen und iNat-Daten werden in Google Sheets (Deutschland) ge
 
 Zur EUR-Umrechnung von Preisen werden aktuelle Wechselkurse von `api.frankfurter.app` (EZB) abgerufen. Für Währungen, die die EZB nicht führt (z. B. TWD), wird zusätzlich die offene, key-lose fawazahmed0/exchange-api (`cdn.jsdelivr.net` bzw. `currency-api.pages.dev`) abgefragt. Es werden dabei **keine personenbezogenen Daten** übermittelt – die Anfrage enthält nur den Basiswährungscode (EUR). Kurse werden 6 Stunden im Speicher gecacht.  
 → https://www.frankfurter.app · https://github.com/fawazahmed0/exchange-api
+
+#### Halter-Karte (optional, Opt-in)
+
+Nur bei aktiver Teilnahme (`/map_join`): gespeichert werden deine **Discord-Nutzer-ID**, ein **grober Standort** (Land bzw. aus der PLZ abgeleitete, zufällig verschobene Näherungs-Koordinate – keine genaue Adresse; auf Wunsch nur die Mitte des groben PLZ-Gebiets), optional ein **Vorname**, selbst gewählte Schlagworte sowie Einwilligungs-/Bestätigungszeitpunkte. Der **Discord-Anzeigename wird nicht gespeichert**, sondern nur für angemeldete Mitglieder live aus der ID aufgelöst (euer Server-Anzeigename). Öffentlich sind ausschließlich **aggregierte Zahlen** je Region/Land (U18 werden dabei nur anonym mitgezählt, ohne Einzel-Anzeige). Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), jederzeit widerrufbar (`/map_remove`). Auto-Löschung bei Server-Austritt; jährliche Bestätigung (ohne Reaktion Löschung im nächsten Zyklus). Für den Mitglieder-Login „Login mit Discord" (OAuth2, nur Scope `identify`) wird die Discord-ID geprüft; das Zugriffstoken wird nicht gespeichert. Freigegebene Termine/Events werden öffentlich angezeigt (nur öffentliche Veranstaltungsorte). Kartengrundlage/Attribution: © geoBoundaries (CC BY 4.0), © GeoNames (CC BY 4.0), Leaflet.
 
 #### AntCheck API
 
