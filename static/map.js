@@ -99,7 +99,7 @@
         L.geoJSON(gj, {
           style: function (feat) {
             var n = countFor(curLevel, feat);
-            return { color: "#21262d", weight: 1, fillColor: color(n), fillOpacity: 0.55 };
+            return { color: "#6e7681", weight: 1, opacity: 0.9, fillColor: color(n), fillOpacity: 0.55 };
           },
           onEachFeature: function (feat, layer) {
             var n = countFor(curLevel, feat);
@@ -147,10 +147,12 @@
         var h = "<p class=muted>" + (CFG.lang === "en"
           ? "Log in to see individual keepers. Public overview by country:"
           : "Nach Login siehst du einzelne Halter. Öffentliche Übersicht je Land:") + "</p>";
-        (d.counts || []).forEach(function (c) {
+        var counts = d.counts || [];
+        counts.forEach(function (c) {
           h += "<div class=mrow><span class=nm>" + esc(c.country_name) + "</span><span class=grow></span><span class=fl2>" + esc(c.count) + "</span></div>";
         });
-        box.innerHTML = h || "<p class=muted>–</p>";
+        if (!counts.length) h += "<p class=muted>" + esc(CFG.emptyText || "–") + "</p>";
+        box.innerHTML = h;
         return;
       }
       window._MAPITEMS = d.items || [];
@@ -172,7 +174,7 @@
       var refattr = it.ref ? (" data-ref='" + esc(it.ref) + "'") : "";
       h += "<div class=mrow" + refattr + "><div><div class=nm>" + esc(it.name) + "</div><div class=fl2>" + esc(it.region || it.country_name) + "</div>" + tags + "</div></div>";
     });
-    box.innerHTML = h || "<p class=muted>–</p>";
+    box.innerHTML = h || ("<p class=muted>" + esc(q ? "–" : (CFG.emptyText || "–")) + "</p>");
     // Klick auf eine Listenzeile -> zugehörigen Pin öffnen/zentrieren (falls DACH-Pin vorhanden)
     box.querySelectorAll(".mrow[data-ref]").forEach(function (row) {
       row.addEventListener("click", function () { focusPin(row.getAttribute("data-ref")); });
