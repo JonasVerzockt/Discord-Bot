@@ -315,6 +315,16 @@
 
   var search = document.getElementById("listsearch");
   if (search) search.addEventListener("input", filterList);
+  // Kalender-Abo: Feed-URL in die Zwischenablage kopieren (Fallback: markieren).
+  var calcopy = document.getElementById("calcopy"), calurl = document.getElementById("calurl");
+  if (calcopy && calurl) calcopy.addEventListener("click", function () {
+    var label = calcopy.textContent;
+    function done() { calcopy.textContent = calcopy.getAttribute("data-done") || label;
+                      setTimeout(function () { calcopy.textContent = label; }, 2000); }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(calurl.value).then(done, function () { calurl.select(); });
+    } else { calurl.select(); try { document.execCommand("copy"); done(); } catch (e) {} }
+  });
 
   // ── Initialer Load ────────────────────────────────────────────────────────
   getJSON("/map/regions.json").then(function (d) {
