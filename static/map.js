@@ -36,6 +36,14 @@
 
   var choroLayer = null, pinLayer = null, eventLayer = null;
   var pinByRef = {};        // ref -> Leaflet-Marker (Pin ↔ Listenzeile)
+  var allPins = [];         // zuletzt geladene Pins (für Tag-Filter ohne Neuladen)
+  var activeTags = [];      // gewählte Tag-Codes (UND-Verknüpfung)
+  function tagsMatch(codes) {
+    if (!activeTags.length) return true;
+    codes = codes || [];
+    for (var i = 0; i < activeTags.length; i++) if (codes.indexOf(activeTags[i]) < 0) return false;
+    return true;
+  }
   // Farbe je Event-Typ (muss zu map_evtype_* / board_i18n passen).
   var EVENT_COLORS = { fair: "#3fb950", meetup: "#58a6ff", shop: "#e3833b",
                        talk: "#a371f7", field: "#d29922", other: "#8b949e" };
@@ -141,10 +149,22 @@
   function drawPins() {
     if (!CFG.member) return;
     getJSON("/map/pins.json").then(function (d) {
+      allPins = d.pins || [];
+      buildPinLayer();
+    }).catch(function () {});
+  }
+
+  // Pins (gefiltert nach Tags) in eine Cluster-Ebene legen. Ohne Leaflet.markercluster
+  // (Datei fehlt) fällt die Karte auf eine normale Ebene ohne Clustering zurück.
+  function buildPinLayer() {
       if (pinLayer) { map.removeLayer(pinLayer); }
-      pinLayer = L.layerGroup();
+      pinLayer = (typeof L.markerClusterGroup === "function")
+        ? L.markerClusterGroup({ clusterPane: "pinPane", showCoverageOnHover: false,
+                                 maxClusterRadius: 40, spiderfyOnMaxZoom: true })
+        : L.layerGroup();
       pinByRef = {};
-      (d.pins || []).forEach(function (p) {
+      allPins.forEach(function (p) {
+        if (!tagsMatch(p.tag_codes)) return;
         var st = p.coarse ? PIN_STYLE.coarse : PIN_STYLE.exact;
         var m = L.circleMarker([p.lat, p.lon], { pane: "pinPane", radius: 7, color: st.color, fillColor: st.fillColor, fillOpacity: 0.9, weight: 2 });
         var tags = (p.tags && p.tags.length) ? "<br><span style='color:#8b949e'>" + esc(p.tags.join(", ")) + "</span>" : "";
@@ -152,10 +172,9 @@
         var area = p.coarse ? ("<br><span style='color:#f778ba'>" + esc(PL.coarseNote) + "</span>") : "";
         m.bindPopup("<b>" + esc(p.name) + "</b><br>" + esc(p.region || p.country) + area + tags + contact);
         if (p.ref) { pinByRef[p.ref] = m; m.on("click", function () { highlightRow(p.ref); }); }
-        m.addTo(pinLayer);
+        pinLayer.addLayer(m);
       });
       pinLayer.addTo(map);
-    }).catch(function () {});
   }
 
   function renderList() {
@@ -188,12 +207,14 @@
     items.forEach(function (it) {
       var hay = (it.name + " " + it.country_name + " " + it.region + " " + (it.tags || []).join(" ")).toLowerCase();
       if (q && hay.indexOf(q) < 0) return;
+      if (!tagsMatch(it.tag_codes)) return;
       if (it.country_name !== lastC) { h += "<div class=status-sub style='margin-top:8px'>" + esc(it.country_name) + (it.dach ? "" : " 🌍") + "</div>"; lastC = it.country_name; }
       var tags = (it.tags && it.tags.length) ? "<div class=tg>" + esc(it.tags.join(" · ")) + "</div>" : "";
       var refattr = it.ref ? (" data-ref='" + esc(it.ref) + "'") : "";
       h += "<div class=mrow" + refattr + "><div><div class=nm>" + esc(it.name) + "</div><div class=fl2>" + esc(it.region || it.country_name) + "</div>" + tags + contactBtn(it.contact_url) + "</div></div>";
     });
-    box.innerHTML = h || ("<p class=muted>" + esc(q ? "–" : (CFG.emptyText || "–")) + "</p>");
+    box.innerHTML = h || ("<p class=muted>" + esc(activeTags.length ? (CFG.tagNoMatch || "–")
+                                                  : (q ? "–" : (CFG.emptyText || "–"))) + "</p>");
     // Klick auf eine Listenzeile -> zugehörigen Pin öffnen/zentrieren (falls DACH-Pin vorhanden)
     box.querySelectorAll(".mrow[data-ref]").forEach(function (row) {
       row.addEventListener("click", function (ev) {
@@ -218,6 +239,10 @@
   function focusPin(ref) {
     var m = pinByRef[ref];
     if (!m) return;                       // Nicht-DACH-Eintrag ohne Pin
+    if (pinLayer && pinLayer.zoomToShowLayer) {      // Pin steckt evtl. in einem Cluster
+      pinLayer.zoomToShowLayer(m, function () { m.openPopup(); });
+      return;
+    }
     map.setView(m.getLatLng(), Math.min(CFG.maxZoom, 9));
     m.openPopup();
   }
@@ -253,6 +278,44 @@
     }).catch(function () {});
   }
 
+  // Aktionen je Termin: Einzeltermin als .ics, Teilnahme (nur eingeloggt), Teilnehmerzahl.
+  var EVT = CFG.evtext || {};
+  function evActions(e) {
+    var h = "<div class=evact>";
+    h += "<a class=cbtn href='/map/events/" + encodeURIComponent(e.id) + ".ics' download>" + esc(EVT.ics || "ICS") + "</a>";
+    if (CFG.member) {
+      h += " <a href='#' class='cbtn rsvp" + (e.going ? " on" : "") + "' data-eid='" + esc(e.id) + "'>" +
+           esc(e.going ? (EVT.going || "✓") : (EVT.go || "+")) + "</a>";
+    }   // Nicht eingeloggt: Zusagen über den Login-Button oben in der Seitenleiste
+    if (e.going_count) {
+      h += "<div class=fl2>👥 " + esc(e.going_count) + " " + esc(EVT.count || "") +
+           ((e.going_names && e.going_names.length) ? ": " + esc(e.going_names.join(", ")) : "") + "</div>";
+    }
+    return h + "</div>";
+  }
+
+  // Teilnahme an/aus – gilt für Agenda und Karten-Popups (Event-Delegation).
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest ? ev.target.closest("a.rsvp[data-eid]") : null;
+    if (!a) return;
+    ev.preventDefault();
+    if (a.getAttribute("data-busy")) return;
+    a.setAttribute("data-busy", "1");
+    var eid = a.getAttribute("data-eid");
+    fetch("/map/events/" + encodeURIComponent(eid) + "/rsvp", {
+      method: "POST", credentials: "same-origin", headers: { "X-Map-CSRF": CFG.csrf || "" }
+    }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        (window._MAPEVENTS || []).forEach(function (e) {
+          if (String(e.id) === String(eid)) {
+            e.going = d.going; e.going_count = d.going_count; e.going_names = d.going_names;
+          }
+        });
+        applyEventFilter();
+      })
+      .catch(function () { a.removeAttribute("data-busy"); });
+  });
+
   function applyEventFilter() {
     var box = document.getElementById("agenda");
     var events = window._MAPEVENTS || [];
@@ -279,11 +342,12 @@
       h += "<div class=mrow><div><div class=nm>" + esc(e.title) + (e.recurring ? " 🔁" : "") +
            "</div><div class=fl2>📅 " + esc(ds) + "</div>" +
            (e.venue ? "<div class=fl2>📍 " + esc(e.venue) + "</div>" : "") +
-           (link ? "<a class=fl2 href='" + link + "' target=_blank rel='noopener noreferrer'>Link</a>" : "") + "</div></div>";
+           (link ? "<a class=fl2 href='" + link + "' target=_blank rel='noopener noreferrer'>Link</a>" : "") +
+           evActions(e) + "</div></div>";
       if (e.lat && e.lon) {
         var col = EVENT_COLORS[e.type] || EVENT_COLORS.other;
         var m = L.circleMarker([e.lat, e.lon], { pane: "eventPane", radius: 8, color: "#fff", weight: 2, fillColor: col, fillOpacity: 0.95 });
-        m.bindPopup("<b>" + esc(e.title) + "</b><br>" + esc(ds) + (e.venue ? "<br>" + esc(e.venue) : ""));
+        m.bindPopup("<b>" + esc(e.title) + "</b><br>" + esc(ds) + (e.venue ? "<br>" + esc(e.venue) : "") + evActions(e));
         m.addTo(eventLayer);
       }
     });
@@ -316,6 +380,8 @@
     if (listbox)   listbox.style.display   = (layer === "events") ? "none" : "";
     if (agendabox) agendabox.style.display = (layer === "events") ? "" : "none";
     if (rangeswitch) rangeswitch.style.display = showEvents ? "" : "none";
+    var tagfilter = document.getElementById("tagfilterbox");
+    if (tagfilter) tagfilter.style.display = showPins ? "" : "none";
     if (evlegend) { if (showEvents) { buildLegend(); evlegend.style.display = ""; } else evlegend.style.display = "none"; }
     if (pinlegend) { if (showPins && CFG.member) { buildPinLegend(); pinlegend.style.display = ""; } else pinlegend.style.display = "none"; }
     // Pins
@@ -332,6 +398,29 @@
   wireSwitch("#rangeswitch", "data-range", function (range) {
     eventRange = range; applyEventFilter();
   });
+
+  // Tag-Filter: Chips an/aus (UND), wirkt auf Pins und Liste.
+  var tagbar = document.getElementById("tagfilter");
+  if (tagbar) {
+    var reset = document.getElementById("tagreset");
+    function applyTags() {
+      activeTags = [];
+      tagbar.querySelectorAll("a[data-tag].on").forEach(function (a) { activeTags.push(a.getAttribute("data-tag")); });
+      if (reset) reset.style.display = activeTags.length ? "" : "none";
+      var tc = document.getElementById("tagcount");
+      if (tc) tc.textContent = activeTags.length ? "(" + activeTags.length + ")" : "";
+      if (allPins.length) buildPinLayer();
+      filterList();
+    }
+    tagbar.querySelectorAll("a[data-tag]").forEach(function (a) {
+      a.addEventListener("click", function (ev) { ev.preventDefault(); a.classList.toggle("on"); applyTags(); });
+    });
+    if (reset) reset.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      tagbar.querySelectorAll("a[data-tag].on").forEach(function (a) { a.classList.remove("on"); });
+      applyTags();
+    });
+  }
 
   var search = document.getElementById("listsearch");
   if (search) search.addEventListener("input", filterList);
