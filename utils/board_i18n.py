@@ -440,6 +440,14 @@ T: dict[str, dict[str, str]] = {
     "map_list_title": {"de": "Halter (Liste)", "en": "Keepers (list)", "eo": "Bredistoj (listo)"},
     "map_search": {"de": "Suchen …", "en": "Search …", "eo": "Serĉi …"},
     "map_agenda_title": {"de": "Kommende Termine", "en": "Upcoming events", "eo": "Venontaj eventoj"},
+    "map_cal_title": {"de": "Termine abonnieren", "en": "Subscribe to events", "eo": "Aboni eventojn"},
+    "map_cal_subscribe": {"de": "Im Kalender abonnieren", "en": "Subscribe in calendar", "eo": "Aboni en kalendaro"},
+    "map_cal_copy": {"de": "Kopieren", "en": "Copy", "eo": "Kopii"},
+    "map_cal_copied": {"de": "Kopiert ✓", "en": "Copied ✓", "eo": "Kopiita ✓"},
+    "map_cal_hint": {
+        "de": "Der Button öffnet die Kalender-App deines Geräts (z. B. Apple Kalender, Outlook, Thunderbird). Für Google Kalender den Link kopieren und unter „Weitere Kalender hinzufügen → Per URL“ einfügen. Neue und geänderte Termine kommen automatisch.",
+        "en": "The button opens your device's calendar app (e.g. Apple Calendar, Outlook, Thunderbird). For Google Calendar, copy the link and paste it under “Other calendars → From URL”. New and changed events arrive automatically.",
+        "eo": "La butono malfermas la kalendaran apon de via aparato (ekz. Apple Calendar, Outlook, Thunderbird). Por Google Calendar kopiu la ligilon kaj algluu ĝin ĉe “Aliaj kalendaroj → El URL”. Novaj kaj ŝanĝitaj eventoj venas aŭtomate."},
     "map_attribution": {
         "de": "Grenzen: © geoBoundaries (CC BY 4.0) · PLZ/Orte: © GeoNames (CC BY 4.0) · Karte: Leaflet",
         "en": "Boundaries: © geoBoundaries (CC BY 4.0) · postcodes/places: © GeoNames (CC BY 4.0) · map: Leaflet",
