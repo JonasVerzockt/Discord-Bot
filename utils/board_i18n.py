@@ -470,6 +470,7 @@ T: dict[str, dict[str, str]] = {
     "map_pin_coarse": {"de": "Pin im groben PLZ-Gebiet", "en": "Pin in rough postcode area", "eo": "Pinglo en malpreciza poŝtkoda zono"},
     "map_pin_coarse_note": {"de": "grobes PLZ-Gebiet", "en": "rough postcode area", "eo": "malpreciza poŝtkoda zono"},
     "map_pin_contact": {"de": "Kontakt über Discord", "en": "Contact via Discord", "eo": "Kontakto per Discord"},
+    "map_contact_btn": {"de": "💬 Auf Discord kontaktieren", "en": "💬 Contact on Discord", "eo": "💬 Kontakti per Discord"},
     "map_range_filter": {"de": "Zeitraum", "en": "Range", "eo": "Periodo"},
     "map_range_30": {"de": "30 Tage", "en": "30 days", "eo": "30 tagoj"},
     "map_range_90": {"de": "90 Tage", "en": "90 days", "eo": "90 tagoj"},
