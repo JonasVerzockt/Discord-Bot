@@ -733,6 +733,32 @@ MAP = """{% extends "base" %}{% block body %}
         </div>
         <p class=muted style="font-size:12px;margin:8px 0 0">{{ t('map_cal_hint') }}</p>
       </div>
+      <script>
+      (function () {
+        var btn = document.getElementById("calcopy"), inp = document.getElementById("calurl");
+        if (!btn || !inp) return;
+        var label = btn.textContent;
+        function ok() { btn.textContent = btn.getAttribute("data-done") || label;
+                        setTimeout(function () { btn.textContent = label; }, 2000); }
+        function legacy() {            // Fallback ohne Clipboard-API (z. B. http:// oder ältere Browser)
+          var ta = document.createElement("textarea");
+          ta.value = inp.value; ta.setAttribute("readonly", "");
+          ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          var done = false;
+          try { done = document.execCommand("copy"); } catch (e) { done = false; }
+          document.body.removeChild(ta);
+          if (done) ok(); else { inp.focus(); inp.select(); }   // notfalls markieren -> Strg+C
+        }
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(inp.value).then(ok, legacy);
+          } else { legacy(); }
+        });
+      })();
+      </script>
       {% endif %}
     </div>
   </div>
@@ -1889,16 +1915,27 @@ def _map_lang_redirect(path: str, lang: str) -> web.Response:
     return web.HTTPFound(f"{path}?lang={lang}")
 
 
+def _map_asset_v() -> str:
+    """Cache-Busting für map.js/leaflet.js: Bot-Version + letzte Änderungszeit der Dateien.
+    So holt der Browser nach einem Update sofort die neue Datei (statt bis zu 24 h Cache)."""
+    try:
+        m = max(int((STATIC_DIR / f).stat().st_mtime) for f in ("map.js", "leaflet.js")
+                if (STATIC_DIR / f).is_file())
+    except ValueError:
+        m = 0
+    return f"{VERSION}.{m}"
+
+
 async def h_map(req):
     lang = pick_lang(req)
     if not MAP_ENABLED:
         return _render(req, "map", title=translate(lang, "map_h"),
                        flash=translate(lang, "map_disabled"),
-                       v=VERSION, member=False, max_zoom=MAP_MAX_ZOOM)
+                       v=_map_asset_v(), member=False, max_zoom=MAP_MAX_ZOOM)
     ics_url = _ics_calendar_url(req)
     webcal_url = "webcal://" + ics_url.split("://", 1)[-1]
     return _render(req, "map", title=translate(lang, "map_h"),
-                   v=VERSION, member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
+                   v=_map_asset_v(), member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
                    ics_url=ics_url, webcal_url=webcal_url)
 
 
@@ -1907,7 +1944,7 @@ async def h_map_login(req):
     if not (BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
         return _render(req, "map", title=translate(lang, "map_h"),
                        flash=translate(lang, "map_oauth_unconfigured"),
-                       v=VERSION, member=False, max_zoom=MAP_MAX_ZOOM)
+                       v=_map_asset_v(), member=False, max_zoom=MAP_MAX_ZOOM)
     state = secrets.token_urlsafe(24)
     params = urlencode({
         "client_id": BOARD_OAUTH_CLIENT_ID, "response_type": "code",
