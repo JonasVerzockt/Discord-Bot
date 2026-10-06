@@ -2111,6 +2111,12 @@ async def h_map_list(req):
     return web.json_response({"member": True, "items": items})
 
 
+def _event_local(s):
+    """Gespeicherte (naive) Berliner Ortszeit -> zeitzonenbewusstes datetime."""
+    d = _isoparse(s)
+    return d.replace(tzinfo=BERLIN) if d.tzinfo is None else d
+
+
 def _event_exdates(ev, start):
     """Parst die ausgefallenen Serien-Termine (exdates, ISO/kommagetrennt) zu datetimes."""
     out = []
@@ -2120,10 +2126,7 @@ def _event_exdates(ev, start):
         if not part:
             continue
         try:
-            d = _isoparse(part)
-            if d.tzinfo is None:
-                d = d.replace(tzinfo=timezone.utc)
-            out.append(d)
+            out.append(_event_local(part))
         except Exception:
             continue
     return out
@@ -2133,9 +2136,7 @@ def _event_next(ev) -> datetime | None:
     """Nächstes anstehendes Vorkommen (Serie via RRULE, abzüglich EXDATE), sonst start_at."""
     now = datetime.now(timezone.utc)
     try:
-        start = _isoparse(ev["start_at"])
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
+        start = _event_local(ev["start_at"])
     except Exception:
         return None
     rr = ev["rrule"]
@@ -2147,7 +2148,21 @@ def _event_next(ev) -> datetime | None:
             return rs.after(now, inc=True)
         except Exception:
             pass
-    return start if start >= now else None
+    end = _event_end(ev, start)
+    return start if (end or start) >= now else None      # laufende Events bleiben sichtbar
+
+
+def _event_end(ev, start):
+    """Ende des Termins (aware) oder None. Ohne Endzeit zählt der ganze letzte Tag."""
+    try:
+        e = _event_local(ev["end_at"]) if ev["end_at"] else None
+    except Exception:
+        e = None
+    if e is None:
+        return None
+    if ev["all_day"] or not (e.hour or e.minute):
+        e = e.replace(hour=23, minute=59, second=59)
+    return e if e >= start else None
 
 
 async def _approved_events(app):
@@ -2170,7 +2185,17 @@ async def h_map_events(req):
     evs = await _approved_events(req.app)
     data = []
     for nxt, r in evs:
+        end_iso, end_has_time = "", False
+        try:
+            st = _event_local(r["start_at"])
+            en = _event_local(r["end_at"]) if r["end_at"] else None
+        except Exception:
+            st = en = None
+        if st and en and en >= st:
+            end_has_time = bool(en.hour or en.minute) and not r["all_day"]
+            end_iso = (nxt + (en - st)).isoformat()
         data.append({
+            "all_day": bool(r["all_day"]), "end": end_iso, "end_has_time": end_has_time,
             "id": r["id"], "title": r["title"], "type": r["type"],
             "country": r["country"] or "", "lat": r["lat"], "lon": r["lon"],
             "venue": r["venue"] or "", "url": r["url"] or "",
@@ -2238,7 +2263,7 @@ async def h_map_events_ics(req):
 
     - Ganztägige Events als DATE (DTEND exklusiv = Folgetag des letzten Tages).
     - Termine mit Uhrzeit in Europe/Berlin (TZID + VTIMEZONE), Serien via RRULE/EXDATE.
-    - Für mehrtägige Termine mit Uhrzeit ist keine Endzeit erfasst -> Ende = 23:59 des letzten Tages.
+    - Mit Endzeit -> echtes DTEND; nur Enddatum (ohne Endzeit) -> Ende = 23:59 des letzten Tages.
     """
     rows = await execute_db(req.app["bot"],
         "SELECT * FROM map_events WHERE status='approved' ORDER BY start_at", fetch=True) or []
@@ -2268,10 +2293,14 @@ async def h_map_events_ics(req):
                    f"DTEND;VALUE=DATE:{(last + timedelta(days=1)).strftime(dfmt)}"]
         else:
             ev.append(f"DTSTART;TZID={_ICS_TZID}:{start.strftime(tfmt)}")
-            if end and end.date() > start.date():
-                fin = end if (end.hour or end.minute) else end.replace(hour=23, minute=59, second=0)
+            fin = None
+            if end and (end.hour or end.minute) and end > start:
+                fin = end                                              # echte Endzeit
+            elif end and end.date() > start.date():
+                fin = end.replace(hour=23, minute=59, second=0)        # nur Enddatum bekannt
+            if fin:
                 ev.append(f"DTEND;TZID={_ICS_TZID}:{fin.strftime(tfmt)}")
-            # gleicher Tag ohne Endzeit -> kein DTEND (RFC 5545: Ende = Beginn)
+            # ohne Ende -> kein DTEND (RFC 5545: Ende = Beginn)
         if r["rrule"]:
             ev.append(f"RRULE:{r['rrule']}")
             exs = [d for d in (_naive(x.strip()) for x in (r["exdates"] or "").split(",")) if d]

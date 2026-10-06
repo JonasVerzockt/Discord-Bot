@@ -191,6 +191,60 @@ def _parse_date(s: str, with_time: str | None = None):
     return None
 
 
+def _parse_hhmm(s: str):
+    """'HH:MM' -> (h, m) oder None."""
+    try:
+        t = datetime.strptime((s or "").strip(), "%H:%M")
+        return t.hour, t.minute
+    except ValueError:
+        return None
+
+
+def _combine_end(start: datetime, start_has_time: bool, end_date: str, end_time: str):
+    """Ende aus optionalem Enddatum + optionaler Endzeit bilden.
+
+    Rückgabe (end_dt | None, end_has_time, fehler_l10n_key | None).
+    - Nur Endzeit  -> Ende am Starttag.
+    - Nur Enddatum -> Ende ohne Uhrzeit (00:00 gespeichert, gilt als "ganzer letzter Tag").
+    - Endzeit 00:00 wird als 23:59 gespeichert (00:00 steht intern für "keine Endzeit").
+    """
+    end_date, end_time = (end_date or "").strip(), (end_time or "").strip()
+    if not end_date and not end_time:
+        return None, False, None
+    if end_time and not start_has_time:
+        return None, False, "event_end_needs_time"
+    if end_date:
+        ed = _parse_date(end_date)
+        if ed is None:
+            return None, False, "event_bad_date"
+    else:
+        ed = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    if end_time:
+        hm = _parse_hhmm(end_time)
+        if hm is None:
+            return None, False, "event_bad_date"
+        h, m = hm if hm != (0, 0) else (23, 59)
+        end_dt = ed.replace(hour=h, minute=m, second=0, microsecond=0)
+        if end_dt <= start:
+            return None, False, "event_end_before_start"
+        return end_dt, True, None
+    if ed.date() < start.date():
+        return None, False, "event_end_before_start"
+    return ed, False, None
+
+
+def _fmt_when(dt: datetime, has_time: bool, end_dt, end_has_time: bool, until: str) -> str:
+    """'12.12.2026 10:00–17:00' · '06.03.2027 10:00 bis 07.03.2027 18:00' · '03.09.2027 bis 04.09.2027'."""
+    when = dt.strftime("%d.%m.%Y %H:%M") if has_time else dt.strftime("%d.%m.%Y")
+    if not end_dt:
+        return when
+    if end_has_time and end_dt.date() == dt.date():
+        return when + "–" + end_dt.strftime("%H:%M")
+    if end_dt.date() == dt.date():
+        return when
+    return f"{when} {until} " + end_dt.strftime("%d.%m.%Y %H:%M" if end_has_time else "%d.%m.%Y")
+
+
 async def _save_join(bot, user, lang, cc, plz, first_name, age_18, show_name, contactable,
                      coarse=False):
     """Speichert den Karteneintrag. Gibt (ok, Nachricht) zurück."""
@@ -364,7 +418,7 @@ class EventAddModal(discord.ui.Modal):
 
 
 class EventMoreModal(discord.ui.Modal):
-    """Optionale Zusatzangaben: PLZ, Enddatum, Link."""
+    """Optionale Zusatzangaben: PLZ, Enddatum, Endzeit, Link."""
     def __init__(self, wizard: "EventAddView"):
         lang = wizard.lang
         super().__init__(title=l10n.get("event_wiz_more_title", lang)[:45])
@@ -376,22 +430,24 @@ class EventMoreModal(discord.ui.Modal):
         self.add_item(discord.ui.InputText(label=L("event_wiz_end"), required=False, max_length=10,
                                            placeholder="25.05.2027",
                                            value=d["end_dt"].strftime("%d.%m.%Y") if d.get("end_dt") else None))
+        self.add_item(discord.ui.InputText(label=L("event_wiz_end_time"), required=False, max_length=5,
+                                           placeholder="18:00",
+                                           value=d["end_dt"].strftime("%H:%M") if d.get("end_has_time") else None))
         self.add_item(discord.ui.InputText(label=L("event_wiz_url"), required=False, max_length=300,
                                            value=d.get("url") or None))
 
     async def callback(self, interaction: discord.Interaction):
         w = self.wizard
-        plz, end, url = ((ch.value or "").strip() for ch in self.children)
-        end_dt = None
-        if end:
-            end_dt = _parse_date(end)
-            if end_dt is None:
-                await interaction.response.send_message(l10n.get("event_bad_date", w.lang), ephemeral=True)
-                return
+        plz, end, end_time, url = ((ch.value or "").strip() for ch in self.children)
+        end_dt, end_has_time, err = _combine_end(w.data["dt"], w.data["has_time"], end, end_time)
+        if err:
+            await interaction.response.send_message(l10n.get(err, w.lang), ephemeral=True)
+            return
         if url and not url.lower().startswith(("https://", "http://")):
             await interaction.response.send_message(l10n.get("event_bad_url", w.lang), ephemeral=True)
             return
-        w.data.update({"plz": plz or None, "end_dt": end_dt, "url": url or None})
+        w.data.update({"plz": plz or None, "end_dt": end_dt, "end_has_time": end_has_time,
+                       "url": url or None})
         try:
             await interaction.response.edit_message(content=w.summary(), view=w)
         except Exception:
@@ -468,10 +524,8 @@ class EventAddView(discord.ui.View):
 
     def summary(self) -> str:
         d, lang = self.data, self.lang
-        dt = d["dt"]
-        when = dt.strftime("%d.%m.%Y %H:%M") if d["has_time"] else dt.strftime("%d.%m.%Y")
-        if d.get("end_dt"):
-            when += f" {l10n.get('event_wiz_until', lang)} " + d["end_dt"].strftime("%d.%m.%Y")
+        when = _fmt_when(d["dt"], d["has_time"], d.get("end_dt"), d.get("end_has_time", False),
+                         l10n.get("event_wiz_until", lang))
         lines = [l10n.get("event_wiz_step2", lang),
                  "",
                  f"**{d['title']}**",
@@ -521,9 +575,11 @@ async def _submit_event(bot, user, d: dict):
         olang = await get_user_lang(bot, BOARD_OWNER_ID, None)
         L = lambda k: l10n.get(k, olang)
 
-        when = dt.strftime("%d.%m.%Y %H:%M") if d["has_time"] else dt.strftime("%d.%m.%Y") + " (ganztägig)"
-        if end_dt and end_dt.date() != dt.date():   # gleicher Tag -> kein "bis" anzeigen
-            when += " bis " + end_dt.strftime("%d.%m.%Y")
+        when = _fmt_when(dt, d["has_time"], end_dt, d.get("end_has_time", False), "bis")
+        if not d["has_time"]:
+            when += " (ganztägig)"
+        elif not d.get("end_has_time"):
+            when += " (keine Endzeit)"
         if lat is not None:
             pin = f"✅ ja ({lat:.4f}, {lon:.4f})"
         elif plz and cc and geo.is_dach(cc):
@@ -738,6 +794,7 @@ class MapCog(commands.Cog, name="Map"):
         date: discord.Option(str, "Datum JJJJ-MM-TT", required=False, default=None),
         time: discord.Option(str, "Uhrzeit HH:MM ('-' = ganztägig)", required=False, default=None),
         end_date: discord.Option(str, "Enddatum ('-' zum Löschen)", required=False, default=None),
+        end_time: discord.Option(str, "Endzeit HH:MM ('-' zum Löschen)", required=False, default=None),
         location: discord.Option(str, "Ort/Veranstaltungsort", required=False, default=None),
         country: discord.Option(str, "Land", required=False, default=None),
         plz: discord.Option(str, "PLZ (für Kartenpunkt bei DACH)", required=False, default=None),
@@ -782,22 +839,27 @@ class MapCog(commands.Cog, name="Map"):
             await ctx.followup.send(l10n.get("event_bad_date", lang), ephemeral=True); return
         all_day = 0 if (use_time and t_str) else 1
 
-        # Enddatum
+        # Ende (Datum + optionale Uhrzeit): vorhandene Werte übernehmen, Angaben überschreiben.
+        try:
+            old_end = datetime.fromisoformat(ev["end_at"].replace("T", " ")) if ev["end_at"] else None
+        except Exception:
+            old_end = None
+        old_end_has_time = bool(old_end and (old_end.hour or old_end.minute))
         if end_date is not None:
-            if end_date.strip().lower() in _clear:
-                end_at = None
-            else:
-                ed = None
-                for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
-                    try:
-                        ed = datetime.strptime(end_date.strip(), fmt); break
-                    except ValueError:
-                        continue
-                if ed is None:
-                    await ctx.followup.send(l10n.get("event_bad_date", lang), ephemeral=True); return
-                end_at = ed.strftime("%Y-%m-%dT%H:%M:%S")
+            ed_str = "" if end_date.strip().lower() in _clear else end_date.strip()
         else:
-            end_at = ev["end_at"]
+            ed_str = old_end.strftime("%d.%m.%Y") if old_end else ""
+        if end_time is not None:
+            et_str = "" if end_time.strip().lower() in _clear else end_time.strip()
+        else:
+            # Alte Endzeit entfällt automatisch, wenn das Event ganztägig wird.
+            et_str = old_end.strftime("%H:%M") if (old_end_has_time and not all_day) else ""
+        if end_date is not None and not ed_str and end_time is None:
+            et_str = ""                       # Enddatum gelöscht -> Ende komplett entfernen
+        end_dt, _eht, err = _combine_end(dt, not all_day, ed_str, et_str)
+        if err:
+            await ctx.followup.send(l10n.get(err, lang), ephemeral=True); return
+        end_at = end_dt.strftime("%Y-%m-%dT%H:%M:%S") if end_dt else None
 
         new_country = ((country.strip().lower() or None) if country is not None else ev["country"])
         new_plz = ((plz.strip()[:12] or None) if plz is not None else ev["plz"])
