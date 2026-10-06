@@ -268,7 +268,8 @@
       }
       var link = safeUrl(e.url);
       h += "<div class=mrow><div><div class=nm>" + esc(e.title) + (e.recurring ? " 🔁" : "") +
-           "</div><div class=fl2>" + esc(ds) + (e.venue ? " · " + esc(e.venue) : "") + "</div>" +
+           "</div><div class=fl2>📅 " + esc(ds) + "</div>" +
+           (e.venue ? "<div class=fl2>📍 " + esc(e.venue) + "</div>" : "") +
            (link ? "<a class=fl2 href='" + link + "' target=_blank rel='noopener noreferrer'>Link</a>" : "") + "</div></div>";
       if (e.lat && e.lon) {
         var col = EVENT_COLORS[e.type] || EVENT_COLORS.other;
