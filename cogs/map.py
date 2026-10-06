@@ -746,6 +746,14 @@ async def _set_event_status(bot, eid, status: str, reason: str | None = None, ac
     return row
 
 
+async def _owner_only(interaction: discord.Interaction) -> bool:
+    """Zusätzliche Absicherung: Event-Aktionen aus der PN nur durch den Betreiber."""
+    if BOARD_OWNER_ID and interaction.user.id == BOARD_OWNER_ID:
+        return True
+    await interaction.response.send_message("❌ Nur für den Betreiber.", ephemeral=True)
+    return False
+
+
 class EventRejectModal(discord.ui.Modal):
     def __init__(self, eid: int):
         super().__init__(title=f"Event #{eid} ablehnen")
@@ -755,6 +763,8 @@ class EventRejectModal(discord.ui.Modal):
                                            style=discord.InputTextStyle.long))
 
     async def callback(self, interaction: discord.Interaction):
+        if not await _owner_only(interaction):
+            return
         reason = (self.children[0].value or "").strip() or None
         row = await _set_event_status(interaction.client, self.eid, "rejected", reason, interaction.user.id)
         await _refresh_admin_message(interaction, self.eid, row is None)
@@ -783,6 +793,8 @@ class EventQuickEditModal(discord.ui.Modal):
         self.add_item(discord.ui.InputText(label="Ort", max_length=160, value=row["venue"] or None))
 
     async def callback(self, interaction: discord.Interaction):
+        if not await _owner_only(interaction):
+            return
         title, date, time, end, loc = ((c.value or "").strip() for c in self.children)
         bot = interaction.client
         row = await _event_row(bot, self.eid)
@@ -852,8 +864,7 @@ class MapCog(commands.Cog, name="Map"):
             eid = int(eid)
         except ValueError:
             return
-        if not BOARD_OWNER_ID or interaction.user.id != BOARD_OWNER_ID:
-            await interaction.response.send_message("❌ Nur für den Betreiber.", ephemeral=True)
+        if not await _owner_only(interaction):
             return
         if action == "approve":
             row = await _set_event_status(self.bot, eid, "approved", actor_id=interaction.user.id)
