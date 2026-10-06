@@ -13,6 +13,12 @@
     });
   }
   function safeUrl(u) { return /^https?:\/\//i.test(String(u || "")) ? esc(u) : ""; }
+  // Kontakt-Button (nur bei Opt-in): öffnet das Discord-Profil, von dort kann man eine PN schreiben.
+  function contactBtn(u) {
+    var s = /^https:\/\/discord\.com\/users\/\d+$/.test(String(u || "")) ? esc(u) : "";
+    return s ? "<a class=cbtn href='" + s + "' target=_blank rel='noopener noreferrer'>" +
+               esc(PL.contactBtn || PL.contact) + "</a>" : "";
+  }
 
   if (typeof L === "undefined") {
     note(CFG.lang === "en" ? "Map library not loaded yet (the bot downloads it automatically)."
@@ -142,7 +148,7 @@
         var st = p.coarse ? PIN_STYLE.coarse : PIN_STYLE.exact;
         var m = L.circleMarker([p.lat, p.lon], { pane: "pinPane", radius: 7, color: st.color, fillColor: st.fillColor, fillOpacity: 0.9, weight: 2 });
         var tags = (p.tags && p.tags.length) ? "<br><span style='color:#8b949e'>" + esc(p.tags.join(", ")) + "</span>" : "";
-        var contact = p.contact ? ("<br><i>" + esc(PL.contact) + "</i>") : "";
+        var contact = p.contact_url ? ("<br>" + contactBtn(p.contact_url)) : "";
         var area = p.coarse ? ("<br><span style='color:#f778ba'>" + esc(PL.coarseNote) + "</span>") : "";
         m.bindPopup("<b>" + esc(p.name) + "</b><br>" + esc(p.region || p.country) + area + tags + contact);
         if (p.ref) { pinByRef[p.ref] = m; m.on("click", function () { highlightRow(p.ref); }); }
@@ -185,12 +191,15 @@
       if (it.country_name !== lastC) { h += "<div class=status-sub style='margin-top:8px'>" + esc(it.country_name) + (it.dach ? "" : " 🌍") + "</div>"; lastC = it.country_name; }
       var tags = (it.tags && it.tags.length) ? "<div class=tg>" + esc(it.tags.join(" · ")) + "</div>" : "";
       var refattr = it.ref ? (" data-ref='" + esc(it.ref) + "'") : "";
-      h += "<div class=mrow" + refattr + "><div><div class=nm>" + esc(it.name) + "</div><div class=fl2>" + esc(it.region || it.country_name) + "</div>" + tags + "</div></div>";
+      h += "<div class=mrow" + refattr + "><div><div class=nm>" + esc(it.name) + "</div><div class=fl2>" + esc(it.region || it.country_name) + "</div>" + tags + contactBtn(it.contact_url) + "</div></div>";
     });
     box.innerHTML = h || ("<p class=muted>" + esc(q ? "–" : (CFG.emptyText || "–")) + "</p>");
     // Klick auf eine Listenzeile -> zugehörigen Pin öffnen/zentrieren (falls DACH-Pin vorhanden)
     box.querySelectorAll(".mrow[data-ref]").forEach(function (row) {
-      row.addEventListener("click", function () { focusPin(row.getAttribute("data-ref")); });
+      row.addEventListener("click", function (ev) {
+        if (ev.target.closest && ev.target.closest("a")) return;   // Kontakt-Link nicht abfangen
+        focusPin(row.getAttribute("data-ref"));
+      });
     });
   }
 
