@@ -674,6 +674,8 @@ MAP = """{% extends "base" %}{% block body %}
  .mrow .nm{font-weight:600;font-size:14px;overflow-wrap:anywhere}
  .mrow .tg{font-size:11px;color:#8b949e;margin-top:2px}
  .mrow>div{min-width:0}
+ a.cbtn{display:inline-block;margin-top:4px;padding:2px 9px;border:1px solid #5865f2;border-radius:6px;color:#c9d1d9;background:#5865f222;font-size:12px;text-decoration:none}
+ a.cbtn:hover{background:#5865f255}
  #agenda .fl2{white-space:normal;overflow-wrap:anywhere}   /* Termine: lange Orte umbrechen */
  .mrow[data-ref]{cursor:pointer} .mrow.hl{background:#1f6feb33;border-radius:6px}
  /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
@@ -769,7 +771,7 @@ MAP = """{% extends "base" %}{% block body %}
 <p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
 <script>window.MAP_CFG={lang:"{{ lang }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
  emptyText:"{{ t('map_list_empty') }}",
- pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}"},
+ pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}"},
  evlabels:{fair:"{{ t('map_evtype_fair') }}",meetup:"{{ t('map_evtype_meetup') }}",shop:"{{ t('map_evtype_shop') }}",talk:"{{ t('map_evtype_talk') }}",field:"{{ t('map_evtype_field') }}",other:"{{ t('map_evtype_other') }}"}};</script>
 <script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
 <script src="/static/map.js?v={{ v }}"></script>
@@ -1913,6 +1915,12 @@ def _member_name(app, uid):
     return m.display_name if m else None
 
 
+def _contact_url(uid) -> str:
+    """Discord-Profil-Link (öffnet Profil, von dort PN). Nur numerische IDs zulassen."""
+    u = str(uid or "").strip()
+    return f"https://discord.com/users/{u}" if u.isdigit() else ""
+
+
 def _map_lang_redirect(path: str, lang: str) -> web.Response:
     # Redirect-Ziel aus internen Literalen + Whitelist-Sprache (CodeQL url-redirection safe)
     return web.HTTPFound(f"{path}?lang={lang}")
@@ -2102,6 +2110,8 @@ async def h_map_pins(req):
             "country": r["country"],
             "region": geo.canon_region(r["country"], r["region_code"] or "", r["region_name"] or "")[1],
             "contact": bool(r["contact_ok"]),
+            # Profil-Link NUR bei aktivem Opt-in "Kontakt über Discord" (nur für eingeloggte Mitglieder).
+            "contact_url": _contact_url(r["user_id"]) if r["contact_ok"] else "",
             "coarse": bool(r["coarse"]),             # Pin = Mitte des groben PLZ-Gebiets
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
         })
@@ -2145,6 +2155,8 @@ async def h_map_list(req):
             "region": geo.canon_region(r["country"], r["region_code"] or "", r["region_name"] or "")[1],
             "dach": r["country"] in _DACH,
             "contact": bool(r["contact_ok"]),
+            # Profil-Link NUR bei aktivem Opt-in "Kontakt über Discord" (nur für eingeloggte Mitglieder).
+            "contact_url": _contact_url(r["user_id"]) if r["contact_ok"] else "",
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
         })
     items.sort(key=lambda x: (x["country_name"], x["name"].lower()))
