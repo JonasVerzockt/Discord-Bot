@@ -20,6 +20,7 @@ vollautomatisch und ohne externe Tools (kein ogr2ogr, keine amtlichen ZIPs).
 
 Quellen (alle offen lizenziert, stabile Direkt-URLs):
   • Leaflet (BSD-2)                     -> static/leaflet.js|css  (Kartenbibliothek)
+  • Leaflet.markercluster (MIT)         -> static/leaflet.markercluster.js + MarkerCluster*.css
   • geoBoundaries ADM1 (CC BY 4.0)      -> static/*_bundeslaender/kantone.geojson
   • GeoNames PLZ-Dumps (CC BY 4.0)      -> data/plz_dach.csv (PLZ+Ort+Region+Koordinaten)
 
@@ -49,6 +50,10 @@ _GEO = "https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/main/re
 SOURCES: list[tuple[str, Path]] = [
     ("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",  STATIC_DIR / "leaflet.js"),
     ("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", STATIC_DIR / "leaflet.css"),
+    # Pin-Clustering: Leaflet.markercluster (MIT), Version fest gepinnt.
+    ("https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js", STATIC_DIR / "leaflet.markercluster.js"),
+    ("https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css",         STATIC_DIR / "MarkerCluster.css"),
+    ("https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css", STATIC_DIR / "MarkerCluster.Default.css"),
     (f"{_GEO}/DEU/ADM1/geoBoundaries-DEU-ADM1_simplified.geojson", STATIC_DIR / "de_bundeslaender.geojson"),
     (f"{_GEO}/AUT/ADM1/geoBoundaries-AUT-ADM1_simplified.geojson", STATIC_DIR / "at_bundeslaender.geojson"),
     (f"{_GEO}/CHE/ADM1/geoBoundaries-CHE-ADM1_simplified.geojson", STATIC_DIR / "ch_kantone.geojson"),

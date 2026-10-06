@@ -515,12 +515,24 @@ CREATE TABLE IF NOT EXISTS map_events (
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Teilnahme an Events ("Ich gehe hin", über Discord-Login auf der Karte). Pro Vorkommen
+-- (occ_date = Datum des Termins, bei Serien das jeweilige Vorkommen). Wird 30 Tage nach dem
+-- Termin, beim Server-Austritt und beim Löschen des Events entfernt.
+CREATE TABLE IF NOT EXISTS map_event_rsvp (
+    event_id   INTEGER NOT NULL,
+    occ_date   TEXT    NOT NULL,              -- JJJJ-MM-TT (Berliner Zeit)
+    user_id    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (event_id, occ_date, user_id)
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_map_entries_country    ON map_entries (country);
 CREATE INDEX IF NOT EXISTS idx_map_entry_tags_tag     ON map_entry_tags (tag_code);
 CREATE INDEX IF NOT EXISTS idx_map_events_status      ON map_events (status);
 CREATE INDEX IF NOT EXISTS idx_map_events_start       ON map_events (start_at);
+CREATE INDEX IF NOT EXISTS idx_map_event_rsvp_user    ON map_event_rsvp (user_id);
 CREATE INDEX IF NOT EXISTS idx_offer_keywords_user    ON offer_keywords (user_id);
 CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
 CREATE INDEX IF NOT EXISTS idx_ai_chat_budget_user    ON ai_chat_budget (user_id);
