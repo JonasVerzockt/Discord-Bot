@@ -1,0 +1,553 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Jonas Beier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+"""
+utils/board_i18n.py – Sprachkatalog & Helfer für das Feedback-Board (cogs/board.py).
+
+Drei Sprachen: Deutsch (de, Standard), Englisch (en), Esperanto (eo).
+Umschaltung ausschließlich über den URL-Parameter ``?lang=xx`` (KEIN Cookie);
+auf jeder Seite steht ein Flaggen-Umschalter im Header. Fällt der Parameter weg,
+wird die Browser-Sprache (Accept-Language) herangezogen, sonst Deutsch.
+
+Bewusst NICHT lokalisiert: die einzelnen Health-Kacheln des Status-Panels
+(Name + Detailtext). Deren Name dient zugleich als stabiler Schlüssel für die
+Vorfall-Historie (board_incidents.check_key) und die Kachel-Links
+(/status/check/{key}); eine Übersetzung würde diese Verknüpfung brechen.
+Lokalisiert werden hier nur die Gesamt-Ampel, die Sektions-Titel/-Notizen und
+alle leserseitigen Texte der Seiten.
+
+Nutzung (in board.py):
+    from utils.board_i18n import LANGS, pick_lang, translate, type_label, flash_text
+    lang = pick_lang(req)
+    t = lambda key, **kw: translate(lang, key, **kw)
+"""
+from __future__ import annotations
+
+# Reihenfolge = Anzeigereihenfolge der Flaggen im Header.
+LANGS = ("de", "en", "eo")
+DEFAULT_LANG = "de"
+
+# Flaggen für den Umschalter als Inline-SVG (KEINE Emoji-Flaggen: die rendern u.a.
+# unter Windows nur als Buchstaben "DE"/"GB"). Jeweils (SVG, Kürzel). Das SVG wird
+# im Template mit |safe ausgegeben. de = Bundesflagge, en = Union Jack (vereinfacht),
+# eo = Esperanto-Flagge (grün mit weißem Kanton + grünem Stern „verda stelo").
+_SVG_DE = ('<svg class=fl viewBox="0 0 5 3" preserveAspectRatio="none">'
+           '<rect width="5" height="3" fill="#000"/>'
+           '<rect y="1" width="5" height="1" fill="#D00"/>'
+           '<rect y="2" width="5" height="1" fill="#FFCE00"/></svg>')
+_SVG_EN = ('<svg class=fl viewBox="0 0 60 30" preserveAspectRatio="none">'
+           '<rect width="60" height="30" fill="#012169"/>'
+           '<path d="M0,0 60,30 M60,0 0,30" stroke="#fff" stroke-width="6"/>'
+           '<path d="M0,0 60,30 M60,0 0,30" stroke="#C8102E" stroke-width="2.5"/>'
+           '<path d="M30,0 V30 M0,15 H60" stroke="#fff" stroke-width="10"/>'
+           '<path d="M30,0 V30 M0,15 H60" stroke="#C8102E" stroke-width="6"/></svg>')
+_SVG_EO = ('<svg class=fl viewBox="0 0 60 30" preserveAspectRatio="none">'
+           '<rect width="60" height="30" fill="#009900"/>'
+           '<rect width="15" height="15" fill="#fff"/>'
+           '<polygon fill="#009900" points="7.5,1.3 8.97,5.48 13.4,5.58 9.88,8.27 '
+           '11.14,12.52 7.5,10 3.86,12.52 5.12,8.27 1.6,5.58 6.03,5.48"/></svg>')
+FLAGS = {
+    "de": (_SVG_DE, "DE"),
+    "en": (_SVG_EN, "EN"),
+    "eo": (_SVG_EO, "EO"),
+}
+FLAG_TITLE = {
+    "de": "Deutsch",
+    "en": "English",
+    "eo": "Esperanto",
+}
+
+
+def pick_lang(req) -> str:
+    """Ermittelt die Sprache: ?lang= (falls gültig) > Accept-Language > Standard (de).
+
+    Gibt bewusst die WHITELIST-Konstante aus LANGS zurück (nicht den rohen User-Wert):
+    So ist der Rückgabewert nachweislich untainted – er fließt in Redirect-Locations
+    (`?lang=…`) ein, und diese Konstruktion verhindert Open-Redirect/Header-Injection
+    (CodeQL py/url-redirection) unabhängig von der Eingabe."""
+    q = (req.query.get("lang") or "").lower().strip()
+    for code in LANGS:
+        if q == code:
+            return code                      # Literal aus LANGS -> untainted
+    accept = (req.headers.get("Accept-Language") or "").lower()
+    # Grobe, robuste Auswertung: erste passende Sprache im Header gewinnt.
+    for part in accept.replace(" ", "").split(","):
+        want = part.split(";")[0].split("-")[0]
+        for code in LANGS:
+            if want == code:
+                return code                  # ebenfalls Literal aus LANGS
+    return DEFAULT_LANG
+
+
+# ── Katalog ───────────────────────────────────────────────────────────────────
+# Pro Schlüssel ein Dict {de,en,eo}. Platzhalter via str.format (z.B. {n}, {v}).
+T: dict[str, dict[str, str]] = {
+    # Chrome / Navigation / Footer
+    "brand": {"de": "AAM-Bot · Ideen & Bugs", "en": "AAM-Bot · Ideas & Bugs", "eo": "AAM-Bot · Ideoj & Cimoj"},
+    "nav_board": {"de": "Board", "en": "Board", "eo": "Tabulo"},
+    "nav_submit": {"de": "Einreichen", "en": "Submit", "eo": "Sendi"},
+    "nav_stats": {"de": "📊 Statistiken", "en": "📊 Statistics", "eo": "📊 Statistiko"},
+    "stats_soon": {"de": "Die Statistik-Seite wird gerade aufgebaut – schau bald wieder vorbei.", "en": "The statistics page is being built – check back soon.", "eo": "La statistika paĝo estas konstruata – revenu baldaŭ."},
+    # Stats-Seite: Kopf, Navigation, Sektionen
+    "st_intro": {"de": "Auswertungen zu Shops und Produkten aus den Grabber-Daten. Alle Zahlen beziehen sich auf den unten genannten Datenstand.", "en": "Analytics on shops and products from the grabber data. All figures refer to the data snapshot noted below.", "eo": "Analizoj pri butikoj kaj produktoj el la grabber-datumoj. Ĉiuj ciferoj rilatas al la sube menciita datumstato."},
+    "st_nav": {"de": "Springe zu:", "en": "Jump to:", "eo": "Salti al:"},
+    "st_data_as_of": {"de": "Datenstand: {d}", "en": "Data as of: {d}", "eo": "Datumstato: {d}"},
+    "st_generated": {"de": "Erzeugt: {d}", "en": "Generated: {d}", "eo": "Generita: {d}"},
+    "st_fx_note": {"de": "Fremdwährungen in EUR umgerechnet (Kurse: EZB/Frankfurter, Fallback für seltene Währungen; im Speicher bis 6 h gecacht).", "en": "Foreign currencies converted to EUR (rates: ECB/Frankfurter, fallback for rare currencies; cached in memory up to 6 h).", "eo": "Fremdaj valutoj konvertitaj al EUR (kursoj: EEB/Frankfurter, retrostreĉo por maloftaj valutoj; kaŝmemorigita ĝis 6 h)."},
+    "st_cache_note": {"de": "Live berechnet, im Speicher bis zu 15 min zwischengespeichert.", "en": "Computed live, cached in memory for up to 15 min.", "eo": "Kalkulita realtempe, kaŝmemorigita ĝis 15 min."},
+    "st_error": {"de": "Statistikdaten sind momentan nicht verfügbar (Datenquelle fehlt oder wird gerade erzeugt).", "en": "Statistics data is currently unavailable (source missing or being generated).", "eo": "Statistikaj datumoj nun ne haveblas (fonto mankas aŭ estas generata)."},
+    "st_wip": {"de": "Dieser Bereich wird gerade gebaut.", "en": "This section is being built.", "eo": "Ĉi tiu sekcio estas konstruata."},
+    "st_sec_overview": {"de": "Marktüberblick", "en": "Market overview", "eo": "Merkata superrigardo"},
+    "st_sec_species": {"de": "Arten & Gattungen", "en": "Species & genera", "eo": "Specioj & genroj"},
+    "st_sec_shops": {"de": "Shop-Vergleich", "en": "Shop comparison", "eo": "Butika komparo"},
+    "st_sec_prices": {"de": "Preise", "en": "Prices", "eo": "Prezoj"},
+    "st_sec_availability": {"de": "Verfügbarkeit", "en": "Availability", "eo": "Havebleco"},
+    "st_sec_quality": {"de": "Datenqualität", "en": "Data quality", "eo": "Datumkvalito"},
+    "st_sec_trends": {"de": "Zeitverläufe", "en": "Trends over time", "eo": "Tempaj tendencoj"},
+    # Punkt 1: Marktüberblick – KPI-Kacheln, Diagramme
+    "kpi_shops": {"de": "Shops", "en": "Shops", "eo": "Butikoj"},
+    "kpi_shops_with": {"de": "Shops mit Produkten", "en": "Shops with products", "eo": "Butikoj kun produktoj"},
+    "kpi_live": {"de": "Angebote (Ameisen)", "en": "Offers (ants)", "eo": "Ofertoj (formikoj)"},
+    "kpi_merch": {"de": "Merch / Zubehör", "en": "Merch / accessories", "eo": "Var- / akcesoraĵoj"},
+    "kpi_species": {"de": "Arten", "en": "Species", "eo": "Specioj"},
+    "kpi_genera": {"de": "Gattungen", "en": "Genera", "eo": "Genroj"},
+    "kpi_instock_pct": {"de": "Lagerquote (Ameisen)", "en": "In-stock rate (ants)", "eo": "Stok-kvoto (formikoj)"},
+    "kpi_countries": {"de": "Länder", "en": "Countries", "eo": "Landoj"},
+    "ch_countries_title": {"de": "Shops pro Land (Top 10)", "en": "Shops per country (top 10)", "eo": "Butikoj laŭ lando (supraj 10)"},
+    "ch_countries_axis": {"de": "Shops", "en": "Shops", "eo": "Butikoj"},
+    "ch_stock_title": {"de": "Verfügbarkeit der Ameisen-Angebote", "en": "Availability of ant offers", "eo": "Havebleco de formik-ofertoj"},
+    "lbl_instock": {"de": "lagernd", "en": "in stock", "eo": "en stoko"},
+    "lbl_outstock": {"de": "nicht lagernd", "en": "out of stock", "eo": "ne en stoko"},
+    "lbl_other": {"de": "übrige", "en": "other", "eo": "aliaj"},
+    "lbl_shops": {"de": "Shops", "en": "Shops", "eo": "Butikoj"},
+    # Punkt 2: Arten & Gattungen
+    "sp_genera_title": {"de": "Top-Gattungen (nach Angeboten)", "en": "Top genera (by offers)", "eo": "Supraj genroj (laŭ ofertoj)"},
+    "sp_reach_title": {"de": "Beliebteste Arten (in wie vielen Shops gelistet)", "en": "Most popular species (number of shops listing them)", "eo": "Plej popularaj specioj (en kiom da butikoj)"},
+    "sp_rarities_title": {"de": "Raritäten", "en": "Rarities", "eo": "Maloftaĵoj"},
+    "sp_rarities_count": {"de": "{n} Arten gibt es in nur einem einzigen Shop.", "en": "{n} species are available in only a single shop.", "eo": "{n} specioj haveblas en nur unu butiko."},
+    "sp_rarities_show": {"de": "Beispiele anzeigen ({n})", "en": "Show examples ({n})", "eo": "Montri ekzemplojn ({n})"},
+    "sp_longtail_title": {"de": "Verteilung: Arten nach Shop-Reichweite", "en": "Distribution: species by shop reach", "eo": "Distribuo: specioj laŭ butik-atingo"},
+    "sp_longtail_x": {"de": "in wie vielen Shops", "en": "number of shops", "eo": "en kiom da butikoj"},
+    "sp_longtail_y": {"de": "Arten", "en": "species", "eo": "specioj"},
+    "lbl_offers": {"de": "Angebote", "en": "Offers", "eo": "Ofertoj"},
+    "lbl_species": {"de": "Arten", "en": "Species", "eo": "Specioj"},
+    # Punkt 3: Shop-Vergleich
+    "sh_offers_title": {"de": "Sortimentsgröße (Ameisen-Angebote je Shop)", "en": "Assortment size (ant offers per shop)", "eo": "Sortiment-grando (formik-ofertoj po butiko)"},
+    "sh_breadth_title": {"de": "Sortimentsbreite (verschiedene Arten je Shop)", "en": "Assortment breadth (distinct species per shop)", "eo": "Sortiment-larĝo (malsamaj specioj po butiko)"},
+    "sh_exclusive_title": {"de": "Exklusiv-Arten (Shop ist einziger Anbieter)", "en": "Exclusive species (shop is the only seller)", "eo": "Ekskluzivaj specioj (butiko estas la sola vendanto)"},
+    "sh_scatter_title": {"de": "Breite vs. Tiefe je Shop", "en": "Breadth vs. depth per shop", "eo": "Larĝo kontraŭ profundo po butiko"},
+    "sh_scatter_x": {"de": "verschiedene Arten", "en": "distinct species", "eo": "malsamaj specioj"},
+    "sh_scatter_y": {"de": "Angebote", "en": "offers", "eo": "ofertoj"},
+    # Punkt 4: Preise (EUR)
+    "kpi_price_median": {"de": "Median", "en": "Median", "eo": "Mediano"},
+    "kpi_price_mean": {"de": "Durchschnitt", "en": "Average", "eo": "Averaĝo"},
+    "kpi_price_p25": {"de": "25. Perzentil", "en": "25th percentile", "eo": "25-a percentilo"},
+    "kpi_price_p75": {"de": "75. Perzentil", "en": "75th percentile", "eo": "75-a percentilo"},
+    "kpi_price_min": {"de": "Minimum", "en": "Minimum", "eo": "Minimumo"},
+    "kpi_price_max": {"de": "Maximum", "en": "Maximum", "eo": "Maksimumo"},
+    "pr_basis_note": {"de": "Basis: Einstiegspreis je Ameisen-Angebot (niedrigster positiver Variantenpreis), in EUR umgerechnet.", "en": "Basis: entry price per ant offer (lowest positive variant price), converted to EUR.", "eo": "Bazo: enira prezo po formik-oferto (plej malalta pozitiva variant-prezo), konvertita al EUR."},
+    "pr_hist_title": {"de": "Preisverteilung (EUR)", "en": "Price distribution (EUR)", "eo": "Prezdistribuo (EUR)"},
+    "pr_hist_x": {"de": "Preis in EUR", "en": "Price in EUR", "eo": "Prezo en EUR"},
+    "pr_hist_y": {"de": "Angebote", "en": "Offers", "eo": "Ofertoj"},
+    "pr_genus_title": {"de": "Median-Preis je Top-Gattung (EUR)", "en": "Median price per top genus (EUR)", "eo": "Mediana prezo po supra genro (EUR)"},
+    "pr_genus_axis": {"de": "Median in EUR", "en": "Median in EUR", "eo": "Mediano en EUR"},
+    "pr_spread_title": {"de": "Größte Preisspanne je Art (günstigster–teuerster Anbieter, EUR; ab 5 Shops)", "en": "Largest price range per species (cheapest–priciest seller, EUR; min. 5 shops)", "eo": "Plej granda prezintervalo po specio (plej malmultekosta–plej multekosta vendanto, EUR; min. 5 butikoj)"},
+    "pr_spread_small_title": {"de": "Kleinste Preisspanne je Art (einheitlichster Preis, EUR; ab 5 Shops)", "en": "Smallest price range per species (most uniform price, EUR; min. 5 shops)", "eo": "Plej malgranda prezintervalo po specio (plej unueca prezo, EUR; min. 5 butikoj)"},
+    "pr_spread_axis": {"de": "EUR", "en": "EUR", "eo": "EUR"},
+    "lbl_adjusted": {"de": "Angepasste Angebote", "en": "Adjusted offers", "eo": "Alĝustigitaj ofertoj"},
+    "th_species": {"de": "Art", "en": "Species", "eo": "Specio"},
+    "pr_range_col": {"de": "Preis (min–max)", "en": "Price (min–max)", "eo": "Prezo (min–max)"},
+    "pr_delta_col": {"de": "Spanne", "en": "Range", "eo": "Intervalo"},
+    # Punkt 5: Verfügbarkeit
+    "lbl_instock_rate": {"de": "Lagerquote %", "en": "In-stock rate %", "eo": "Stok-kvoto %"},
+    "av_genus_title": {"de": "Lagerquote je Top-Gattung", "en": "In-stock rate per top genus", "eo": "Stok-kvoto po supra genro"},
+    "av_country_title": {"de": "Lagerquote je Land (ab 20 Angeboten)", "en": "In-stock rate per country (min. 20 offers)", "eo": "Stok-kvoto po lando (min. 20 ofertoj)"},
+    "av_shop_best_title": {"de": "Beste Shop-Verfügbarkeit (ab 20 Angeboten)", "en": "Best shop availability (min. 20 offers)", "eo": "Plej bona butik-havebleco (min. 20 ofertoj)"},
+    "av_shop_worst_title": {"de": "Niedrigste Shop-Verfügbarkeit (ab 20 Angeboten)", "en": "Lowest shop availability (min. 20 offers)", "eo": "Plej malalta butik-havebleco (min. 20 ofertoj)"},
+    "av_hardest_title": {"de": "Am schwersten erhältlich (breit gelistet, selten lagernd; ab 5 Shops)", "en": "Hardest to get (widely listed, rarely in stock; min. 5 shops)", "eo": "Plej malfacile akireblaj (vaste listigitaj, malofte en stoko; min. 5 butikoj)"},
+    # Punkt 6: Datenqualität (canonical)
+    "dq_intro": {"de": "Wie sauber sind die Artnamen der Shops? Der Bot bildet jeden Rohnamen intern auf den akzeptierten AntCat-Namen ab (canonical) – korrigiert Tippfehler, löst Synonyme auf und führt Schreibweisen zusammen.", "en": "How clean are the shops' species names? The bot maps every raw name to the accepted AntCat name (canonical) – fixing typos, resolving synonyms and consolidating spellings.", "eo": "Kiom puraj estas la specinomoj de la butikoj? La roboto mapas ĉiun krudan nomon al la akceptita AntCat-nomo (canonical) – korektas mistajpojn, solvas sinonimojn kaj kunigas skribmanierojn."},
+    "kpi_dq_coverage": {"de": "Abdeckung (canonical)", "en": "Coverage (canonical)", "eo": "Kovrado (canonical)"},
+    "kpi_dq_uncanon": {"de": "ohne canonical", "en": "without canonical", "eo": "sen canonical"},
+    "kpi_dq_adjusted": {"de": "Namen angepasst", "en": "names adjusted", "eo": "nomoj alĝustigitaj"},
+    "dq_shop_uncanon_title": {"de": "Shops mit den meisten Angeboten ohne canonical", "en": "Shops with the most offers without canonical", "eo": "Butikoj kun plej multaj ofertoj sen canonical"},
+    "dq_shop_uncanon_axis": {"de": "Angebote ohne canonical", "en": "Offers without canonical", "eo": "Ofertoj sen canonical"},
+    "dq_shop_adjusted_title": {"de": "Shops mit höchster Anpassungsquote (ab 20 Angeboten)", "en": "Shops with the highest adjustment rate (min. 20 offers)", "eo": "Butikoj kun plej alta alĝustig-kvoto (min. 20 ofertoj)"},
+    "dq_shop_adjusted_axis": {"de": "Anpassungsquote %", "en": "Adjustment rate %", "eo": "Alĝustig-kvoto %"},
+    "dq_variants_title": {"de": "Arten mit den meisten zusammengeführten Schreibweisen", "en": "Species with the most consolidated spellings", "eo": "Specioj kun plej multaj kunigitaj skribmanieroj"},
+    "dq_variants_axis": {"de": "Schreibweisen", "en": "Spellings", "eo": "Skribmanieroj"},
+    "dq_uncanon_list_title": {"de": "Häufigste unaufgelöste Rohnamen", "en": "Most frequent unresolved raw names", "eo": "Plej oftaj nesolvitaj krudaj nomoj"},
+    "dq_uncanon_show": {"de": "Liste anzeigen ({n})", "en": "Show list ({n})", "eo": "Montri liston ({n})"},
+    "dq_all_resolved": {"de": "Alle Artnamen sind aufgelöst – aktuell keine offenen Rohnamen. 🎉", "en": "All species names are resolved – currently no unresolved raw names. 🎉", "eo": "Ĉiuj specinomoj estas solvitaj – nun neniuj nesolvitaj krudaj nomoj. 🎉"},
+    # Punkt 7: Zeitverläufe
+    "tr_range_label": {"de": "Zeitraum:", "en": "Period:", "eo": "Periodo:"},
+    "tr_range_3": {"de": "3 Monate", "en": "3 months", "eo": "3 monatoj"},
+    "tr_range_12": {"de": "12 Monate", "en": "12 months", "eo": "12 monatoj"},
+    "tr_range_all": {"de": "gesamt", "en": "all", "eo": "tuta"},
+    "tr_unavailable": {"de": "Keine Preis-Historie verfügbar (price_history.db fehlt oder ist leer).", "en": "No price history available (price_history.db missing or empty).", "eo": "Neniu prezhistorio havebla (price_history.db mankas aŭ malplenas)."},
+    "tr_month_axis": {"de": "Monat", "en": "Month", "eo": "Monato"},
+    "tr_count_axis": {"de": "Anzahl", "en": "Count", "eo": "Nombro"},
+    "tr_pct_change": {"de": "Änderung %", "en": "Change %", "eo": "Ŝanĝo %"},
+    "tr_price_title": {"de": "Preisentwicklung über Zeit (Median-Einstiegspreis, EUR)", "en": "Price trend over time (median entry price, EUR)", "eo": "Prez-evoluo tra la tempo (mediana enira prezo, EUR)"},
+    "tr_price_note": {"de": "Zwischen Änderungen fortgeschrieben; EUR-Umrechnung zu aktuellen Kursen (historische Kurse liegen nicht vor).", "en": "Carried forward between changes; EUR conversion at current rates (historical rates not available).", "eo": "Portata antaŭen inter ŝanĝoj; EUR-konverto laŭ nunaj kursoj (historiaj kursoj ne haveblas)."},
+    "tr_price_axis": {"de": "Median EUR", "en": "Median EUR", "eo": "Mediano EUR"},
+    "tr_changes_title": {"de": "Preisänderungen je Monat", "en": "Price changes per month", "eo": "Prez-ŝanĝoj po monato"},
+    "tr_changes_down": {"de": "Senkungen", "en": "Decreases", "eo": "Malaltiĝoj"},
+    "tr_changes_up": {"de": "Erhöhungen", "en": "Increases", "eo": "Altiĝoj"},
+    "tr_drops_title": {"de": "Aktuelle größte Preis-Senkungen (Top 10)", "en": "Recent largest price drops (top 10)", "eo": "Lastaj plej grandaj prez-malaltiĝoj (supraj 10)"},
+    "tr_increases_title": {"de": "Aktuelle größte Preis-Erhöhungen (Top 10)", "en": "Recent largest price increases (top 10)", "eo": "Lastaj plej grandaj prez-altiĝoj (supraj 10)"},
+    "tr_avail_title": {"de": "Verfügbarkeit über Zeit (Lagerquote je Monat)", "en": "Availability over time (in-stock rate per month)", "eo": "Havebleco tra la tempo (stok-kvoto po monato)"},
+    "tr_avail_empty": {"de": "Noch keine Bestands-Historie – der Grabber zeichnet sie ab sofort auf; die Kurve erscheint hier mit der Zeit.", "en": "No stock history yet – the grabber records it from now on; the curve will appear here over time.", "eo": "Ankoraŭ neniu stok-historio – la grabber registras ĝin de nun; la kurbo aperos ĉi tie kun la tempo."},
+    # Hover-Erklärungen: Sektionen (Blöcke)
+    "exp_sec_overview": {"de": "Überblick über den gesamten Markt: Eckzahlen, Länderverteilung und Verfügbarkeit aller Ameisen-Angebote.", "en": "Overview of the whole market: headline figures, country distribution and availability of all ant offers.", "eo": "Superrigardo de la tuta merkato: ĉefaj ciferoj, land-distribuo kaj havebleco de ĉiuj formik-ofertoj."},
+    "exp_sec_species": {"de": "Wie sich Angebot und Vielfalt auf Gattungen und Arten verteilen – inkl. Reichweite und Raritäten.", "en": "How supply and diversity spread across genera and species – incl. reach and rarities.", "eo": "Kiel oferto kaj diverseco distribuiĝas laŭ genroj kaj specioj – inkl. atingo kaj maloftaĵoj."},
+    "exp_sec_shops": {"de": "Vergleich der Shops nach Sortimentsgröße, Vielfalt und Exklusivität.", "en": "Comparison of shops by assortment size, diversity and exclusivity.", "eo": "Komparo de butikoj laŭ sortiment-grando, diverseco kaj ekskluziveco."},
+    "exp_sec_prices": {"de": "Preisniveau und -streuung aller Angebote (Einstiegspreise in EUR).", "en": "Price level and spread of all offers (entry prices in EUR).", "eo": "Prez-nivelo kaj -disvastiĝo de ĉiuj ofertoj (eniraj prezoj en EUR)."},
+    "exp_sec_availability": {"de": "Anteil der aktuell lagernden Angebote – aufgeschlüsselt nach Gattung, Land und Shop.", "en": "Share of offers currently in stock – broken down by genus, country and shop.", "eo": "Parto de nun-stokaj ofertoj – laŭ genro, lando kaj butiko."},
+    "exp_sec_quality": {"de": "Qualität der Artnamen: Abdeckung durch akzeptierte Namen, Korrekturen und unauflösbare Rohnamen.", "en": "Quality of species names: coverage by accepted names, corrections and unresolved raw names.", "eo": "Kvalito de specinomoj: kovrado per akceptitaj nomoj, korektoj kaj nesolveblaj krudaj nomoj."},
+    "exp_sec_trends": {"de": "Entwicklung über die Zeit: Preise, Preisänderungen und Verfügbarkeit.", "en": "Development over time: prices, price changes and availability.", "eo": "Evoluo tra la tempo: prezoj, prez-ŝanĝoj kaj havebleco."},
+    # Hover-Erklärungen: einzelne Diagramme
+    "exp_countries": {"de": "Anzahl der Shops je Land (Top 10, Rest gebündelt). Zeigt, wo die Szene konzentriert ist.", "en": "Number of shops per country (top 10, rest bundled). Shows where the scene is concentrated.", "eo": "Nombro de butikoj laŭ lando (supraj 10, resto kunigita). Montras kie la sceno koncentriĝas."},
+    "exp_stock": {"de": "Anteil der Ameisen-Angebote, die aktuell lagernd bzw. nicht lagernd sind.", "en": "Share of ant offers currently in stock vs. out of stock.", "eo": "Parto de formik-ofertoj nun en stoko aŭ ne en stoko."},
+    "exp_genera": {"de": "Welche Gattungen die meisten Angebote stellen (Fläche = Zahl der Angebote; Top 10 + übrige).", "en": "Which genera provide the most offers (area = number of offers; top 10 + other).", "eo": "Kiuj genroj havas la plej multajn ofertojn (areo = nombro de ofertoj; supraj 10 + aliaj)."},
+    "exp_reach": {"de": "Arten, die in den meisten verschiedenen Shops gelistet sind – ein Maß für Beliebtheit/Verbreitung.", "en": "Species listed in the most different shops – a measure of popularity/spread.", "eo": "Specioj listigitaj en la plej multaj malsamaj butikoj – mezuro de populareco/disvastiĝo."},
+    "exp_longtail": {"de": "Verteilung: wie viele Arten in wie vielen Shops angeboten werden. Zeigt: wenige überall, viele selten.", "en": "Distribution: how many species are offered in how many shops. Shows: a few everywhere, many rare.", "eo": "Distribuo: kiom da specioj estas ofertataj en kiom da butikoj. Montras: malmultaj ĉie, multaj maloftaj."},
+    "exp_rarities": {"de": "Arten, die es in nur einem einzigen Shop gibt (Anzahl + Beispielliste).", "en": "Species available in only a single shop (count + example list).", "eo": "Specioj haveblaj en nur unu butiko (nombro + ekzemplolisto)."},
+    "exp_shop_offers": {"de": "Shops mit den meisten Ameisen-Angeboten (Sortimentsgröße).", "en": "Shops with the most ant offers (assortment size).", "eo": "Butikoj kun la plej multaj formik-ofertoj (sortiment-grando)."},
+    "exp_shop_breadth": {"de": "Shops mit den meisten verschiedenen Arten (Breite – nicht bloß viele Varianten einer Art).", "en": "Shops with the most distinct species (breadth – not just many variants of one species).", "eo": "Butikoj kun la plej multaj malsamaj specioj (larĝo – ne nur multaj variantoj de unu specio)."},
+    "exp_shop_exclusive": {"de": "Für wie viele Arten ein Shop der einzige Anbieter ist.", "en": "For how many species a shop is the only seller.", "eo": "Por kiom da specioj butiko estas la sola vendanto."},
+    "exp_shop_scatter": {"de": "Jeder Punkt ein Shop: x = verschiedene Arten (Breite), y = Angebote (Tiefe).", "en": "Each point a shop: x = distinct species (breadth), y = offers (depth).", "eo": "Ĉiu punkto estas butiko: x = malsamaj specioj (larĝo), y = ofertoj (profundo)."},
+    "exp_price_hist": {"de": "Häufigkeitsverteilung der Einstiegspreise; sehr hohe Preise (ab 99. Perzentil) sind im letzten Balken gebündelt.", "en": "Frequency distribution of entry prices; very high prices (from the 99th percentile) are bundled in the last bar.", "eo": "Ofteca distribuo de eniraj prezoj; tre altaj prezoj (de la 99-a percentilo) estas kunigitaj en la lasta stango."},
+    "exp_price_genus": {"de": "Typischer Preis (Median) je Top-Gattung – was kostet welche Gattung üblicherweise.", "en": "Typical price (median) per top genus – what each genus usually costs.", "eo": "Tipa prezo (mediano) po supra genro – kiom kutime kostas ĉiu genro."},
+    "exp_price_spread": {"de": "Arten mit der größten Preisspanne zwischen günstigstem und teuerstem Anbieter.", "en": "Species with the largest price range between cheapest and priciest seller.", "eo": "Specioj kun la plej granda prezintervalo inter plej malmultekosta kaj plej multekosta vendanto."},
+    "exp_av_genus": {"de": "Lagerquote je Top-Gattung: Anteil aktuell lagernder Angebote.", "en": "In-stock rate per top genus: share of offers currently in stock.", "eo": "Stok-kvoto po supra genro: parto de nun-stokaj ofertoj."},
+    "exp_av_country": {"de": "Lagerquote je Land (nur Länder mit mindestens 20 Angeboten).", "en": "In-stock rate per country (only countries with at least 20 offers).", "eo": "Stok-kvoto po lando (nur landoj kun almenaŭ 20 ofertoj)."},
+    "exp_av_shop_best": {"de": "Shops mit der höchsten Lagerquote (ab 20 Angeboten).", "en": "Shops with the highest in-stock rate (min. 20 offers).", "eo": "Butikoj kun la plej alta stok-kvoto (min. 20 ofertoj)."},
+    "exp_av_shop_worst": {"de": "Shops mit der niedrigsten Lagerquote (ab 20 Angeboten) – oft ohne aktive Bestandspflege.", "en": "Shops with the lowest in-stock rate (min. 20 offers) – often without active stock upkeep.", "eo": "Butikoj kun la plej malalta stok-kvoto (min. 20 ofertoj) – ofte sen aktiva stok-prizorgo."},
+    "exp_av_hardest": {"de": "Arten, die breit gelistet, aber selten lagernd sind (ab 5 Shops). Balken = Anzahl Shops; in Klammern die aktuelle Lagerquote.", "en": "Species widely listed but rarely in stock (min. 5 shops). Bar = number of shops; in-stock rate in brackets.", "eo": "Specioj vaste listigitaj sed malofte en stoko (min. 5 butikoj). Stango = nombro de butikoj; stok-kvoto en krampoj."},
+    "exp_dq_shop_uncanon": {"de": "Shops mit den meisten Angeboten, deren Name nicht auf einen akzeptierten Namen auflösbar war.", "en": "Shops with the most offers whose name could not be resolved to an accepted name.", "eo": "Butikoj kun la plej multaj ofertoj, kies nomo ne solveblis al akceptita nomo."},
+    "exp_dq_shop_adjusted": {"de": "Shops mit den meisten angepassten Namen (Tippfehler/Synonym korrigiert; ab 20 Angeboten). Balken = Anzahl angepasster Angebote; in Klammern die Quote.", "en": "Shops with the most adjusted names (typo/synonym corrected; min. 20 offers). Bar = number of adjusted offers; rate in brackets.", "eo": "Butikoj kun la plej multaj alĝustigitaj nomoj (mistajpo/sinonimo korektita; min. 20 ofertoj). Stango = nombro de alĝustigitaj ofertoj; kvoto en krampoj."},
+    "exp_price_spread_small": {"de": "Arten mit der kleinsten echten Preisspanne über die Shops (Balken = min–max; perfekt identische Preise, Δ 0, sind ausgeblendet).", "en": "Species with the smallest real price range across shops (bar = min–max; perfectly identical prices, Δ 0, are excluded).", "eo": "Specioj kun la plej malgranda reala prezintervalo tra la butikoj (stango = min–max; perfekte identaj prezoj, Δ 0, estas ekskluditaj)."},
+    "exp_dq_variants": {"de": "Arten mit den meisten unterschiedlichen Roh-Schreibweisen, die auf einen Namen zusammengeführt wurden.", "en": "Species with the most different raw spellings consolidated into one name.", "eo": "Specioj kun la plej multaj malsamaj krudaj skribmanieroj kunigitaj al unu nomo."},
+    "exp_tr_price": {"de": "Median-Einstiegspreis je Monat; zwischen Änderungen fortgeschrieben, EUR zu aktuellen Kursen.", "en": "Median entry price per month; carried forward between changes, EUR at current rates.", "eo": "Mediana enira prezo po monato; portata antaŭen inter ŝanĝoj, EUR laŭ nunaj kursoj."},
+    "exp_tr_changes": {"de": "Anzahl der Preisänderungen je Monat, getrennt nach Senkungen und Erhöhungen.", "en": "Number of price changes per month, split into decreases and increases.", "eo": "Nombro de prez-ŝanĝoj po monato, dividita en malaltiĝojn kaj altiĝojn."},
+    "exp_tr_drops": {"de": "Die aktuell größten Preis-Senkungen (aus der jeweils letzten Änderung je Produkt).", "en": "The current largest price drops (from each product's latest change).", "eo": "La nunaj plej grandaj prez-malaltiĝoj (el la lasta ŝanĝo de ĉiu produkto)."},
+    "exp_tr_increases": {"de": "Die aktuell größten Preis-Erhöhungen (aus der jeweils letzten Änderung je Produkt).", "en": "The current largest price increases (from each product's latest change).", "eo": "La nunaj plej grandaj prez-altiĝoj (el la lasta ŝanĝo de ĉiu produkto)."},
+    "exp_tr_avail": {"de": "Lagerquote je Monat über die Zeit (aus der neuen Bestands-Historie).", "en": "In-stock rate per month over time (from the new stock history).", "eo": "Stok-kvoto po monato tra la tempo (el la nova stok-historio)."},
+    "nav_support": {"de": "💖 Unterstützen", "en": "💖 Support", "eo": "💖 Subteni"},
+    "nav_owner": {"de": "Owner", "en": "Owner", "eo": "Posedanto"},
+    "nav_admin": {"de": "Admin", "en": "Admin", "eo": "Administro"},
+    "nav_logout": {"de": "Logout", "en": "Logout", "eo": "Elsaluti"},
+    "nav_login": {"de": "Owner-Login", "en": "Owner login", "eo": "Posedanto-ensaluto"},
+    "footer_run": {
+        "de": "Dieses Board & der Bot werden privat betrieben. Wer die Serverkosten und die Weiterentwicklung unterstützen möchte:",
+        "en": "This board & the bot are run privately. If you'd like to support the server costs and ongoing development:",
+        "eo": "Ĉi tiu tabulo & la roboto estas private funkciigataj. Se vi volas subteni la servilkostojn kaj la pluevoluigon:",
+    },
+    "footer_source": {"de": "Quellcode", "en": "Source code", "eo": "Fontkodo"},
+    "nav_impressum": {"de": "Impressum", "en": "Imprint", "eo": "Impresumo"},
+    "nav_privacy": {"de": "Datenschutz", "en": "Privacy", "eo": "Privateco"},
+    "legal_lang_note": {"de": "Hinweis: Rechtlich maßgeblich ist ausschließlich die deutsche Fassung dieser Seite.", "en": "Note: Only the German version of this page is legally authoritative.", "eo": "Noto: Jure decida estas ekskluzive la germana versio de ĉi tiu paĝo."},
+    "legal_draft_note": {"de": "ENTWURF – enthält Platzhalter [[…]] und ist vor Veröffentlichung auszufüllen und rechtlich zu prüfen.", "en": "DRAFT – contains placeholders [[…]] and must be completed and legally reviewed before publication.", "eo": "SKIZO – enhavas lokokupilojn [[…]] kaj devas esti kompletigita kaj jure kontrolita antaŭ publikigo."},
+    # Kontaktformular (Impressum) -> Discord-DM an den Owner
+    "contact_h": {"de": "Kontakt aufnehmen", "en": "Get in touch", "eo": "Kontaktu nin"},
+    "contact_intro": {"de": "📨 Hinweis: Deine Nachricht wird als <b>Discord-Direktnachricht</b> an den Betreiber zugestellt (nicht per E-Mail) und zeitnah beantwortet.", "en": "📨 Note: Your message is delivered to the operator as a <b>Discord direct message</b> (not by e-mail) and answered promptly.", "eo": "📨 Noto: Via mesaĝo estas liverata al la funkciiganto kiel <b>Discord-rekta mesaĝo</b> (ne per retpoŝto) kaj respondata baldaŭ."},
+    "contact_msg": {"de": "Nachricht *", "en": "Message *", "eo": "Mesaĝo *"},
+    "contact_name": {"de": "Name *", "en": "Name *", "eo": "Nomo *"},
+    "contact_email": {"de": "E-Mail *", "en": "E-mail *", "eo": "Retpoŝto *"},
+    "contact_tel": {"de": "Telefon (optional)", "en": "Phone (optional)", "eo": "Telefono (nedeviga)"},
+    "contact_send": {"de": "Senden", "en": "Send", "eo": "Sendi"},
+    "contact_privacy": {"de": "Mit dem Absenden wird deine Nachricht zur Zustellung über Discord an den Betreiber übermittelt. Details:", "en": "By sending, your message is transmitted to the operator via Discord for delivery. Details:", "eo": "Sendante, via mesaĝo estas transdonata al la funkciiganto per Discord por livero. Detaloj:"},
+    "flash_contact_sent": {"de": "Danke! Deine Nachricht wurde übermittelt.", "en": "Thanks! Your message has been delivered.", "eo": "Dankon! Via mesaĝo estis liverita."},
+    "flash_contact_fail": {"de": "Nachricht konnte nicht zugestellt werden – bitte per E-Mail versuchen.", "en": "Message could not be delivered – please try via e-mail.", "eo": "Mesaĝo ne livereblis – bonvolu provi per retpoŝto."},
+    "flash_contact_toomany": {"de": "Zu viele Nachrichten – bitte später erneut.", "en": "Too many messages – please try again later.", "eo": "Tro multaj mesaĝoj – bonvolu reprovi poste."},
+    "flash_contact_empty": {"de": "Bitte Name, E-Mail und Nachricht ausfüllen.", "en": "Please fill in name, e-mail and message.", "eo": "Bonvolu plenigi nomon, retpoŝton kaj mesaĝon."},
+    "contact_captcha": {"de": "Sicherheitsfrage: Wie viel ist {q}?", "en": "Security question: what is {q}?", "eo": "Sekureca demando: kiom estas {q}?"},
+    "flash_contact_captcha": {"de": "Sicherheitsfrage falsch beantwortet – bitte erneut versuchen.", "en": "Security question answered incorrectly – please try again.", "eo": "Sekureca demando malĝuste respondita – bonvolu reprovi."},
+
+    # Board-Seite
+    "status_head": {"de": "🩺 Bot- & Server-Status", "en": "🩺 Bot & server status", "eo": "🩺 Roboto- & servilstato"},
+    "ver_title": {"de": "Aktuell laufende Bot-Version", "en": "Currently running bot version", "eo": "Nun funkcianta robotversio"},
+    "stand_title": {"de": "Zeitpunkt der letzten Aktualisierung (alle 5 s)", "en": "Time of last update (every 5 s)", "eo": "Tempo de la lasta ĝisdatigo (ĉiujn 5 s)"},
+    "stand_label": {"de": "Stand:", "en": "As of:", "eo": "Stato:"},
+    "details": {"de": "Details", "en": "Details", "eo": "Detaloj"},
+    "incident_history": {"de": "Vorfall-Historie ansehen", "en": "View incident history", "eo": "Vidi okazaĵ-historion"},
+    "js_noconn": {"de": "Auto-Update: keine Verbindung zu /status.json", "en": "Auto-update: no connection to /status.json", "eo": "Aŭtomata ĝisdatigo: neniu konekto al /status.json"},
+    "board_intro": {
+        "de": "Öffentliche Ideen & gemeldete Bugs. Jeder darf anonym einreichen und hochvoten – neue Einreichungen erscheinen erst nach Prüfung.",
+        "en": "Public ideas & reported bugs. Anyone may submit anonymously and upvote – new submissions appear only after review.",
+        "eo": "Publikaj ideoj & raportitaj cimoj. Ĉiu rajtas anonime sendi kaj voĉdoni – novaj sendaĵoj aperas nur post kontrolo.",
+    },
+    "legend_priority": {"de": "Priorität:", "en": "Priority:", "eo": "Prioritato:"},
+    "prio_p0": {"de": "kritisch (Blocker)", "en": "critical (blocker)", "eo": "kriza (barilo)"},
+    "prio_p1": {"de": "hoch", "en": "high", "eo": "alta"},
+    "prio_p2": {"de": "mittel", "en": "medium", "eo": "meza"},
+    "prio_p3": {"de": "niedrig", "en": "low", "eo": "malalta"},
+    "legend_upvotes": {"de": "▲ = Upvotes (Community-Priorisierung)", "en": "▲ = upvotes (community prioritisation)", "eo": "▲ = voĉdonoj (komunuma prioritatigo)"},
+    "legend_comments": {"de": "💬 = Kommentar(e) vorhanden", "en": "💬 = comment(s) present", "eo": "💬 = komento(j) ĉeestas"},
+    "legend_more": {"de": "„⤢ mehr“ öffnet die Detailseite", "en": "“⤢ more” opens the detail page", "eo": "„⤢ pli“ malfermas la detalpaĝon"},
+    "done_in": {"de": "erledigt in {v}", "en": "done in {v}", "eo": "farita en {v}"},
+    "more": {"de": "⤢ mehr", "en": "⤢ more", "eo": "⤢ pli"},
+    "n_comments_title": {"de": "{n} Kommentar(e)", "en": "{n} comment(s)", "eo": "{n} komento(j)"},
+
+    # Spaltentitel (PUBLIC_COLS)
+    "col_open": {"de": "🗳️ Offen / Backlog", "en": "🗳️ Open / Backlog", "eo": "🗳️ Malfermitaj / Restaĵo"},
+    "col_planned": {"de": "📌 Geplant", "en": "📌 Planned", "eo": "📌 Planitaj"},
+    "col_in_progress": {"de": "🔧 In Arbeit", "en": "🔧 In progress", "eo": "🔧 En laboro"},
+    "col_done": {"de": "✅ Erledigt", "en": "✅ Done", "eo": "✅ Faritaj"},
+    "col_rejected": {"de": "🚫 Abgelehnt", "en": "🚫 Rejected", "eo": "🚫 Malakceptitaj"},
+
+    # Gesamt-Ampel
+    "overall_down": {"de": "Teilweise ausgefallen", "en": "Partially down", "eo": "Parte paneinta"},
+    "overall_warn": {"de": "Läuft mit Einschränkungen", "en": "Running with limitations", "eo": "Funkcias kun limigoj"},
+    "overall_ok": {"de": "Alles läuft", "en": "All systems go", "eo": "Ĉio funkcias"},
+
+    # Sektions-Titel + Notizen (Status-Panel)
+    "sec_core": {"de": "🧩 Kern", "en": "🧩 Core", "eo": "🧩 Kerno"},
+    "sec_core_note": {"de": "Verbindung & Datenbanken", "en": "Connection & databases", "eo": "Konekto & datumbazoj"},
+    "sec_jobs": {"de": "⚙️ Hintergrund-Jobs im Bot", "en": "⚙️ Background jobs in the bot", "eo": "⚙️ Fonaj taskoj en la roboto"},
+    "sec_jobs_note": {"de": "discord.ext.tasks-Loops im Bot-Prozess", "en": "discord.ext.tasks loops in the bot process", "eo": "discord.ext.tasks-bukloj en la robotprocezo"},
+    "sec_cron": {"de": "⏰ Externe Cronjobs (als Nutzer aam)", "en": "⏰ External cron jobs (as user aam)", "eo": "⏰ Eksteraj cron-taskoj (kiel uzanto aam)"},
+    "sec_cron_note": {"de": "2 Cronjobs · Status anhand Aktualität der erzeugten Dateien", "en": "2 cron jobs · status based on freshness of generated files", "eo": "2 cron-taskoj · stato laŭ aktualeco de la generitaj dosieroj"},
+
+    # Einreichen (Submit)
+    "submit_h": {"de": "Idee oder Bug einreichen", "en": "Submit an idea or bug", "eo": "Sendi ideon aŭ cimon"},
+    "submit_anon": {
+        "de": "Anonym möglich. Deine Einreichung wird zuerst geprüft und erscheint dann öffentlich.",
+        "en": "Anonymous is fine. Your submission is reviewed first and then appears publicly.",
+        "eo": "Anonime eblas. Via sendaĵo unue estas kontrolata kaj poste aperas publike.",
+    },
+    "submit_terms": {
+        "de": "Mit dem Absenden akzeptierst du die Board-Nutzungsbedingungen: sachliche Ideen/Bugs zum Bot, keine persönlichen/sensiblen Daten und keine beleidigenden oder rechtswidrigen Inhalte. Der Betreiber kann Einträge ablehnen, bearbeiten oder löschen.",
+        "en": "By submitting you accept the board terms of use: factual ideas/bugs about the bot, no personal/sensitive data and no offensive or unlawful content. The operator may reject, edit or delete entries.",
+        "eo": "Sendante vi akceptas la uzkondiĉojn de la tabulo: faktecaj ideoj/cimoj pri la roboto, neniuj personaj/sentemaj datumoj kaj neniu ofenda aŭ kontraŭleĝa enhavo. La funkciiganto rajtas malakcepti, redakti aŭ forigi enskribojn.",
+    },
+    "f_type": {"de": "Art", "en": "Type", "eo": "Tipo"},
+    "f_title": {"de": "Titel *", "en": "Title *", "eo": "Titolo *"},
+    "f_desc": {"de": "Beschreibung", "en": "Description", "eo": "Priskribo"},
+    "f_name": {"de": "Dein Name (optional)", "en": "Your name (optional)", "eo": "Via nomo (nedeviga)"},
+    "ph_anon": {"de": "anonym", "en": "anonymous", "eo": "anonima"},
+    "btn_send": {"de": "Absenden", "en": "Send", "eo": "Sendi"},
+    "cancel": {"de": "Abbrechen", "en": "Cancel", "eo": "Nuligi"},
+    "type_bug": {"de": "Bug", "en": "Bug", "eo": "Cimo"},
+    "type_feature": {"de": "Feature", "en": "Feature", "eo": "Funkcio"},
+    "type_idea": {"de": "Idee", "en": "Idea", "eo": "Ideo"},
+
+    # Detailseite
+    "back_board": {"de": "← Board", "en": "← Board", "eo": "← Tabulo"},
+    "upvotes_n": {"de": "▲ {n} Upvotes", "en": "▲ {n} upvotes", "eo": "▲ {n} voĉdonoj"},
+    "submitted_at": {"de": "Eingereicht: {d}", "en": "Submitted: {d}", "eo": "Sendita: {d}"},
+    "comments_h": {"de": "💬 Kommentare", "en": "💬 Comments", "eo": "💬 Komentoj"},
+    "edit_or_comment": {"de": "✏️ Bearbeiten / Kommentar", "en": "✏️ Edit / comment", "eo": "✏️ Redakti / komenti"},
+
+    # Login
+    "login_h": {"de": "Owner-Login", "en": "Owner login", "eo": "Posedanto-ensaluto"},
+    "f_token": {"de": "Admin-Token", "en": "Admin token", "eo": "Administra ĵetono"},
+    "btn_login": {"de": "Anmelden", "en": "Log in", "eo": "Ensaluti"},
+
+    # Admin
+    "queue_h": {"de": "🛡️ Moderations-Queue ({n})", "en": "🛡️ Moderation queue ({n})", "eo": "🛡️ Moderada atendovico ({n})"},
+    "nothing_review": {"de": "Nichts zu prüfen.", "en": "Nothing to review.", "eo": "Nenio por kontroli."},
+    "btn_approve": {"de": "✔ Freigeben", "en": "✔ Approve", "eo": "✔ Aprobi"},
+    "btn_reject": {"de": "✖ Ablehnen", "en": "✖ Reject", "eo": "✖ Malakcepti"},
+    "btn_delete": {"de": "🗑 Löschen", "en": "🗑 Delete", "eo": "🗑 Forigi"},
+    "all_entries_h": {"de": "Alle Einträge ({n})", "en": "All entries ({n})", "eo": "Ĉiuj enskriboj ({n})"},
+    "admin_legend_edit": {"de": "Zum Bearbeiten von Titel/Beschreibung & für Kommentare ✏️ nutzen.", "en": "Use ✏️ to edit title/description & for comments.", "eo": "Uzu ✏️ por redakti titolon/priskribon & por komentoj."},
+    "th_title": {"de": "Titel", "en": "Title", "eo": "Titolo"},
+    "th_status_meta": {"de": "Status / Prio / Komponente / Version", "en": "Status / prio / component / version", "eo": "Stato / prio / komponanto / versio"},
+    "btn_save": {"de": "Speichern", "en": "Save", "eo": "Konservi"},
+    "csv_h": {"de": "📥 CSV-Import (rückwirkende Historie)", "en": "📥 CSV import (retroactive history)", "eo": "📥 CSV-importo (retroaktiva historio)"},
+    "csv_import": {"de": "Importieren", "en": "Import", "eo": "Importi"},
+    "csv_help": {
+        "de": "Spalten (Reihenfolge/Groß-klein egal, Trenner , oder ; ): type,title,body,status,component,priority,version,created_at,source<br>Pflicht: <b>title</b>. Gültige <b>status</b>: open, planned, in_progress, done, rejected, duplicate, pending (Standard: done). Gültige <b>type</b>: bug, feature, idea.<br>Nach dem Import erscheint eine Meldung „N importiert, M übersprungen“; Details zu Skips stehen im Bot-Log.",
+        "en": "Columns (any order/case, separator , or ; ): type,title,body,status,component,priority,version,created_at,source<br>Required: <b>title</b>. Valid <b>status</b>: open, planned, in_progress, done, rejected, duplicate, pending (default: done). Valid <b>type</b>: bug, feature, idea.<br>After import a message “N imported, M skipped” appears; skip details are in the bot log.",
+        "eo": "Kolumnoj (ajna ordo/uskleco, apartigilo , aŭ ; ): type,title,body,status,component,priority,version,created_at,source<br>Deviga: <b>title</b>. Validaj <b>status</b>: open, planned, in_progress, done, rejected, duplicate, pending (defaŭlte: done). Validaj <b>type</b>: bug, feature, idea.<br>Post la importo aperas mesaĝo „N importitaj, M preterlasitaj“; detaloj pri preterlasoj estas en la robotprotokolo.",
+    },
+
+    # Bearbeiten (Edit)
+    "edit_h": {"de": "✏️ Eintrag #{id} bearbeiten", "en": "✏️ Edit entry #{id}", "eo": "✏️ Redakti enskribon #{id}"},
+    "public_view": {"de": "Öffentliche Ansicht", "en": "Public view", "eo": "Publika vido"},
+    "back_admin": {"de": "← Admin", "en": "← Admin", "eo": "← Administro"},
+    "f_status": {"de": "Status", "en": "Status", "eo": "Stato"},
+    "f_priority": {"de": "Priorität", "en": "Priority", "eo": "Prioritato"},
+    "f_component": {"de": "Komponente", "en": "Component", "eo": "Komponanto"},
+    "f_version": {"de": "Version", "en": "Version", "eo": "Versio"},
+    "btn_save_disk": {"de": "💾 Speichern", "en": "💾 Save", "eo": "💾 Konservi"},
+    "comments_count_h": {"de": "💬 Kommentare ({n})", "en": "💬 Comments ({n})", "eo": "💬 Komentoj ({n})"},
+    "new_comment": {"de": "Neuer Kommentar", "en": "New comment", "eo": "Nova komento"},
+    "ph_comment": {"de": "Kommentar…", "en": "Comment…", "eo": "Komento…"},
+    "f_author": {"de": "Autor", "en": "Author", "eo": "Aŭtoro"},
+    "add_comment": {"de": "Kommentar hinzufügen", "en": "Add comment", "eo": "Aldoni komenton"},
+
+    # Status-Detailseite
+    "current_label": {"de": "Aktuell:", "en": "Current:", "eo": "Nuna:"},
+    "inc_intro": {
+        "de": "Aufgezeichnet werden „nicht OK“-Phasen (gelb/rot). Endet eine Phase, wird automatisch vermerkt, wann der Check wieder OK war.",
+        "en": "Recorded are “not OK” phases (yellow/red). When a phase ends, it is automatically noted when the check was OK again.",
+        "eo": "Registriĝas „ne-OK“-fazoj (flava/ruĝa). Kiam fazo finiĝas, aŭtomate notiĝas kiam la kontrolo denove estis OK.",
+    },
+    "inc_recent_h": {"de": "Letzte Vorfälle (max. 10)", "en": "Recent incidents (max. 10)", "eo": "Lastaj okazaĵoj (maks. 10)"},
+    "inc_none": {"de": "Keine Vorfälle aufgezeichnet. 🎉", "en": "No incidents recorded. 🎉", "eo": "Neniuj okazaĵoj registritaj. 🎉"},
+    "inc_since": {"de": "seit", "en": "since", "eo": "ekde"},
+    "inc_ok_since": {"de": "wieder OK seit", "en": "OK again since", "eo": "denove OK ekde"},
+    "inc_running": {"de": "läuft noch", "en": "still ongoing", "eo": "ankoraŭ daŭras"},
+    "ph_admin_note": {"de": "Admin-Notiz…", "en": "Admin note…", "eo": "Administra noto…"},
+
+    # Flash-Meldungen (per Code über ?m= übergeben)
+    "flash_thanks_review": {"de": "Danke, wird geprüft.", "en": "Thanks, it will be reviewed.", "eo": "Dankon, ĝi estos kontrolita."},
+    "flash_too_many": {"de": "Zu viele Einreichungen – bitte später erneut.", "en": "Too many submissions – please try again later.", "eo": "Tro multaj sendaĵoj – bonvolu reprovi poste."},
+    "flash_title_missing": {"de": "Titel fehlt.", "en": "Title is missing.", "eo": "Titolo mankas."},
+    "flash_submitted": {"de": "Danke! Deine Einreichung wird geprüft und erscheint dann öffentlich.", "en": "Thanks! Your submission will be reviewed and then appear publicly.", "eo": "Dankon! Via sendaĵo estos kontrolita kaj poste aperos publike."},
+    "flash_no_csv": {"de": "Kein CSV empfangen.", "en": "No CSV received.", "eo": "Neniu CSV ricevita."},
+    "flash_wrong_token": {"de": "Falsches Token.", "en": "Wrong token.", "eo": "Malĝusta ĵetono."},
+    "flash_imported": {"de": "{n} importiert{skipped}", "en": "{n} imported{skipped}", "eo": "{n} importitaj{skipped}"},
+    "flash_skipped": {"de": ", {s} übersprungen", "en": ", {s} skipped", "eo": ", {s} preterlasitaj"},
+
+    # ── Halter-Karte ──────────────────────────────────────────────────────────
+    "nav_map": {"de": "Karte", "en": "Map", "eo": "Mapo"},
+    "map_h": {"de": "Halter-Karte", "en": "Keeper Map", "eo": "Bredista Mapo"},
+    "map_intro": {
+        "de": "Finde ungefähr, wo andere Ameisenhalter der Community sind – freiwillig, nur grob verortet. Trag dich im Discord mit /map_join ein.",
+        "en": "Find roughly where other ant keepers of the community are – voluntary, only coarse location. Join via /map_join on Discord.",
+        "eo": "Trovu proksimume kie estas aliaj formikbredistoj de la komunumo – libervola, nur malprecize. Aliĝu per /map_join en Discord."},
+    "map_u18_notice": {
+        "de": "Datenschutz: Eintrag ist freiwillig (Opt-in), zeigt nur eine grobe, zufällig verschobene Position (kein genauer Ort/Adresse) und verschwindet automatisch bei Server-Austritt. Jederzeit löschbar mit /map_remove. Wer angibt, UNTER 18 zu sein, erscheint NICHT einzeln auf der Karte/Liste, sondern wird nur anonym mitgezählt.",
+        "en": "Privacy: joining is voluntary (opt-in), shows only a coarse, randomly offset position (no exact place/address) and is removed automatically when you leave the server. Remove anytime with /map_remove. Anyone stating they are UNDER 18 is NOT shown individually on the map/list, only counted anonymously.",
+        "eo": "Privateco: aliĝo estas libervola (opt-in), montras nur malprecizan, hazarde ŝovitan pozicion (neniu preciza loko/adreso) kaj estas forigita aŭtomate kiam vi forlasas la servilon. Forigu iam ajn per /map_remove. Kiu deklaras esti SUB 18, ne aperas individue sur la mapo/listo, nur anonime kalkulita."},
+    "map_layer": {"de": "Ebene", "en": "Layer", "eo": "Tavolo"},
+    "map_layer_map": {"de": "Halter", "en": "Keepers", "eo": "Bredistoj"},
+    "map_layer_events": {"de": "Termine", "en": "Events", "eo": "Eventoj"},
+    "map_layer_all": {"de": "Alles", "en": "All", "eo": "Ĉio"},
+    "map_member_on": {"de": "Angemeldet", "en": "Logged in", "eo": "Ensalutinta"},
+    "map_login": {"de": "Mit Discord anmelden", "en": "Log in with Discord", "eo": "Ensaluti per Discord"},
+    "map_logout": {"de": "Abmelden", "en": "Log out", "eo": "Elsaluti"},
+    "map_region_level": {"de": "Regionsebene", "en": "Region level", "eo": "Regiona nivelo"},
+    "map_level_state": {"de": "Bundesland/Kanton", "en": "State/Canton", "eo": "Federacia lando/Kantono"},
+    "map_level_plz": {"de": "PLZ-Gebiet", "en": "Postcode area", "eo": "Poŝtkoda zono"},
+    "map_list_title": {"de": "Halter (Liste)", "en": "Keepers (list)", "eo": "Bredistoj (listo)"},
+    "map_search": {"de": "Suchen …", "en": "Search …", "eo": "Serĉi …"},
+    "map_agenda_title": {"de": "Kommende Termine", "en": "Upcoming events", "eo": "Venontaj eventoj"},
+    "map_cal_title": {"de": "Termine abonnieren", "en": "Subscribe to events", "eo": "Aboni eventojn"},
+    "map_cal_subscribe": {"de": "Im Kalender abonnieren", "en": "Subscribe in calendar", "eo": "Aboni en kalendaro"},
+    "map_cal_copy": {"de": "Kopieren", "en": "Copy", "eo": "Kopii"},
+    "map_cal_copied": {"de": "Kopiert ✓", "en": "Copied ✓", "eo": "Kopiita ✓"},
+    "map_cal_hint": {
+        "de": "Der Button öffnet die Kalender-App deines Geräts (z. B. Apple Kalender, Outlook, Thunderbird). Für Google Kalender den Link kopieren und unter „Weitere Kalender hinzufügen → Per URL“ einfügen. Neue und geänderte Termine kommen automatisch.",
+        "en": "The button opens your device's calendar app (e.g. Apple Calendar, Outlook, Thunderbird). For Google Calendar, copy the link and paste it under “Other calendars → From URL”. New and changed events arrive automatically.",
+        "eo": "La butono malfermas la kalendaran apon de via aparato (ekz. Apple Calendar, Outlook, Thunderbird). Por Google Calendar kopiu la ligilon kaj algluu ĝin ĉe “Aliaj kalendaroj → El URL”. Novaj kaj ŝanĝitaj eventoj venas aŭtomate."},
+    "map_attribution": {
+        "de": "Grenzen: © geoBoundaries (CC BY 4.0) · PLZ/Orte: © GeoNames (CC BY 4.0) · Karte: Leaflet",
+        "en": "Boundaries: © geoBoundaries (CC BY 4.0) · postcodes/places: © GeoNames (CC BY 4.0) · map: Leaflet",
+        "eo": "Limoj: © geoBoundaries (CC BY 4.0) · poŝtkodoj/lokoj: © GeoNames (CC BY 4.0) · mapo: Leaflet"},
+    "map_assets_missing": {
+        "de": "Kartenbibliothek fehlt (static/leaflet.js) – siehe tools/MAP_DATA_README.md.",
+        "en": "Map library missing (static/leaflet.js) – see tools/MAP_DATA_README.md.",
+        "eo": "Mapa biblioteko mankas (static/leaflet.js) – vidu tools/MAP_DATA_README.md."},
+    "map_disabled": {
+        "de": "Die Halter-Karte ist aktuell deaktiviert (MAP_ENABLED).",
+        "en": "The keeper map is currently disabled (MAP_ENABLED).",
+        "eo": "La bredista mapo estas nuntempe malŝaltita (MAP_ENABLED)."},
+    "map_oauth_unconfigured": {
+        "de": "Discord-Login ist noch nicht konfiguriert (BOARD_OAUTH_*).",
+        "en": "Discord login is not configured yet (BOARD_OAUTH_*).",
+        "eo": "Discord-ensaluto ankoraŭ ne agordita (BOARD_OAUTH_*)."},
+    "map_anon": {"de": "Halter:in (anonym)", "en": "Keeper (anonymous)", "eo": "Bredisto (anonima)"},
+    "map_list_empty": {"de": "Noch keine Einträge. Trag dich im Discord mit /map_join ein.", "en": "No entries yet. Add yourself on Discord with /map_join.", "eo": "Ankoraŭ neniuj enskriboj. Aldonu vin en Discord per /map_join."},
+    "map_pin_exact": {"de": "Pin nach PLZ", "en": "Pin by postcode", "eo": "Pinglo laŭ poŝtkodo"},
+    "map_pin_coarse": {"de": "Pin im groben PLZ-Gebiet", "en": "Pin in rough postcode area", "eo": "Pinglo en malpreciza poŝtkoda zono"},
+    "map_pin_coarse_note": {"de": "grobes PLZ-Gebiet", "en": "rough postcode area", "eo": "malpreciza poŝtkoda zono"},
+    "map_pin_contact": {"de": "Kontakt über Discord", "en": "Contact via Discord", "eo": "Kontakto per Discord"},
+    "map_range_filter": {"de": "Zeitraum", "en": "Range", "eo": "Periodo"},
+    "map_range_30": {"de": "30 Tage", "en": "30 days", "eo": "30 tagoj"},
+    "map_range_90": {"de": "90 Tage", "en": "90 days", "eo": "90 tagoj"},
+    "map_range_all": {"de": "alle", "en": "all", "eo": "ĉiuj"},
+    "map_evtype_fair": {"de": "Börse/Messe", "en": "Fair/expo", "eo": "Foiro/ekspozicio"},
+    "map_evtype_meetup": {"de": "Treffen", "en": "Meetup", "eo": "Renkontiĝo"},
+    "map_evtype_shop": {"de": "Shop-Event", "en": "Shop event", "eo": "Butika evento"},
+    "map_evtype_talk": {"de": "Workshop/Vortrag", "en": "Workshop/talk", "eo": "Laborejo/prelego"},
+    "map_evtype_field": {"de": "Exkursion", "en": "Field trip", "eo": "Ekskurso"},
+    "map_evtype_other": {"de": "Sonstiges", "en": "Other", "eo": "Alia"},
+}
+
+
+def translate(lang: str, key: str, **kw) -> str:
+    """Übersetzt *key* in *lang* (Fallback: Deutsch, dann der Key selbst).
+    Platzhalter werden via str.format eingesetzt."""
+    entry = T.get(key)
+    if not entry:
+        return key
+    text = entry.get(lang) or entry.get(DEFAULT_LANG) or key
+    if kw:
+        try:
+            return text.format(**kw)
+        except (KeyError, IndexError, ValueError):
+            return text
+    return text
+
+
+# Anzeige-Label für die Einreichungs-Typen (bug/feature/idea) – lokalisiert,
+# der gespeicherte Wert bleibt der englische Schlüssel.
+_TYPE_KEYS = {"bug": "type_bug", "feature": "type_feature", "idea": "type_idea"}
+
+
+def type_label(lang: str, typ: str) -> str:
+    return translate(lang, _TYPE_KEYS.get((typ or "").lower(), "type_idea"))
+
+
+# Lokalisierte Ländernamen (Babel/CLDR) – wie bei /shop_list. Cache pro Sprache.
+_LOCALE_CACHE: dict = {}
+
+
+def _locale(lang: str):
+    if lang not in _LOCALE_CACHE:
+        try:
+            from babel import Locale
+            _LOCALE_CACHE[lang] = Locale.parse(lang)
+        except Exception:
+            try:
+                from babel import Locale
+                _LOCALE_CACHE[lang] = Locale.parse("en")
+            except Exception:
+                _LOCALE_CACHE[lang] = None
+    return _LOCALE_CACHE[lang]
+
+
+def country_name(lang: str, iso: str) -> str:
+    """ISO-Ländercode -> lokalisierter Name (Fallback: Großbuchstaben-Code)."""
+    code = (iso or "").upper()
+    if not code or code == "??":
+        return "?"
+    loc = _locale(lang)
+    if loc is None:
+        return code
+    try:
+        return loc.territories.get(code, code)
+    except Exception:
+        return code
+
+
+def flash_text(lang: str, code: str, n: str = "", s: str = "") -> str:
+    """Übersetzt einen Flash-Code (?m=code). Unbekannte Codes werden unverändert
+    zurückgegeben (Abwärtskompatibilität: alte Volltext-Meldungen bleiben lesbar)."""
+    if not code:
+        return ""
+    if code == "imported":
+        skipped = translate(lang, "flash_skipped", s=s) if s and s != "0" else ""
+        return translate(lang, "flash_imported", n=n or "0", skipped=skipped)
+    key = "flash_" + code
+    if key in T:
+        return translate(lang, key)
+    return code   # unbekannt -> unverändert anzeigen (z.B. alter Volltext)
