@@ -38,6 +38,11 @@ logger = logging.getLogger(__name__)
 
 _WEEKDAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
+# Kanal, in dem neu freigegebene Termine angekündigt werden (fest eingetragen, keine .env nötig).
+EVENT_ANNOUNCE_CHANNEL_ID = 543529652413530123
+_EVENT_COLORS = {"fair": 0x3fb950, "meetup": 0x58a6ff, "shop": 0xe3833b,
+                 "talk": 0xa371f7, "field": 0xd29922, "other": 0x8b949e}
+
 _EVENT_TYPES = [
     discord.OptionChoice(name="Börse/Messe", value="fair"),
     discord.OptionChoice(name="Community-Treffen", value="meetup"),
@@ -732,6 +737,40 @@ async def _notify_submitter(bot, row, approved: bool, reason: str | None, actor_
         logger.debug("Event-Benachrichtigung an %s fehlgeschlagen: %s", uid, e)
 
 
+async def _announce_event(bot, row):
+    """Neu freigegebenen Termin mit allen Details im Ankündigungs-Kanal posten."""
+    try:
+        ch = bot.get_channel(EVENT_ANNOUNCE_CHANNEL_ID) or await bot.fetch_channel(EVENT_ANNOUNCE_CHANNEL_ID)
+        L = lambda k: l10n.get(k, "de")
+        emb = discord.Embed(title=f"📅 Neuer Termin: {row['title']}"[:256],
+                            color=_EVENT_COLORS.get(row["type"] or "other", 0x8b949e))
+        emb.add_field(name="Wann", value=_event_when(row, notes=False)[:1024], inline=False)
+        rec = _recur_code(row["rrule"])
+        if rec != "none":
+            emb.add_field(name="Wiederholung", value=L("event_recur_" + rec)[:1024], inline=True)
+        emb.add_field(name="Art", value=L("event_type_" + (row["type"] or "other"))[:1024], inline=True)
+        loc = row["venue"] or "–"
+        if row["plz"] and row["plz"] not in loc:
+            loc += f", {row['plz']}"
+        if row["country"]:
+            loc += f" ({row['country'].upper()})"
+        emb.add_field(name="Ort", value=loc[:1024], inline=False)
+        if row["description"]:
+            emb.description = row["description"][:1000]
+        links = []
+        if row["url"]:
+            links.append(f"[Infos zum Termin]({row['url']})")
+        if BOARD_PUBLIC_URL:
+            links.append(f"[Zur Karte]({BOARD_PUBLIC_URL}/map)")
+            links.append(f"[In Kalender]({BOARD_PUBLIC_URL}/map/events/{row['id']}.ics)")
+        if links:
+            emb.add_field(name="Links", value=" · ".join(links)[:1024], inline=False)
+        emb.set_footer(text="Eigene Termine vorschlagen: /event_add")
+        await ch.send(embed=emb)
+    except Exception as e:
+        logger.warning("Event-Ankündigung #%s fehlgeschlagen: %s", row["id"], e)
+
+
 async def _set_event_status(bot, eid, status: str, reason: str | None = None, actor_id=None):
     """pending -> approved/rejected. Gibt die aktualisierte Zeile zurück (None = nicht offen)."""
     rc = await execute_db(bot,
@@ -742,6 +781,8 @@ async def _set_event_status(bot, eid, status: str, reason: str | None = None, ac
     row = await _event_row(bot, eid)
     if row:
         await _notify_submitter(bot, row, status == "approved", reason, actor_id)
+        if status == "approved":
+            await _announce_event(bot, row)
         logger.info("🗺️ Event #%s %s von %s", eid, status, actor_id)
     return row
 
