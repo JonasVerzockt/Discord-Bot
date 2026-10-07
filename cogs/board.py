@@ -687,8 +687,15 @@ MAP = """{% extends "base" %}{% block body %}
  .mrow[data-ref]{cursor:pointer} .mrow.hl{background:#1f6feb33;border-radius:6px}
  /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
  .leaflet-container{background:#0f141a}
- .marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background-color:#1f6feb55}
- .marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background-color:#1f6febdd;color:#fff;font-weight:600}
+ .mpin,.mevw,.mcl{background:none;border:0}
+ .mpin svg{display:block;filter:drop-shadow(0 0 1px #000)}
+ .mev{display:flex;align-items:center;justify-content:center;border-radius:5px;box-sizing:border-box;line-height:1;box-shadow:0 0 2px #000}
+ .mcl div{border-radius:50%;text-align:center;font-weight:700;font-size:13px;box-sizing:border-box;box-shadow:0 0 3px #000}
+ .lgi{display:inline-flex;align-items:center;gap:4px;margin:2px 12px 2px 0;vertical-align:middle}
+ .lgi .mev{display:inline-flex}
+ .lgsw{display:inline-block;width:14px;height:12px;border-radius:2px;border:1px solid #0b0f14}
+ html[data-mapcolors=contrast] .lgsw{border-color:#fff}
+ html[data-mapcolors=contrast] #map{border-color:#ffffff !important}
  #tagfilter a{font-size:12px;padding:2px 9px} #tagfilter .tgrp{font-size:12px;margin-left:6px}
  .leaflet-bar a,.leaflet-bar a:hover{background:#161b22;color:#e6edf3;border-bottom-color:#30363d}
  .leaflet-bar{border:1px solid #30363d}
@@ -713,6 +720,13 @@ MAP = """{% extends "base" %}{% block body %}
   <a href="#" class="on" data-level="bundesland">{{ t('map_level_state') }}</a>
   <a href="#" data-level="plz">{{ t('map_level_plz') }}</a>
 </div>
+<div class=rangesw id=colorswitch role=group aria-label="{{ t('map_colors') }}">
+  <span class=muted>🎨 {{ t('map_colors') }}:</span>
+  <a href="#" data-colors="standard" aria-pressed="false">{{ t('map_colors_standard') }}</a>
+  <a href="#" data-colors="cvd" aria-pressed="false">{{ t('map_colors_cvd') }}</a>
+  <a href="#" data-colors="contrast" aria-pressed="false">{{ t('map_colors_contrast') }}</a>
+</div>
+<div id=cholegend class=muted style="margin:4px 0;font-size:12px"></div>
 <div class=rangesw id=rangeswitch style="display:none">
   <span class=muted>{{ t('map_range_filter') }}:</span>
   <a href="#" data-range="30">{{ t('map_range_30') }}</a>
@@ -790,7 +804,7 @@ MAP = """{% extends "base" %}{% block body %}
 </div>
 <p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
 <script>window.MAP_CFG={lang:"{{ lang }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
- emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}",
+ emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}", choroLabel:"{{ t('map_choro_label') }}",
  csrf:"{{ member_csrf }}",
  evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
          count:"{{ t('map_ev_count') }}"},
