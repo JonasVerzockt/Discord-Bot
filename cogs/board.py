@@ -812,7 +812,7 @@ MAP = """{% extends "base" %}{% block body %}
   </div>
 </div>
 <p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
-<script>window.MAP_CFG={lang:"{{ lang }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
+<script>window.MAP_CFG={lang:"{{ lang }}",v:"{{ v }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
  emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}", choroLabel:"{{ t('map_choro_label') }}",
  csrf:"{{ member_csrf }}",
  evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
@@ -1977,7 +1977,7 @@ def _map_asset_v() -> str:
     """Cache-Busting für map.js/leaflet.js: Bot-Version + letzte Änderungszeit der Dateien.
     So holt der Browser nach einem Update sofort die neue Datei (statt bis zu 24 h Cache)."""
     try:
-        m = max(int((STATIC_DIR / f).stat().st_mtime) for f in ("map.js", "leaflet.js")
+        m = max(int((STATIC_DIR / f).stat().st_mtime) for f in ("map.js", "leaflet.js", "map_cities.json")
                 if (STATIC_DIR / f).is_file())
     except ValueError:
         m = 0
