@@ -266,7 +266,8 @@
       });
     cityLayer.addTo(map);
   }
-  getJSON("/static/map_cities.json").then(function (d) {
+  // ?v= enthält die Änderungszeit der Datei -> nach /map_refresh lädt der Browser sofort die neue Liste
+  getJSON("/static/map_cities.json?v=" + encodeURIComponent(CFG.v || "")).then(function (d) {
     cityData = (d && d.cities) || [];
     drawCities();
   }).catch(function () { cityData = null; });   // Datei fehlt (noch kein /map_refresh) -> ohne Städte
