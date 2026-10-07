@@ -23,6 +23,7 @@ Quellen (alle offen lizenziert, stabile Direkt-URLs):
   • Leaflet.markercluster (MIT)         -> static/leaflet.markercluster.js + MarkerCluster*.css
   • geoBoundaries ADM1 (CC BY 4.0)      -> static/*_bundeslaender/kantone.geojson
   • GeoNames PLZ-Dumps (CC BY 4.0)      -> data/plz_dach.csv (PLZ+Ort+Region+Koordinaten)
+  • GeoNames Länder-Dumps (CC BY 4.0)   -> static/map_cities.json (Orte ab 50.000 Einw. + Hauptstädte)
 
 Aufruf aus dem Bot: `refresh()` (blockierendes I/O -> im Thread ausführen, s. cogs/map_tasks).
 Attribution steht im Footer der Kartenseite. Ohne diese Dateien läuft der Bot mit dem
@@ -30,6 +31,7 @@ groben PLZ-Leitziffer-Fallback aus utils/geo.py weiter.
 """
 import csv
 import io
+import json
 import logging
 import time
 import zipfile
@@ -66,6 +68,14 @@ SOURCES: list[tuple[str, Path]] = [
 GEONAMES = {"de": "DE", "at": "AT", "ch": "CH", "li": "LI"}
 GEONAMES_URL = "https://download.geonames.org/export/zip/{cc}.zip"
 PLZ_MAX_AGE_DAYS = 25
+
+# Städte als Orientierungspunkte: GeoNames-Länderdumps (gleiche Lizenz CC BY wie die PLZ-Daten).
+# Spalten (tab-getrennt): geonameid, name, asciiname, alternatenames, lat, lon, feature class,
+# feature code, country code, cc2, admin1..4, population, elevation, dem, timezone, mod. date.
+CITIES_URL = "https://download.geonames.org/export/dump/{cc}.zip"
+CITIES_MIN_POP = 50_000
+CITY_CODES = {"PPL", "PPLA", "PPLA2", "PPLA3", "PPLA4", "PPLC"}   # ohne PPLX (Stadtteile)
+CITIES_FILE = STATIC_DIR / "map_cities.json"
 
 
 def _download(url: str, dest: Path, force: bool) -> str:
@@ -127,6 +137,86 @@ def _build_plz(force: bool) -> str:
     return f"✓ plz_dach.csv: {len(rows)} PLZ (GeoNames){suffix}"
 
 
+def _city_tier(code: str, pop: int) -> int:
+    """Zoom-Stufe: 0 = immer sichtbar … 3 = erst weit hineingezoomt."""
+    if code == "PPLC" or pop >= 500_000:
+        return 0
+    if code == "PPLA" or pop >= 200_000:
+        return 1
+    if pop >= 100_000:
+        return 2
+    return 3
+
+
+def _local_names() -> dict:
+    """Ortsnamen aus der PLZ-CSV je Land (deutsche/lokale Schreibweise, z. B. „München“)."""
+    out: dict = {}
+    try:
+        with open(Path(DATA_DIR) / "plz_dach.csv", encoding="utf-8", newline="") as fh:
+            for row in csv.DictReader(fh):
+                if row.get("place"):
+                    out.setdefault(row["country"], set()).add(row["place"].strip())
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def parse_cities(lines, cc: str, local: set | None = None) -> list[dict]:
+    """Filtert Zeilen eines GeoNames-Dumps auf Orte ab CITIES_MIN_POP plus Haupt-/Landeshauptstädte."""
+    out = []
+    for line in lines:
+        f = line.rstrip("\n").split("\t")
+        if len(f) < 15 or f[6] != "P" or f[7] not in CITY_CODES:
+            continue
+        try:
+            pop = int(f[14] or 0)
+            lat, lon = float(f[4]), float(f[5])
+        except ValueError:
+            continue
+        if pop < CITIES_MIN_POP and f[7] not in ("PPLC", "PPLA"):
+            continue
+        name = f[1].strip()
+        if local:   # GeoNames-„name“ ist oft englisch (Munich, Vienna) -> lokale Schreibweise bevorzugen
+            for cand in [name, f[2].strip()] + [a.strip() for a in f[3].split(",")]:
+                if cand in local:
+                    name = cand
+                    break
+        out.append({"n": name, "lat": round(lat, 4), "lon": round(lon, 4), "p": pop,
+                    "t": _city_tier(f[7], pop), "c": cc})
+    return out
+
+
+def _build_cities(force: bool) -> str:
+    """Baut static/map_cities.json aus den GeoNames-Länderdumps (DE/AT/CH/LI)."""
+    if not force and CITIES_FILE.exists():
+        age = (time.time() - CITIES_FILE.stat().st_mtime) / 86400
+        if age < PLZ_MAX_AGE_DAYS:
+            return f"= {CITIES_FILE.name} aktuell ({age:.0f} Tage)"
+    local = _local_names()
+    cities, errs = [], []
+    for cc, CC in GEONAMES.items():
+        try:
+            with urlopen(Request(CITIES_URL.format(cc=CC), headers=_UA), timeout=180) as r:
+                raw = r.read()
+            with zipfile.ZipFile(io.BytesIO(raw)) as z, z.open(f"{CC}.txt") as fh:
+                cities += parse_cities(io.TextIOWrapper(fh, encoding="utf-8"), cc, local.get(cc))
+        except Exception as e:
+            errs.append(f"{CC}: {e}")
+    if not cities:
+        return f"✗ {CITIES_FILE.name}: keine GeoNames-Daten ({'; '.join(errs)})"
+    # Doppelte (gleicher Name, ~gleicher Ort) entfernen, größte zuerst (für Überlappungen).
+    seen, uniq = set(), []
+    for c in sorted(cities, key=lambda c: -c["p"]):
+        k = (c["n"], round(c["lat"], 1), round(c["lon"], 1))
+        if k not in seen:
+            seen.add(k); uniq.append(c)
+    tmp = CITIES_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps({"cities": uniq}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    tmp.replace(CITIES_FILE)
+    suffix = f" (⚠ {'; '.join(errs)})" if errs else ""
+    return f"✓ {CITIES_FILE.name}: {len(uniq)} Orte (GeoNames){suffix}"
+
+
 def refresh(force: bool = False) -> list[str]:
     """Lädt Leaflet + geoBoundaries-GeoJSON und baut die PLZ-CSV aus GeoNames.
     Blockierendes I/O – aus dem Bot via asyncio.to_thread aufrufen. Wirft nicht."""
@@ -140,4 +230,8 @@ def refresh(force: bool = False) -> list[str]:
         out.append(_build_plz(force))
     except Exception as e:
         out.append(f"✗ plz_dach.csv ({e})")
+    try:
+        out.append(_build_cities(force))      # nach der PLZ-CSV (liefert die lokalen Ortsnamen)
+    except Exception as e:
+        out.append(f"✗ {CITIES_FILE.name} ({e})")
     return out

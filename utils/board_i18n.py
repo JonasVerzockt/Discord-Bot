@@ -482,6 +482,7 @@ T: dict[str, dict[str, str]] = {
     "map_colors_cvd": {"de": "Farbsehschwäche", "en": "Colour vision deficiency", "eo": "Kolorvida malforto"},
     "map_colors_contrast": {"de": "Hoher Kontrast", "en": "High contrast", "eo": "Alta kontrasto"},
     "map_choro_label": {"de": "Halter je Region", "en": "Keepers per region", "eo": "Bredistoj po regiono"},
+    "map_cities": {"de": "Städte", "en": "Cities", "eo": "Urboj"},
     "map_contact_btn": {"de": "💬 Auf Discord kontaktieren", "en": "💬 Contact on Discord", "eo": "💬 Kontakti per Discord"},
     "map_range_filter": {"de": "Zeitraum", "en": "Range", "eo": "Periodo"},
     "map_range_30": {"de": "30 Tage", "en": "30 days", "eo": "30 tagoj"},
