@@ -73,7 +73,7 @@ PLZ_MAX_AGE_DAYS = 25
 # Spalten (tab-getrennt): geonameid, name, asciiname, alternatenames, lat, lon, feature class,
 # feature code, country code, cc2, admin1..4, population, elevation, dem, timezone, mod. date.
 CITIES_URL = "https://download.geonames.org/export/dump/{cc}.zip"
-CITIES_MIN_POP = 50_000
+CITIES_MIN_POP = 100_000
 CITY_CODES = {"PPL", "PPLA", "PPLA2", "PPLA3", "PPLA4", "PPLC"}   # ohne PPLX (Stadtteile)
 CITIES_FILE = STATIC_DIR / "map_cities.json"
 
