@@ -151,6 +151,7 @@ _STATIC_FILES = {
     "ch_kantone.geojson": "application/geo+json",
     "li_gemeinden.geojson": "application/geo+json",
     "li_land.geojson": "application/geo+json",
+    "map_cities.json": "application/json",
     # Favicon: statisches PNG (alle Browser), animiertes GIF (nur Firefox animiert Favicons),
     # Homescreen-Icon für Smartphones.
     "favicon.png": "image/png",
@@ -688,6 +689,13 @@ MAP = """{% extends "base" %}{% block body %}
  /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
  .leaflet-container{background:#0f141a}
  .mpin,.mevw,.mcl{background:none;border:0}
+ .mcity{background:none;border:0;white-space:nowrap}
+ .mcity .cdot{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:#c9d1d9;box-shadow:0 0 0 1px #0b0f14}
+ .mcity .clbl{position:absolute;left:5px;top:-7px;font-size:11px;line-height:14px;color:#c9d1d9;text-shadow:0 0 3px #0b0f14,0 0 2px #0b0f14,0 0 1px #0b0f14}
+ .mcity.big .cdot{width:6px;height:6px;left:-3px;top:-3px}
+ .mcity.big .clbl{font-size:12px;font-weight:600;top:-8px;color:#e6edf3}
+ html[data-mapcolors=contrast] .mcity .clbl{color:#ffffff;font-weight:600;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000}
+ html[data-mapcolors=contrast] .mcity .cdot{background:#ffffff;box-shadow:0 0 0 1.5px #000}
  .mpin svg{display:block;filter:drop-shadow(0 0 1px #000)}
  .mev{display:flex;align-items:center;justify-content:center;border-radius:5px;box-sizing:border-box;line-height:1;box-shadow:0 0 2px #000}
  .mcl div{border-radius:50%;text-align:center;font-weight:700;font-size:13px;box-sizing:border-box;box-shadow:0 0 3px #000}
@@ -719,6 +727,7 @@ MAP = """{% extends "base" %}{% block body %}
   <span class=muted>{{ t('map_region_level') }}:</span>
   <a href="#" class="on" data-level="bundesland">{{ t('map_level_state') }}</a>
   <a href="#" data-level="plz">{{ t('map_level_plz') }}</a>
+  <a href="#" id=citytoggle class=on aria-pressed="true" style="margin-left:8px">🏙️ {{ t('map_cities') }}</a>
 </div>
 <div class=rangesw id=colorswitch role=group aria-label="{{ t('map_colors') }}">
   <span class=muted>🎨 {{ t('map_colors') }}:</span>
