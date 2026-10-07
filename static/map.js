@@ -82,6 +82,11 @@
     return 0;
   }
 
+  // Regionsgrenzen in der Hintergrundfarbe: trennen helle (grüne) und dunkle (leere)
+  // Flächen gleich gut, statt auf Grün zu hell und auf Grau unsichtbar zu sein.
+  var BORDER = { color: "#0b0f14", weight: 1.6, opacity: 1 };
+  var BORDER_HOVER = { color: "#e6edf3", weight: 2.5, opacity: 1 };
+
   function color(n) {
     return n > 20 ? "#238636" : n > 10 ? "#2ea043" : n > 5 ? "#3fb950"
          : n > 2 ? "#56d364" : n > 0 ? "#7ee787" : "#30363d";
@@ -122,9 +127,10 @@
         L.geoJSON(gj, {
           interactive: !plzMode,
           style: function (feat) {
-            if (plzMode) return { color: "#6e7681", weight: 1, opacity: 0.7, fillColor: "#30363d", fillOpacity: 0.35 };
+            if (plzMode) return { color: "#484f58", weight: 1, opacity: 0.8, fillColor: "#30363d", fillOpacity: 0.35 };
             var n = countFor(feat);
-            return { color: "#6e7681", weight: 1, opacity: 0.9, fillColor: color(n), fillOpacity: 0.55 };
+            return { color: BORDER.color, weight: BORDER.weight, opacity: BORDER.opacity,
+                     fillColor: n > 0 ? color(n) : "#3b434d", fillOpacity: n > 0 ? 0.75 : 0.9 };
           },
           onEachFeature: function (feat, layer) {
             if (plzMode) return;               // PLZ-Ebene: Umrisse nur als Hintergrund
@@ -132,6 +138,9 @@
             var nm = (feat.properties && (feat.properties.region_name || feat.properties.shapeName ||
                       feat.properties.GEN || feat.properties.name || feat.properties.NAME_1)) || "";
             layer.bindPopup("<b>" + esc(nm) + "</b><br>" + n + " " + (CFG.lang === "en" ? "keepers" : "Halter"));
+            // Hover: Region hell umranden (ohne die Pins zu überdecken – Umrisse liegen darunter).
+            layer.on("mouseover", function () { layer.setStyle(BORDER_HOVER); if (layer.bringToFront) layer.bringToFront(); });
+            layer.on("mouseout",  function () { layer.setStyle(BORDER); });
           }
         }).addTo(group);
       }).catch(function () { /* Datei fehlt -> ignorieren */ })
