@@ -30,6 +30,8 @@
     .setView([49.5, 9.5], 5);
   // Feste Stapelreihenfolge: Umrisse (overlayPane 400) < PLZ-Blasen < Halter-Pins < Termine.
   // So liegen Pins immer oben und bleiben anklickbar, egal was zuletzt geladen wurde.
+  var cityPane = map.createPane("cityPane");          // Städte: über den Umrissen, unter allem anderen
+  cityPane.style.zIndex = 440; cityPane.style.pointerEvents = "none";
   map.createPane("bubblePane").style.zIndex = 450;
   map.createPane("pinPane").style.zIndex = 620;
   map.createPane("eventPane").style.zIndex = 630;
@@ -235,6 +237,53 @@
     if (bubbles) bubbles.addTo(group);     // Blasen liegen über den Umrissen (eigene Ebene)
     group.addTo(map);
     choroLayer = group;
+  }
+
+  // ── Städte als Orientierungspunkte (GeoNames, nicht anklickbar) ──────────
+  // Je weiter hineingezoomt, desto mehr Orte: t0 = Hauptstädte/ab 500.000 Einw. … t3 = ab 50.000.
+  var cityData = null, cityLayer = null, citiesOn = true;
+  try { citiesOn = localStorage.getItem("mapCities") !== "0"; } catch (e) {}
+  function maxTierForZoom(z) { return z <= 5 ? 0 : z === 6 ? 1 : z === 7 ? 2 : 3; }
+  function drawCities() {
+    if (cityLayer) { map.removeLayer(cityLayer); cityLayer = null; }
+    if (!citiesOn || !cityData) return;
+    var maxT = maxTierForZoom(map.getZoom());
+    cityLayer = L.layerGroup();
+    // Größte Orte zuerst; überlappt ein Name einen schon gesetzten, bleibt nur der Punkt.
+    var placed = [];
+    cityData.filter(function (c) { return c.t <= maxT; })
+      .sort(function (a, b) { return (a.t - b.t) || (b.p - a.p); })
+      .forEach(function (c) {
+        var big = c.t === 0, pt = map.latLngToContainerPoint([c.lat, c.lon]);
+        var box = { x1: pt.x + 4, y1: pt.y - 8, x2: pt.x + 8 + String(c.n).length * (big ? 7 : 6.2), y2: pt.y + 8 };
+        var free = placed.every(function (o) { return box.x2 < o.x1 || box.x1 > o.x2 || box.y2 < o.y1 || box.y1 > o.y2; });
+        if (free) placed.push(box);
+        L.marker([c.lat, c.lon], {
+          pane: "cityPane", interactive: false, keyboard: false,
+          icon: L.divIcon({ className: "mcity" + (big ? " big" : ""), iconSize: [0, 0], iconAnchor: [0, 0],
+                            html: "<span class=cdot></span>" + (free ? "<span class=clbl>" + esc(c.n) + "</span>" : "") })
+        }).addTo(cityLayer);
+      });
+    cityLayer.addTo(map);
+  }
+  getJSON("/static/map_cities.json").then(function (d) {
+    cityData = (d && d.cities) || [];
+    drawCities();
+  }).catch(function () { cityData = null; });   // Datei fehlt (noch kein /map_refresh) -> ohne Städte
+  // Nach jedem Zoomen/Verschieben neu setzen (Zoomstufe + Überlappung der Namen).
+  map.on("moveend", function () { if (cityData && citiesOn) drawCities(); });
+  var cityToggle = document.getElementById("citytoggle");
+  if (cityToggle) {
+    cityToggle.classList.toggle("on", citiesOn);
+    cityToggle.setAttribute("aria-pressed", citiesOn ? "true" : "false");
+    cityToggle.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      citiesOn = !citiesOn;
+      try { localStorage.setItem("mapCities", citiesOn ? "1" : "0"); } catch (e) {}
+      cityToggle.classList.toggle("on", citiesOn);
+      cityToggle.setAttribute("aria-pressed", citiesOn ? "true" : "false");
+      drawCities();
+    });
   }
 
   function drawPins() {
