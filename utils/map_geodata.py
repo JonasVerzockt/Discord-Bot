@@ -33,6 +33,7 @@ import csv
 import io
 import json
 import logging
+import math
 import time
 import zipfile
 from pathlib import Path
@@ -73,7 +74,7 @@ PLZ_MAX_AGE_DAYS = 25
 # Spalten (tab-getrennt): geonameid, name, asciiname, alternatenames, lat, lon, feature class,
 # feature code, country code, cc2, admin1..4, population, elevation, dem, timezone, mod. date.
 CITIES_URL = "https://download.geonames.org/export/dump/{cc}.zip"
-CITIES_MIN_POP = 100_000
+CITIES_MIN_POP = 50_000
 CITY_CODES = {"PPL", "PPLA", "PPLA2", "PPLA3", "PPLA4", "PPLC"}   # ohne PPLX (Stadtteile)
 CITIES_FILE = STATIC_DIR / "map_cities.json"
 
@@ -148,22 +149,62 @@ def _city_tier(code: str, pop: int) -> int:
     return 3
 
 
+LOCAL_NAME_RADIUS_KM = 15     # deutscher Name nur, wenn ein gleichnamiger PLZ-Ort so nah liegt
+
+
 def _local_names() -> dict:
-    """Ortsnamen aus der PLZ-CSV je Land (deutsche/lokale Schreibweise, z. B. „München“)."""
+    """PLZ-Orte je Land: {country: {ortsname: [(lat, lon), …]}} (deutsche/lokale Schreibweise)."""
     out: dict = {}
     try:
         with open(Path(DATA_DIR) / "plz_dach.csv", encoding="utf-8", newline="") as fh:
             for row in csv.DictReader(fh):
-                if row.get("place"):
-                    out.setdefault(row["country"], set()).add(row["place"].strip())
+                name = (row.get("place") or "").strip()
+                try:
+                    ll = (float(row["lat"]), float(row["lon"]))
+                except (KeyError, ValueError):
+                    continue
+                if name:
+                    out.setdefault(row["country"], {}).setdefault(name, []).append(ll)
     except FileNotFoundError:
         pass
     return out
 
 
-def parse_cities(lines, cc: str, local: set | None = None) -> list[dict]:
-    """Filtert Zeilen eines GeoNames-Dumps auf Orte ab CITIES_MIN_POP plus Haupt-/Landeshauptstädte."""
-    out = []
+def _near_count(points, lat: float, lon: float, km: float) -> int:
+    """Anzahl Punkte im Umkreis von *km* (einfache Näherung, für DACH ausreichend genau)."""
+    kx = 111.32 * math.cos(math.radians(lat))
+    n = 0
+    for plat, plon in points:
+        if ((plat - lat) * 111.32) ** 2 + ((plon - lon) * kx) ** 2 <= km * km:
+            n += 1
+    return n
+
+
+def _local_name(f, lat: float, lon: float, local: dict | None) -> str:
+    """GeoNames-„name“ ist oft englisch (Vienna, Munich). Gewählt wird der Kandidat (Name oder
+    Alternativname), zu dem die MEISTEN gleichnamigen PLZ-Orte im Umkreis liegen – so wird aus
+    „Vienna“ „Wien“ (viele Wiener PLZ) und nicht ein gleichnamiges Dorf woanders."""
+    name = f[1].strip()
+    if not local:
+        return name
+    best, best_n = name, 0
+    for cand in [name, f[2].strip()] + [a.strip() for a in f[3].split(",")]:
+        pts = local.get(cand)
+        if not pts:
+            continue
+        n = _near_count(pts, lat, lon, LOCAL_NAME_RADIUS_KM)
+        if n > best_n:
+            best, best_n = cand, n
+    return best
+
+
+def parse_cities(lines, cc: str, local: dict | None = None) -> list[dict]:
+    """Filtert Zeilen eines GeoNames-Dumps auf Orte ab CITIES_MIN_POP plus Haupt-/Landeshauptstädte.
+
+    GeoNames markiert vereinzelt mehrere Orte eines Bundeslandes als Verwaltungssitz (PPLA),
+    z. B. Perchtoldsdorf neben St. Pölten in Niederösterreich. Deshalb gilt je Land und
+    Bundesland/Kanton (admin1) nur der einwohnerstärkste PPLA als Landeshauptstadt."""
+    rows = []
     for line in lines:
         f = line.rstrip("\n").split("\t")
         if len(f) < 15 or f[6] != "P" or f[7] not in CITY_CODES:
@@ -173,16 +214,21 @@ def parse_cities(lines, cc: str, local: set | None = None) -> list[dict]:
             lat, lon = float(f[4]), float(f[5])
         except ValueError:
             continue
-        if pop < CITIES_MIN_POP and f[7] not in ("PPLC", "PPLA"):
+        rows.append((f, pop, lat, lon))
+    # je admin1 nur den größten PPLA als Hauptstadt werten
+    capital = {}
+    for f, pop, lat, lon in rows:
+        if f[7] == "PPLA" and pop > capital.get(f[10], (-1, None))[0]:
+            capital[f[10]] = (pop, f[0])
+    out = []
+    for f, pop, lat, lon in rows:
+        code = f[7]
+        if code == "PPLA" and capital.get(f[10], (0, None))[1] != f[0]:
+            code = "PPL"                                   # zweiter „Sitz“ im selben Bundesland
+        if pop < CITIES_MIN_POP and code not in ("PPLC", "PPLA"):
             continue
-        name = f[1].strip()
-        if local:   # GeoNames-„name“ ist oft englisch (Munich, Vienna) -> lokale Schreibweise bevorzugen
-            for cand in [name, f[2].strip()] + [a.strip() for a in f[3].split(",")]:
-                if cand in local:
-                    name = cand
-                    break
-        out.append({"n": name, "lat": round(lat, 4), "lon": round(lon, 4), "p": pop,
-                    "t": _city_tier(f[7], pop), "c": cc})
+        out.append({"n": _local_name(f, lat, lon, local), "lat": round(lat, 4), "lon": round(lon, 4),
+                    "p": pop, "t": _city_tier(code, pop), "c": cc})
     return out
 
 
