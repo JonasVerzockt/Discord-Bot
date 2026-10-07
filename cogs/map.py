@@ -288,9 +288,18 @@ async def _save_join(bot, user, lang, cc, plz, first_name, age_18, show_name, co
     return True, msg
 
 
+def _display_preview(first_name, discord_name: str, show_name: bool, lang: str) -> str:
+    """So erscheint der Eintrag auf der Karte (gleiche Logik wie board.h_map_pins/h_map_list)."""
+    if not show_name:
+        return l10n.get("map_preview_anon", lang)
+    fn = (first_name or "").strip()[:40]
+    return f"{fn} ({discord_name})" if fn else discord_name
+
+
 class MapJoinModal(discord.ui.Modal):
-    def __init__(self, wizard: "MapJoinView"):
+    def __init__(self, wizard: "MapJoinView", discord_name: str = ""):
         lang = wizard.lang
+        self.discord_name = discord_name
         super().__init__(title=l10n.get("map_wiz_modal_title", lang)[:45])
         self.wizard = wizard
         if geo.is_dach(wizard.country):
@@ -305,8 +314,13 @@ class MapJoinModal(discord.ui.Modal):
             self.add_item(discord.ui.InputText(label=l10n.get("map_wiz_cc", lang)[:45],
                                                required=True, min_length=2, max_length=2,
                                                value=ex_cc if (ex_cc and not geo.is_dach(ex_cc)) else None))
+        # Vorschau im Platzhalter: "Vorname (Discord-Name)" bzw. Hinweis bei anonym.
+        if wizard.show_name:
+            ph = l10n.get("map_wiz_fn_ph", lang, name=discord_name or "Discord-Name")
+        else:
+            ph = l10n.get("map_wiz_fn_ph_anon", lang)
         self.add_item(discord.ui.InputText(label=l10n.get("map_wiz_fn", lang)[:45],
-                                           required=False, max_length=40,
+                                           required=False, max_length=40, placeholder=ph[:100],
                                            value=(wizard.existing or {}).get("first_name") or None))
 
     async def callback(self, interaction: discord.Interaction):
@@ -324,6 +338,11 @@ class MapJoinModal(discord.ui.Modal):
             await interaction.response.send_message(msg, ephemeral=True)
             return
         w.stop()
+        if w.age_18:   # unter 18 erscheint nicht einzeln -> keine Namensvorschau
+            name = self.discord_name or getattr(interaction.user, "display_name", interaction.user.name)
+            prev = _display_preview(fn, name, w.show_name, w.lang)
+            msg += "\n" + l10n.get("map_saved_preview", w.lang,
+                                   display=discord.utils.escape_markdown(prev))
         logger.info("🗺️ map_join: %s (%s)", interaction.user.id, cc.upper())
         try:
             await interaction.response.edit_message(content=msg, view=TagView(w.lang, w.tags))
@@ -408,7 +427,8 @@ class MapJoinView(discord.ui.View):
                 await interaction.response.send_message(l10n.get("map_wiz_need_choice", self.lang),
                                                         ephemeral=True)
                 return
-            await interaction.response.send_modal(MapJoinModal(self))
+            await interaction.response.send_modal(MapJoinModal(
+                self, getattr(interaction.user, "display_name", interaction.user.name)))
 
         async def on_stop(interaction):
             self.stop()
