@@ -44,12 +44,97 @@
     for (var i = 0; i < activeTags.length; i++) if (codes.indexOf(activeTags[i]) < 0) return false;
     return true;
   }
-  // Farbe je Event-Typ (muss zu map_evtype_* / board_i18n passen).
-  var EVENT_COLORS = { fair: "#3fb950", meetup: "#58a6ff", shop: "#e3833b",
-                       talk: "#a371f7", field: "#d29922", other: "#8b949e" };
-  // Halter-Pins: genau (PLZ, gefuzzt) = blau, grobes PLZ-Gebiet = pink.
-  var PIN_STYLE = { exact:  { color: "#1f6feb", fillColor: "#58a6ff" },
-                    coarse: { color: "#bf4b8a", fillColor: "#f778ba" } };
+  // ── Farbschemata ─────────────────────────────────────────────────────────
+  // Alle Farben der Karte kommen aus genau einem Schema. Umschalten zeichnet die Ebenen
+  // aus den schon geladenen Daten neu (keine neuen Anfragen).
+  //  • standard: bisherige Farben
+  //  • cvd:      für Farbsehschwächen – Okabe-Ito-Palette (Kategorien) und viridis (Mengen)
+  //  • contrast: Okabe-Ito + cividis (auch in Graustufen eindeutig), kräftige weiße Ränder,
+  //              volle Deckkraft, größere Marker
+  // Zusätzlich unterscheiden sich Pins/Events immer auch über die FORM (WCAG 1.4.1):
+  // Halter = gefüllter Kreis, grobes PLZ-Gebiet = Ring, Termin = Quadrat mit Symbol.
+  var OKABE = { orange: "#E69F00", sky: "#56B4E9", green: "#009E73", yellow: "#F0E442",
+                blue: "#0072B2", vermilion: "#D55E00", purple: "#CC79A7" };
+  var CIVIDIS = ["#4f576c", "#777776", "#a19975", "#d0be62", "#fee838"];   // matplotlib cividis 0.3–1.0
+  var VIRIDIS = ["#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"];   // matplotlib viridis 0.2–1.0
+  var THEMES = {
+    standard: {
+      choro: ["#7ee787", "#56d364", "#3fb950", "#2ea043", "#238636"], empty: "#3b434d",
+      fillOpacity: 0.75, emptyOpacity: 0.9,
+      border: { color: "#0b0f14", weight: 1.6, opacity: 1 },
+      hover:  { color: "#e6edf3", weight: 2.5, opacity: 1 },
+      pinExact:  { fill: "#58a6ff", stroke: "#1f6feb" },
+      pinCoarse: { fill: "#f778ba", stroke: "#bf4b8a" },
+      events: { fair: "#3fb950", meetup: "#58a6ff", shop: "#e3833b", talk: "#a371f7", field: "#d29922", other: "#8b949e" },
+      outline: "#0d1117", outlineW: 1.5, scale: 1, cluster: "#1f6feb", clusterText: "#ffffff"
+    },
+    cvd: {
+      choro: VIRIDIS, empty: "#262c34",
+      fillOpacity: 0.85, emptyOpacity: 0.95,
+      border: { color: "#0b0f14", weight: 1.6, opacity: 1 },
+      hover:  { color: "#ffffff", weight: 2.5, opacity: 1 },
+      pinExact:  { fill: OKABE.sky,    stroke: OKABE.blue },
+      pinCoarse: { fill: OKABE.orange, stroke: OKABE.vermilion },
+      events: { fair: OKABE.green, meetup: OKABE.sky, shop: OKABE.orange, talk: OKABE.purple, field: OKABE.yellow, other: "#bbbbbb" },
+      outline: "#0d1117", outlineW: 1.5, scale: 1, cluster: OKABE.blue, clusterText: "#ffffff"
+    },
+    contrast: {
+      choro: CIVIDIS, empty: "#161b22",
+      fillOpacity: 1, emptyOpacity: 1,
+      border: { color: "#ffffff", weight: 2, opacity: 1 },
+      hover:  { color: OKABE.sky, weight: 4, opacity: 1 },
+      pinExact:  { fill: OKABE.sky,    stroke: "#ffffff" },
+      pinCoarse: { fill: OKABE.orange, stroke: "#ffffff" },
+      events: { fair: OKABE.green, meetup: OKABE.sky, shop: OKABE.orange, talk: OKABE.purple, field: OKABE.yellow, other: "#dddddd" },
+      outline: "#ffffff", outlineW: 2.5, scale: 1.25, cluster: "#000000", clusterText: "#ffffff"
+    }
+  };
+  // Symbole je Event-Typ (zweites Merkmal neben der Farbe).
+  var EVENT_ICONS = { fair: "🏷️", meetup: "👥", shop: "🛍️", talk: "🎤", field: "🔎", other: "📌" };
+
+  var themeName = "standard";
+  function T() { return THEMES[themeName] || THEMES.standard; }
+  function pickTheme() {
+    var q = (location.search.match(/[?&]colors=(standard|cvd|contrast)\b/) || [])[1];
+    if (q) return q;
+    try { var s = localStorage.getItem("mapColors"); if (THEMES[s]) return s; } catch (e) {}
+    if (window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches) return "contrast";
+    return "standard";
+  }
+  themeName = pickTheme();
+
+  // Marker-Grafiken (SVG/HTML) – Form + Farbe aus dem aktiven Schema.
+  function pinSvg(coarse, px) {
+    var t = T(), s = px || Math.round(16 * t.scale), c = coarse ? t.pinCoarse : t.pinExact, r = s / 2;
+    var body = coarse
+      // Ring: dicker farbiger Rand, dunkler Kern -> „Gebiet, nicht Punkt“
+      ? "<circle cx='" + r + "' cy='" + r + "' r='" + (r - 3) + "' fill='" + t.outline + "' fill-opacity='0.35' stroke='" + c.fill + "' stroke-width='4'/>" +
+        "<circle cx='" + r + "' cy='" + r + "' r='" + (r - 0.8) + "' fill='none' stroke='" + c.stroke + "' stroke-width='1.2'/>"
+      : "<circle cx='" + r + "' cy='" + r + "' r='" + (r - 1.5) + "' fill='" + c.fill + "' stroke='" + c.stroke + "' stroke-width='" + t.outlineW + "'/>";
+    return "<svg xmlns='http://www.w3.org/2000/svg' width='" + s + "' height='" + s + "' viewBox='0 0 " + s + " " + s + "' aria-hidden='true'>" + body + "</svg>";
+  }
+  function pinIcon(coarse) {
+    var s = Math.round(16 * T().scale);
+    return L.divIcon({ className: "mpin", html: pinSvg(coarse, s), iconSize: [s, s], iconAnchor: [s / 2, s / 2], popupAnchor: [0, -s / 2] });
+  }
+  function eventHtml(type, px) {
+    var t = T(), s = px || Math.round(22 * t.scale), col = t.events[type] || t.events.other;
+    return "<span class=mev style='width:" + s + "px;height:" + s + "px;background:" + col + ";border:" +
+           t.outlineW + "px solid " + (themeName === "standard" ? "#ffffff" : t.outline) + ";font-size:" + Math.round(s * 0.55) + "px'>" +
+           (EVENT_ICONS[type] || EVENT_ICONS.other) + "</span>";
+  }
+  function eventIcon(type) {
+    var s = Math.round(22 * T().scale);
+    return L.divIcon({ className: "mevw", html: eventHtml(type, s), iconSize: [s, s], iconAnchor: [s / 2, s / 2], popupAnchor: [0, -s / 2] });
+  }
+  function clusterIcon(cluster) {
+    var t = T(), n = cluster.getChildCount(), s = n < 10 ? 30 : n < 50 ? 36 : 42;
+    s = Math.round(s * t.scale);
+    return L.divIcon({ className: "mcl", iconSize: [s, s],
+      html: "<div style='width:" + s + "px;height:" + s + "px;line-height:" + s + "px;background:" + t.cluster +
+            ";color:" + t.clusterText + ";border:" + Math.max(2, t.outlineW) + "px solid " +
+            (themeName === "standard" ? t.cluster + "66" : t.outline) + "'>" + n + "</div>" });
+  }
   var PL = CFG.pinlabels || { exact: "PLZ", coarse: "PLZ-Gebiet", coarseNote: "PLZ-Gebiet", contact: "Kontakt über Discord" };
   var regionData = { bundesland: [], plz: [], countries: [] };
   var curLevel = "bundesland";
@@ -82,14 +167,10 @@
     return 0;
   }
 
-  // Regionsgrenzen in der Hintergrundfarbe: trennen helle (grüne) und dunkle (leere)
-  // Flächen gleich gut, statt auf Grün zu hell und auf Grau unsichtbar zu sein.
-  var BORDER = { color: "#0b0f14", weight: 1.6, opacity: 1 };
-  var BORDER_HOVER = { color: "#e6edf3", weight: 2.5, opacity: 1 };
-
+  // Stufen 1–2, 3–5, 6–10, 11–20, >20 (Index in T().choro).
   function color(n) {
-    return n > 20 ? "#238636" : n > 10 ? "#2ea043" : n > 5 ? "#3fb950"
-         : n > 2 ? "#56d364" : n > 0 ? "#7ee787" : "#30363d";
+    var c = T().choro;
+    return n > 20 ? c[4] : n > 10 ? c[3] : n > 5 ? c[2] : n > 2 ? c[1] : n > 0 ? c[0] : T().empty;
   }
 
   function drawChoropleth() {
@@ -107,8 +188,9 @@
       arr.forEach(function (e) {
         if (e.lat == null || e.lon == null) return;
         var r = 4 + Math.min(e.count, 24) * 0.5;
-        var m = L.circleMarker([e.lat, e.lon], { pane: "bubblePane", radius: r, color: "#0d1117", weight: 0.8,
-                                                 fillColor: color(e.count), fillOpacity: 0.75 });
+        var m = L.circleMarker([e.lat, e.lon], { pane: "bubblePane", radius: r * T().scale, color: T().outline,
+                                                 weight: T().outlineW * 0.6, fillColor: color(e.count),
+                                                 fillOpacity: Math.max(0.75, T().fillOpacity) });
         var xs = (e.country === "de") ? "xxx" : "xx";
         m.bindPopup("<b>PLZ " + esc(e.plz_prefix) + xs + "</b><br>" + e.count + " " +
                     (CFG.lang === "en" ? "keepers" : "Halter"));
@@ -128,9 +210,9 @@
           interactive: !plzMode,
           style: function (feat) {
             if (plzMode) return { color: "#484f58", weight: 1, opacity: 0.8, fillColor: "#30363d", fillOpacity: 0.35 };
-            var n = countFor(feat);
-            return { color: BORDER.color, weight: BORDER.weight, opacity: BORDER.opacity,
-                     fillColor: n > 0 ? color(n) : "#3b434d", fillOpacity: n > 0 ? 0.75 : 0.9 };
+            var n = countFor(feat), t = T();
+            return { color: t.border.color, weight: t.border.weight, opacity: t.border.opacity,
+                     fillColor: color(n), fillOpacity: n > 0 ? t.fillOpacity : t.emptyOpacity };
           },
           onEachFeature: function (feat, layer) {
             if (plzMode) return;               // PLZ-Ebene: Umrisse nur als Hintergrund
@@ -139,8 +221,8 @@
                       feat.properties.GEN || feat.properties.name || feat.properties.NAME_1)) || "";
             layer.bindPopup("<b>" + esc(nm) + "</b><br>" + n + " " + (CFG.lang === "en" ? "keepers" : "Halter"));
             // Hover: Region hell umranden (ohne die Pins zu überdecken – Umrisse liegen darunter).
-            layer.on("mouseover", function () { layer.setStyle(BORDER_HOVER); if (layer.bringToFront) layer.bringToFront(); });
-            layer.on("mouseout",  function () { layer.setStyle(BORDER); });
+            layer.on("mouseover", function () { layer.setStyle(T().hover); if (layer.bringToFront) layer.bringToFront(); });
+            layer.on("mouseout",  function () { layer.setStyle(T().border); });
           }
         }).addTo(group);
       }).catch(function () { /* Datei fehlt -> ignorieren */ })
@@ -169,16 +251,16 @@
       if (pinLayer) { map.removeLayer(pinLayer); }
       pinLayer = (typeof L.markerClusterGroup === "function")
         ? L.markerClusterGroup({ clusterPane: "pinPane", showCoverageOnHover: false,
-                                 maxClusterRadius: 40, spiderfyOnMaxZoom: true })
+                                 maxClusterRadius: 40, spiderfyOnMaxZoom: true, iconCreateFunction: clusterIcon })
         : L.layerGroup();
       pinByRef = {};
       allPins.forEach(function (p) {
         if (!tagsMatch(p.tag_codes)) return;
-        var st = p.coarse ? PIN_STYLE.coarse : PIN_STYLE.exact;
-        var m = L.circleMarker([p.lat, p.lon], { pane: "pinPane", radius: 7, color: st.color, fillColor: st.fillColor, fillOpacity: 0.9, weight: 2 });
+        var m = L.marker([p.lat, p.lon], { pane: "pinPane", icon: pinIcon(!!p.coarse), keyboard: true,
+                                           title: String(p.name || ""), alt: String(p.coarse ? PL.coarse : PL.exact) });
         var tags = (p.tags && p.tags.length) ? "<br><span style='color:#8b949e'>" + esc(p.tags.join(", ")) + "</span>" : "";
         var contact = p.contact_url ? ("<br>" + contactBtn(p.contact_url)) : "";
-        var area = p.coarse ? ("<br><span style='color:#f778ba'>" + esc(PL.coarseNote) + "</span>") : "";
+        var area = p.coarse ? ("<br><span style='color:" + T().pinCoarse.fill + "'>◎ " + esc(PL.coarseNote) + "</span>") : "";
         m.bindPopup("<b>" + esc(p.name) + "</b><br>" + esc(p.region || p.country) + area + tags + contact);
         if (p.ref) { pinByRef[p.ref] = m; m.on("click", function () { highlightRow(p.ref); }); }
         pinLayer.addLayer(m);
@@ -264,20 +346,28 @@
     var labels = CFG.evlabels || {};
     var order = ["fair", "meetup", "shop", "talk", "field", "other"];
     el.innerHTML = order.map(function (t) {
-      return "<span style='display:inline-block;width:10px;height:10px;border-radius:50%;background:" +
-             EVENT_COLORS[t] + ";margin:0 4px 0 12px;vertical-align:middle;border:1px solid #0d1117'></span>" +
-             esc(labels[t] || t);
+      return "<span class=lgi>" + eventHtml(t, 18) + " " + esc(labels[t] || t) + "</span>";
     }).join("");
   }
 
   function buildPinLegend() {
     var el = document.getElementById("pinlegend");
     if (!el) return;
-    el.innerHTML = [["exact", PL.exact], ["coarse", PL.coarse]].map(function (x) {
-      return "<span style='display:inline-block;width:10px;height:10px;border-radius:50%;background:" +
-             PIN_STYLE[x[0]].fillColor + ";margin:0 4px 0 12px;vertical-align:middle;border:2px solid " +
-             PIN_STYLE[x[0]].color + "'></span>" + esc(x[1]);
+    el.innerHTML = [[false, PL.exact], [true, PL.coarse]].map(function (x) {
+      return "<span class=lgi>" + pinSvg(x[0], 16) + " " + esc(x[1]) + "</span>";
     }).join("");
+  }
+
+  // Legende der Regionsfarben (Anzahl Halter je Bundesland/Kanton).
+  function buildChoroLegend() {
+    var el = document.getElementById("cholegend");
+    if (!el) return;
+    var t = T(), c = t.choro, lb = ["1–2", "3–5", "6–10", "11–20", ">20"];
+    el.innerHTML = "<span class=lgi>" + esc(CFG.choroLabel || (CFG.lang === "en" ? "Keepers per region" : "Halter je Region")) + ":</span>" +
+      "<span class=lgi><span class=lgsw style='background:" + t.empty + "'></span>0</span>" +
+      lb.map(function (l, i) {
+        return "<span class=lgi><span class=lgsw style='background:" + c[i] + "'></span>" + l + "</span>";
+      }).join("");
   }
 
   function renderEvents() {
@@ -354,8 +444,8 @@
            (link ? "<a class=fl2 href='" + link + "' target=_blank rel='noopener noreferrer'>Link</a>" : "") +
            evActions(e) + "</div></div>";
       if (e.lat && e.lon) {
-        var col = EVENT_COLORS[e.type] || EVENT_COLORS.other;
-        var m = L.circleMarker([e.lat, e.lon], { pane: "eventPane", radius: 8, color: "#fff", weight: 2, fillColor: col, fillOpacity: 0.95 });
+        var m = L.marker([e.lat, e.lon], { pane: "eventPane", icon: eventIcon(e.type), keyboard: true,
+                                           title: String(e.title || ""), alt: String((CFG.evlabels || {})[e.type] || e.type) });
         m.bindPopup("<b>" + esc(e.title) + "</b><br>" + esc(ds) + (e.venue ? "<br>" + esc(e.venue) : "") + evActions(e));
         m.addTo(eventLayer);
       }
@@ -430,6 +520,30 @@
       applyTags();
     });
   }
+
+  // Farb-Umschalter: Schema wählen, merken (nur im Browser) und alle Ebenen neu zeichnen.
+  function markColorChip() {
+    document.querySelectorAll("#colorswitch a[data-colors]").forEach(function (a) {
+      a.classList.toggle("on", a.getAttribute("data-colors") === themeName);
+      a.setAttribute("aria-pressed", a.getAttribute("data-colors") === themeName ? "true" : "false");
+    });
+    document.documentElement.setAttribute("data-mapcolors", themeName);
+  }
+  function setTheme(name) {
+    if (!THEMES[name]) return;
+    themeName = name;
+    try { localStorage.setItem("mapColors", name); } catch (e) {}
+    markColorChip();
+    drawChoropleth();
+    if (pinLayer && allPins.length) buildPinLayer();
+    if (eventLayer) applyEventFilter();
+    var pl = document.getElementById("pinlegend"); if (pl && pl.style.display !== "none") buildPinLegend();
+    var el = document.getElementById("evlegend"); if (el && el.style.display !== "none") buildLegend();
+    buildChoroLegend();
+  }
+  wireSwitch("#colorswitch", "data-colors", setTheme);
+  markColorChip();
+  buildChoroLegend();
 
   var search = document.getElementById("listsearch");
   if (search) search.addEventListener("input", filterList);
