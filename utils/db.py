@@ -492,6 +492,15 @@ CREATE TABLE IF NOT EXISTS map_entry_tags (
     PRIMARY KEY (user_id, tag_code)
 );
 
+-- „Auch aktiv in“: bis zu 2 weitere Regionen (nur Bundesland/Kanton, kein Ort), z. B. für Pendler.
+-- Nur für 18+-Einträge; wird mit dem Karteneintrag gelöscht.
+CREATE TABLE IF NOT EXISTS map_entry_regions (
+    user_id     TEXT NOT NULL,
+    country     TEXT NOT NULL,
+    region_code TEXT NOT NULL,
+    PRIMARY KEY (user_id, country, region_code)
+);
+
 -- Events / Messen / Treffpunkte: ÖFFENTLICH, nicht personenbezogen.
 -- status: pending | approved | rejected. rrule = iCal-RRULE (optional, für Serien).
 CREATE TABLE IF NOT EXISTS map_events (

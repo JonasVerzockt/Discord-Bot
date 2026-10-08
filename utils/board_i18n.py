@@ -525,6 +525,8 @@ T: dict[str, dict[str, str]] = {
     "map_partner_ad": {"de": "Anzeige", "en": "Ad", "eo": "Reklamo"},
     "map_partner_empty": {"de": "Noch keine Partner. Das Bot-Projekt ist privat und werbefrei.", "en": "No partners yet. The bot project is private and ad-free.", "eo": "Ankoraŭ neniuj partneroj. La bot-projekto estas privata kaj senreklama."},
     "map_partner_contact": {"de": "Interesse, das Projekt zu unterstützen? Kontakt", "en": "Interested in supporting the project? Contact", "eo": "Ĉu vi volas subteni la projekton? Kontakto"},
+    "map_pin_also": {"de": "auch aktiv in", "en": "also active in", "eo": "ankaŭ aktiva en"},
+    "map_also_here": {"de": "auch hier aktiv", "en": "also active here", "eo": "ankaŭ aktivaj ĉi tie"},
     "map_cities": {"de": "Städte", "en": "Cities", "eo": "Urboj"},
     "map_contact_btn": {"de": "💬 Auf Discord kontaktieren", "en": "💬 Contact on Discord", "eo": "💬 Kontakti per Discord"},
     "map_range_filter": {"de": "Zeitraum", "en": "Range", "eo": "Periodo"},
