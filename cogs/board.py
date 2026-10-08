@@ -56,7 +56,8 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC,
                     VERSION,
                     MAP_ENABLED, MAP_GUILD_ID, MAP_JITTER_METERS, MAP_MAX_ZOOM,
-                    BOARD_OAUTH_CLIENT_ID, BOARD_OAUTH_CLIENT_SECRET, BOARD_OAUTH_REDIRECT_URI)
+                    BOARD_OAUTH_CLIENT_ID, BOARD_OAUTH_CLIENT_SECRET, BOARD_OAUTH_REDIRECT_URI,
+                    DISCORD_INVITE_URL)
 from utils import geo, map_tags
 from datetime import datetime, timezone, timedelta
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
@@ -116,6 +117,62 @@ async def _send_contact_dm(app, message: str, name: str, email: str, tel: str) -
     except Exception as ex:  # noqa: BLE001
         logger.error("✉️ Kontaktformular-DM fehlgeschlagen: %s", ex)
         return False
+
+
+# ── Partner/Sponsoren (Karte, rechte Spalte) ──────────────────────────────────
+# legal/partners.json: [{"name": "...", "url": "https://...", "text": "...", "logo": "datei.png"}]
+# Logos liegen SELBST GEHOSTET in legal/partners/ (keine fremden Server -> keine IP-Weitergabe).
+# Nur PNG/JPG/WebP (kein SVG: könnte Skripte enthalten). Fehlt die Datei -> Platzhalter.
+PARTNER_DIR = LEGAL_DIR / "partners"
+_PARTNER_LOGO_RE = re.compile(r"^[A-Za-z0-9_-]{1,60}\.(png|jpe?g|webp)$")
+_PARTNER_CT = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}
+
+
+_partner_cache: dict = {"key": None, "data": []}
+
+
+def _load_partners() -> list[dict]:
+    """Geprüfte Partnerliste (max. 6). Ungültige Einträge werden still übersprungen.
+    Wird auf jeder Seite gebraucht -> nach Änderungszeit der Datei/des Logo-Ordners gecacht."""
+    f = LEGAL_DIR / "partners.json"
+    try:
+        key = (f.stat().st_mtime_ns, PARTNER_DIR.stat().st_mtime_ns if PARTNER_DIR.is_dir() else 0)
+    except OSError:
+        return []
+    if _partner_cache["key"] == key:
+        return _partner_cache["data"]
+    try:
+        raw = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    out = []
+    for e in raw if isinstance(raw, list) else []:
+        if not isinstance(e, dict):
+            continue
+        name = str(e.get("name") or "").strip()[:60]
+        url = str(e.get("url") or "").strip()
+        if not name or not url.startswith("https://"):
+            continue
+        logo = str(e.get("logo") or "").strip()
+        if not (_PARTNER_LOGO_RE.match(logo) and (PARTNER_DIR / logo).is_file()):
+            logo = ""
+        out.append({"name": name, "url": url[:300],
+                    "text": str(e.get("text") or "").strip()[:140], "logo": logo})
+    _partner_cache.update(key=key, data=out[:6])
+    return out[:6]
+
+
+async def h_partner_logo(req):
+    """Liefert NUR Logos, die in partners.json eingetragen sind (Allowlist)."""
+    want = req.match_info.get("name", "")
+    for p in _load_partners():
+        if p["logo"] and p["logo"] == want:
+            path = PARTNER_DIR / p["logo"]          # Name stammt aus der geprüften Liste
+            ext = p["logo"].rsplit(".", 1)[-1].lower()
+            return web.FileResponse(path, headers={"Cache-Control": "public, max-age=86400",
+                                                   "Content-Type": _PARTNER_CT[ext],
+                                                   "X-Content-Type-Options": "nosniff"})
+    raise web.HTTPNotFound()
 
 
 def _legal_content(name: str) -> tuple[str, bool]:
@@ -298,6 +355,11 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .rangesw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
  .rangesw a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
  .rangesw a.on{border-color:#58a6ff;color:#e6edf3;background:#1f6feb22}
+ .pstrip{max-width:1100px;margin:28px auto 0;padding:10px 20px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;border-top:1px solid #30363d;font-size:13px}
+ .pstrip .plbl{color:#8b949e} .pstrip .ad{font-size:10px;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:0 4px;margin-left:4px}
+ .pstrip a{display:inline-flex;align-items:center;gap:6px;color:#c9d1d9}
+ .pstrip img{width:28px;height:28px;object-fit:contain;border-radius:4px;background:#fff1}
+ .pstrip+footer{margin-top:0 !important}
  .legal{max-width:820px} .legal h3{margin:18px 0 6px;font-size:15px;color:#c9d1d9} .legal p{margin:0 0 8px} .legal code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:1px 5px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
@@ -306,6 +368,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
 <div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
+{% if partner_strip %}<div class=pstrip aria-label="{{ t('map_partner_h') }}"><span class=plbl>🤝 {{ t('map_partner_h') }}<span class=ad>{{ t('map_partner_ad') }}</span></span>
+{% for p in partner_strip %}<a href="{{ p.url }}" target=_blank rel="sponsored noopener noreferrer" title="{{ p.text }}">{% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}<span>{{ p.name }}</span></a>{% endfor %}</div>{% endif %}
 <footer style="max-width:1100px;margin:28px auto 12px;padding:14px 20px;border-top:1px solid #30363d;color:#8b949e;font-size:13px;text-align:center;line-height:1.6">
   💖 <strong>{{ t('footer_run') }}</strong>
   <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
@@ -653,7 +717,7 @@ LEGAL = """{% extends "base" %}{% block body %}
 <p class=muted>{{ t('legal_lang_note') }}</p>
 <div class="legal">{{ body|safe }}</div>
 {% if show_contact %}
-<div class="legal" style="margin-top:18px">
+<div class="legal" id=kontakt style="margin-top:18px">
  <h3>{{ t('contact_h') }}</h3>
  <div class=flash style="max-width:640px">{{ t('contact_intro')|safe }}</div>
  <form method=post action="/impressum/contact?lang={{ lang }}" style="max-width:640px">
@@ -685,6 +749,13 @@ MAP = """{% extends "base" %}{% block body %}
  @media(max-width:820px){.mapleft{display:contents} #map{order:1} #statsbox{order:2;margin-top:0} .mapside{order:3}}
  #statsbox>summary{cursor:pointer;font-weight:600;font-size:15px;list-style-position:inside}
  #statsbody{margin-top:10px}
+ #joinbox ul{margin:0;padding-left:18px;font-size:13px} #joinbox li{margin:4px 0}
+ #joinbox code{background:#0f141a;border:1px solid #30363d;border-radius:4px;padding:0 4px;font-size:12px}
+ #partnerbox h4 .ad{font-size:10px;font-weight:400;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:middle}
+ .partner{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #21262d}
+ .partner img{width:44px;height:44px;object-fit:contain;border-radius:6px;background:#fff1}
+ .partner .pt{font-size:12px;color:#8b949e}
+ .pslot{border:1px dashed #30363d;border-radius:8px;padding:12px;text-align:center;font-size:13px;color:#8b949e}
  .stk{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
  .stk div{background:#0f141a;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
  .stk b{display:block;font-size:20px;color:#e6edf3}
@@ -844,6 +915,28 @@ MAP = """{% extends "base" %}{% block body %}
       </script>
       {% endif %}
     </div>
+    <div class=chartbox id=joinbox style="margin-top:14px">
+      <h4>🙌 {{ t('map_join_h') }}</h4>
+      <ul>
+        <li>📍 {{ t('map_join_entry')|safe }}</li>
+        <li>🏷️ {{ t('map_join_tags')|safe }}</li>
+        <li>📅 {{ t('map_join_event')|safe }}</li>
+        <li>🙋 {{ t('map_join_rsvp') }}</li>
+      </ul>
+      {% if invite_url %}<a class=btn href="{{ invite_url }}" target=_blank rel="noopener noreferrer" style="display:block;margin-top:10px;text-align:center">{{ t('map_join_invite') }}</a>{% endif %}
+    </div>
+    <div class=chartbox id=partnerbox style="margin-top:14px">
+      <h4>🤝 {{ t('map_partner_h') }}{% if partners %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}</h4>
+      {% for p in partners %}
+      <a class=partner href="{{ p.url }}" target=_blank rel="sponsored noopener noreferrer">
+        {% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}
+        <span><b>{{ p.name }}</b>{% if p.text %}<br><span class=pt>{{ p.text }}</span>{% endif %}</span>
+      </a>
+      {% else %}
+      <div class=pslot>{{ t('map_partner_empty') }}<br>
+        <a href="/impressum?lang={{ lang }}#kontakt">{{ t('map_partner_contact') }}</a></div>
+      {% endfor %}
+    </div>
   </div>
 </div>
 <p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
@@ -891,7 +984,10 @@ def _render(req, name, title="Board", flash="", **ctx):
     i18n = dict(lang=lang, t=tt, langs=LANGS, flags=FLAGS, flag_title=FLAG_TITLE,
                 switch_urls=_switch_urls(req), qs=(lambda: "?lang=" + lang),
                 type_label=(lambda ty: type_label(lang, ty)),
-                v=VERSION)    # Cache-Busting für statische Dateien (z. B. Favicon); Seiten dürfen überschreiben
+                v=VERSION,    # Cache-Busting für statische Dateien (z. B. Favicon); Seiten dürfen überschreiben
+                # Partner-Leiste über dem Footer – nur wenn Partner eingetragen sind und nicht
+                # auf der Karte (dort steht der Partner-Kasten in der rechten Spalte).
+                partner_strip=(_load_partners() if name != "map" else []))
     i18n.update(ctx)   # template-spezifischer Kontext (items, cols, …) ergänzt/gewinnt
     html = ENV.get_template(name).render(title=title, flash=flash, admin=_is_admin(req), **i18n)
     return web.Response(text=html, content_type="text/html")
@@ -2040,6 +2136,8 @@ async def h_map(req):
                    v=_map_asset_v(), member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
                    ics_url=ics_url, webcal_url=webcal_url, tag_groups=tag_groups,
                    st_labels={k: translate(lang, k) for k in _MAP_ST_KEYS},
+                   partners=_load_partners(),
+                   invite_url=(DISCORD_INVITE_URL if DISCORD_INVITE_URL.startswith("https://") else ""),
                    member_csrf=(_member_csrf(_is_member(req)) if _is_member(req) else ""))
 
 
@@ -2812,6 +2910,7 @@ def build_app(bot) -> web.Application:
         web.get("/map/list.json", h_map_list),
         web.get("/map/events.json", h_map_events),
         web.get("/map/stats.json", h_map_stats),
+        web.get(r"/partner-logo/{name:[A-Za-z0-9_.-]+}", h_partner_logo),
         web.get("/map/events.ics", h_map_events_ics),
         web.get(r"/map/events/{eid:\d+}.ics", h_map_event_ics),
         web.post(r"/map/events/{eid:\d+}/rsvp", h_map_event_rsvp),
