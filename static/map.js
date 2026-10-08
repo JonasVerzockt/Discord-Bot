@@ -151,7 +151,10 @@
 
   // Zahl je Bundesland/Kanton: Abgleich über den ISO-Code der Umrisse
   // (shapeISO "DE-BB", "AT-9", "CH-ZH"; Liechtenstein als Ganzes), Name als Rückfallebene.
-  function countFor(feat) {
+  // Öffentlich maskierte Kleinwerte (few=true) als "< 3" anzeigen (Datenschutz).
+  function numText(e) { return e && e.few ? "&lt; 3" : String(e ? e.count : 0); }
+  function countFor(feat) { var e = entryFor(feat); return e ? e.count : 0; }
+  function entryFor(feat) {
     var p = feat.properties || {};
     var iso = String(p.shapeISO || "");
     var cc = null, code = null;
@@ -163,10 +166,10 @@
     var arr = regionData.bundesland || [];
     for (var j = 0; j < arr.length; j++) {
       var e = arr[j];
-      if (cc && code && e.country === cc && String(e.region_code).toUpperCase() === code) return e.count;
-      if (!code && nm && String(e.region_name || "").toLowerCase() === nm) return e.count;
+      if (cc && code && e.country === cc && String(e.region_code).toUpperCase() === code) return e;
+      if (!code && nm && String(e.region_name || "").toLowerCase() === nm) return e;
     }
-    return 0;
+    return null;
   }
 
   // Stufen 1–2, 3–5, 6–10, 11–20, >20 (Index in T().choro).
@@ -194,7 +197,7 @@
                                                  weight: T().outlineW * 0.6, fillColor: color(e.count),
                                                  fillOpacity: Math.max(0.75, T().fillOpacity) });
         var xs = (e.country === "de") ? "xxx" : "xx";
-        m.bindPopup("<b>PLZ " + esc(e.plz_prefix) + xs + "</b><br>" + e.count + " " +
+        m.bindPopup("<b>PLZ " + esc(e.plz_prefix) + xs + "</b><br>" + numText(e) + " " +
                     (CFG.lang === "en" ? "keepers" : "Halter"));
         m.addTo(bubbles);
       });
@@ -221,7 +224,7 @@
             var n = countFor(feat);
             var nm = (feat.properties && (feat.properties.region_name || feat.properties.shapeName ||
                       feat.properties.GEN || feat.properties.name || feat.properties.NAME_1)) || "";
-            layer.bindPopup("<b>" + esc(nm) + "</b><br>" + n + " " + (CFG.lang === "en" ? "keepers" : "Halter"));
+            layer.bindPopup("<b>" + esc(nm) + "</b><br>" + numText(entryFor(feat)) + " " + (CFG.lang === "en" ? "keepers" : "Halter"));
             // Hover: Region hell umranden (ohne die Pins zu überdecken – Umrisse liegen darunter).
             layer.on("mouseover", function () { layer.setStyle(T().hover); if (layer.bringToFront) layer.bringToFront(); });
             layer.on("mouseout",  function () { layer.setStyle(T().border); });
