@@ -89,16 +89,18 @@ async def _upsert_entry(bot, uid, country, geo_rec, first_name, show_entry, age_
 
 
 class TagSelect(discord.ui.Select):
-    def __init__(self, lang: str, preselected=None):
+    def __init__(self, lang: str, preselected=None, inline: bool = False, row=None):
         preselected = set(preselected or [])
+        self._inline = inline     # True: Teil der /map_join-Abschlussansicht (View bleibt offen)
         opts = []
         for g in map_tags.TAG_GROUPS:
             for code, lbl in g["tags"]:
                 opts.append(discord.SelectOption(
                     label=lbl.get(lang) or lbl.get("de") or code,
                     value=code, default=(code in preselected)))
+        opts = opts[:25]
         super().__init__(placeholder=l10n.get("map_tags_prompt", lang),
-                         min_values=0, max_values=len(opts), options=opts[:25])
+                         min_values=0, max_values=len(opts), options=opts, row=row)
         self._lang = lang
 
     async def callback(self, interaction: discord.Interaction):
@@ -115,6 +117,12 @@ class TagSelect(discord.ui.Select):
                            tags=", ".join(map_tags.labels(self.values, self._lang)))
         else:
             msg = l10n.get("map_tags_cleared", self._lang)
+        if self._inline and isinstance(self.view, MapExtrasView):
+            for opt in self.options:
+                opt.default = opt.value in self.values
+            self.view.note = msg
+            await interaction.response.edit_message(content=self.view.text(), view=self.view)
+            return
         msg += " " + l10n.get("map_remove_hint", self._lang)
         await interaction.response.edit_message(content=msg, view=None)
 
@@ -123,6 +131,125 @@ class TagView(discord.ui.View):
     def __init__(self, lang: str, preselected=None):
         super().__init__(timeout=300)
         self.add_item(TagSelect(lang, preselected))
+
+
+# ── „Auch aktiv in“: bis zu 2 weitere Regionen (nur Bundesland/Kanton, kein Ort) ─────
+MAX_EXTRA_REGIONS = 2
+_DACH_FLAGS = {"de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "li": "🇱🇮"}
+
+
+async def _load_extra_regions(bot, uid) -> list[tuple[str, str]]:
+    rows = await execute_db(bot, "SELECT country, region_code FROM map_entry_regions WHERE user_id=?",
+                            (str(uid),), fetch=True) or []
+    return [(r["country"], r["region_code"]) for r in rows]
+
+
+async def _save_extra_regions(bot, uid, pairs) -> None:
+    uid = str(uid)
+    await execute_db(bot, "DELETE FROM map_entry_regions WHERE user_id=?", (uid,), commit=True)
+    valid = geo.all_regions()
+    for cc, code in list(pairs)[:MAX_EXTRA_REGIONS]:
+        if code in valid.get(cc, {}):
+            await execute_db(bot,
+                "INSERT OR IGNORE INTO map_entry_regions (user_id, country, region_code) VALUES (?,?,?)",
+                (uid, cc, code), commit=True)
+
+
+def _region_label(cc: str, code: str) -> str:
+    return geo.all_regions().get(cc, {}).get(code, code)
+
+
+class MapExtrasView(discord.ui.View):
+    """Abschluss von /map_join (18+): Tags + optional „Auch aktiv in“ (max. 2 Regionen).
+    Jede Auswahl wird sofort gespeichert; „Fertig“ schließt die Ansicht."""
+
+    def __init__(self, lang: str, base_msg: str, tags, extras, home: tuple[str, str] | None):
+        super().__init__(timeout=900)
+        self.lang = lang
+        self.base_msg = base_msg
+        self.note = ""
+        self.home = home                                  # (Land, Region) des Wohnorts
+        self.extras = [e for e in (extras or []) if e != home][:MAX_EXTRA_REGIONS]
+        if self.extras:
+            self.cc = self.extras[0][0]
+        elif home and home[0] in _DACH_FLAGS:
+            self.cc = home[0]
+        else:
+            self.cc = "de"
+        self.tags = list(tags or [])
+        self._build()
+
+    def text(self) -> str:
+        if self.extras:
+            st = l10n.get("map_extras_status", self.lang,
+                          regions=", ".join(_region_label(c, r) for c, r in self.extras))
+        else:
+            st = l10n.get("map_extras_none", self.lang)
+        parts = [self.base_msg, "", l10n.get("map_extras_hint", self.lang), st]
+        if self.note:
+            parts.append(self.note)
+        return "\n".join(parts)[:2000]
+
+    def _build(self):
+        self.clear_items()
+        tsel = TagSelect(self.lang, self.tags, inline=True, row=0)
+        self.add_item(tsel)
+        c = discord.ui.Select(placeholder=l10n.get("map_extras_country_ph", self.lang), row=1,
+                              options=[discord.SelectOption(label=n, value=v, emoji=_DACH_FLAGS[v],
+                                                            default=(v == self.cc))
+                                       for v, n in _COUNTRY_OPTS if v in _DACH_FLAGS])
+
+        async def on_country(interaction):
+            self.cc = c.values[0]
+            self.note = ""
+            self._build()
+            await interaction.response.edit_message(content=self.text(), view=self)
+        c.callback = on_country
+        self.add_item(c)
+
+        regions = [(code, name) for code, name in geo.all_regions().get(self.cc, {}).items()
+                   if (self.cc, code) != self.home]
+        regions.sort(key=lambda t: t[1])
+        chunks = [regions[i:i + 25] for i in range(0, len(regions), 25)][:2]   # CH: 26 Kantone
+        mine = {code for cc, code in self.extras if cc == self.cc}
+        for i, chunk in enumerate(chunks):
+            ph = l10n.get("map_extras_region_ph", self.lang)
+            if len(chunks) > 1:
+                ph += f" ({chunk[0][1][:1]}–{chunk[-1][1][:1]})"
+            sel = discord.ui.Select(placeholder=ph[:150], row=2 + i, min_values=0,
+                                    max_values=min(len(chunk), MAX_EXTRA_REGIONS),
+                                    options=[discord.SelectOption(label=name[:100], value=code,
+                                                                  default=(code in mine))
+                                             for code, name in chunk])
+            sel.callback = self._make_region_cb(sel, {code for code, _ in chunk})
+            self.add_item(sel)
+
+        done = discord.ui.Button(label=l10n.get("map_extras_done", self.lang),
+                                 style=discord.ButtonStyle.success, row=4)
+
+        async def on_done(interaction):
+            self.stop()
+            # Abschluss: Erklärtext weg, Status (Regionen/Tags) bleibt stehen.
+            await interaction.response.edit_message(
+                content=self.text().replace(l10n.get("map_extras_hint", self.lang) + "\n", ""),
+                view=None)
+        done.callback = on_done
+        self.add_item(done)
+
+    def _make_region_cb(self, sel, chunk_codes: set):
+        async def cb(interaction):
+            keep = [e for e in self.extras if not (e[0] == self.cc and e[1] in chunk_codes)]
+            new = keep + [(self.cc, v) for v in sel.values]
+            if len(new) > MAX_EXTRA_REGIONS:
+                await interaction.response.send_message(
+                    l10n.get("map_extras_too_many", self.lang, n=MAX_EXTRA_REGIONS), ephemeral=True)
+                return
+            self.extras = new
+            await _save_extra_regions(interaction.client, interaction.user.id, self.extras)
+            self.note = ""
+            self._build()
+            await interaction.response.edit_message(content=self.text(), view=self)
+        return cb
 
 
 class MapConfirmView(discord.ui.View):
@@ -152,6 +279,7 @@ class MapConfirmView(discord.ui.View):
 async def _delete_entry(bot, uid):
     uid = str(uid)
     await execute_db(bot, "DELETE FROM map_entry_tags WHERE user_id=?", (uid,), commit=True)
+    await execute_db(bot, "DELETE FROM map_entry_regions WHERE user_id=?", (uid,), commit=True)
     await execute_db(bot, "DELETE FROM map_entries WHERE user_id=?", (uid,), commit=True)
 
 
@@ -260,6 +388,8 @@ async def _save_join(bot, user, lang, cc, plz, first_name, age_18, show_name, co
     """Speichert den Karteneintrag. Gibt (ok, Nachricht) zurück."""
     fn = (first_name or "").strip()[:40] or None
     flag18 = 1 if age_18 else 0
+    if not age_18:   # unter 18 nicht einzeln sichtbar -> keine „Auch aktiv in“-Regionen speichern
+        await execute_db(bot, "DELETE FROM map_entry_regions WHERE user_id=?", (str(user.id),), commit=True)
     if geo.is_dach(cc):
         if not plz:
             return False, l10n.get("map_need_plz", lang)
@@ -344,10 +474,28 @@ class MapJoinModal(discord.ui.Modal):
             msg += "\n" + l10n.get("map_saved_preview", w.lang,
                                    display=discord.utils.escape_markdown(prev))
         logger.info("🗺️ map_join: %s (%s)", interaction.user.id, cc.upper())
+        if w.age_18:
+            # Tags + optional „Auch aktiv in“ (max. 2 weitere Bundesländer/Kantone)
+            rows = await execute_db(interaction.client,
+                "SELECT country, region_code, region_name FROM map_entries WHERE user_id=?",
+                (str(interaction.user.id),), fetch=True) or []
+            home = None
+            if rows and rows[0]["region_code"]:
+                home = (rows[0]["country"],
+                        geo.canon_region(rows[0]["country"], rows[0]["region_code"],
+                                         rows[0]["region_name"] or "")[0])
+            extras = await _load_extra_regions(interaction.client, interaction.user.id)
+            if home in extras:   # Wohnort jetzt in einer früheren Zusatzregion -> dort entfernen
+                extras = [e for e in extras if e != home]
+                await _save_extra_regions(interaction.client, interaction.user.id, extras)
+            view = MapExtrasView(w.lang, msg, w.tags, extras, home)
+            content = view.text()
+        else:
+            view, content = TagView(w.lang, w.tags), msg
         try:
-            await interaction.response.edit_message(content=msg, view=TagView(w.lang, w.tags))
+            await interaction.response.edit_message(content=content, view=view)
         except Exception:
-            await interaction.response.send_message(msg, view=TagView(w.lang, w.tags), ephemeral=True)
+            await interaction.response.send_message(content, view=view, ephemeral=True)
 
 
 class MapJoinView(discord.ui.View):

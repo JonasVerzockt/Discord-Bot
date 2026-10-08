@@ -334,6 +334,8 @@ class AdminCog(commands.Cog, name="Admin"):
                         self.bot, "SELECT * FROM map_entries WHERE user_id=?", (uid,), fetch=True)]
                     data["map_entry_tags"] = [dict(r) for r in await execute_db(
                         self.bot, "SELECT * FROM map_entry_tags WHERE user_id=?", (uid,), fetch=True)]
+                    data["map_entry_regions"] = [dict(r) for r in await execute_db(
+                        self.bot, "SELECT * FROM map_entry_regions WHERE user_id=?", (uid,), fetch=True)]
                     data["map_events_submitted"] = [dict(r) for r in await execute_db(
                         self.bot, "SELECT * FROM map_events WHERE submitted_by=?", (uid,), fetch=True)]
                     data["map_event_rsvp"] = [dict(r) for r in await execute_db(
@@ -341,6 +343,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 except Exception:
                     data.setdefault("map_entry", [])
                     data.setdefault("map_entry_tags", [])
+                    data.setdefault("map_entry_regions", [])
                     data.setdefault("map_events_submitted", [])
                     data.setdefault("map_event_rsvp", [])
 
@@ -395,6 +398,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 "server_settings",
                 "map_entries",
                 "map_entry_tags",
+                "map_entry_regions",
                 "map_events",
                 "map_event_rsvp",
             ]

@@ -946,7 +946,7 @@ MAP = """{% extends "base" %}{% block body %}
  st:{{ (st_labels or {})|tojson }},
  evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
          count:"{{ t('map_ev_count') }}"},
- pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}"},
+ pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}",also:"{{ t('map_pin_also') }}",alsoHere:"{{ t('map_also_here') }}"},
  evlabels:{fair:"{{ t('map_evtype_fair') }}",meetup:"{{ t('map_evtype_meetup') }}",shop:"{{ t('map_evtype_shop') }}",talk:"{{ t('map_evtype_talk') }}",field:"{{ t('map_evtype_field') }}",other:"{{ t('map_evtype_other') }}"}};</script>
 <script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
 <script src="/static/leaflet.markercluster.js?v={{ v }}"></script>
@@ -2216,6 +2216,21 @@ async def h_map_logout(req):
     raise resp
 
 
+async def _map_extras_for(app, uids=None):
+    """„Auch aktiv in“-Regionen: {user_id: [(Land, Regionscode, Name), …]} (nur Mitglieder-Ansichten)."""
+    rows = await execute_db(app["bot"],
+        "SELECT user_id, country, region_code FROM map_entry_regions", fetch=True) or []
+    allr = geo.all_regions()
+    out: dict = {}
+    for r in rows:
+        if uids is not None and r["user_id"] not in uids:
+            continue
+        name = allr.get(r["country"], {}).get(r["region_code"])
+        if name:
+            out.setdefault(r["user_id"], []).append((r["country"], r["region_code"], name))
+    return out
+
+
 async def _map_tags_for(app, uids):
     """tag_codes je user_id (dict uid->list)."""
     if not uids:
@@ -2282,9 +2297,22 @@ async def h_map_regions(req):
         if ll:
             e["lat"], e["lon"] = ll
             plz_out.append(e)
+    member = bool(_is_member(req))
+    if member:
+        # „Auch aktiv in“ (nur Mitglieder): zusätzlich aktive Halter je Region. Zählt NICHT
+        # in count/Färbung (Wohnort bleibt maßgeblich, keine Doppelzählung).
+        vis = {r["user_id"] for r in (await execute_db(bot,
+            "SELECT user_id FROM map_entries WHERE show_entry=1", fetch=True) or [])}
+        for uid, lst in (await _map_extras_for(req.app, vis)).items():
+            if not _member_name(req.app, uid):
+                continue
+            for c, rc, rn in lst:
+                e = by_state.setdefault(f"{c}:{rc}", {"country": c, "region_code": rc,
+                                                      "region_name": rn, "count": 0})
+                e["also"] = e.get("also", 0) + 1
     states = list(by_state.values())
     countries = [{"country": k, "count": v} for k, v in sorted(by_country.items())]
-    if not _is_member(req):                        # öffentlich: kleine Zahlen maskieren
+    if not member:                                 # öffentlich: kleine Zahlen maskieren
         for e in states + plz_out + countries:
             _mask_entry(e)
     return web.json_response({
@@ -2306,6 +2334,7 @@ async def h_map_pins(req):
         "lat_fuzzed, lon_fuzzed FROM map_entries WHERE show_entry=1 "
         "AND lat_fuzzed IS NOT NULL LIMIT 2000", fetch=True) or []
     tags = await _map_tags_for(req.app, {r["user_id"] for r in rows})
+    extras = await _map_extras_for(req.app, {r["user_id"] for r in rows})
     lang = pick_lang(req)
     anon = translate(lang, "map_anon")
     out = []
@@ -2326,6 +2355,7 @@ async def h_map_pins(req):
             # Profil-Link NUR bei aktivem Opt-in "Kontakt über Discord" (nur für eingeloggte Mitglieder).
             "contact_url": _contact_url(r["user_id"]) if r["contact_ok"] else "",
             "coarse": bool(r["coarse"]),             # Pin = Mitte des groben PLZ-Gebiets
+            "also": [n for _c, _k, n in extras.get(r["user_id"], [])],   # „Auch aktiv in“
             "tags": map_tags.labels(tags.get(r["user_id"], []), lang),
             "tag_codes": [c for c in tags.get(r["user_id"], []) if map_tags.is_valid(c)],
         })
@@ -2352,6 +2382,7 @@ async def h_map_list(req):
         "SELECT user_id, country, region_code, region_name, first_name, show_name, contact_ok "
         "FROM map_entries WHERE show_entry=1 LIMIT 5000", fetch=True) or []
     tags = await _map_tags_for(req.app, {r["user_id"] for r in rows})
+    extras = await _map_extras_for(req.app, {r["user_id"] for r in rows})
     lang = pick_lang(req)
     anon = translate(lang, "map_anon")
     items = []
@@ -2369,6 +2400,7 @@ async def h_map_list(req):
             "country_name": country_name(lang, r["country"]),
             "region": geo.canon_region(r["country"], r["region_code"] or "", r["region_name"] or "")[1],
             "dach": r["country"] in _DACH,
+            "also": [n for _c, _k, n in extras.get(r["user_id"], [])],   # „Auch aktiv in“
             "contact": bool(r["contact_ok"]),
             # Profil-Link NUR bei aktivem Opt-in "Kontakt über Discord" (nur für eingeloggte Mitglieder).
             "contact_url": _contact_url(r["user_id"]) if r["contact_ok"] else "",
