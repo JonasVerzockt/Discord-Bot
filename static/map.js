@@ -224,7 +224,9 @@
             var n = countFor(feat);
             var nm = (feat.properties && (feat.properties.region_name || feat.properties.shapeName ||
                       feat.properties.GEN || feat.properties.name || feat.properties.NAME_1)) || "";
-            layer.bindPopup("<b>" + esc(nm) + "</b><br>" + numText(entryFor(feat)) + " " + (CFG.lang === "en" ? "keepers" : "Halter"));
+            var ef = entryFor(feat);
+            layer.bindPopup("<b>" + esc(nm) + "</b><br>" + numText(ef) + " " + (CFG.lang === "en" ? "keepers" : "Halter") +
+                            (ef && ef.also ? "<br><span style='color:#8b949e'>+ " + esc(ef.also) + " " + esc(PL.alsoHere || "auch hier aktiv") + "</span>" : ""));
             // Hover: Region hell umranden (ohne die Pins zu überdecken – Umrisse liegen darunter).
             layer.on("mouseover", function () { layer.setStyle(T().hover); if (layer.bringToFront) layer.bringToFront(); });
             layer.on("mouseout",  function () { layer.setStyle(T().border); });
@@ -314,7 +316,8 @@
         var tags = (p.tags && p.tags.length) ? "<br><span style='color:#8b949e'>" + esc(p.tags.join(", ")) + "</span>" : "";
         var contact = p.contact_url ? ("<br>" + contactBtn(p.contact_url)) : "";
         var area = p.coarse ? ("<br><span style='color:" + T().pinCoarse.fill + "'>◎ " + esc(PL.coarseNote) + "</span>") : "";
-        m.bindPopup("<b>" + esc(p.name) + "</b><br>" + esc(p.region || p.country) + area + tags + contact);
+        var also = (p.also && p.also.length) ? "<br><span style='color:#8b949e'>➡️ " + esc(PL.also || "auch aktiv in") + ": " + esc(p.also.join(", ")) + "</span>" : "";
+        m.bindPopup("<b>" + esc(p.name) + "</b><br>" + esc(p.region || p.country) + also + area + tags + contact);
         if (p.ref) { pinByRef[p.ref] = m; m.on("click", function () { highlightRow(p.ref); }); }
         pinLayer.addLayer(m);
       });
@@ -349,13 +352,14 @@
     var items = window._MAPITEMS || [];
     var h = "", lastC = null;
     items.forEach(function (it) {
-      var hay = (it.name + " " + it.country_name + " " + it.region + " " + (it.tags || []).join(" ")).toLowerCase();
+      var hay = (it.name + " " + it.country_name + " " + it.region + " " + (it.also || []).join(" ") + " " + (it.tags || []).join(" ")).toLowerCase();
       if (q && hay.indexOf(q) < 0) return;
       if (!tagsMatch(it.tag_codes)) return;
       if (it.country_name !== lastC) { h += "<div class=status-sub style='margin-top:8px'>" + esc(it.country_name) + (it.dach ? "" : " 🌍") + "</div>"; lastC = it.country_name; }
       var tags = (it.tags && it.tags.length) ? "<div class=tg>" + esc(it.tags.join(" · ")) + "</div>" : "";
       var refattr = it.ref ? (" data-ref='" + esc(it.ref) + "'") : "";
-      h += "<div class=mrow" + refattr + "><div><div class=nm>" + esc(it.name) + "</div><div class=fl2>" + esc(it.region || it.country_name) + "</div>" + tags + contactBtn(it.contact_url) + "</div></div>";
+      h += "<div class=mrow" + refattr + "><div><div class=nm>" + esc(it.name) + "</div><div class=fl2>" + esc(it.region || it.country_name) +
+           ((it.also && it.also.length) ? " · " + esc(PL.also || "auch aktiv in") + " " + esc(it.also.join(", ")) : "") + "</div>" + tags + contactBtn(it.contact_url) + "</div></div>";
     });
     box.innerHTML = h || ("<p class=muted>" + esc(activeTags.length ? (CFG.tagNoMatch || "–")
                                                   : (q ? "–" : (CFG.emptyText || "–"))) + "</p>");
