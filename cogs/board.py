@@ -2118,7 +2118,7 @@ def _map_asset_v() -> str:
 
 
 # Texte für die Statistik-Box (map_stats.js), Platzhalter {n}/{km}/… füllt das Front-End.
-_MAP_ST_KEYS = ('map_st_title', 'map_st_loading', 'map_st_error', 'map_st_privacy', 'map_st_keepers', 'map_st_countries', 'map_st_regions', 'map_st_events', 'map_st_intl', 'map_st_top', 'map_st_growth', 'map_st_growth_note', 'map_st_ctry', 'map_st_evtypes', 'map_st_next', 'map_st_none', 'map_st_login', 'map_st_members', 'map_st_tags', 'map_st_tags_note', 'map_st_near', 'map_st_near_note', 'map_st_near_none', 'map_st_within', 'map_st_contact', 'map_st_contact_all', 'map_st_contact_reg', 'map_st_topev', 'map_st_myev', 'map_st_myev_none', 'map_st_empty', 'map_st_empty_note', 'map_st_empty_none')
+_MAP_ST_KEYS = ('map_st_title', 'map_st_loading', 'map_st_error', 'map_st_privacy', 'map_st_keepers', 'map_st_countries', 'map_st_regions', 'map_st_events', 'map_st_intl', 'map_st_top', 'map_st_growth', 'map_st_growth_note', 'map_st_ctry', 'map_st_evtypes', 'map_st_next', 'map_st_none', 'map_st_login', 'map_st_members', 'map_st_tags', 'map_st_tags_note', 'map_st_near', 'map_st_near_note', 'map_st_near_none', 'map_st_within', 'map_st_band', 'map_st_contact', 'map_st_contact_all', 'map_st_contact_reg', 'map_st_topev', 'map_st_myev', 'map_st_myev_none', 'map_st_empty', 'map_st_empty_note', 'map_st_empty_none')
 
 
 async def h_map(req):
@@ -2680,17 +2680,20 @@ async def h_map_stats(req):
                                     "keepers": len(same),
                                     "count": sum(1 for r in same if r["contact_ok"])}
 
-    # In deiner Nähe (Luftlinie zwischen den verschobenen Pins, ohne dich selbst)
+    # In deiner Nähe (Luftlinie zwischen den verschobenen Pins, ohne dich selbst).
+    # Entfernungsringe statt kumuliert: jeder Halter zählt genau einmal (0–25, 25–50, 50–100 km).
     if own and own["lat_fuzzed"] is not None and own["lon_fuzzed"] is not None:
-        near = {25: 0, 50: 0, 100: 0}
+        bands = [(0, 25), (25, 50), (50, 100)]
+        near = [0] * len(bands)
         for r in vis:
             if str(r["user_id"]) == str(me) or r["lat_fuzzed"] is None:
                 continue
             d = _km(own["lat_fuzzed"], own["lon_fuzzed"], r["lat_fuzzed"], r["lon_fuzzed"])
-            for k in near:
-                if d <= k:
-                    near[k] += 1
-        out["nearby"] = [{"km": k, "count": v} for k, v in near.items()]
+            for i, (a, b) in enumerate(bands):
+                if (d > a or a == 0) and d <= b:
+                    near[i] += 1
+                    break
+        out["nearby"] = [{"from": a, "to": b, "count": n} for (a, b), n in zip(bands, near)]
     else:
         out["nearby"] = None                        # kein eigener Eintrag -> Hinweis /map_join
 
