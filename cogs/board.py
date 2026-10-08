@@ -136,6 +136,7 @@ _STATIC_FILES = {
     "chart.umd.js": "application/javascript",
     "chartjs-chart-treemap.min.js": "application/javascript",
     "stats.js": "application/javascript",
+    "map_stats.js": "application/javascript",
     # Halter-Karte: Leaflet self-hosted + Kartenlogik + GeoJSON-Layer.
     # Große Dateien stellt der Bot via utils/map_geodata.py bereit (fehlen -> 404, Seite
     # degradiert sauber). Alle Namen sind feste Literale (CodeQL path-injection safe).
@@ -223,6 +224,8 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  a{color:#58a6ff;text-decoration:none} a:hover{text-decoration:underline}
  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 20px;display:flex;gap:16px;align-items:center}
  header h1{font-size:18px;margin:0} .grow{flex:1}
+ /* Handy: Kopfzeile umbrechen statt die Seite zu verbreitern */
+ @media(max-width:820px){header{flex-wrap:wrap;gap:8px 14px;padding:10px 14px} header h1{flex-basis:100%} header>.grow{display:none}}
  .wrap{max-width:1100px;margin:0 auto;padding:20px}
  .btn{background:#238636;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px}
  .btn.grey{background:#30363d} .btn.red{background:#8b2b2b} .btn.small{padding:3px 8px;font-size:13px}
@@ -676,6 +679,32 @@ MAP = """{% extends "base" %}{% block body %}
  .mapgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
  .mapgrid>*{min-width:0}   /* Inhalt darf die Spalten nicht aufweiten (Karte bleibt 2/3 breit) */
  @media(max-width:820px){.mapgrid{grid-template-columns:1fr}}
+ /* Statistiken: Desktop unter der Karte (linke Spalte), mobil zwischen Karte und Liste */
+ .mapleft{min-width:0}
+ #statsbox{margin-top:14px;min-width:0}
+ @media(max-width:820px){.mapleft{display:contents} #map{order:1} #statsbox{order:2;margin-top:0} .mapside{order:3}}
+ #statsbox>summary{cursor:pointer;font-weight:600;font-size:15px;list-style-position:inside}
+ #statsbody{margin-top:10px}
+ .stk{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+ .stk div{background:#0f141a;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
+ .stk b{display:block;font-size:20px;color:#e6edf3}
+ .stk span{font-size:12px;color:#8b949e}
+ .stgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+ .stgrid>section{min-width:0}
+ .stgrid h5{margin:0 0 6px;font-size:13px;color:#c9d1d9}
+ .stnote{font-size:11px;color:#8b949e;margin:-2px 0 6px}
+ .sbar{display:grid;grid-template-columns:minmax(0,1fr) 2fr auto;gap:8px;align-items:center;font-size:12px;margin:3px 0}
+ .sbar .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .sbar .tr{height:10px;background:#21262d;border-radius:5px;overflow:hidden}
+ .sbar .fi{height:100%;background:#58a6ff;border-radius:5px}
+ .sbar .vl{color:#8b949e;white-space:nowrap;text-align:right}
+ .scol{display:flex;align-items:flex-end;gap:3px;height:80px;border-bottom:1px solid #30363d}
+ .scol div{flex:1;background:#58a6ff;border-radius:3px 3px 0 0;min-height:2px;position:relative}
+ .scolx{display:flex;gap:3px;font-size:10px;color:#8b949e;margin-top:3px}
+ .scolx span{flex:1;text-align:center;overflow:hidden}
+ .stlist{font-size:12px;margin:0;padding-left:18px} .stlist li{margin:2px 0}
+ .stpriv{font-size:11px;color:#8b949e;border-top:1px solid #21262d;margin-top:12px;padding-top:8px}
+ html[data-mapcolors=contrast] .sbar .fi,html[data-mapcolors=contrast] .scol div{background:#ffffff}
  .mrow{display:flex;gap:9px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid #21262d}
  .mrow .fl2{font-size:13px;color:#8b949e;white-space:nowrap}
  .mrow .nm{font-weight:600;font-size:14px;overflow-wrap:anywhere}
@@ -756,8 +785,14 @@ MAP = """{% extends "base" %}{% block body %}
 {% endif %}
 <div id=mapnotice class=muted style="margin:6px 0"></div>
 <div class=mapgrid>
+  <div class=mapleft>
   <div id=map style="height:70vh;min-height:420px;background:#0f141a;border:1px solid #21262d;border-radius:10px"></div>
-  <div>
+  <details id=statsbox class=chartbox>
+    <summary>{{ t('map_st_title') }}</summary>
+    <div id=statsbody aria-live=polite><p class=muted>{{ t('map_st_loading') }}</p></div>
+  </details>
+  </div>
+  <div class=mapside>
     <div class=chartbox style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       {% if member %}<span class=muted>✅ {{ t('map_member_on') }}</span><span class=grow></span>
       <a href="/map/logout?lang={{ lang }}">{{ t('map_logout') }}</a>
@@ -815,6 +850,7 @@ MAP = """{% extends "base" %}{% block body %}
 <script>window.MAP_CFG={lang:"{{ lang }}",v:"{{ v }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
  emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}", choroLabel:"{{ t('map_choro_label') }}",
  csrf:"{{ member_csrf }}",
+ st:{{ (st_labels or {})|tojson }},
  evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
          count:"{{ t('map_ev_count') }}"},
  pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}"},
@@ -822,6 +858,7 @@ MAP = """{% extends "base" %}{% block body %}
 <script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
 <script src="/static/leaflet.markercluster.js?v={{ v }}"></script>
 <script src="/static/map.js?v={{ v }}"></script>
+<script src="/static/map_stats.js?v={{ v }}"></script>
 {% endblock %}"""
 
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
@@ -1977,11 +2014,15 @@ def _map_asset_v() -> str:
     """Cache-Busting für map.js/leaflet.js: Bot-Version + letzte Änderungszeit der Dateien.
     So holt der Browser nach einem Update sofort die neue Datei (statt bis zu 24 h Cache)."""
     try:
-        m = max(int((STATIC_DIR / f).stat().st_mtime) for f in ("map.js", "leaflet.js", "map_cities.json")
+        m = max(int((STATIC_DIR / f).stat().st_mtime) for f in ("map.js", "map_stats.js", "leaflet.js", "map_cities.json")
                 if (STATIC_DIR / f).is_file())
     except ValueError:
         m = 0
     return f"{VERSION}.{m}"
+
+
+# Texte für die Statistik-Box (map_stats.js), Platzhalter {n}/{km}/… füllt das Front-End.
+_MAP_ST_KEYS = ('map_st_title', 'map_st_loading', 'map_st_error', 'map_st_privacy', 'map_st_keepers', 'map_st_countries', 'map_st_regions', 'map_st_events', 'map_st_intl', 'map_st_top', 'map_st_growth', 'map_st_growth_note', 'map_st_ctry', 'map_st_evtypes', 'map_st_next', 'map_st_none', 'map_st_login', 'map_st_members', 'map_st_tags', 'map_st_tags_note', 'map_st_near', 'map_st_near_note', 'map_st_near_none', 'map_st_within', 'map_st_contact', 'map_st_contact_all', 'map_st_contact_reg', 'map_st_topev', 'map_st_myev', 'map_st_myev_none', 'map_st_empty', 'map_st_empty_note', 'map_st_empty_none')
 
 
 async def h_map(req):
@@ -1998,6 +2039,7 @@ async def h_map(req):
     return _render(req, "map", title=translate(lang, "map_h"),
                    v=_map_asset_v(), member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
                    ics_url=ics_url, webcal_url=webcal_url, tag_groups=tag_groups,
+                   st_labels={k: translate(lang, k) for k in _MAP_ST_KEYS},
                    member_csrf=(_member_csrf(_is_member(req)) if _is_member(req) else ""))
 
 
@@ -2089,6 +2131,23 @@ async def _map_tags_for(app, uids):
     return out
 
 
+# Datenschutz: Öffentlich (ohne Login) werden kleine Zahlen nicht exakt gezeigt, damit man
+# in dünn besiedelten Gegenden niemanden zurückverfolgen kann. 1–2 -> "< 3".
+MAP_PUBLIC_MIN = 3
+
+
+def _mask_entry(e: dict) -> dict:
+    """Öffentliche Ausgabe: count < MAP_PUBLIC_MIN -> count=1 + few=True (gleiche Farbe/Größe)."""
+    if 0 < e.get("count", 0) < MAP_PUBLIC_MIN:
+        e["count"], e["few"] = 1, True
+    return e
+
+
+def _mask_num(n: int, member: bool):
+    """Zahl für die Anzeige: Mitglieder exakt, öffentlich 1–2 als "< 3"."""
+    return n if member or n == 0 or n >= MAP_PUBLIC_MIN else f"< {MAP_PUBLIC_MIN}"
+
+
 async def h_map_regions(req):
     """ÖFFENTLICH: nur aggregierte Zahlen (keine Identitäten)."""
     if not _map_rate_ok(req):
@@ -2125,11 +2184,16 @@ async def h_map_regions(req):
         if ll:
             e["lat"], e["lon"] = ll
             plz_out.append(e)
+    states = list(by_state.values())
+    countries = [{"country": k, "count": v} for k, v in sorted(by_country.items())]
+    if not _is_member(req):                        # öffentlich: kleine Zahlen maskieren
+        for e in states + plz_out + countries:
+            _mask_entry(e)
     return web.json_response({
-        "bundesland": list(by_state.values()),
+        "bundesland": states,
         "plz": plz_out,
-        "countries": [{"country": k, "count": v} for k, v in sorted(by_country.items())],
-    })
+        "countries": countries,
+    }, headers={"Cache-Control": "no-store", "Vary": "Cookie"})
 
 
 async def h_map_pins(req):
@@ -2184,7 +2248,8 @@ async def h_map_list(req):
         return web.json_response({"member": False,
             "counts": [{"country": r["country"],
                         "country_name": country_name(pick_lang(req), r["country"]),
-                        "count": r["n"]} for r in rows]})
+                        "count": _mask_num(r["n"], False)} for r in rows]},
+            headers={"Cache-Control": "no-store", "Vary": "Cookie"})
     rows = await execute_db(bot,
         "SELECT user_id, country, region_code, region_name, first_name, show_name, contact_ok "
         "FROM map_entries WHERE show_entry=1 LIMIT 5000", fetch=True) or []
@@ -2352,6 +2417,178 @@ async def h_map_events(req):
             "going_names": rsvp[(r["id"], _occ_date(nxt))]["names"] if me else [],
         })
     return web.json_response({"events": data}, headers={"Cache-Control": "no-store"})
+
+
+def _km(lat1, lon1, lat2, lon2) -> float:
+    """Luftlinie in km (Haversine)."""
+    import math
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 6371.0 * 2 * math.asin(math.sqrt(min(1.0, a)))
+
+
+async def h_map_stats(req):
+    """Statistiken zur Karte. ÖFFENTLICH: nur Summen (kleine Zahlen maskiert).
+    MITGLIEDER zusätzlich: Tags, Umkreis, Kontakt, Teilnahme, Regionen ohne Halter.
+    Unter-18-Einträge (show_entry=0) zählen nur in den Gesamtsummen mit."""
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    bot = req.app["bot"]
+    lang = pick_lang(req)
+    me = _is_member(req)
+    member = bool(me)
+    rows = await execute_db(bot,
+        "SELECT user_id, country, region_code, region_name, lat_fuzzed, lon_fuzzed, "
+        "show_entry, contact_ok, consent_at FROM map_entries", fetch=True) or []
+
+    # ── Kennzahlen ──
+    by_country: dict = {}
+    by_state: dict = {}
+    for r in rows:
+        c = r["country"] or "??"
+        by_country[c] = by_country.get(c, 0) + 1
+        if c in _DACH and r["region_code"]:
+            rc, rn = geo.canon_region(c, r["region_code"], r["region_name"] or "")
+            if c == "li":
+                rc, rn = "LI", "Liechtenstein"
+            k = (c, rc)
+            e = by_state.setdefault(k, {"country": c, "code": rc, "name": rn, "count": 0})
+            e["count"] += 1
+    evs = await _approved_events(req.app)
+    total = len(rows)
+    out = {
+        "member": member,
+        "min": MAP_PUBLIC_MIN,
+        "totals": {"keepers": _mask_num(total, member),
+                   "countries": len([c for c in by_country if c != "??"]),
+                   "regions": len(by_state), "events": len(evs)},
+    }
+
+    # ── Top-Regionen (5) ──
+    top = sorted(by_state.values(), key=lambda e: (-e["count"], e["name"]))[:5]
+    out["top_regions"] = [{"name": e["name"], "country": e["country"],
+                           "count": _mask_num(e["count"], member),
+                           "n": e["count"] if (member or e["count"] >= MAP_PUBLIC_MIN) else 0}
+                          for e in top]
+
+    # ── Wachstum: aktuelle Einträge nach Eintragsmonat (letzte 12 Monate) ──
+    now = datetime.now(timezone.utc)
+    months = []
+    y, m = now.year, now.month
+    for _ in range(12):
+        months.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    months.reverse()
+    per = {k: 0 for k in months}
+    for r in rows:
+        k = str(r["consent_at"] or "")[:7]
+        if k in per:
+            per[k] += 1
+    out["growth"] = [{"month": k, "count": per[k]} for k in months]
+
+    # ── Ländervergleich DACH (+ International) ──
+    comp = []
+    for c in _DACH:
+        n = by_country.get(c, 0)
+        show = member or n == 0 or n >= MAP_PUBLIC_MIN
+        comp.append({"country": c, "name": country_name(lang, c),
+                     "count": _mask_num(n, member),
+                     "share": round(100 * n / total) if (total and show) else None})
+    intl = sum(v for k, v in by_country.items() if k not in _DACH)
+    show = member or intl == 0 or intl >= MAP_PUBLIC_MIN
+    comp.append({"country": "intl", "name": "International",
+                 "count": _mask_num(intl, member),
+                 "share": round(100 * intl / total) if (total and show) else None})
+    out["countries"] = comp
+
+    # ── Termine: kommende je Art + nächster Termin ──
+    by_type: dict = {}
+    for _n, r in evs:
+        by_type[r["type"]] = by_type.get(r["type"], 0) + 1
+    out["events_by_type"] = [{"type": k, "count": v}
+                             for k, v in sorted(by_type.items(), key=lambda t: -t[1])]
+    if evs:
+        nxt, r = evs[0]
+        out["next_event"] = {"id": r["id"], "title": r["title"], "type": r["type"],
+                             "next": nxt.isoformat(), "all_day": bool(r["all_day"]),
+                             "venue": r["venue"] or ""}
+
+    if not member:
+        return web.json_response(out, headers={"Cache-Control": "no-store", "Vary": "Cookie"})
+
+    # ════ Ab hier nur Mitglieder ════
+    # Sichtbare Einträge (18+, show_entry=1) von aktuellen Server-Mitgliedern.
+    vis = [r for r in rows if r["show_entry"] and _member_name(req.app, r["user_id"])]
+    nvis = len(vis)
+    out["visible"] = nvis
+
+    # Beliebteste Tags (Anteil der sichtbaren Einträge)
+    tagrows = await execute_db(bot, "SELECT user_id, tag_code FROM map_entry_tags",
+                               fetch=True) or []
+    vis_ids = {r["user_id"] for r in vis}
+    tcount: dict = {}
+    for t in tagrows:
+        if t["user_id"] in vis_ids and map_tags.is_valid(t["tag_code"]):
+            tcount[t["tag_code"]] = tcount.get(t["tag_code"], 0) + 1
+    out["tags"] = [{"code": c, "label": map_tags.label(c, lang), "count": n,
+                    "pct": round(100 * n / nvis) if nvis else 0}
+                   for c, n in sorted(tcount.items(), key=lambda t: -t[1])[:10]]
+
+    # Kontaktbereitschaft (gesamt + eigene Region)
+    own = next((r for r in rows if str(r["user_id"]) == str(me)), None)
+    contact_total = sum(1 for r in vis if r["contact_ok"])
+    out["contact"] = {"count": contact_total,
+                      "pct": round(100 * contact_total / nvis) if nvis else 0}
+    if own and own["country"] in _DACH and own["region_code"]:
+        orc, orn = geo.canon_region(own["country"], own["region_code"], own["region_name"] or "")
+        same = [r for r in vis if r["country"] == own["country"] and str(r["user_id"]) != str(me)
+                and geo.canon_region(r["country"], r["region_code"] or "", "")[0] == orc]
+        out["contact"]["region"] = {"name": "Liechtenstein" if own["country"] == "li" else orn,
+                                    "keepers": len(same),
+                                    "count": sum(1 for r in same if r["contact_ok"])}
+
+    # In deiner Nähe (Luftlinie zwischen den verschobenen Pins, ohne dich selbst)
+    if own and own["lat_fuzzed"] is not None and own["lon_fuzzed"] is not None:
+        near = {25: 0, 50: 0, 100: 0}
+        for r in vis:
+            if str(r["user_id"]) == str(me) or r["lat_fuzzed"] is None:
+                continue
+            d = _km(own["lat_fuzzed"], own["lon_fuzzed"], r["lat_fuzzed"], r["lon_fuzzed"])
+            for k in near:
+                if d <= k:
+                    near[k] += 1
+        out["nearby"] = [{"km": k, "count": v} for k, v in near.items()]
+    else:
+        out["nearby"] = None                        # kein eigener Eintrag -> Hinweis /map_join
+
+    # Teilnahme: beliebteste kommende Termine + eigene Zusagen
+    rsvp = await _rsvp_info(req.app, [(r["id"], _occ_date(n)) for n, r in evs], me)
+    ranked = []
+    mine = []
+    for n, r in evs:
+        info = rsvp[(r["id"], _occ_date(n))]
+        if info["count"]:
+            ranked.append({"id": r["id"], "title": r["title"], "next": n.isoformat(),
+                           "all_day": bool(r["all_day"]), "count": info["count"]})
+        if info["going"]:
+            mine.append({"id": r["id"], "title": r["title"], "next": n.isoformat(),
+                         "all_day": bool(r["all_day"])})
+    ranked.sort(key=lambda e: (-e["count"], e["next"]))
+    out["top_events"] = ranked[:5]
+    out["my_events"] = mine
+
+    # Weiße Flecken: DACH-Regionen ohne Halter
+    have = set(by_state.keys())
+    empty = []
+    for c, table in geo.all_regions().items():
+        for code, name in table.items():
+            if (c, code) not in have:
+                empty.append({"country": c, "name": name})
+    out["empty_regions"] = sorted(empty, key=lambda e: (_DACH.index(e["country"]), e["name"]))
+    return web.json_response(out, headers={"Cache-Control": "no-store", "Vary": "Cookie"})
 
 
 async def h_map_event_rsvp(req):
@@ -2574,6 +2811,7 @@ def build_app(bot) -> web.Application:
         web.get("/map/pins.json", h_map_pins),
         web.get("/map/list.json", h_map_list),
         web.get("/map/events.json", h_map_events),
+        web.get("/map/stats.json", h_map_stats),
         web.get("/map/events.ics", h_map_events_ics),
         web.get(r"/map/events/{eid:\d+}.ics", h_map_event_ics),
         web.post(r"/map/events/{eid:\d+}/rsvp", h_map_event_rsvp),
