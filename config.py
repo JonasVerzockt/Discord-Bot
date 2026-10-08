@@ -74,7 +74,7 @@ ACCUMULATION_DELAY = int(os.getenv("ACCUMULATION_DELAY", "8"))
 # Anthropic (Review-Bot + KI-Chat)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # Modell für die KI-Extraktion der Reviews (günstiges Haiku für strukturierte Parserei).
-REVIEW_PARSER_MODEL = os.getenv("REVIEW_PARSER_MODEL", "claude-haiku-4-5-20251001")
+REVIEW_PARSER_MODEL = os.getenv("REVIEW_PARSER_MODEL", "claude-haiku-5-5")
 
 # ── Rabattcode-Tracker ────────────────────────────────────────────────────────
 # Kanäle, in denen Rabattcodes gepostet werden (leer = Feature inaktiv).
@@ -93,7 +93,7 @@ for _cid in [
     if _cid and _cid not in DISCOUNT_CHANNEL_IDS:
         DISCOUNT_CHANNEL_IDS.append(_cid)
 # Modell für die Code-Extraktion (günstiges Haiku für strukturierte Parserei).
-DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-4-5-20251001")
+DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-5-5")
 # Bild-Analyse: gepostete Screenshots/Flyer/Werbung ebenfalls per Vision auf
 # Rabattcodes prüfen (Standard an). Nur Datei-Anhänge, keine verlinkten Bilder.
 DISCOUNT_VISION_ENABLED = os.getenv("DISCOUNT_VISION_ENABLED", "true").lower() == "true"
@@ -130,13 +130,13 @@ OFFER_QUIET_START_HOUR = int(os.getenv("OFFER_QUIET_START_HOUR", "23"))
 OFFER_QUIET_END_HOUR   = int(os.getenv("OFFER_QUIET_END_HOUR", "9"))
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
-# Modell für den Chat (Standard: claude-haiku-4-5-20251001)
-AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-4-5-20251001")
+# Modell für den Chat (Standard: claude-haiku-5-5)
+AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-5-5")
 # Im Modell-Dropdown mit 👍 als Empfehlung markiertes Modell – unabhängig von der
 # Vorauswahl (AI_CHAT_MODEL / zuletzt gewählt). Leer = keine Empfehlung anzeigen.
-AI_CHAT_RECOMMENDED_MODEL = os.getenv("AI_CHAT_RECOMMENDED_MODEL", "claude-sonnet-5")
+AI_CHAT_RECOMMENDED_MODEL = os.getenv("AI_CHAT_RECOMMENDED_MODEL", "claude-sonnet-5-5")
 # Modell für die Stufe-2-Shop-Relevanz-Klassifikation (günstiges Haiku).
-AI_CHAT_CLASSIFY_MODEL = os.getenv("AI_CHAT_CLASSIFY_MODEL", "claude-haiku-4-5-20251001")
+AI_CHAT_CLASSIFY_MODEL = os.getenv("AI_CHAT_CLASSIFY_MODEL", "claude-haiku-5-5")
 
 # Kanal-ID in dem der Bot auf ALLE Nachrichten reagiert (eine ID).
 # Zusaetzlich reagiert der Bot immer auf @-Erwaehnung in jedem Kanal.
