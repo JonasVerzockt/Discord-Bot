@@ -85,6 +85,14 @@ _AT_OLD = {"B": "1", "K": "2", "NO": "3", "OO": "4", "S": "5", "ST": "6", "T": "
            "V": "8", "W": "9"}
 
 
+def all_regions() -> dict:
+    """Alle DACH-Regionen {land: {code: name}} (für Statistik „Regionen ohne Halter“).
+    Liechtenstein zählt als eine Region (Code "LI")."""
+    out = {c: dict(t) for c, t in _REGIONS.items()}
+    out["li"] = {"LI": "Liechtenstein"}
+    return out
+
+
 def canon_region(country: str, code: str, name: str = "") -> tuple[str, str]:
     """(ISO-Regionscode ohne Länderpräfix, deutscher Name). Unbekanntes bleibt unverändert.
     Liechtenstein wird als Ganzes gezählt (Code "LI"); der Gemeindename bleibt erhalten."""
