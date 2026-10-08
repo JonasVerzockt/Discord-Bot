@@ -178,6 +178,9 @@ BOARD_BIND        = os.getenv("BOARD_BIND", "127.0.0.1")   # nur lokal binden ->
 BOARD_PORT        = int(os.getenv("BOARD_PORT", "8080"))
 # Öffentliche URL (für Links/Anzeige); darf zunächst leer sein.
 BOARD_PUBLIC_URL  = os.getenv("BOARD_PUBLIC_URL", "").strip().rstrip("/")
+# Optionaler Discord-Einladungslink (https://discord.gg/…) für den Kasten „Mitmachen“
+# auf der Karte. Leer = Button wird nicht angezeigt.
+DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL", "").strip()
 # Owner-Login-Token (Pflicht wenn aktiviert) + Discord-User-ID für die Owner-DM
 # (darf zunächst leer/0 sein -> dann nur Log-Hinweis statt DM).
 BOARD_ADMIN_TOKEN = os.getenv("BOARD_ADMIN_TOKEN", "")
