@@ -48,8 +48,7 @@ HINWEIS zur Batch API:
   zu 24 Stunden. Sie ist damit für interaktive Discord-Bots NICHT geeignet.
 
 Quellen Preise:
-  https://www.anthropic.com/claude/haiku
-  https://www.anthropic.com/news/claude-haiku-4-5
+  https://platform.claude.com/docs/en/about-claude/pricing
 """
 
 import json
@@ -65,43 +64,67 @@ from utils.localization import l10n
 
 logger = logging.getLogger(__name__)
 
-# ── Preise pro Modell (Stand: Juni 2026) ──────────────────────────────────────
-# Quelle: https://docs.anthropic.com/en/docs/about-claude/pricing
+# ── Preise pro Modell (Stand: Oktober 2026) ───────────────────────────────────
+# Quelle: https://platform.claude.com/docs/en/about-claude/pricing
+#         https://platform.claude.com/docs/en/models/overview
 # Format: (input_usd_per_token, output_usd_per_token)
+_M = 1_000_000
 _MODEL_PRICES: dict[str, tuple[float, float]] = {
-    # Haiku
-    "claude-haiku-4-5-20251001": (1.00 / 1_000_000,  5.00 / 1_000_000),
-    "claude-haiku-4-5":          (1.00 / 1_000_000,  5.00 / 1_000_000),
-    # Sonnet
-    "claude-sonnet-4-5":         (3.00 / 1_000_000, 15.00 / 1_000_000),
-    "claude-sonnet-4-6":         (3.00 / 1_000_000, 15.00 / 1_000_000),
-    "claude-sonnet-5":           (3.00 / 1_000_000, 15.00 / 1_000_000),
-    # Opus 4.5+ (neue Preisstruktur: $5/$25)
-    "claude-opus-4-5":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    "claude-opus-4-6":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    "claude-opus-4-7":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    "claude-opus-4-8":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    # Fable 5 (Top-Tier, $10/$50 lt. offizieller Preisliste)
-    "claude-fable-5":            (10.00 / 1_000_000, 50.00 / 1_000_000),
-    # Opus 4.1 (deprecated) + Opus 4 (retired) – alte Preisstruktur: $15/$75
-    "claude-opus-4-1":           (15.00 / 1_000_000, 75.00 / 1_000_000),
-    "claude-opus-4":             (15.00 / 1_000_000, 75.00 / 1_000_000),
+    # ── Aktuelle Generation ──
+    "claude-haiku-5-5":          (0.10 / _M,  0.50 / _M),   # bis 100k Prompt-Tokens (s. u.)
+    "claude-sonnet-5-5":         (2.00 / _M, 10.00 / _M),
+    "claude-opus-5-5":           (4.00 / _M, 20.00 / _M),
+    "claude-fable-5-1":          (10.00 / _M, 50.00 / _M),
+    # ── Vorgaenger (falls noch per .env gesetzt) ──
+    "claude-haiku-4-5-20251001": (1.00 / _M,  5.00 / _M),
+    "claude-haiku-4-5":          (1.00 / _M,  5.00 / _M),
+    "claude-sonnet-4-5":         (3.00 / _M, 15.00 / _M),
+    "claude-sonnet-4-6":         (3.00 / _M, 15.00 / _M),
+    "claude-sonnet-5":           (2.00 / _M, 10.00 / _M),
+    "claude-opus-4-5":           (5.00 / _M, 25.00 / _M),
+    "claude-opus-4-6":           (5.00 / _M, 25.00 / _M),
+    "claude-opus-4-7":           (5.00 / _M, 25.00 / _M),
+    "claude-opus-4-8":           (5.00 / _M, 25.00 / _M),
+    "claude-fable-5":            (10.00 / _M, 50.00 / _M),
+    "claude-opus-4-1":           (15.00 / _M, 75.00 / _M),
+    "claude-opus-4":             (15.00 / _M, 75.00 / _M),
+}
+
+# Haiku 5.5: Prompts ueber 100.000 Tokens kosten mehr ($0.50 / $2.50 pro Mio.).
+_LONG_PROMPT_THRESHOLD = 100_000
+_LONG_PROMPT_PRICES: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.50 / _M, 2.50 / _M),
+}
+
+# Cache-Read-Faktor (Anteil des Input-Preises). Standard 0.10; neuere Modelle guenstiger.
+_CACHE_READ_FACTOR: dict[str, float] = {
+    "claude-fable-5-1":  0.025,
+    "claude-opus-5-5":   0.05,
+    "claude-sonnet-5-5": 0.05,
 }
 
 
-def prices_for(model: str) -> tuple[float, float]:
-    """Preis (Input, Output) pro Token für ein Modell. Fallback ueber Namensfamilie
-    (konservativ = teureres Niveau), damit der Budget-Check nie zu niedrig schaetzt."""
+def prices_for(model: str, prompt_tokens: int = 0) -> tuple[float, float]:
+    """Preis (Input, Output) pro Token für ein Modell. ``prompt_tokens`` = gesamte
+    Prompt-Laenge (fuer Modelle mit Long-Prompt-Aufschlag, z. B. Haiku 5.5).
+    Fallback ueber Namensfamilie (konservativ = teureres Niveau), damit der
+    Budget-Check nie zu niedrig schaetzt."""
     m = (model or "").lower()
+    if prompt_tokens > _LONG_PROMPT_THRESHOLD and m in _LONG_PROMPT_PRICES:
+        return _LONG_PROMPT_PRICES[m]
     if m in _MODEL_PRICES:
         return _MODEL_PRICES[m]
     if "fable" in m or "mythos" in m:
-        return (10.00 / 1_000_000, 50.00 / 1_000_000)
+        return (10.00 / _M, 50.00 / _M)
     if "opus" in m:
-        return (5.00 / 1_000_000, 25.00 / 1_000_000)
+        return (5.00 / _M, 25.00 / _M)
     if "sonnet" in m:
-        return (3.00 / 1_000_000, 15.00 / 1_000_000)
-    return (1.00 / 1_000_000, 5.00 / 1_000_000)
+        return (3.00 / _M, 15.00 / _M)
+    return (1.00 / _M, 5.00 / _M)
+
+
+def cache_read_factor(model: str) -> float:
+    return _CACHE_READ_FACTOR.get((model or "").lower(), 0.10)
 
 
 # Preis des in der .env konfigurierten Standardmodells (Default, wenn kein Modell
@@ -228,14 +251,15 @@ def calculate_cost(usage, model: str | None = None) -> float:
     ungecachten Tokens (Cache-Write/Read werden separat gefuehrt).
     ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
-    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
+    model = model or cfg.AI_CHAT_MODEL
     cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
     cache_read  = getattr(usage, "cache_read_input_tokens", 0) or 0
     regular_in  = getattr(usage, "input_tokens", 0) or 0
+    price_in, price_out = prices_for(model, regular_in + cache_write + cache_read)
     return (
         regular_in   * price_in
-        + cache_write * price_in * 1.25   # 5-Min-Cache-Write-Aufschlag
-        + cache_read  * price_in * 0.10   # Cache-Read (10 % des Input-Preises)
+        + cache_write * price_in * 1.25                      # 5-Min-Cache-Write-Aufschlag
+        + cache_read  * price_in * cache_read_factor(model)  # Cache-Read (modellabhaengig)
         + usage.output_tokens * price_out
     )
 
@@ -249,11 +273,12 @@ def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0,
     Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
     ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
-    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
     # Konservative Schaetzung: laengsten verfügbaren Prompt nehmen
     system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=0) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
     image_tokens  = num_images * 1500
+    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL,
+                                     int(system_tokens + input_tokens + image_tokens))
     return (
         (system_tokens + input_tokens + image_tokens) * price_in
         + cfg.AI_CHAT_MAX_OUTPUT_TOKENS               * price_out
@@ -588,7 +613,7 @@ async def chat(
 ) -> dict:
     """
     Sendet eine Nachricht an das konfigurierte Claude-Modell.
-    Standard: claude-haiku-4-5 – aktuell: claude-sonnet-4-6 (siehe .env / config.py).
+    Standard: AI_CHAT_MODEL (siehe .env / config.py).
 
     Ablauf:
       1. Eingabe validieren (Laenge)
@@ -699,12 +724,12 @@ async def chat(
     # 5. Pre-Budget-Check mit EXAKTER Token-Zählung (count_tokens); Fallback auf
     #    die Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist. Output
     #    wird konservativ mit dem Maximum angesetzt.
-    price_in, price_out = prices_for(model)
     # Output realistisch ansetzen (Antworten liegen meist unter dem Maximum) statt
     # immer das Maximum -> vermeidet stark ueberhoehte Schaetzungen / Fehl-Blocks.
     est_output_tokens = cfg.AI_CHAT_MAX_OUTPUT_TOKENS * cfg.AI_CHAT_BUDGET_OUTPUT_RATIO
     input_tokens = await count_input_tokens(model, system_prompt, messages)
     if input_tokens is not None:
+        price_in, price_out = prices_for(model, input_tokens)
         estimated = input_tokens * price_in + est_output_tokens * price_out + precheck_cost
     else:
         estimated = estimate_cost(len(user_message), history_chars, num_images, model) + precheck_cost
