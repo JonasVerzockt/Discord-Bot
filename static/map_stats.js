@@ -107,7 +107,8 @@
       var nb = d.nearby;
       var nmax = nb ? Math.max.apply(null, [1].concat(nb.map(function (e) { return e.count; }))) : 1;
       ms.push(section(L("map_st_near"), nb ? nb.map(function (e) {
-        return bar(L("map_st_within", { km: e.km }), e.count, e.count / nmax);
+        var lbl = e.from ? L("map_st_band", { a: e.from, b: e.to }) : L("map_st_within", { km: e.to });
+        return bar(lbl, e.count, e.count / nmax);
       }).join("") : "<p class=muted style='font-size:12px'>" + esc(L("map_st_near_none")) + "</p>",
         nb ? L("map_st_near_note") : ""));
       // Kontakt
