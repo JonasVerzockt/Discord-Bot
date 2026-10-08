@@ -506,6 +506,7 @@ T: dict[str, dict[str, str]] = {
     "map_st_near_note": {"de": "Luftlinie zwischen den verschobenen Pins, ohne dich", "en": "straight-line distance between the shifted pins, excluding you", "eo": "rekta distanco inter la ŝovitaj pingloj, sen vi"},
     "map_st_near_none": {"de": "Trag dich mit /map_join ein, dann siehst du hier, wie viele Halter in deiner Nähe sind.", "en": "Join with /map_join to see how many keepers are near you.", "eo": "Aliĝu per /map_join por vidi, kiom da bredistoj estas proksime."},
     "map_st_within": {"de": "bis {km} km", "en": "within {km} km", "eo": "ĝis {km} km"},
+    "map_st_band": {"de": "{a} bis {b} km", "en": "{a} to {b} km", "eo": "{a} ĝis {b} km"},
     "map_st_contact": {"de": "Kontaktbereitschaft", "en": "Open to contact", "eo": "Kontakteblaj"},
     "map_st_contact_all": {"de": "{n} von {total} Haltern erlauben Kontakt ({pct} %)", "en": "{n} of {total} keepers allow contact ({pct} %)", "eo": "{n} el {total} bredistoj permesas kontakton ({pct} %)"},
     "map_st_contact_reg": {"de": "In {region}: {n} von {total} weiteren Haltern", "en": "In {region}: {n} of {total} other keepers", "eo": "En {region}: {n} el {total} aliaj bredistoj"},
