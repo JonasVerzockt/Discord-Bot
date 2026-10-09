@@ -74,7 +74,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 # Rechtsseiten-Inhalte unter <repo>/legal/. Echte Datei (z.B. impressum.html) liegt
 # NICHT im Git (gitignored) und wird bevorzugt geladen; sonst die .example-Vorlage.
 LEGAL_DIR = Path(__file__).resolve().parent.parent / "legal"
-_LEGAL_PAGES = {"impressum", "datenschutz"}
+_LEGAL_PAGES = {"impressum", "datenschutz", "partner", "gewinnspiel"}
 
 
 def _make_captcha() -> tuple[str, str]:
@@ -120,7 +120,11 @@ async def _send_contact_dm(app, message: str, name: str, email: str, tel: str) -
 
 
 # ── Partner/Sponsoren (Karte, rechte Spalte) ──────────────────────────────────
-# legal/partners.json: [{"name": "...", "url": "https://...", "text": "...", "logo": "datei.png"}]
+# legal/partners.json: [{"name": "...", "url": "https://...", "text": "...", "logo": "datei.png",
+#                        "art": "verein" | "shop", "code": "AAM10"}]
+#   art "verein": Vereine/Projekte, gegenseitige Verlinkung -> ohne „Anzeige“.
+#   art "shop" (Standard): Shops/Hersteller gegen Community-Vorteil -> als „Anzeige“ gekennzeichnet.
+#   code: optionaler Community-Rabattcode (nur bei Shops angezeigt).
 # Logos liegen SELBST GEHOSTET in legal/partners/ (keine fremden Server -> keine IP-Weitergabe).
 # Nur PNG/JPG/WebP (kein SVG: könnte Skripte enthalten). Fehlt die Datei -> Platzhalter.
 PARTNER_DIR = LEGAL_DIR / "partners"
@@ -156,8 +160,13 @@ def _load_partners() -> list[dict]:
         logo = str(e.get("logo") or "").strip()
         if not (_PARTNER_LOGO_RE.match(logo) and (PARTNER_DIR / logo).is_file()):
             logo = ""
+        art = "verein" if str(e.get("art") or "").strip().lower() == "verein" else "shop"
+        code = str(e.get("code") or "").strip()[:30]
+        if art != "shop" or not re.fullmatch(r"[A-Za-z0-9_-]{1,30}", code or ""):
+            code = ""
         out.append({"name": name, "url": url[:300],
-                    "text": str(e.get("text") or "").strip()[:140], "logo": logo})
+                    "text": str(e.get("text") or "").strip()[:140], "logo": logo,
+                    "ad": art == "shop", "code": code})
     _partner_cache.update(key=key, data=out[:6])
     return out[:6]
 
@@ -368,14 +377,16 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
 <div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
-{% if partner_strip %}<div class=pstrip aria-label="{{ t('map_partner_h') }}"><span class=plbl>🤝 {{ t('map_partner_h') }}<span class=ad>{{ t('map_partner_ad') }}</span></span>
-{% for p in partner_strip %}<a href="{{ p.url }}" target=_blank rel="sponsored noopener noreferrer" title="{{ p.text }}">{% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}<span>{{ p.name }}</span></a>{% endfor %}</div>{% endif %}
+{% if partner_strip %}<div class=pstrip aria-label="{{ t('map_partner_h') }}"><span class=plbl>🤝 <a href="/partner?lang={{ lang }}" style="color:inherit">{{ t('map_partner_h') }}</a></span>
+{% for p in partner_strip %}<a href="{{ p.url }}" target=_blank rel="{{ 'sponsored ' if p.ad }}noopener noreferrer" title="{{ p.text }}{% if p.code %} · {{ t('map_partner_code') }}: {{ p.code }}{% endif %}">{% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}<span>{{ p.name }}</span>{% if p.ad %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
 <footer style="max-width:1100px;margin:28px auto 12px;padding:14px 20px;border-top:1px solid #30363d;color:#8b949e;font-size:13px;text-align:center;line-height:1.6">
   💖 <strong>{{ t('footer_run') }}</strong>
   <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
   · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">{{ t('footer_source') }}</a>
   · <a href="/impressum?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_impressum') }}</a>
   · <a href="/datenschutz?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_privacy') }}</a>
+  · <a href="/partner?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_partner') }}</a>
+  · <a href="/gewinnspiel?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_giveaway') }}</a>
 </footer>
 </body></html>"""
 
@@ -751,7 +762,7 @@ MAP = """{% extends "base" %}{% block body %}
  #statsbody{margin-top:10px}
  #joinbox ul{margin:0;padding-left:18px;font-size:13px} #joinbox li{margin:4px 0}
  #joinbox code{background:#0f141a;border:1px solid #30363d;border-radius:4px;padding:0 4px;font-size:12px}
- #partnerbox h4 .ad{font-size:10px;font-weight:400;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:middle}
+ .partner .ad,#partnerbox h4 .ad{font-size:10px;font-weight:400;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:middle}
  .partner{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #21262d}
  .partner img{width:44px;height:44px;object-fit:contain;border-radius:6px;background:#fff1}
  .partner .pt{font-size:12px;color:#8b949e}
@@ -926,16 +937,17 @@ MAP = """{% extends "base" %}{% block body %}
       {% if invite_url %}<a class=btn href="{{ invite_url }}" target=_blank rel="noopener noreferrer" style="display:block;margin-top:10px;text-align:center">{{ t('map_join_invite') }}</a>{% endif %}
     </div>
     <div class=chartbox id=partnerbox style="margin-top:14px">
-      <h4>🤝 {{ t('map_partner_h') }}{% if partners %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}</h4>
+      <h4>🤝 {{ t('map_partner_h') }}</h4>
       {% for p in partners %}
-      <a class=partner href="{{ p.url }}" target=_blank rel="sponsored noopener noreferrer">
+      <a class=partner href="{{ p.url }}" target=_blank rel="{{ 'sponsored ' if p.ad }}noopener noreferrer">
         {% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}
-        <span><b>{{ p.name }}</b>{% if p.text %}<br><span class=pt>{{ p.text }}</span>{% endif %}</span>
+        <span><b>{{ p.name }}</b>{% if p.ad %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}{% if p.text %}<br><span class=pt>{{ p.text }}</span>{% endif %}{% if p.code %}<br><span class=pt>🏷️ {{ t('map_partner_code') }}: <code>{{ p.code }}</code></span>{% endif %}</span>
       </a>
-      {% else %}
-      <div class=pslot>{{ t('map_partner_empty') }}<br>
-        <a href="/impressum?lang={{ lang }}#kontakt">{{ t('map_partner_contact') }}</a></div>
       {% endfor %}
+      {% if partners %}<p class=pt style="margin:8px 0 0;font-size:12px"><a href="/partner?lang={{ lang }}">{{ t('map_partner_become') }}</a></p>{% else %}
+      <div class=pslot>{{ t('map_partner_empty') }}<br>
+        <a href="/partner?lang={{ lang }}">{{ t('map_partner_contact') }}</a></div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -1582,6 +1594,24 @@ async def h_datenschutz(req):
     body, is_example = _legal_content("datenschutz")
     return _render(req, "legal", title=translate(lang, "nav_privacy"),
                    heading=translate(lang, "nav_privacy"), body=body, is_example=is_example,
+                   show_contact=False)
+
+
+async def h_partner_page(req):
+    """„Partner werden“ – Inhalt aus legal/partner(.example).html."""
+    lang = pick_lang(req)
+    body, is_example = _legal_content("partner")
+    return _render(req, "legal", title=translate(lang, "nav_partner"),
+                   heading=translate(lang, "nav_partner"), body=body, is_example=is_example,
+                   show_contact=False)
+
+
+async def h_gewinnspiel(req):
+    """Teilnahmebedingungen für Gewinnspiele – Inhalt aus legal/gewinnspiel(.example).html."""
+    lang = pick_lang(req)
+    body, is_example = _legal_content("gewinnspiel")
+    return _render(req, "legal", title=translate(lang, "nav_giveaway"),
+                   heading=translate(lang, "nav_giveaway"), body=body, is_example=is_example,
                    show_contact=False)
 
 
@@ -2922,6 +2952,7 @@ def build_app(bot) -> web.Application:
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
         web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
+        web.get("/partner", h_partner_page), web.get("/gewinnspiel", h_gewinnspiel),
         web.post("/impressum/contact", h_impressum_contact),
         web.get("/status.json", h_status_json),
         web.get("/status/check/{key}", h_status_detail),
