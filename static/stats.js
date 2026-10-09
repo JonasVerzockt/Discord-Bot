@@ -270,11 +270,11 @@
   hbar("chAvCountry", L.av_country, ACCENT, 100);
   hbar("chAvShopBest", L.av_shop_best, OK, 100);
   hbar("chAvShopWorst", L.av_shop_worst, "#f85149", 100);
-  hbar("chAvHardest", L.av_hardest, "#d29922");
+  hbar("chAvHardest", L.av_hardest, "#d29922", 100);   // Balken = Lagerquote %
 
   // ── Block 6: Datenqualität ────────────────────────────────────────────────
   hbar("chDqShopUncanon", L.dq_shop_uncanon, "#f85149");
-  hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922");
+  hbar("chDqShopAdjusted", L.dq_shop_adjusted, "#d29922", 100);   // Balken = Anpassungsquote %
   hbar("chDqVariants", L.dq_variants, ACCENT);
 
   // ── Block 7: Zeitverläufe ─────────────────────────────────────────────────
