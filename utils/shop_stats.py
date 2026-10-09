@@ -81,7 +81,9 @@ def _entry_price_eur(p: dict) -> float | None:
     positive Variante, Fallback auf min_price/max_price. None, wenn kein Kurs/Preis."""
     cur_p = p.get("currency_iso") or "EUR"
     best = None
-    for v in (p.get("variants") or []):
+    variants = p.get("variants") or []
+    active = [v for v in variants if v.get("is_active", True)]
+    for v in (active or variants):    # deaktivierte Varianten nur, wenn es keine aktiven gibt
         pv = _num(v.get("price"))
         if pv and pv > 0:
             e = to_eur(pv, v.get("currency_iso") or cur_p)
@@ -96,6 +98,12 @@ def _entry_price_eur(p: dict) -> float | None:
                     best = e
                     break
     return best
+
+
+def _is_unspecific(cs: str) -> bool:
+    """„Camponotus sp." / „spp." / „cf." u. ä. ist keine bestimmte Art (zählt nicht als Art)."""
+    t = cs.lower().split()
+    return len(t) < 2 or t[1] in ("sp", "sp.", "spp", "spp.", "cf", "cf.", "aff", "aff.")
 
 
 def _median(xs: list) -> float:
@@ -152,7 +160,9 @@ def _compute(d: dict) -> dict:
 
     shops_total = len(shops)
     shops_with_products = 0
-    products_total = live_products = merch_products = instock_live = 0
+    products_total = live_products = merch_products = instock_live = inactive_products = 0
+    disp: dict = {}                                  # Art-Schlüssel (klein) -> Anzeigename
+    gdisp: dict = {}                                 # Gattungs-Schlüssel (klein) -> Anzeigename
     canon_species: set[str] = set()
     genera: set[str] = set()
     countries: dict[str, int] = {}
@@ -163,7 +173,7 @@ def _compute(d: dict) -> dict:
     shop_species: dict[str, set] = defaultdict(set)  # Shop-ID -> Menge Arten
     all_prices: list = []                            # Einstiegspreise (EUR) aller Angebote
     genus_prices: dict[str, list] = defaultdict(list)   # Gattung -> EUR-Preise
-    species_prices: dict[str, list] = defaultdict(list)  # Art -> EUR-Preise
+    species_prices: dict[str, dict] = {}             # Art -> {Shop: günstigster EUR-Preis}
     genus_instock: Counter = Counter()               # Gattung -> lagernde Angebote
     country_live: Counter = Counter()                # Land -> Angebote (Lebendtiere)
     country_instock: Counter = Counter()             # Land -> lagernde Angebote
@@ -179,14 +189,20 @@ def _compute(d: dict) -> dict:
 
     for s in shops:
         ps = s.get("products") or []
-        if ps:
+        if any(p.get("is_active") for p in ps):
             shops_with_products += 1
         shop_id = s.get("id") or s.get("name") or id(s)
         shop_name[shop_id] = s.get("name") or str(shop_id)
         c = (s.get("country") or "??").lower()
-        countries[c] = countries.get(c, 0) + 1
+        if c != "??":                                # Shops ohne Länderangabe nicht als „Land" zählen
+            countries[c] = countries.get(c, 0) + 1
         for p in ps:
             products_total += 1
+            # Deaktivierte (nicht mehr gelistete) Angebote zählen in KEINER Kennzahl mit –
+            # sonst drücken sie die Lagerquote und tauchen als Raritäten/Preise auf.
+            if not p.get("is_active"):
+                inactive_products += 1
+                continue
             # Merch/Zubehör (Sticker, Poster, Sets …) exakt wie im Bot erkennen und
             # aus den Lebendtier-Kennzahlen ausschließen. Produkte ganz ohne Artnamen
             # zählen ebenfalls als Nicht-Lebendtier.
@@ -202,25 +218,34 @@ def _compute(d: dict) -> dict:
                 instock_live += 1
                 shop_instock[shop_id] += 1
                 country_instock[c] += 1
-            cs = (p.get("canonical_species") or "").strip()
+            cs_raw = (p.get("canonical_species") or "").strip()
+            cs = cs_raw.lower()                      # einheitlicher Schlüssel (Groß/klein egal)
+            genus = ""
             if cs:
-                canon_species.add(cs.lower())
+                disp.setdefault(cs, cs_raw)
                 genus = cs.split()[0]
+                gdisp.setdefault(genus, cs_raw.split()[0])
                 genera.add(genus)
                 genus_offers[genus] += 1
-                species_shops[cs].add(shop_id)
-                shop_species[shop_id].add(cs)
-                species_offers[cs] += 1
                 if instock:
                     genus_instock[genus] += 1
-                    species_instock[cs] += 1
+                if not _is_unspecific(cs):           # „sp."/„cf." zählt nicht als eigene Art
+                    canon_species.add(cs)
+                    species_shops[cs].add(shop_id)
+                    shop_species[shop_id].add(cs)
+                    species_offers[cs] += 1
+                    if instock:
+                        species_instock[cs] += 1
             # Einstiegspreis (niedrigster positiver Variantenpreis) in EUR.
             eur = _entry_price_eur(p)
             if eur is not None and eur > 0:
                 all_prices.append(eur)
                 if cs:
                     genus_prices[genus].append(eur)
-                    species_prices[cs].append(eur)
+                    if cs in species_shops:
+                        # je Art und Shop nur das günstigste Angebot (Spanne über SHOPS, nicht Angebote)
+                        sp_shop = species_prices.setdefault(cs, {})
+                        sp_shop[shop_id] = min(eur, sp_shop.get(shop_id, eur))
             # Datenqualität: canonical-Abdeckung, Anpassungen (Tippf./Synonym), Roh-Schreibweisen.
             raw = (p.get("species") or "").strip()
             if cs:
@@ -228,7 +253,7 @@ def _compute(d: dict) -> dict:
                 shop_canon[shop_id] += 1
                 nr = normalize_species_name(raw)
                 species_rawforms[cs].add(nr or raw.lower())
-                if nr and nr != cs.lower():      # echte Korrektur (kein reines cf./sp.-Entfernen)
+                if nr and nr != cs:      # echte Korrektur (kein reines cf./sp.-Entfernen)
                     q_adjusted += 1
                     shop_adjusted[shop_id] += 1
             else:
@@ -242,10 +267,13 @@ def _compute(d: dict) -> dict:
     countries_sorted = sorted(countries.items(), key=lambda kv: (-kv[1], kv[0]))
 
     # ── Block 2: Arten & Gattungen ──────────────────────────────────────────
-    genera_ranked = genus_offers.most_common()          # [(Gattung, Angebote)] absteigend
+    D = lambda k: disp.get(k, k)                         # Anzeigename einer Art
+    G = lambda k: gdisp.get(k, k)                        # Anzeigename einer Gattung
+    genera_keys = genus_offers.most_common()             # [(Gattungs-Schlüssel, Angebote)]
+    genera_ranked = [(G(g), n) for g, n in genera_keys]
     reach = sorted(species_shops.items(), key=lambda kv: (-len(kv[1]), kv[0]))
-    top_reach = [(sp, len(sh)) for sp, sh in reach[:10]]
-    rarities = sorted(sp for sp, sh in species_shops.items() if len(sh) == 1)
+    top_reach = [(D(sp), len(sh)) for sp, sh in reach[:10]]
+    rarities = sorted(D(sp) for sp, sh in species_shops.items() if len(sh) == 1)
     longtail = Counter(len(sh) for sh in species_shops.values())  # k Shops -> Zahl Arten
     longtail_ranked = sorted(longtail.items())           # [(Shops, Artenzahl)] aufsteigend
 
@@ -287,19 +315,21 @@ def _compute(d: dict) -> dict:
         for p in prices_sorted:
             b = int(p // binw)
             counts[b if b < nbins else nbins] += 1
-        labels = [f"{int(k * binw)}–{int((k + 1) * binw)}" for k in range(nbins)]
+        labels = [f"{int(k * binw)}–<{int((k + 1) * binw)}" for k in range(nbins)]   # obere Grenze exklusiv
         labels.append(f"≥ {int(nbins * binw)}")
         hist = {"labels": labels, "counts": counts}
         # Median-Preis je Top-10-Gattung (Reihenfolge = Angebots-Ranking)
-        genus_median = [(g, round(_median(genus_prices.get(g, [])), 2))
-                        for g, _ in genera_ranked[:10] if genus_prices.get(g)]
-        # Preisspanne je Art (nur Arten in ≥ 5 Shops): größte UND kleinste
+        genus_median = [(G(g), round(_median(genus_prices.get(g, [])), 2))
+                        for g, _ in genera_keys[:10] if genus_prices.get(g)]
+        # Preisspanne je Art über die SHOPS (je Shop dessen günstigstes Angebot; ab 5 Shops
+        # mit Preis): größte UND kleinste.
         spread_all = []
-        for sp, pl in species_prices.items():
-            if len(species_shops.get(sp, ())) >= 5 and pl:
+        for sp, per_shop in species_prices.items():
+            if len(per_shop) >= 5:
+                pl = list(per_shop.values())
                 mn, mx = min(pl), max(pl)
-                spread_all.append((sp, round(mn, 2), round(mx, 2), round(mx - mn, 2),
-                                   len(species_shops[sp])))
+                spread_all.append((D(sp), round(mn, 2), round(mx, 2), round(mx - mn, 2),
+                                   len(per_shop)))
         spread = sorted(spread_all, key=lambda x: -x[3])[:10]              # größte Spanne
         # kleinste ECHTE Spanne (> 0): perfekt identische Preise (Δ 0) ignorieren
         spread_small = sorted([s for s in spread_all if s[3] > 0],
@@ -308,8 +338,8 @@ def _compute(d: dict) -> dict:
     # ── Block 5: Verfügbarkeit (Lagerquoten, Snapshot) ──────────────────────
     def _rate(num, den):
         return round(100 * num / den, 1) if den else 0.0
-    avail_genus = [(g, _rate(genus_instock.get(g, 0), genus_offers[g]))
-                   for g, _ in genera_ranked[:10]]
+    avail_genus = [(G(g), _rate(genus_instock.get(g, 0), genus_offers[g]))
+                   for g, _ in genera_keys[:10]]
     avail_country = sorted(
         [(c, _rate(country_instock.get(c, 0), country_live[c]), country_live[c])
          for c in country_live if country_live[c] >= 20],
@@ -319,7 +349,7 @@ def _compute(d: dict) -> dict:
     shop_best = sorted(shop_rates, key=lambda x: (-x[1], -x[2]))[:10]
     shop_worst = sorted(shop_rates, key=lambda x: (x[1], -x[2]))[:10]
     hardest = sorted(
-        [(sp, _rate(species_instock.get(sp, 0), species_offers[sp]),
+        [(D(sp), _rate(species_instock.get(sp, 0), species_offers[sp]),
           len(species_shops[sp]), species_offers[sp])
          for sp in species_offers if len(species_shops.get(sp, ())) >= 5],
         key=lambda x: (x[1], -x[2]))[:10]
@@ -338,8 +368,8 @@ def _compute(d: dict) -> dict:
             [(shop_name[i], _rate(shop_adjusted.get(i, 0), shop_canon.get(i, 0)),
               shop_adjusted.get(i, 0), shop_canon.get(i, 0))
              for i in shop_offers if shop_offers[i] >= 20 and shop_canon.get(i, 0) > 0],
-            key=lambda x: -x[2])[:10],   # nach absoluter Anzahl angepasster Namen
-        "variants": sorted(((sp, len(f)) for sp, f in species_rawforms.items() if len(f) > 1),
+            key=lambda x: (-x[1], -x[2]))[:10],   # nach Anpassungsquote (bei Gleichstand: Anzahl)
+        "variants": sorted(((D(sp), len(f)) for sp, f in species_rawforms.items() if len(f) > 1),
                            key=lambda x: (-x[1], x[0]))[:10],
         "uncanon_raw": uncanon_raw.most_common(40),
     }
@@ -350,6 +380,7 @@ def _compute(d: dict) -> dict:
         "products_total": products_total,
         "live_products": live_products,
         "merch_products": merch_products,
+        "inactive_products": inactive_products,
         "species_total": len(canon_species),
         "genera_total": len(genera),
         "instock_live": instock_live,
@@ -421,12 +452,14 @@ def compute(force: bool = False) -> dict:
 RANGE_MONTHS = {"3": 3, "12": 12, "all": None}
 _ts_lock = threading.Lock()
 _ts_cache: dict = {}                                  # range_key -> {"at":, "data":}
-_pid_cache: dict = {"at": 0.0, "map": None}
+_pid_cache: dict = {"at": 0.0, "map": None, "shop": {}}
 
 
 def _pid_species() -> dict:
     """{product_id: Artname} für lebende (Nicht-Merch-)Angebote – für Labels/Mapping
-    der Preis-Historie (die nur product_id kennt). 15-min-Cache."""
+    der Preis-Historie (die nur product_id kennt). Enthält auch deaktivierte Angebote,
+    damit die Historie nicht nur aus heute noch gelisteten Produkten besteht. 15-min-Cache.
+    Zusätzlich _pid_shop: {product_id: Shopname}."""
     now = time.time()
     if _pid_cache["map"] is not None and now - _pid_cache["at"] < _TTL:
         return _pid_cache["map"]
@@ -434,12 +467,15 @@ def _pid_species() -> dict:
     try:
         with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
             d = json.load(f)
+        shops_of: dict = {}
         for s in _iter_shops(d):
             for p in (s.get("products") or []):
                 pid = p.get("id")
                 sp = (p.get("canonical_species") or p.get("species") or "").strip()
                 if pid is not None and sp and not is_merch_product(p):
                     m[pid] = sp
+                    shops_of[pid] = s.get("name") or ""
+        _pid_cache["shop"] = shops_of
     except Exception:
         pass
     _pid_cache["map"] = m
@@ -558,7 +594,7 @@ def _compute_timeseries(months: int | None) -> dict:
         prev: dict = {}
         for pid, mn, rec in _q("SELECT product_id, min_price, recorded_at "
                                "FROM product_price_history ORDER BY product_id, recorded_at"):
-            if pid not in pidmap:
+            if pid not in pidmap or mn is None or mn <= 0:   # Platzhalter/0 nicht als Änderung zählen
                 continue
             if pid in prev and abs(mn - prev[pid]) > 1e-9:
                 dt = _parse_dt(rec)
@@ -577,14 +613,20 @@ def _compute_timeseries(months: int | None) -> dict:
             rq += " AND recorded_at >= ?"
             params = (cutoff,)
         drops, incs = [], []
+        shop_of = _pid_cache.get("shop") or {}
         for pid, op, np, ci, rec in _q(rq, params):
-            if pid not in pidmap or not op or op <= 0:
+            if pid not in pidmap or not op or op <= 0 or not np or np <= 0:
                 continue
             pct = round((np - op) / op * 100, 1)
-            # Unplausible Ausreißer aussortieren (z.B. Platzhalterpreis 1,20 € -> 1.199 €).
-            if abs(pct) > 500:
+            # Unplausible Ausreißer aussortieren: Platzhalterpreise wie 1,20 € -> 1.199 €
+            # (> +500 %) oder 999 € -> 10 € (≤ -90 %).
+            if pct > 500 or pct <= -90:
                 continue
-            item = (pidmap[pid], to_eur(op, ci or "EUR"), to_eur(np, ci or "EUR"), pct)
+            eo, en = to_eur(op, ci or "EUR"), to_eur(np, ci or "EUR")
+            if eo is None or en is None:
+                continue
+            label = pidmap[pid] + (f" · {shop_of[pid]}" if shop_of.get(pid) else "")
+            item = (label, round(eo, 2), round(en, 2), pct, pidmap[pid].lower())
             if np < op:
                 drops.append(item)
             elif np > op:
@@ -594,10 +636,10 @@ def _compute_timeseries(months: int | None) -> dict:
             """Je Art nur den stärksten Eintrag behalten (Liste ist bereits sortiert)."""
             seen, res = set(), []
             for it in items:
-                if it[0] in seen:
+                if it[4] in seen:            # Schlüssel = Art (Label enthält zusätzlich den Shop)
                     continue
-                seen.add(it[0])
-                res.append(it)
+                seen.add(it[4])
+                res.append(it[:4])
             return res
         drops.sort(key=lambda x: x[3])
         incs.sort(key=lambda x: -x[3])
