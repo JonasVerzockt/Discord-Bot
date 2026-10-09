@@ -274,6 +274,10 @@ def _compute(d: dict) -> dict:
     reach = sorted(species_shops.items(), key=lambda kv: (-len(kv[1]), kv[0]))
     top_reach = [(D(sp), len(sh)) for sp, sh in reach[:10]]
     rarities = sorted(D(sp) for sp, sh in species_shops.items() if len(sh) == 1)
+    # Vollständige Liste: (Art, Shop) – Art ist nur bei genau diesem einen Shop gelistet.
+    rarities_full = sorted(((D(sp), shop_name[next(iter(sh))])
+                            for sp, sh in species_shops.items() if len(sh) == 1),
+                           key=lambda x: (x[0].lower(), x[1].lower()))
     longtail = Counter(len(sh) for sh in species_shops.values())  # k Shops -> Zahl Arten
     longtail_ranked = sorted(longtail.items())           # [(Shops, Artenzahl)] aufsteigend
 
@@ -348,11 +352,15 @@ def _compute(d: dict) -> dict:
                   for i in shop_offers if shop_offers[i] >= 20]
     shop_best = sorted(shop_rates, key=lambda x: (-x[1], -x[2]))[:10]
     shop_worst = sorted(shop_rates, key=lambda x: (x[1], -x[2]))[:10]
-    hardest = sorted(
-        [(D(sp), _rate(species_instock.get(sp, 0), species_offers[sp]),
-          len(species_shops[sp]), species_offers[sp])
-         for sp in species_offers if len(species_shops.get(sp, ())) >= 5],
-        key=lambda x: (x[1], -x[2]))[:10]
+    # Breit gelistete Arten (ab 5 Shops): Lagerquote je Art.
+    broad = [(D(sp), _rate(species_instock.get(sp, 0), species_offers[sp]),
+              len(species_shops[sp]), species_offers[sp])
+             for sp in species_offers if len(species_shops.get(sp, ())) >= 5]
+    # Diagramm: nur Arten, die irgendwo lagernd sind (> 0 %), aufsteigend = knappste zuerst.
+    hardest = sorted([x for x in broad if x[1] > 0], key=lambda x: (x[1], -x[2]))[:10]
+    # Separat: breit gelistet, aber derzeit NIRGENDS lagernd (0 %), viele Shops zuerst.
+    nowhere = sorted([(x[0], x[2]) for x in broad if x[1] <= 0],
+                     key=lambda x: (-x[1], x[0].lower()))
 
     # ── Block 6: Datenqualität (canonical) ──────────────────────────────────
     q_live = q_with + q_uncanon
@@ -403,6 +411,7 @@ def _compute(d: dict) -> dict:
             "reach": top_reach,                  # [(Art, Shop-Anzahl)] Top 10
             "rarities_count": len(rarities),
             "rarities_sample": rarities[:60],    # Arten in nur 1 Shop (Auszug)
+            "rarities_full": rarities_full,      # [(Art, Shop)] alle Arten in nur 1 Shop
             "longtail": longtail_ranked,         # [(Shops, Artenzahl)]
         },
         "shops": {
@@ -423,7 +432,8 @@ def _compute(d: dict) -> dict:
             "by_country": avail_country,         # [(ISO, Quote%, Angebote)] ab 20 Angeboten
             "shop_best": shop_best,              # [(Shop, Quote%, Angebote)] ab 20 Angeboten
             "shop_worst": shop_worst,            # [(Shop, Quote%, Angebote)]
-            "hardest": hardest,                  # [(Art, Quote%, Shops, Angebote)] ab 5 Shops
+            "hardest": hardest,                  # [(Art, Quote%, Shops, Angebote)] ab 5 Shops, > 0 %
+            "nowhere": nowhere,                  # [(Art, Shops)] ab 5 Shops, derzeit nirgends lagernd
         },
         "quality": quality,                      # canonical-Abdeckung, Anpassungen, Roh-Schreibweisen
     }
