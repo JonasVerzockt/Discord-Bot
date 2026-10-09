@@ -12,6 +12,8 @@ credentials.json
 # ── Rechtsseiten: echte Inhalte NICHT ins Git, Vorlagen (.example) schon ──
 legal/impressum.html
 legal/datenschutz.html
+legal/partner.html
+legal/gewinnspiel.html
 legal/partners.json
 legal/partners/
 
