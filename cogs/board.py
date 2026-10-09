@@ -631,6 +631,7 @@ STATS = """{% extends "base" %}{% block body %}
    <div class=kpi><div class=v>{{ o.shops_with_products }}</div><div class=l>{{ t('kpi_shops_with') }}</div></div>
    <div class=kpi><div class=v>{{ o.live_products }}</div><div class=l>{{ t('kpi_live') }}</div></div>
    <div class=kpi><div class=v>{{ o.merch_products }}</div><div class=l>{{ t('kpi_merch') }}</div></div>
+   <div class=kpi><div class=v>{{ o.inactive_products|default(0) }}</div><div class=l>{{ t('kpi_inactive') }}</div></div>
    <div class=kpi><div class=v>{{ o.species_total }}</div><div class=l>{{ t('kpi_species') }}</div></div>
    <div class=kpi><div class=v>{{ o.genera_total }}</div><div class=l>{{ t('kpi_genera') }}</div></div>
    <div class=kpi><div class=v>{{ o.instock_pct }}&nbsp;%</div><div class=l>{{ t('kpi_instock_pct') }}</div></div>
@@ -1520,10 +1521,10 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
         out["av_shop_worst"] = {"title": translate(lang, "av_shop_worst_title"), "axis": rate_axis,
                                 "labels": [s for s, _, _ in av["shop_worst"]],
                                 "values": [r for _, r, _ in av["shop_worst"]]}
-        out["av_hardest"] = {"title": translate(lang, "av_hardest_title"),
-                             "axis": translate(lang, "lbl_shops"),
-                             "labels": [f"{s} ({r}%)" for s, r, sh, of in av["hardest"]],
-                             "values": [sh for s, r, sh, of in av["hardest"]]}
+        _shops_lbl2 = translate(lang, "lbl_shops")
+        out["av_hardest"] = {"title": translate(lang, "av_hardest_title"), "axis": rate_axis,
+                             "labels": [f"{s} ({sh} {_shops_lbl2})" for s, r, sh, of in av["hardest"]],
+                             "values": [r for s, r, sh, of in av["hardest"]]}
 
     # ── Block 6: Datenqualität ──────────────────────────────────────────────
     q = data.get("quality")
@@ -1533,9 +1534,9 @@ def _stats_l10n(lang: str, data: dict, ts: dict = None) -> dict:
                                   "labels": [s for s, _ in q["shop_uncanon"]],
                                   "values": [n for _, n in q["shop_uncanon"]]}
         out["dq_shop_adjusted"] = {"title": translate(lang, "dq_shop_adjusted_title"),
-                                   "axis": translate(lang, "lbl_adjusted"),
-                                   "labels": [f"{s} ({r}%)" for s, r, ac, cn in q["shop_adjusted"]],
-                                   "values": [ac for s, r, ac, cn in q["shop_adjusted"]]}
+                                   "axis": translate(lang, "dq_shop_adjusted_axis"),
+                                   "labels": [f"{s} ({ac})" for s, r, ac, cn in q["shop_adjusted"]],
+                                   "values": [r for s, r, ac, cn in q["shop_adjusted"]]}
         out["dq_variants"] = {"title": translate(lang, "dq_variants_title"),
                               "axis": translate(lang, "dq_variants_axis"),
                               "labels": [s for s, _ in q["variants"]],
@@ -1635,6 +1636,14 @@ async def h_impressum_contact(req):
     raise web.HTTPFound(f"/impressum?m={'contact_sent' if ok else 'contact_fail'}&lang={lang}")
 
 
+def _stats_asset_v() -> str:
+    """Cache-Busting für stats.js: Bot-Version + Änderungszeit (sonst bis zu 24 h alter Stand)."""
+    try:
+        return f"{VERSION}.{int((STATIC_DIR / 'stats.js').stat().st_mtime)}"
+    except OSError:
+        return VERSION
+
+
 async def h_stats(req):
     """Öffentliche Statistik-Seite. Aggregiert live aus shops_data.json (15-min-Cache).
     Währungskurse werden zuvor sichergestellt (für die späteren EUR-Preisblöcke)."""
@@ -1654,7 +1663,7 @@ async def h_stats(req):
     if data:
         l10n = _stats_l10n(lang, data, ts)
     resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n,
-                   ts_available=bool(ts and ts.get("available")), ts_range=range_key, ver=VERSION)
+                   ts_available=bool(ts and ts.get("available")), ts_range=range_key, ver=_stats_asset_v())
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
