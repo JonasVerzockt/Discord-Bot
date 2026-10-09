@@ -1,8 +1,16 @@
 [
   {
-    "name": "Beispiel-Shop",
+    "name": "Beispiel-Verein",
     "url": "https://example.org",
-    "text": "Kurzer Satz, max. 140 Zeichen",
-    "logo": "beispiel.png"
+    "text": "Verein/Projekt: gegenseitige Verlinkung, ohne Anzeige",
+    "art": "verein"
+  },
+  {
+    "name": "Beispiel-Shop",
+    "url": "https://example.com",
+    "text": "Shop: Community-Vorteil, als Anzeige gekennzeichnet",
+    "logo": "beispiel.png",
+    "art": "shop",
+    "code": "AAM10"
   }
 ]
