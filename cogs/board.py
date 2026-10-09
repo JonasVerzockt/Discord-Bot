@@ -360,6 +360,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .chartwrap{position:relative;height:320px}
  .raritygrid{columns:2;column-gap:18px;margin-top:8px;font-size:13px;color:#8b949e}
  .raritygrid div{break-inside:avoid;padding:1px 0;font-style:italic}
+ .raritygrid .rshop{font-style:normal;color:#6e7681}
  @media(max-width:640px){.raritygrid{columns:1}}
  .rangesw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
  .rangesw a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
@@ -646,8 +647,24 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('sp_longtail_title') }}</h4><div class=chartwrap><canvas id="chLongtail"></canvas></div></div>
   <div class=chartbox><h4>{{ t('sp_rarities_title') }} <span class="info" title="{{ t('exp_rarities') }}">ⓘ</span></h4>
    <p class=muted style="margin-top:0">{{ t('sp_rarities_count', n=sp.rarities_count) }}</p>
-   {% if sp.rarities_sample %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=sp.rarities_sample|length) }}</summary>
-    <div class=raritygrid>{% for r in sp.rarities_sample %}<div>{{ r }}</div>{% endfor %}</div></details>{% endif %}
+   {% set rf = sp.rarities_full or [] %}
+   {% if rf %}<details id=rarebox><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=rf|length) }}</summary>
+    <input id=rarefilter type=search placeholder="{{ t('sp_rarities_filter') }}" autocomplete=off style="margin-top:8px;max-width:360px">
+    <span id=rarecount class=muted style="font-size:12px;margin-left:8px"></span>
+    <div class=raritygrid id=rarelist>{% for art, shop in rf %}<div data-q="{{ (art ~ ' ' ~ shop)|lower }}">{{ art }} <span class=rshop>· {{ shop }}</span></div>{% endfor %}</div>
+    <script>
+    (function () {
+      var inp = document.getElementById("rarefilter"), rows = document.querySelectorAll("#rarelist > div"),
+          cnt = document.getElementById("rarecount");
+      if (!inp) return;
+      function apply() {
+        var q = inp.value.trim().toLowerCase(), n = 0;
+        rows.forEach(function (r) { var ok = !q || r.getAttribute("data-q").indexOf(q) >= 0; r.style.display = ok ? "" : "none"; if (ok) n++; });
+        cnt.textContent = q ? (n + " / " + rows.length) : "";
+      }
+      inp.addEventListener("input", apply);
+    })();
+    </script></details>{% endif %}
   </div>
  {% elif aid=='shops' %}
   <div class=chartbox><h4>{{ t('sh_offers_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopOffers"></canvas></div></div>
@@ -674,7 +691,26 @@ STATS = """{% extends "base" %}{% block body %}
   <div class=chartbox><h4>{{ t('av_country_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvCountry"></canvas></div></div>
   <div class=chartbox><h4>{{ t('av_shop_best_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopBest"></canvas></div></div>
   <div class=chartbox><h4>{{ t('av_shop_worst_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopWorst"></canvas></div></div>
-  <div class=chartbox><h4>{{ t('av_hardest_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvHardest"></canvas></div></div>
+  {% set nw = data.availability.nowhere or [] %}
+  <div class=chartbox><h4>{{ t('av_hardest_title') }}</h4>
+   {% if nw %}<details id=nowherebox style="margin:0 0 10px"><summary style="cursor:pointer;color:#58a6ff">{{ t('av_nowhere_line', n=nw|length) }}</summary>
+    <input id=nowherefilter type=search placeholder="{{ t('av_nowhere_filter') }}" autocomplete=off style="margin-top:8px;max-width:360px">
+    <span id=nowherecount class=muted style="font-size:12px;margin-left:8px"></span>
+    <div class=raritygrid id=nowherelist>{% for art, nsh in nw %}<div data-q="{{ art|lower }}">{{ art }} <span class=rshop>· {{ nsh }} {{ t('lbl_shops') }}</span></div>{% endfor %}</div>
+    <script>
+    (function () {
+      var inp = document.getElementById("nowherefilter"), rows = document.querySelectorAll("#nowherelist > div"),
+          cnt = document.getElementById("nowherecount");
+      if (!inp) return;
+      inp.addEventListener("input", function () {
+        var q = inp.value.trim().toLowerCase(), n = 0;
+        rows.forEach(function (r) { var ok = !q || r.getAttribute("data-q").indexOf(q) >= 0; r.style.display = ok ? "" : "none"; if (ok) n++; });
+        cnt.textContent = q ? (n + " / " + rows.length) : "";
+      });
+    })();
+    </script></details>{% endif %}
+   {% if data.availability.hardest %}<div class="chartwrap" style="height:360px"><canvas id="chAvHardest"></canvas></div>{% else %}<p class=muted>{{ t('st_none') }}</p>{% endif %}
+  </div>
  {% elif aid=='quality' %}
   {% set q = data.quality %}
   <p class=muted style="margin-top:0">{{ t('dq_intro') }}</p>
