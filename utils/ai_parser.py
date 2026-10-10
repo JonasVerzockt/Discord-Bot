@@ -30,6 +30,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from config import REVIEW_PARSER_MODEL
+from utils.ai_compat import thinking_off, max_tokens_for, text_of
 
 load_dotenv()
 
@@ -83,13 +84,14 @@ def parse_with_ai(content: str, shop: str, date: str) -> dict:
     """
     resp = _ai.messages.create(
         model=REVIEW_PARSER_MODEL,
-        max_tokens=400,
+        max_tokens=max_tokens_for(REVIEW_PARSER_MODEL, 400),
+        **thinking_off(REVIEW_PARSER_MODEL),   # neuere Modelle denken sonst standardmäßig mit
         messages=[{"role": "user", "content": _PROMPT.format(
             shop_name=shop, date=date, message=content
         )}],
         output_config={"format": {"type": "json_schema", "schema": _REVIEW_SCHEMA}},
     )
-    text = resp.content[0].text.strip()
+    text = text_of(resp).strip()               # ThinkingBlock (ohne .text) überspringen
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
     return json.loads(text)

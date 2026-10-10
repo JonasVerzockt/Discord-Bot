@@ -61,6 +61,7 @@ import anthropic
 
 import config as cfg
 from utils.localization import l10n
+from utils.ai_compat import thinking_off, max_tokens_for, text_of
 
 logger = logging.getLogger(__name__)
 
@@ -197,16 +198,16 @@ async def _classify_shop_haiku(message: str) -> dict:
         client = _get_client()
         response = await client.messages.create(
             model=_HAIKU_CLASSIFY_MODEL,
-            max_tokens=5,
+            max_tokens=max_tokens_for(_HAIKU_CLASSIFY_MODEL, 5),
             system=_CLASSIFY_SYSTEM,
             messages=[{"role": "user", "content": message}],
+            **thinking_off(_HAIKU_CLASSIFY_MODEL),   # sonst frisst Thinking die 5 Tokens -> leere Antwort
         )
-        answer = "".join(
-            block.text for block in response.content if hasattr(block, "text")
-        ).strip().upper()
+        answer = text_of(response).strip().upper()
+        p_in, p_out = prices_for(_HAIKU_CLASSIFY_MODEL, response.usage.input_tokens)
         cost = (
-            response.usage.input_tokens  * _HAIKU_PRICE_IN
-            + response.usage.output_tokens * _HAIKU_PRICE_OUT
+            response.usage.input_tokens  * p_in
+            + response.usage.output_tokens * p_out
         )
         needs_shop = answer.startswith("JA")
         logger.debug(
