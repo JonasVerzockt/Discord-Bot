@@ -40,12 +40,16 @@ from utils.tracking import (
     get_pending, set_pending, remove_pending, get_all_pending,
 )
 from utils.shop import (
-    resolve_shop, extract_identifier, learn_shop, load_mapping,
-    add_to_csv, reload_mapping, UnresolvableShop,
+    resolve_shop, extract_identifier, learn_if_plausible, mapping_get,
+    add_to_csv, reload_mapping, UnresolvableShop, clean_shop_name, is_plausible,
 )
 from utils.ai_parser import looks_like_review, parse_with_ai, build_row
 
 logger = logging.getLogger(__name__)
+
+
+class RowMismatch(Exception):
+    """Getrackte Sheet-Zeile passt nicht (mehr) zur Nachricht – nicht überschreiben."""
 
 
 class ReviewsCog(commands.Cog, name="Reviews"):
@@ -79,11 +83,14 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         is_edit: bool = False,
         shop_override: str | None = None,
         combined_content: str | None = None,
+        force: bool = False,
     ) -> None:
         """
         Parst die Nachricht mit KI und schreibt sie ins Sheet.
         Bei Erfolg wird das Tracking in der DB aktualisiert.
         combined_content: zusammengeführter Text aus mehreren Nachrichten desselben Users.
+        force: Zeile auch überschreiben, wenn Datum/Shop nicht passen (nur nach
+               manueller Prüfung: 🟡-Klick oder /reprocess).
 
         KI- (anthropic) und Sheet- (gspread) Aufrufe sind synchron/blockierend –
         sie laufen daher in asyncio.to_thread(), damit der Event-Loop frei bleibt.
@@ -93,7 +100,7 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         date_str = message.created_at.strftime("%d.%m.%Y")
         content  = combined_content or message.content
 
-        shop   = shop_override or resolve_shop(content, message.guild)
+        shop   = clean_shop_name(shop_override or resolve_shop(content, message.guild))
         parsed = await asyncio.to_thread(parse_with_ai, content, shop, date_str)
         # KI darf shop_name nicht umbenennen – aufgelöste Domain ist autoritativ
         parsed["shop_name"] = shop
@@ -109,12 +116,46 @@ class ReviewsCog(commands.Cog, name="Reviews"):
                         f"({sheet.row_count - 1} Einträge) – übersprungen"
                     )
                     return
+                if not force:
+                    self._verify_row(existing_row, date_str, shop)
                 await asyncio.to_thread(sheet.update, existing_row, row)
                 logger.info(f"✏️  [{date_str}] {parsed['shop_name']} Zeile {existing_row}")
             else:
                 row_num = await asyncio.to_thread(sheet.append, row)
                 await set_tracking(self.bot, mid, row_num)
                 logger.info(f"➕ [{date_str}] {parsed['shop_name']} {parsed.get('bewertung')}/10")
+
+    @staticmethod
+    def _verify_row(row_num: int, date_str: str, shop: str) -> None:
+        """Vor dem Überschreiben: Passen Datum und Shop der Zeile noch zur Nachricht?
+        Schützt davor, durch eine verrutschte Zuordnung fremde Zeilen zu überschreiben."""
+        try:
+            old = sheet.rows[row_num - 1]
+        except IndexError:
+            raise RowMismatch(f"Zeile {row_num} existiert nicht")
+        old_date = (old[0] if old else "").strip()
+        old_shop = clean_shop_name(old[2] if len(old) > 2 else "")
+        if old_date and old_date != date_str:
+            raise RowMismatch(f"Zeile {row_num}: Datum {old_date} ≠ {date_str}")
+        if old_shop and old_shop.casefold() != shop.casefold() \
+                and not is_plausible(old_shop, shop):
+            raise RowMismatch(f"Zeile {row_num}: Shop '{old_shop}' ≠ '{shop}'")
+
+    async def _mark_mismatch(self, msg: discord.Message, e: Exception) -> None:
+        await set_pending(self.bot, str(msg.id), "row_mismatch")
+        await msg.add_reaction("🟡")
+        logger.warning(f"🟡 Nicht überschrieben ({msg.id}): {e} – 🟡 klicken = trotzdem übernehmen")
+
+    async def _flag_check_shop(self, msg: discord.Message, identifier: str,
+                               sheet_shop: str, row_num: int) -> None:
+        """Tabellen-Shop passt nicht zur Nachricht → zur manuellen Prüfung (🟡)."""
+        add_to_csv(identifier, str(msg.id),
+                   f"prüfen: Tabelle Zeile {row_num} sagt '{clean_shop_name(sheet_shop)}'")
+        await set_pending(self.bot, str(msg.id), "check_shop", identifier)
+        try:
+            await msg.add_reaction("🟡")
+        except Exception:
+            pass
 
     async def _mark_unresolvable(self, msg: discord.Message, e: UnresolvableShop) -> None:
         add_to_csv(e.identifier, str(msg.id), msg.created_at.strftime("%d.%m.%Y"))
@@ -149,15 +190,16 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             if mid in all_tracking:
                 # CSV ggf. auffüllen: Identifier → Shopname aus dem Sheet lernen
                 identifier = extract_identifier(msg.content)
-                if identifier and identifier not in load_mapping():
+                if identifier and not mapping_get(identifier):
                     row_num = all_tracking[mid]
                     try:
                         sheet_row  = sheet.rows[row_num - 1]
                         sheet_shop = sheet_row[2].strip() if len(sheet_row) > 2 else ""
-                        if sheet_shop:
-                            learn_shop(identifier, sheet_shop)
                     except IndexError:
-                        pass
+                        sheet_shop = ""
+                    if sheet_shop and not learn_if_plausible(
+                            identifier, sheet_shop, msg.content, msg.guild):
+                        await self._flag_check_shop(msg, identifier, sheet_shop, row_num)
                 continue
             date_str = msg.created_at.strftime("%d.%m.%Y")
             msgs_by_date.setdefault(date_str, []).append(msg)
@@ -194,10 +236,10 @@ class ReviewsCog(commands.Cog, name="Reviews"):
                     # Aus Ground Truth lernen
                     sheet_row  = sheet.rows[row_num - 1]
                     sheet_shop = sheet_row[2].strip() if len(sheet_row) > 2 else ""
-                    if sheet_shop:
-                        identifier = extract_identifier(msg.content)
-                        if identifier:
-                            learn_shop(identifier, sheet_shop)
+                    identifier = extract_identifier(msg.content)
+                    if sheet_shop and identifier and not learn_if_plausible(
+                            identifier, sheet_shop, msg.content, msg.guild):
+                        await self._flag_check_shop(msg, identifier, sheet_shop, row_num)
                 else:
                     try:
                         await self._process(msg)
@@ -299,6 +341,8 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             await self._process(after, is_edit=True)
             await remove_pending(self.bot, mid)
             await self._clean_react(after, "🟡", "🔴", add="🟢")
+        except RowMismatch as e:
+            await self._mark_mismatch(after, e)
         except UnresolvableShop as e:
             await self._mark_unresolvable(after, e)
         except Exception as e:
@@ -323,8 +367,12 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         except discord.NotFound:
             return
 
+        # Schon im Sheet? Dann die vorhandene Zeile aktualisieren statt eine
+        # zweite anzuhängen. Der 🟡-Klick gilt als manuelle Bestätigung (force).
+        tracked = await get_tracking(self.bot, mid) is not None
+        reload_mapping()   # evtl. gerade in der CSV nachgetragen
         try:
-            await self._process(message)
+            await self._process(message, is_edit=tracked, force=tracked)
             await remove_pending(self.bot, mid)
             await self._clean_react(message, "🟡", "🔴", add="🟢")
         except UnresolvableShop as e:

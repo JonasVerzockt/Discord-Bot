@@ -486,6 +486,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 anchor,
                 is_edit=(existing_row is not None),
                 combined_content=combined,
+                force=True,   # /reprocess = bewusste manuelle Korrektur
             )
             await remove_pending(self.bot, anchor_id)
             await reviews_cog._clean_react(anchor, "🟡", "🔴", add="🟢")
