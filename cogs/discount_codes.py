@@ -264,6 +264,17 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             return shop or dom, ensure_url_scheme(dom)
         return shop, ""
 
+    async def _shop_filter(self, shop: str) -> tuple[str, list]:
+        """SQL-Bedingung für den Shop-Filter der Admin-Befehle: trifft den
+        gespeicherten Namen ODER die Domain. So findet "HomeforAnts" auch einen
+        Eintrag, der als "homeforants.de" gespeichert ist."""
+        s = (shop or "").strip()
+        dom = _domain(s) if ("." in s and " " not in s) else ""
+        dom = dom or _name_domain(await self._revmap(), s)
+        if dom:
+            return " AND (lower(shop)=lower(?) OR lower(shop_url) LIKE ?)", [s, f"%{dom.lower()}%"]
+        return " AND lower(shop)=lower(?)", [s]
+
     async def _revmap(self) -> dict:
         """{shopname (klein): domain} aus der shops-Tabelle."""
         rows = await execute_db(
@@ -496,6 +507,28 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
             key=lambda t: (t[1]["message_date"] or ""), reverse=True,
         )
         enriched.sort(key=lambda t: (rank[t[0]], _key(t[1])))
+        # Alle Zeilen je (Shop, Code), neueste zuerst – zum Auffüllen fehlender
+        # Angaben (Rabatt, Mindestbestellwert) aus älteren Nachrichten.
+        groups: dict = {}
+        for _, r in sorted(((None, r) for r in rows),
+                           key=lambda t: t[1]["message_date"] or "", reverse=True):
+            groups.setdefault((_key(r), r["code"].lower()), []).append(r)
+
+        def _fill(r, field: str) -> str:
+            """Eigener Wert, sonst der neueste Wert desselben Codes. Befristete
+            Sonderaktionen (mit Enddatum) füllen keinen dauerhaften Eintrag auf."""
+            own = (r[field] or "").strip()
+            if own and own != "?":
+                return own
+            for o in groups.get((_key(r), r["code"].lower()), []):
+                v = (o[field] or "").strip()
+                if not v or v == "?":
+                    continue
+                if o["valid_until"] and not r["valid_until"]:
+                    continue
+                return v
+            return own
+
         seen, items = set(), []
         for state, r in enriched:
             key = (_key(r), r["code"].lower())
@@ -533,15 +566,15 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                     validity = l10n.get("discount_open", lang)
 
             min_part = (
-                l10n.get("discount_min_order", lang, min_order=r["min_order"])
-                if r["min_order"] else ""
+                l10n.get("discount_min_order", lang, min_order=_fill(r, "min_order"))
+                if _fill(r, "min_order") else ""
             )
             entry = l10n.get(
                 "discount_entry", lang,
                 marker=marker,
                 shop=(shopmap.get(dom_of[id(r)]) or dom_of[id(r)]
                       or _shop_label(shopmap, r["shop"], r["shop_url"])),
-                code=r["code"], discount=r["discount"] or "?",
+                code=r["code"], discount=_fill(r, "discount") or "?",
                 validity=validity, min_part=min_part,
             )
             if r["shop_url"]:
@@ -581,8 +614,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         params: list = [override, code.strip()]
         query = "UPDATE discount_codes SET status_override=? WHERE lower(code)=lower(?)"
         if shop:
-            query += " AND lower(shop)=lower(?)"
-            params.append(shop.strip())
+            cond, args = await self._shop_filter(shop)
+            query += cond
+            params.extend(args)
 
         rc = await execute_db(self.bot, query, tuple(params), commit=True)
         if not rc:
@@ -654,8 +688,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         query = f"UPDATE discount_codes SET {', '.join(set_parts)} WHERE lower(code)=lower(?)"
         params.append(code.strip())
         if shop:
-            query += " AND lower(shop)=lower(?)"
-            params.append(shop.strip())
+            cond, args = await self._shop_filter(shop)
+            query += cond
+            params.extend(args)
 
         rc = await execute_db(self.bot, query, tuple(params), commit=True)
         if not rc:
@@ -802,8 +837,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         query = f"UPDATE discount_codes SET {', '.join(set_parts)} WHERE lower(code)=lower(?)"
         params.append(code.strip())
         if shop:
-            query += " AND lower(shop)=lower(?)"
-            params.append(shop.strip())
+            cond, args = await self._shop_filter(shop)
+            query += cond
+            params.extend(args)
 
         try:
             rc = await execute_db(self.bot, query, tuple(params), commit=True)
