@@ -64,17 +64,14 @@ FIXES = [
      {**shop_set(AM), "discount": "15%", "is_permanent": 0, "valid_until": "2025-07-06"}),
     ("Fühler-Fabrik KEIN VERSAND: Aktion von 2023, nicht dauerhaft",
      "KEIN VERSAND", "1", (), {"is_permanent": 0, "valid_until": None}),
-    ("Fühler-Fabrik AAM: seit 01.08.2024 10 %",
-     "AAM", "(shop_url LIKE '%fuehler%' OR lower(shop) LIKE '%fühler%' OR lower(shop) LIKE '%fuehler%')", (),
-     {"discount": "10%"}),
     ("Special Ants EM2024: Kundenanmerkung, kein Rabattcode",
      "EM2024", "1", (), "DELETE"),
-    ("Ants Included AAM10 (auch '?'): ab 25 €, Shop seit 24.06.2024 geschlossen",
-     "AAM10", "(shop_url LIKE '%ants-included%' OR lower(shop) LIKE '%ants included%' "
-              "OR lower(shop) LIKE 'finn%' OR (shop IN ('', '?') AND min_order LIKE '25%'))", (),
-     {**shop_set(AI), "min_order": "25€", "is_permanent": 0, "valid_until": "2024-06-24"}),
-    ("Ants Included AntsForAll: ein Shop",
-     "AntsForAll", "1", (), {**shop_set(AI), "is_permanent": 0}),
+    ("AAM10 ohne Shop ('?', 'Finn Kraus', 'Unbekannt' vom 07.04.2024) = Ants Included",
+     "AAM10", "shop_url = '' AND (shop IN ('', '?') OR lower(shop) LIKE 'finn%' "
+              "OR (lower(shop) = 'unbekannt' AND message_date LIKE '2024-04-07%'))", (),
+     {**shop_set(AI), "min_order": "25€"}),
+    ("Ants Included AntsForAll ohne Link: ein Shop",
+     "AntsForAll", "shop_url = ''", (), shop_set(AI)),
     ("HomeforAnts AAM vor 07/2026 war der Link /aam (5 %), kein Code",
      "AAM", "(shop_url LIKE '%homeforants%' OR lower(shop) LIKE '%homeforants%') "
             "AND message_date < '2026-07-01'", (), "DELETE_IF_NEWER"),
@@ -153,11 +150,10 @@ def main() -> int:
             sets = ", ".join(f"{k}=?" for k in action)
             sql, args = f"UPDATE discount_codes SET {sets} WHERE id IN ({q})", [*action.values(), *ids]
         total += len(rows)
-        if apply:
-            try:
-                con.execute(sql, args)
-            except sqlite3.IntegrityError as e:
-                print(f"    ⚠️ übersprungen (Doppelter Eintrag): {e}")
+        try:
+            con.execute(sql, args)
+        except sqlite3.IntegrityError as e:
+            print(f"    ⚠️ übersprungen (Doppelter Eintrag): {e}")
 
     # Emoji-/Flaggen-"Codes" (z. B. Tor-Aktion zur EM) sind keine Codes
     flags = [r for r in con.execute(f"SELECT {COLS} FROM discount_codes").fetchall()
@@ -165,12 +161,12 @@ def main() -> int:
     print(f"🗑️ Emoji-/Flaggen-Codes: {len(flags)} Zeile(n)")
     for r in flags:
         print(show(r))
-    if flags and apply:
+    if flags:
         con.execute(f"DELETE FROM discount_codes WHERE id IN ({','.join('?' * len(flags))})",
                     [r["id"] for r in flags])
     total += len(flags)
 
-    # Nur melden: Einträge ohne Shop
+    # Nur melden: Einträge, die NACH den Korrekturen noch keinen Shop haben
     left = con.execute(
         f"SELECT {COLS} FROM discount_codes WHERE shop_url='' AND "
         "lower(trim(shop)) IN ('', '?', 'unbekannt', 'unknown', 'shopname')").fetchall()
@@ -183,6 +179,7 @@ def main() -> int:
         con.commit()
         print(f"\n✅ {total} Zeilen geändert/gelöscht.")
     else:
+        con.rollback()
         print(f"\n{total} Zeilen betroffen. Probelauf – nichts geschrieben. Mit --apply übernehmen.")
     con.close()
     return 0
