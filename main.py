@@ -125,6 +125,7 @@ INITIAL_COGS = [
     "cogs.board",             # Öffentliches Feedback-Board (aiohttp, eigene DB) – nur wenn BOARD_ENABLED
     "cogs.map",               # Halter-Karte: /map_join /map_remove /map_tags /event_add – nur wenn MAP_ENABLED
     "cogs.map_tasks",         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup – nur wenn MAP_ENABLED
+    "cogs.admin_groups",      # MUSS als letztes: /bot /review /codes_admin /info_admin /event_admin /wartung
 ]
 
 

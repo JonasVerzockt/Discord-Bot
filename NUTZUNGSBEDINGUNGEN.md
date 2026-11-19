@@ -91,8 +91,10 @@ Jonas Beier
 | Inhalte von Bewertungsnachrichten | Automatische Auswertung per KI | Google Sheets (DE) |
 | Discord-IDs von Shop-Accounts | Zuordnung Shop-Name zu Discord-Account | Lokale CSV-Datei auf dem Server |
 | Discord Message-IDs | Vermeidung von Doppeleinträgen | Lokale SQLite-Datenbank auf dem Server |
+| Discord-ID der verfassenden Person je Bewertung (mit Datum, Shop, Note) | Nur für den persönlichen Jahresrückblick (`/rueckblick`, nur für dich selbst sichtbar) | Lokale SQLite-Datenbank auf dem Server |
+| Lieferzeit je Bewertung (Kalendertage) | Durchschnittliche Lieferzeit je Shop | Lokale SQLite-Datenbank auf dem Server |
 
-Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitglieder werden nicht erfasst.
+Die gemeinschaftliche Bewertungsübersicht bleibt **anonym** – Benutzernamen der bewertenden Mitglieder werden dort nicht erfasst. Die Zuordnung Bewertung zu Discord-ID wird nirgends öffentlich angezeigt und beim Löschen der Bewertungsnachricht mitgelöscht.
 
 #### AntCheck-Bot
 
@@ -204,7 +206,7 @@ Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar
 |-------|-------|-------------|
 | Discord User-ID + Anzeigename, genutzter Befehl (Slash-Befehle + bekannte Text-Trigger wie `!hilfe`), Parameter, Kanal, Server, Zeitstempel, Erfolg/Fehler | Moderations- und Missbrauchskontrolle (nachvollziehen, wer welche Bot-Funktionen nutzt) | Lokale SQLite-Datenbank + optional ein Mod-only-Discord-Kanal |
 
-Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/command_log` (nach User-ID, optional Zeitfenster) abfragen.
+Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/bot export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/bot protokoll` (nach User-ID, optional Zeitfenster) abfragen.
 
 **Channel-Export (`/export_chat`, nur Admin):** Zur Moderation/Archivierung können Administrator:innen einen Kanalverlauf (optional in einem Datumsbereich) als JSON exportieren. Dabei werden ausschließlich **ohnehin von Discord gespeicherte** Nachrichtendaten (Autor, Zeit, Inhalt, Anhänge/Links, Reaktionen usw.) einmalig ausgelesen und dem/der aufrufenden Admin als **ephemere Datei** bereitgestellt – es entsteht **keine** dauerhafte zusätzliche Speicherung im Bot. Die Funktion ist Admins vorbehalten und auf den gebundenen Server beschränkt.
 
