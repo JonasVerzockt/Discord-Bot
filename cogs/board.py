@@ -419,6 +419,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   · <a href="/datenschutz?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_privacy') }}</a>
   · <a href="/partner?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_partner') }}</a>
   · <a href="/gewinnspiel?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_giveaway') }}</a>
+  · <a href="/rueckblick?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_yearreview') }}</a>
 </footer>
 </body></html>"""
 
