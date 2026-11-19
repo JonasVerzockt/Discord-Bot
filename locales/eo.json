@@ -666,5 +666,14 @@
   "yrp_closed": "La resumo pri {year} estos havebla de {date} ĝis la fino de januaro. Ĝis tiam, fakto pri formikoj:",
   "yrp_fact_h": "Ĉu vi sciis?",
   "yrp_bad_year": "Ne ekzistas resumo por {year}. Haveblaj jaroj: {first} ĝis {last}.",
-  "yrp_closed_past": "Pli fruajn jarojn vi plu povas rigardi, ekz. per /rueckblick jahr:{year}."
+  "yrp_closed_past": "Pli fruajn jarojn vi plu povas rigardi, ekz. per /rueckblick jahr:{year}.",
+  "season_allyear": "📅 Havebla tutjare",
+  "season_rare": "📅 Nur malofte havebla, sen fiksa sezono",
+  "season_range": "📅 Plejofte havebla: {ranges}",
+  "season_to": "ĝis",
+  "season_h": "Sezono",
+  "price_sig_legend": "🟢 pli malmultekosta ol kutime · 🟡 kutima · 🔴 pli multekosta ol kutime (ĉiu oferto kompare kun sia propra prezo de la lastaj 12 monatoj)",
+  "price_sig_low": "pli malmultekosta ol kutime",
+  "price_sig_mid": "kutima prezo",
+  "price_sig_high": "pli multekosta ol kutime"
 }

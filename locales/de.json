@@ -666,5 +666,14 @@
   "yrp_closed": "Den Rückblick auf {year} gibt es ab dem {date} bis Ende Januar. Bis dahin ein Ameisen-Fakt:",
   "yrp_fact_h": "Schon gewusst?",
   "yrp_bad_year": "Für {year} gibt es keinen Rückblick. Verfügbar sind die Jahre {first} bis {last}.",
-  "yrp_closed_past": "Frühere Jahre kannst du weiter ansehen, z. B. mit /rueckblick jahr:{year}."
+  "yrp_closed_past": "Frühere Jahre kannst du weiter ansehen, z. B. mit /rueckblick jahr:{year}.",
+  "season_allyear": "📅 Ganzjährig im Angebot",
+  "season_rare": "📅 Nur selten lagernd, keine feste Saison",
+  "season_range": "📅 Meist lagernd: {ranges}",
+  "season_to": "bis",
+  "season_h": "Saison",
+  "price_sig_legend": "🟢 günstiger als sonst · 🟡 üblich · 🔴 teurer als sonst (je Angebot im Vergleich zum eigenen Preis der letzten 12 Monate)",
+  "price_sig_low": "günstiger als sonst",
+  "price_sig_mid": "üblicher Preis",
+  "price_sig_high": "teurer als sonst"
 }
