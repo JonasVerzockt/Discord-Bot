@@ -66,7 +66,12 @@ class SheetCache:
 
     def load(self) -> None:
         """Einmaliger Read beim Start. Leere Trailing-Zeilen werden abgeschnitten."""
-        all_rows = self.ws.get_all_values()
+        try:
+            all_rows = self.ws.get_all_values()
+        except Exception:
+            _mark_sync("reviews", False)
+            raise
+        _mark_sync("reviews", True)
         last = 0
         for i, row in enumerate(all_rows):
             if row and row[0].strip():   # nur Spalte A (Datum) zählt
