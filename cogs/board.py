@@ -1260,6 +1260,10 @@ RUECKBLICK_WAIT = """{% extends "base" %}{% block body %}
  <p class=muted style="font-size:12px;margin:0">{{ t('yr_wait_src') }}: <a id=factsrc href="{{ facts[start].url }}" target=_blank rel="noopener noreferrer">{{ facts[start].src }}</a></p>
  <p style="margin:12px 0 0"><a href="#" id=factnext class=btn>{{ t('yr_wait_more') }}</a></p>
 </div>
+{% if years %}<h3 style="margin-top:28px">📚 {{ t('yr_wait_past_h') }}</h3>
+<div class=kpigrid style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">
+ {% for y in years %}<a class=kpi href="/rueckblick/{{ y }}{{ qs() }}" style="text-decoration:none"><div class=v>{{ y }}</div><div class=l>{{ t('yr_tile_open') }}</div></a>{% endfor %}
+</div>{% endif %}
 </div>
 <script>(function(){var F={{ facts|tojson }},i={{ start }},
  p=document.getElementById("fact"),s=document.getElementById("factsrc");
@@ -2306,21 +2310,25 @@ async def h_rueckblick(req):
     from utils import directory as dirx
     from utils.localization import l10n
     lang = pick_lang(req)
-    if not YR.is_open():
+    ry = YR.review_year()
+    fy = await YR.first_year(req.app["bot"])
+    years = list(range(ry, fy - 1, -1))
+    raw_year = req.match_info.get("year")
+    if not YR.is_open() and not raw_year:
         # Außerhalb 1. Nov bis 31. Jan: Hinweisseite mit Ameisen-Fakten (Quellen verlinkt).
+        # Abgeschlossene Jahre bleiben über die Kacheln abrufbar.
         from utils import ant_facts
         facts = ant_facts.all_for(lang)
         start = ant_facts.pick(lang)["index"]
         resp = _render(req, "rueckblick_wait", title=translate(lang, "yr_wait_h"),
                        facts=facts, start=start, opens=YR.next_open().strftime("%d.%m.%Y"),
-                       ry=YR.next_open().year)
+                       ry=YR.next_open().year, years=years)
         resp.headers["Cache-Control"] = "no-store"
         return resp
-    ry = YR.review_year()
-    fy = await YR.first_year(req.app["bot"])
-    year = int(req.match_info.get("year") or ry)
+    year = int(raw_year or ry)
     if year < fy or year > ry:
-        raise web.HTTPFound(f"/rueckblick/{ry}?lang={lang}")
+        raise web.HTTPFound(f"/rueckblick?lang={lang}" if not YR.is_open()
+                            else f"/rueckblick/{ry}?lang={lang}")
     hit = _YR_CACHE.get(year)
     if hit and time.time() - hit[0] < 1800:
         d = hit[1]
@@ -2350,7 +2358,7 @@ async def h_rueckblick(req):
     tp = lambda key, **kw: l10n.get(key, lang, **kw)
     resp = _render(req, "rueckblick", title=translate(lang, "yr_page_h", y=year), d=d, names=names,
                    me=me, tp=tp, login_url="" if uid else _login_url(req),
-                   years=list(range(ry, fy - 1, -1)))
+                   years=years)
     if uid:
         resp.headers["Cache-Control"] = "private, no-store"   # persönliche Daten nie zwischenspeichern
     return resp

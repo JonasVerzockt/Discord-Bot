@@ -187,8 +187,11 @@ class YearReviewCog(commands.Cog, name="YearReview"):
     ):
         await ctx.defer(ephemeral=True)
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        if not YR.is_open():
-            # Nur vom 1. November bis 31. Januar; sonst Hinweis plus Ameisen-Fakt.
+        ry = YR.review_year()
+        fy = await YR.first_year(self.bot)
+        if not YR.is_open() and not jahr:
+            # Ohne Jahr nur vom 1. November bis 31. Januar; sonst Hinweis plus Ameisen-Fakt.
+            # Abgeschlossene Jahre gehen weiterhin über jahr:.
             from utils import ant_facts
             f = ant_facts.pick(lang)
             nxt = YR.next_open()
@@ -197,10 +200,10 @@ class YearReviewCog(commands.Cog, name="YearReview"):
                                                    date=nxt.strftime("%d.%m.%Y")), color=_COLOR)
             e.add_field(name=l10n.get("yrp_fact_h", lang),
                         value=f"{f['text']}\n[{f['src']}]({f['url']})", inline=False)
+            if fy <= ry:
+                e.set_footer(text=l10n.get("yrp_closed_past", lang, year=ry))
             await ctx.followup.send(embed=e, ephemeral=True)
             return
-        ry = YR.review_year()
-        fy = await YR.first_year(self.bot)
         year = jahr or ry
         if year < fy or year > ry:
             await ctx.followup.send(l10n.get("yrp_bad_year", lang, year=year, first=fy, last=ry),
