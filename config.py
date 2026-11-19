@@ -196,6 +196,11 @@ BOARD_ADMIN_IDS: list[int] = [int(x) for x in os.getenv("BOARD_ADMIN_IDS", "").r
                               if x.isdigit()]
 # Eigene, separate DB-Datei (nicht die Haupt-Bot-DB).
 BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(DATA_DIR / "board.db"))
+# KI-Chat als schwebendes Fenster auf dem Board (nur eingeloggte AAM-Mitglieder,
+# gleiches Tagesbudget wie im Discord). Grenzen je Mitglied: Nachrichten pro Minute/Stunde.
+BOARD_AI_CHAT          = os.getenv("BOARD_AI_CHAT", "true").lower() == "true"
+BOARD_AI_CHAT_PER_MIN  = int(os.getenv("BOARD_AI_CHAT_PER_MIN", "5"))
+BOARD_AI_CHAT_PER_HOUR = int(os.getenv("BOARD_AI_CHAT_PER_HOUR", "40"))
 # Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
 BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", "change-me-board-salt").encode()
 
