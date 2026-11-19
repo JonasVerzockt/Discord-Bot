@@ -621,6 +621,50 @@ CREATE TABLE IF NOT EXISTS map_event_rsvp (
     PRIMARY KEY (event_id, occ_date, user_id)
 );
 
+-- Termin-Erinnerung: bereits verschickte Erinnerungen (je Vorkommen und Person nur einmal).
+CREATE TABLE IF NOT EXISTS map_rsvp_reminded (
+    event_id  INTEGER NOT NULL,
+    occ_date  TEXT    NOT NULL,
+    user_id   TEXT    NOT NULL,
+    sent_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (event_id, occ_date, user_id)
+);
+
+-- ── Mein Konto (Board /konto) ────────────────────────────────────────────────
+-- Persönliche Einstellungen, die nur das Konto betreffen. Fehlende Zeile = Standard.
+-- quiet_start/quiet_end: Ruhezeit in vollen Stunden (Berlin), NULL = aus.
+-- logout_before: Board-Sitzungen, die vor diesem Zeitpunkt (Unix) begonnen haben, sind ungültig.
+-- ics_salt: Teil des geheimen Links zum persönlichen Kalender (neu erzeugen = alter Link ungültig).
+CREATE TABLE IF NOT EXISTS user_prefs (
+    user_id        TEXT PRIMARY KEY,
+    rsvp_reminder  INTEGER NOT NULL DEFAULT 1,
+    quiet_start    INTEGER,
+    quiet_end      INTEGER,
+    logout_before  INTEGER NOT NULL DEFAULT 0,
+    ics_salt       TEXT,
+    intros         INTEGER NOT NULL DEFAULT 1,   -- Intros beim Öffnen des Boards (1 = an)
+    ach_seen_at    TEXT,                         -- Erfolge bis hier schon per Intro gefeiert (UTC)
+    milestones     TEXT,                         -- schon gefeierte Meilensteine, z. B. "inat10,rev100"
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Verlauf: was der Bot dir zuletzt per PN geschickt hat (nur Vorschau, 30 Tage, max. 50 je Person).
+CREATE TABLE IF NOT EXISTS dm_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id  TEXT NOT NULL,
+    sent_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    preview  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_dm_log_user ON dm_log (user_id, sent_at);
+-- Angebots-Alerts, die während der persönlichen Ruhezeit anfielen (danach zugestellt).
+CREATE TABLE IF NOT EXISTS quiet_offer_queue (
+    user_id     TEXT NOT NULL,
+    message_id  TEXT NOT NULL,
+    keyword     TEXT NOT NULL,
+    keyword_raw TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, message_id, keyword)
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_map_entries_country    ON map_entries (country);
@@ -652,6 +696,9 @@ _MIGRATIONS = [
     ("map_entries",         "show_name",     "ALTER TABLE map_entries ADD COLUMN show_name INTEGER NOT NULL DEFAULT 1"),
     ("map_events",          "exdates",       "ALTER TABLE map_events ADD COLUMN exdates TEXT"),
     ("map_entries",         "coarse",        "ALTER TABLE map_entries ADD COLUMN coarse INTEGER NOT NULL DEFAULT 0"),
+    ("user_prefs",          "intros",        "ALTER TABLE user_prefs ADD COLUMN intros INTEGER NOT NULL DEFAULT 1"),
+    ("user_prefs",          "ach_seen_at",   "ALTER TABLE user_prefs ADD COLUMN ach_seen_at TEXT"),
+    ("user_prefs",          "milestones",    "ALTER TABLE user_prefs ADD COLUMN milestones TEXT"),
 ]
 
 

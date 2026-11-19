@@ -55,6 +55,10 @@ OBS_RE = re.compile(r"https?://(?:www\.)?inaturalist\.org/observations/(\d+)", r
 LOGIN_RE = re.compile(r"^[A-Za-z0-9_\-]{2,40}$")
 
 
+# Letzter API-Erfolg/-Fehler (für die Health-Anzeige im Board und /bot status)
+API_STATUS: dict = {"ok_at": None, "err_at": None, "err": ""}
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -67,13 +71,18 @@ async def _get(path: str, params: dict, base: str = API) -> dict | None:
             async with s.get(f"{base}{path}", params=params,
                              timeout=aiohttp.ClientTimeout(total=20)) as r:
                 if r.status == 404:
+                    API_STATUS["ok_at"] = _now()
                     return {"results": []}
                 if r.status != 200:
                     logger.warning("🐜 iNat-API %s: HTTP %s", path, r.status)
+                    API_STATUS.update(err_at=_now(), err=f"HTTP {r.status}")
                     return None
-                return await r.json()
+                data = await r.json()
+                API_STATUS["ok_at"] = _now()
+                return data
     except Exception as e:
         logger.warning("🐜 iNat-API %s nicht erreichbar: %s", path, e)
+        API_STATUS.update(err_at=_now(), err=str(e)[:80])
         return None
 
 
@@ -329,3 +338,23 @@ async def community_year(bot, year: int) -> dict:
             "top": (top[0], top[1]) if top and top[1] > 1 else None,
             "new": sum(1 for d in first.values() if d[:4] == str(year)),
             "people": len({r["discord_id"] for r in rows})}
+
+
+async def community_species(bot) -> dict:
+    """Alle je von der Community gefundenen Arten (ohne Namen der Personen):
+    {'taxa': [{name, rank, obs, first}], 'obs', 'people', 'years'}."""
+    rows = await _counted_rows(bot)
+    taxa = _taxa(rows)
+    ids = {r["taxon_id"] for r in taxa}
+    stat: dict = {}
+    for r in rows:
+        if r["taxon_id"] in ids:
+            st = stat.setdefault(r["taxon_id"], {"obs": 0, "first": r["day"] or ""})
+            st["obs"] += 1
+            if (r["day"] or "") and (not st["first"] or r["day"] < st["first"]):
+                st["first"] = r["day"]
+    out = [{"name": r["taxon_name"], "rank": r["taxon_rank"], "obs": stat[r["taxon_id"]]["obs"],
+            "first": (stat[r["taxon_id"]]["first"] or "")[:4]} for r in taxa if r["taxon_name"]]
+    out.sort(key=lambda x: x["name"].lower())
+    return {"taxa": out, "obs": len(rows), "people": len({r["discord_id"] for r in rows}),
+            "years": sorted({(r["day"] or "")[:4] for r in rows if r["day"]})}
