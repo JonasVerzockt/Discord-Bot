@@ -102,21 +102,6 @@ def parse_with_ai(content: str, shop: str, date: str) -> dict:
     return json.loads(text)
 
 
-_DELIVERY_PROMPT = """\
-Aus dieser Ameisen-Shop-Bewertung (geschrieben am {date}): Wie viele KALENDERTAGE lagen zwischen
-Bestellung und Ankunft? Wochentage relativ zum Datum auflösen ("Dienstag bestellt, Freitag da"=3,
-"am nächsten Tag"=1). Nur eine ganze Zahl; null, wenn die Bewertung dazu nichts Eindeutiges sagt.
-Ebenfalls null, wenn die Dauer nicht am Shop lag: vereinbart späterer Versand, Vorbestellung,
-Versandpause wegen Hitze/Kälte/Urlaub, Abholung oder Übergabe auf einer Messe.
-{message}"""
-_DELIVERY_SCHEMA = {
-    "type": "object",
-    "properties": {"lieferzeit_tage": {"type": ["integer", "null"]}},
-    "required": ["lieferzeit_tage"],
-    "additionalProperties": False,
-}
-
-
 def delivery_days(value) -> int | None:
     """Plausible Lieferzeit (0–60 Kalendertage) oder None."""
     try:
@@ -124,19 +109,6 @@ def delivery_days(value) -> int | None:
     except (TypeError, ValueError):
         return None
     return v if 0 <= v <= 60 else None
-
-
-def parse_delivery(content: str, date: str) -> int | None:
-    """Nur die Lieferzeit (für das nachträgliche Auswerten alter Bewertungen)."""
-    resp = _ai.messages.create(
-        model=REVIEW_PARSER_MODEL,
-        max_tokens=max_tokens_for(REVIEW_PARSER_MODEL, 60),
-        **thinking_off(REVIEW_PARSER_MODEL),
-        messages=[{"role": "user", "content": _DELIVERY_PROMPT.format(date=date, message=content)}],
-        output_config={"format": {"type": "json_schema", "schema": _DELIVERY_SCHEMA}},
-    )
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text_of(resp).strip())
-    return delivery_days(json.loads(text).get("lieferzeit_tage"))
 
 
 def build_row(parsed: dict) -> list:
