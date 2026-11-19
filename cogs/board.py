@@ -289,7 +289,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  option{background:#0d1117;color:#e6edf3} ::placeholder{color:#6e7681;opacity:1}
  a{color:#58a6ff;text-decoration:none} a:hover{text-decoration:underline}
  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 20px;display:flex;gap:16px;align-items:center}
- header h1{font-size:18px;margin:0} .grow{flex:1}
+ header h1{font-size:18px;margin:0} header>a{white-space:nowrap} .grow{flex:1}
  /* Handy: Kopfzeile umbrechen statt die Seite zu verbreitern */
  @media(max-width:820px){header{flex-wrap:wrap;gap:8px 14px;padding:10px 14px} header h1{flex-basis:100%} header>.grow{display:none}}
  .wrap{max-width:1100px;margin:0 auto;padding:20px}
@@ -373,7 +373,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .legal{max-width:820px} .legal h3{margin:18px 0 6px;font-size:15px;color:#c9d1d9} .legal p{margin:0 0 8px} .legal code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:1px 5px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
- <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
+ <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/shops{{ qs() }}">{{ t('nav_shops') }}</a><a href="/art{{ qs() }}">{{ t('nav_species') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
  <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
@@ -1003,10 +1003,138 @@ MAP = """{% extends "base" %}{% block body %}
 <script src="/static/map_stats.js?v={{ v }}"></script>
 {% endblock %}"""
 
+ART_INDEX = """{% extends "base" %}{% block body %}
+<h2 style="margin-bottom:6px">{{ t('dir_art_index_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('dir_art_index_intro', n=items|length) }}</p>
+<form method=get action="/art" style="max-width:420px;display:flex;gap:8px">
+ <input type=hidden name=lang value="{{ lang }}">
+ <input id=dirfilter name=q type=search value="{{ q }}" placeholder="{{ t('dir_art_search') }}" autocomplete=off>
+</form>
+{% if q and not items %}<div class=flash style="margin-top:12px">{{ t('dir_art_nohit', q=q) }}</div>{% endif %}
+<div class=raritygrid id=dirlist style="font-style:normal">{% for name, n, inst in items %}<div data-q="{{ name|lower }}"><a href="/art/{{ name|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ name }}</i></a> <span class=rshop>· {{ t('dir_shops_n', n=n) }}{% if inst %} · {{ t('dir_instock_n', n=inst) }}{% endif %}</span></div>{% endfor %}</div>
+{{ filter_js|safe }}
+{% endblock %}"""
+
+ART = """{% extends "base" %}{% block body %}
+<p class=muted style="margin:0"><a href="/art{{ qs() }}">← {{ t('dir_art_index_h') }}</a></p>
+<h2 style="margin:6px 0"><i>{{ sp.name }}</i></h2>
+<p class=muted style="margin-top:0">{{ t('dir_genus') }}: <i>{{ sp.genus }}</i>{% if rare %} · 💎 {{ t('dir_rare') }}{% endif %}</p>
+{% if prof.wiki %}<div class=chartbox style="margin-top:0;margin-bottom:12px"><h4>📖 {{ t('dir_about_h') }}{% if prof.wiki.lang != lang %} <span class=muted style="font-weight:400">({{ prof.wiki.lang|upper }})</span>{% endif %}</h4>
+ <p style="margin:0 0 8px" lang="{{ prof.wiki.lang }}">{{ prof.wiki.text }}</p>
+ <p class=muted style="margin:0;font-size:12px">{{ t('dir_wiki_text') }} <a href="{{ prof.wiki.url }}" target=_blank rel="noopener noreferrer">Wikipedia: „{{ prof.wiki.title }}“</a>
+ · <a href="{{ prof.wiki.history }}" target=_blank rel="noopener noreferrer">{{ t('dir_wiki_authors') }}</a>
+ · {{ t('dir_wiki_license') }} <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.{{ 'de' if lang=='de' else 'en' }}" target=_blank rel="noopener noreferrer">CC BY-SA 4.0</a>{% if prof.wiki.cut %} · {{ t('dir_wiki_cut') }}{% endif %}</p>
+</div>{% endif %}
+{% if prof.gbif and prof.gbif.count %}<p style="margin:0 0 12px">🌍 {{ t('dir_gbif_line', n=gbif_count, c=prof.gbif.countries|length) }}{% if gbif_top %} · {{ t('dir_gbif_top') }}: {{ gbif_top|join(', ') }}{% endif %}
+ <span class=muted style="font-size:12px">· {{ t('dir_gbif_src') }} <a href="{{ prof.gbif.url }}" target=_blank rel="noopener noreferrer">GBIF.org</a></span></p>{% endif %}
+<p class=muted style="margin:0 0 14px">🔗 {{ t('dir_more_at') }} <a href="{{ ext.antwiki }}" target=_blank rel="noopener noreferrer">AntWiki</a>{% if ext.antweb %} · <a href="{{ ext.antweb }}" target=_blank rel="noopener noreferrer">AntWeb</a>{% endif %}{% if prof.gbif %} · <a href="{{ prof.gbif.url }}" target=_blank rel="noopener noreferrer">GBIF</a>{% endif %}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{{ sp.shops|length }}</div><div class=l>{{ t('dir_kpi_shops') }}</div></div>
+ <div class=kpi><div class=v>{{ instock|length }}</div><div class=l>{{ t('dir_kpi_instock') }}</div></div>
+ <div class=kpi><div class=v>{{ eur(trend.now) }}</div><div class=l>{{ t('dir_kpi_now') }}</div></div>
+ <div class=kpi><div class=v>{{ eur(trend.m3) }}</div><div class=l>{{ t('dir_kpi_m3') }}</div></div>
+ <div class=kpi><div class=v>{{ eur(trend.m12) }}</div><div class=l>{{ t('dir_kpi_m12') }}</div></div>
+</div>
+{% if trend['values']|select|list|length > 1 %}
+<div class=chartbox><h4>{{ t('dir_trend_h') }} <span class=info title="{{ t('dir_trend_exp') }}">ⓘ</span></h4><div class=chartwrap style="height:260px"><canvas id=chTrend></canvas></div></div>
+<script src="/static/chart.umd.js?v={{ v }}"></script>
+<script>
+(function(){var el=document.getElementById("chTrend"); if(!el||!window.Chart) return;
+ new Chart(el,{type:"line",data:{labels:{{ trend.labels|tojson }},datasets:[{data:{{ trend['values']|tojson }},spanGaps:true,stepped:true,borderColor:"#3fb950",backgroundColor:"#3fb95033",fill:true,pointRadius:2}]},
+ options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e"},grid:{color:"#21262d"}},y:{ticks:{color:"#8b949e",callback:function(v){return v+" €"}},grid:{color:"#21262d"}}}}});})();
+</script>
+{% endif %}
+<div class=chartbox><h4>{{ t('dir_offers_h') }}</h4>
+<table><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_price') }}</th><th>{{ t('dir_col_stock') }}</th><th></th></tr>
+{% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ eur(o.price) }}</td>
+<td>{% if o.in_stock %}<span style="color:#3fb950">● {{ t('dir_instock') }}</span>{% else %}<span class=muted>○ {{ t('dir_soldout') }}</span>{% endif %}</td>
+<td><a href="{{ o.url }}" target=_blank rel="noopener noreferrer">{{ t('dir_to_offer') }} ↗</a></td></tr>{% endfor %}
+</table></div>
+<p class=muted>{{ t('dir_art_note', d=fetched) }}</p>
+{% endblock %}"""
+
+ART_MISSING = """{% extends "base" %}{% block body %}
+<p class=muted style="margin:0"><a href="/art{{ qs() }}">← {{ t('dir_art_index_h') }}</a></p>
+<h2><i>{{ art_name }}</i></h2>
+<div class=flash>{{ t('dir_art_missing' if known else 'dir_art_unknown') }}</div>
+{% if known %}<p class=muted>🔗 {{ t('dir_more_at') }} <a href="{{ ext.antwiki }}" target=_blank rel="noopener noreferrer">AntWiki</a>{% if ext.antweb %} · <a href="{{ ext.antweb }}" target=_blank rel="noopener noreferrer">AntWeb</a>{% endif %}</p>{% endif %}
+{% endblock %}"""
+
+SHOPS = """{% extends "base" %}{% block body %}
+<h2 style="margin-bottom:6px">{{ t('dir_shops_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('dir_shops_intro') }}</p>
+<input id=dirfilter type=search placeholder="{{ t('dir_shops_search') }}" autocomplete=off style="max-width:420px">
+<table id=dirlist style="margin-top:10px"><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_rating') }}</th><th>{{ t('dir_col_species') }}</th><th>{{ t('dir_col_instock') }}</th></tr>
+{% for s in items %}<tr data-q="{{ (s.name ~ ' ' ~ s.domain)|lower }}"><td><a href="/shop/{{ s.domain|urlencode }}{{ qs() }}">{{ s.name }}</a>{% if s.partner %} 🤝{% endif %}<div class=muted style="font-size:12px">{{ s.domain }}</div></td>
+<td>{% if s.avg is not none %}⭐ {{ '%.2f'|format(s.avg) }} <span class=muted>({{ s.n }})</span>{% else %}<span class=muted>–</span>{% endif %}</td>
+<td>{{ s.species or '–' }}</td><td>{{ s.instock or '–' }}</td></tr>{% endfor %}
+</table>
+{{ filter_js|safe }}
+{% endblock %}"""
+
+SHOP = """{% extends "base" %}{% block body %}
+<p class=muted style="margin:0"><a href="/shops{{ qs() }}">← {{ t('dir_shops_h') }}</a></p>
+<h2 style="margin:6px 0">{{ sh.name }}{% if partner %} <span class=tag style="color:#d2a8ff;border-color:#d2a8ff">🤝 {{ t('dir_partner') }}</span>{% endif %}</h2>
+<p class=muted style="margin-top:0"><a href="{{ sh.url }}" target=_blank rel="noopener noreferrer">{{ sh.domain }} ↗</a>{% if sh.country %} · {{ country }}{% endif %}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{% if rv and rv.avg is not none %}⭐ {{ '%.2f'|format(rv.avg) }}{% else %}–{% endif %}</div><div class=l>{{ t('dir_kpi_rating') }}</div></div>
+ <div class=kpi><div class=v>{{ rv.count if rv else 0 }}</div><div class=l>{{ t('dir_kpi_reviews') }}</div></div>
+ <div class=kpi><div class=v>{{ rv.last if rv else '–' }}</div><div class=l>{{ t('dir_kpi_last') }}</div></div>
+ <div class=kpi><div class=v>{{ sh.species_count }}</div><div class=l>{{ t('dir_kpi_species') }}</div></div>
+ <div class=kpi><div class=v>{{ sh.instock_count }} / {{ sh.offers_count }}</div><div class=l>{{ t('dir_kpi_instock_of') }}</div></div>
+ <div class=kpi><div class=v>{{ sh.exclusive|length }}</div><div class=l>{{ t('dir_kpi_exclusive') }}</div></div>
+ <div class=kpi><div class=v>{% if sh.price_level is none %}–{% elif sh.price_level > 0 %}+{{ sh.price_level }} %{% else %}{{ sh.price_level }} %{% endif %}</div><div class=l>{{ t('dir_kpi_level', n=sh.price_level_n) }} <span class=info title="{{ t('dir_level_exp') }}">ⓘ</span></div></div>
+</div>
+{% if codes %}<div class=chartbox><h4>🏷️ {{ t('dir_codes_h') }}</h4>
+{% for c in codes %}<div><code>{{ c.code }}</code>{% if c.discount %} · {{ c.discount }}{% endif %}{% if c.min_order %} · {{ t('dir_min_order', m=c.min_order) }}{% endif %} · <span class=muted>{{ t('dir_perm') if c.permanent else (t('dir_until', d=c.until) if c.until else t('dir_open')) }}</span></div>{% endfor %}
+</div>{% endif %}
+
+{% if member %}
+ {% if warns %}<div class=chartbox style="border-color:#d2992266"><h4>⚠️ {{ t('dir_warn_h') }}</h4>
+ {% for w in warns %}<div>{{ w.emoji }} {{ w.text }}{% if w.date %} <span class=muted>({{ w.date }})</span>{% endif %}</div>{% endfor %}
+ <p class=muted style="margin-bottom:0">{{ t('dir_warn_note') }} <a href="/impressum{{ qs() }}#kontakt">{{ t('contact_h') }}</a></p></div>{% endif %}
+ {% if rv and rv.years %}<div class=chartbox><h4>{{ t('dir_years_h') }}</h4><div class=chartwrap style="height:240px"><canvas id=chYears></canvas></div></div>
+ <div class=chartbox><h4>{{ t('dir_dist_h') }}</h4><div class=chartwrap style="height:220px"><canvas id=chDist></canvas></div></div>
+ <script src="/static/chart.umd.js?v={{ v }}"></script>
+ <script>
+ (function(){ if(!window.Chart) return; var g={color:"#21262d"}, tk={color:"#8b949e"};
+  new Chart(document.getElementById("chYears"),{type:"bar",data:{labels:{{ years_labels|tojson }},datasets:[
+   {type:"line",label:"{{ t('dir_avg') }}",data:{{ years_avg|tojson }},borderColor:"#3fb950",yAxisID:"y",tension:.2},
+   {label:"{{ t('dir_kpi_reviews') }}",data:{{ years_n|tojson }},backgroundColor:"#1f6feb66",yAxisID:"y2"}]},
+   options:{maintainAspectRatio:false,plugins:{legend:{labels:tk}},scales:{x:{ticks:tk,grid:g},y:{min:0,max:10,ticks:tk,grid:g},y2:{position:"right",ticks:tk,grid:{display:false},beginAtZero:true}}}});
+  new Chart(document.getElementById("chDist"),{type:"bar",data:{labels:{{ dist_labels|tojson }},datasets:[{data:{{ dist_n|tojson }},backgroundColor:"#3fb95099"}]},
+   options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:tk,grid:g},y:{ticks:tk,grid:g,beginAtZero:true}}}});
+ })();
+ </script>{% endif %}
+ {% if rv and rv.recent %}<div class=chartbox><h4>{{ t('dir_recent_h') }}</h4>
+ {% for r in rv.recent %}<div class=card><div class=muted>{{ r.date }}{% if r.rating is not none %} · ⭐ {{ r.rating|round(1) }}{% endif %}</div>
+ {% if r.pos %}<div>👍 {{ r.pos }}</div>{% endif %}{% if r.neg %}<div>👎 {{ r.neg }}</div>{% endif %}</div>{% endfor %}
+ <p class=muted style="margin-bottom:0">{{ t('dir_recent_note') }}</p></div>{% endif %}
+{% elif login_url %}
+ <div class=flash>🔒 {{ t('dir_login_more') }} <a href="{{ login_url }}">{{ t('dir_login_btn') }}</a></div>
+{% endif %}
+
+{% if sh.exclusive %}<div class=chartbox><h4>💎 {{ t('dir_excl_h') }}</h4>
+<div class=raritygrid>{% for n in sh.exclusive %}<div><a href="/art/{{ n|replace(' ','_')|urlencode }}{{ qs() }}">{{ n }}</a></div>{% endfor %}</div></div>{% endif %}
+{% if sh.species %}<div class=chartbox><h4>{{ t('dir_species_h', n=sh.species|length) }}</h4>
+<input id=dirfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off style="max-width:360px">
+<div class=raritygrid id=dirlist>{% for n in sh.species %}<div data-q="{{ n|lower }}"><a href="/art/{{ n|replace(' ','_')|urlencode }}{{ qs() }}">{{ n }}</a></div>{% endfor %}</div></div>
+{{ filter_js|safe }}{% endif %}
+<p class=muted>{{ t('dir_shop_note') }}</p>
+{% endblock %}"""
+
+_FILTER_JS = """<script>(function(){var inp=document.getElementById("dirfilter"),
+ rows=document.querySelectorAll("#dirlist [data-q]"); if(!inp) return;
+ function apply(){var q=inp.value.trim().toLowerCase();
+  rows.forEach(function(r){r.style.display=(!q||r.getAttribute("data-q").indexOf(q)>=0)?"":"none";});}
+ inp.addEventListener("input",apply); apply();})();</script>"""
+
 ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUBMIT,
                                      "detail": DETAIL, "login": LOGIN, "admin": ADMIN,
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
-                                     "stats": STATS, "legal": LEGAL, "map": MAP}),
+                                     "stats": STATS, "legal": LEGAL, "map": MAP,
+                                     "art_index": ART_INDEX, "art": ART, "art_missing": ART_MISSING,
+                                     "shops": SHOPS, "shop": SHOP}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -1704,6 +1832,130 @@ async def h_stats(req):
     return resp
 
 
+# ── Artensteckbrief & Händlerseiten ───────────────────────────────────────────
+def _eur_fmt(v) -> str:
+    return (f"{v:.2f} €").replace(".", ",") if isinstance(v, (int, float)) else "–"
+
+
+def _aam_member(req) -> str | None:
+    """Discord-ID, wenn eingeloggt UND aktuell Mitglied des AAM-Servers, sonst None."""
+    uid = _is_member(req)
+    return uid if (uid and _member_name(req.app, uid)) else None
+
+
+def _login_url(req) -> str:
+    if not (MAP_ENABLED and BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
+        return ""
+    return "/map/login?" + urlencode({"next": req.path, "lang": pick_lang(req)})
+
+
+async def h_art_index(req):
+    from utils import directory as dirx
+    lang = pick_lang(req)
+    q = (req.query.get("q") or "").strip()[:80]
+    try:
+        idx = await asyncio.to_thread(dirx.index)
+    except Exception as e:
+        logger.warning("🐜 Arten-Index fehlgeschlagen: %s", e)
+        idx = {"species": {}}
+    if q:
+        hit = await asyncio.to_thread(dirx.find_species, q)
+        if hit:
+            raise web.HTTPFound(f"/art/{dirx.slug(hit['name'])}?lang={lang}")
+    ql = q.lower()
+    items = sorted(((sp["name"], len(sp["shops"]), sum(1 for o in sp["offers"] if o["in_stock"]))
+                    for sp in idx["species"].values() if not ql or ql in sp["key"]),
+                   key=lambda x: x[0].lower())
+    return _render(req, "art_index", title=translate(lang, "dir_art_index_h"), items=items, q=q,
+                   filter_js=_FILTER_JS)
+
+
+async def h_art(req):
+    from utils import directory as dirx
+    lang = pick_lang(req)
+    name = dirx.unslug(req.match_info.get("name", ""))[:120]
+    await ensure_rates()
+    sp = await asyncio.to_thread(dirx.find_species, name)
+    if not sp:
+        canon = await asyncio.to_thread(dirx.canonical_name, name)
+        from utils import species_profile
+        resp = _render(req, "art_missing", title=name, art_name=canon or name, known=bool(canon),
+                       ext=species_profile.links(canon or name))
+        resp.set_status(404)
+        return resp
+    if dirx.unslug(sp["name"]) != name:                       # Synonym/Schreibweise → kanonische URL
+        raise web.HTTPFound(f"/art/{dirx.slug(sp['name'])}?lang={lang}")
+    trend = await asyncio.to_thread(dirx.price_trend, sp, 12)
+    offers = sorted(sp["offers"], key=lambda o: (not o["in_stock"], o["price"] is None, o["price"] or 0))
+    instock = [o for o in offers if o["in_stock"]]
+    fetched = shop_stats._fmt_ts(dirx.index().get("fetched_at"))
+    from utils import species_profile
+    try:
+        prof = species_profile.view(await species_profile.get(sp["name"]), lang)
+    except Exception as e:
+        logger.info("🐜 Steckbrief %s nicht verfügbar: %s", sp["name"], e)
+        prof = {"wiki": None, "gbif": None}
+    gb = prof.get("gbif") or {}
+    gbif_top = [country_name(lang, c) for c, _ in (gb.get("countries") or [])[:5] if c]
+    gbif_count = f"{gb.get('count', 0):,}".replace(",", ".") if lang == "de" else f"{gb.get('count', 0):,}"
+    return _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock,
+                   trend=trend, rare=len(sp["shops"]) == 1, eur=_eur_fmt, fetched=fetched,
+                   prof=prof, ext=species_profile.links(sp["name"]),
+                   gbif_top=gbif_top, gbif_count=gbif_count)
+
+
+async def h_shops(req):
+    from utils import directory as dirx
+    lang = pick_lang(req)
+    reviews = await asyncio.to_thread(dirx.loaded_reviews)
+    shops = await asyncio.to_thread(dirx.all_shops, reviews)
+    partners = {dirx.domain_of(p["url"]) for p in _load_partners()}
+    items = []
+    for dom, sh in shops.items():
+        rv = reviews.get(dom) or {}
+        if not sh["offers_count"] and not rv:
+            continue
+        items.append({"name": sh["name"], "domain": dom, "avg": rv.get("avg"), "n": rv.get("count", 0),
+                      "species": sh["species_count"], "instock": sh["instock_count"],
+                      "partner": dom in partners})
+    items.sort(key=lambda x: x["name"].lower())
+    return _render(req, "shops", title=translate(lang, "dir_shops_h"), items=items, filter_js=_FILTER_JS)
+
+
+async def h_shop(req):
+    from utils import directory as dirx
+    from utils.sheet import warn_emoji
+    lang = pick_lang(req)
+    raw = req.match_info.get("domain", "")[:120]
+    await ensure_rates()
+    reviews = await asyncio.to_thread(dirx.loaded_reviews)
+    sh = await asyncio.to_thread(dirx.find_shop, raw, reviews)
+    if not sh:
+        raise web.HTTPNotFound(text=translate(lang, "dir_shop_404"))
+    dom = sh["domain"]
+    if raw != dom:
+        raise web.HTTPFound(f"/shop/{dom}?lang={lang}")
+    rv = reviews.get(dom)
+    member = _aam_member(req)
+    ctx = dict(sh=sh, rv=rv, member=bool(member), partner=dirx.partner_of(dom),
+               codes=await dirx.active_codes(req.app["bot"], dom),
+               country=country_name(lang, sh["country"]) if sh.get("country") else "",
+               login_url="" if member else _login_url(req), filter_js=_FILTER_JS,
+               warns=[], years_labels=[], years_avg=[], years_n=[], dist_labels=[], dist_n=[])
+    if member:
+        ctx["warns"] = [dict(w, emoji=warn_emoji(w.get("level"))) for w in dirx.warnings_of(dom)]
+        if rv:
+            ctx["years_labels"] = [str(y) for y in rv["years"]]
+            ctx["years_avg"] = [a for _, a in rv["years"].values()]
+            ctx["years_n"] = [n for n, _ in rv["years"].values()]
+            ctx["dist_labels"] = [str(k) for k in range(1, 11)]
+            ctx["dist_n"] = [rv["dist"].get(k, 0) for k in range(1, 11)]
+    resp = _render(req, "shop", title=sh["name"], **ctx)
+    if member:
+        resp.headers["Cache-Control"] = "private, no-store"
+    return resp
+
+
 async def h_static(req):
     """Liefert vendored statische Assets (self-hosted Chart.js / stats.js) aus <repo>/static/.
 
@@ -2134,6 +2386,16 @@ def _map_rate_ok(req) -> bool:
     return _rate("mapdata:" + _hmac("map", _ip(req)), RATE_MAP_PER_MIN, 60)
 
 
+_LOGIN_NEXT_COOKIE = "board_login_next"
+_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
+
+
+def _login_next(path: str) -> str:
+    """Rücksprung nach dem Discord-Login – nur auf Art-/Händlerseiten (Whitelist)."""
+    p = (path or "").strip()
+    return p if _LOGIN_NEXT_RE.match(p) else ""
+
+
 def _member_sign(uid: str, exp: int) -> str:
     return _hmac("member", str(uid), str(exp))
 
@@ -2223,6 +2485,7 @@ async def h_map_login(req):
                        flash=translate(lang, "map_oauth_unconfigured"),
                        v=_map_asset_v(), member=False, max_zoom=MAP_MAX_ZOOM)
     state = secrets.token_urlsafe(24)
+    nxt = _login_next(req.query.get("next", ""))
     params = urlencode({
         "client_id": BOARD_OAUTH_CLIENT_ID, "response_type": "code",
         "scope": "identify", "redirect_uri": BOARD_OAUTH_REDIRECT_URI,
@@ -2232,6 +2495,10 @@ async def h_map_login(req):
     # State signiert im Cookie ablegen (CSRF-Schutz), kurzlebig.
     resp.set_cookie(_OAUTH_STATE_COOKIE, f"{state}.{_hmac('oauthstate', state)}",
                     max_age=600, httponly=True, samesite="Lax")
+    if nxt:
+        resp.set_cookie(_LOGIN_NEXT_COOKIE, nxt, max_age=600, httponly=True, samesite="Lax")
+    else:
+        resp.del_cookie(_LOGIN_NEXT_COOKIE)
     raise resp
 
 
@@ -2278,8 +2545,11 @@ async def h_map_callback(req):
         resp.del_cookie(_OAUTH_STATE_COOKIE)
         raise resp
     exp = int(time.time()) + _MEMBER_TTL
-    resp = _map_lang_redirect("/map", lang)
+    nxt = _login_next(req.cookies.get(_LOGIN_NEXT_COOKIE, ""))
+    resp = (web.HTTPFound(_safe_local_redirect(f"{nxt}?lang={lang}", "/map"))
+            if nxt else _map_lang_redirect("/map", lang))
     resp.del_cookie(_OAUTH_STATE_COOKIE)
+    resp.del_cookie(_LOGIN_NEXT_COOKIE)
     resp.set_cookie(_MEMBER_COOKIE, f"{uid}.{exp}.{_member_sign(uid, exp)}",
                     max_age=_MEMBER_TTL, httponly=True, samesite="Lax")
     raise resp
@@ -2996,6 +3266,8 @@ def build_app(bot) -> web.Application:
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
+        web.get("/art", h_art_index), web.get(r"/art/{name}", h_art),
+        web.get("/shops", h_shops), web.get(r"/shop/{domain}", h_shop),
         web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
         web.get("/partner", h_partner_page), web.get("/gewinnspiel", h_gewinnspiel),
         web.post("/impressum/contact", h_impressum_contact),
