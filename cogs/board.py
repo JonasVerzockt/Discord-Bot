@@ -52,7 +52,7 @@ from discord.ext import commands, tasks
 from jinja2 import Environment, DictLoader, select_autoescape
 
 from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
-                    BOARD_ADMIN_TOKEN, BOARD_OWNER_ID, BOARD_HASH_SALT,
+                    BOARD_OWNER_ID, BOARD_ADMIN_IDS, BOARD_HASH_SALT,
                     SHOPS_DATA_FILE, SPECIES_CATALOG_FILE, DATA_DIRECTORY, AI_CHAT_PUBLIC,
                     VERSION,
                     MAP_ENABLED, MAP_GUILD_ID, MAP_JITTER_METERS, MAP_MAX_ZOOM,
@@ -263,19 +263,50 @@ def _ip(req):
     return xff.split(",")[0].strip() if xff else (req.remote or "0.0.0.0")
 
 
+_ADMIN_TTL = 7 * 86400                               # Admin-Sitzung: 7 Tage
+
+
+def _admin_ids() -> set[str]:
+    """Discord-IDs mit Admin-Rechten im Board: BOARD_OWNER_ID + optional BOARD_ADMIN_IDS."""
+    ids = {str(i) for i in BOARD_ADMIN_IDS}
+    if BOARD_OWNER_ID:
+        ids.add(str(BOARD_OWNER_ID))
+    return ids
+
+
+def _admin_sign(uid: str, exp: int) -> str:
+    return _hmac("admin", str(uid), str(exp))
+
+
+def _admin_session(req) -> tuple[str, int] | None:
+    """(Discord-ID, Ablauf) der Admin-Sitzung, sonst None. Cookie '<uid>.<exp>.<sig>',
+    HMAC-signiert; die ID muss (noch) in der Admin-Liste stehen."""
+    parts = req.cookies.get(_ADMIN_COOKIE, "").split(".")
+    if len(parts) != 3:
+        return None
+    uid, exp_s, sig = parts
+    try:
+        exp = int(exp_s)
+    except ValueError:
+        return None
+    if exp < int(time.time()) or not hmac.compare_digest(sig, _admin_sign(uid, exp)):
+        return None
+    return (uid, exp) if uid in _admin_ids() else None
+
+
 def _is_admin(req) -> bool:
-    exp = _hmac("owner", BOARD_ADMIN_TOKEN) if BOARD_ADMIN_TOKEN else ""
-    return bool(exp) and hmac.compare_digest(req.cookies.get(_ADMIN_COOKIE, ""), exp)
+    return _admin_session(req) is not None
 
 
-def _csrf_token() -> str:
-    """CSRF-Token serverseitig aus dem Admin-Token abgeleitet (kein User-Input,
-    kein separater Cookie). Nur wer eingeloggt ist, bekommt es in die Formulare."""
-    return _hmac("csrf", BOARD_ADMIN_TOKEN) if BOARD_ADMIN_TOKEN else ""
+def _csrf_token(req) -> str:
+    """CSRF-Token aus der Admin-Sitzung abgeleitet (kein User-Input, kein separater
+    Cookie). Nur wer als Admin eingeloggt ist, bekommt es in die Formulare."""
+    s = _admin_session(req)
+    return _hmac("csrf", s[0], str(s[1])) if s else ""
 
 
-def _csrf_ok(form) -> bool:
-    exp = _csrf_token()
+def _csrf_ok(req, form) -> bool:
+    exp = _csrf_token(req)
     return bool(exp) and hmac.compare_digest(form.get("csrf", ""), exp)
 
 
@@ -572,9 +603,10 @@ STATUSDETAIL = """{% extends "base" %}{% block body %}
 {% endblock %}"""
 
 LOGIN = """{% extends "base" %}{% block body %}
-<h2>{{ t('login_h') }}</h2><form method=post action="/admin/login?lang={{ lang }}" style="max-width:340px">
- <label>{{ t('f_token') }}</label><input name=token type=password autofocus>
- <div style="margin-top:12px"><button class=btn>{{ t('btn_login') }}</button></div></form>{% endblock %}"""
+<h2>{{ t('login_h') }}</h2>
+<p class=muted style="max-width:560px">{{ t('login_discord_note') }}</p>
+{% if login_url %}<p><a class=btn href="{{ login_url }}">{{ t('dir_login_btn') }}</a></p>{% endif %}
+{% endblock %}"""
 
 ADMIN = """{% extends "base" %}{% block body %}
 <h2>{{ t('queue_h', n=queue|length) }}</h2>
@@ -607,7 +639,8 @@ ADMIN = """{% extends "base" %}{% block body %}
 {% endblock %}"""
 
 STATS = """{% extends "base" %}{% block body %}
-{% set sections = [('overview','st_sec_overview'),('species','st_sec_species'),('shops','st_sec_shops'),('prices','st_sec_prices'),('availability','st_sec_availability'),('quality','st_sec_quality'),('trends','st_sec_trends')] %}
+{% set sections = [('overview','st_sec_overview'),('species','st_sec_species'),('shops','st_sec_shops'),('prices','st_sec_prices'),('availability','st_sec_availability'),('quality','st_sec_quality'),('trends','st_sec_trends'),('usage','st_sec_usage')] %}
+{% macro mask(n) %}{% if n is none %}–{% elif 0 < n < 3 %}&lt; 3{% else %}{{ n }}{% endif %}{% endmacro %}
 <h2 style="margin-bottom:6px">{{ t('nav_stats') }}</h2>
 {% if not data %}
 <div class=flash>{{ t('st_error') }}</div>
@@ -744,6 +777,43 @@ STATS = """{% extends "base" %}{% block body %}
    <div class=chartbox><h4>{{ t('tr_avail_title') }}</h4>
     {% if l10n.tr_avail and l10n.tr_avail.empty %}<p class=muted>{{ t('tr_avail_empty') }}</p>{% else %}<div class=chartwrap><canvas id="chTrAvail"></canvas></div>{% endif %}
    </div>
+  {% endif %}
+ {% elif aid=='usage' %}
+  {% if not usage %}<p class=muted>{{ t('us_none') }}</p>{% else %}
+  {% set k = usage.kpi %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ mask(k.calls_month) }}</div><div class=l>{{ t('us_kpi_calls_month') }}</div></div>
+   <div class=kpi><div class=v>{{ mask(k.users_month) }}</div><div class=l>{{ t('us_kpi_users_month') }}</div></div>
+   <div class=kpi><div class=v>{{ mask(k.calls_total) }}</div><div class=l>{{ t('us_kpi_calls_total', since=usage.since) }}</div></div>
+   {% if k.notifications is not none %}<div class=kpi><div class=v>{{ mask(k.notifications) }}</div><div class=l>{{ t('us_kpi_notif') }}</div></div>{% endif %}
+   {% if k.price_tracking is not none %}<div class=kpi><div class=v>{{ mask(k.price_tracking) }}</div><div class=l>{{ t('us_kpi_track') }}</div></div>{% endif %}
+   {% if k.species_watch is not none %}<div class=kpi><div class=v>{{ mask(k.species_watch) }}</div><div class=l>{{ t('us_kpi_watch') }}</div></div>{% endif %}
+  </div>
+  <div class=chartbox><h4>{{ t('us_calls_title') }}</h4><div class=chartwrap><canvas id="chUsCalls"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('us_content_title') }}</h4><div class=chartwrap><canvas id="chUsContent"></canvas></div></div>
+  {% if usage.top %}<div class=chartbox><h4>{{ t('us_top_title') }}</h4><div class="chartwrap" style="height:{{ 60 + usage.top|length * 28 }}px"><canvas id="chUsTop"></canvas></div></div>{% endif %}
+  <p class=muted>{{ t('us_note') }}</p>
+  <script>
+  window.addEventListener("load", function () {
+   if (!window.Chart) return;
+   var U = {{ usage|tojson }}, g = {color: "#21262d"}, tk = {color: "#8b949e"};
+   var base = {maintainAspectRatio: false, plugins: {legend: {labels: tk}}};
+   new Chart(document.getElementById("chUsCalls"), {type: "bar", data: {labels: U.labels, datasets: [
+     {label: {{ t('us_calls')|tojson }}, data: U.calls, backgroundColor: "#1f6feb99", yAxisID: "y"},
+     {type: "line", label: {{ t('us_users')|tojson }}, data: U.users, borderColor: "#3fb950", spanGaps: false, yAxisID: "y2", tension: .2}]},
+     options: Object.assign({}, base, {scales: {x: {ticks: tk, grid: g}, y: {beginAtZero: true, ticks: tk, grid: g},
+       y2: {position: "right", beginAtZero: true, ticks: tk, grid: {display: false}}}})});
+   new Chart(document.getElementById("chUsContent"), {type: "bar", data: {labels: U.labels, datasets: [
+     {label: {{ t('us_reviews')|tojson }}, data: U.reviews, backgroundColor: "#3fb95099"},
+     {label: {{ t('us_codes')|tojson }}, data: U.codes, backgroundColor: "#d2a8ff99"}]},
+     options: Object.assign({}, base, {scales: {x: {ticks: tk, grid: g}, y: {beginAtZero: true, ticks: tk, grid: g}}})});
+   var top = document.getElementById("chUsTop");
+   if (top) new Chart(top, {type: "bar", data: {labels: U.top.map(function (x) { return "/" + x[0]; }),
+     datasets: [{data: U.top.map(function (x) { return x[1]; }), backgroundColor: "#1f6feb99"}]},
+     options: {indexAxis: "y", maintainAspectRatio: false, plugins: {legend: {display: false}},
+       scales: {x: {beginAtZero: true, ticks: tk, grid: g}, y: {ticks: tk, grid: g}}}});
+  });
+  </script>
   {% endif %}
  {% else %}
   <p class=muted>{{ t('st_wip') }}</p>
@@ -1461,6 +1531,56 @@ def _cron_tile(name: str, path, *, warn_h: int, down_h: int, optional: bool = Fa
     return dict(name=name, state=state, detail=f"aktualisiert {_fmt_age(age)}")
 
 
+def _sheet_tile() -> dict:
+    """Google Sheet: wann zuletzt Warnhinweise erfolgreich abgeglichen wurden (stündliche
+    Pipeline). Nutzt den Merker aus utils.sheet – kein zusätzlicher Abruf."""
+    name = "Google Sheet"
+    try:
+        from utils.sheet import SYNC_STATUS
+    except Exception:
+        return dict(name=name, state="off", detail="nicht verfügbar")
+    now = time.time()
+    ok = SYNC_STATUS["ok"].get("warnings")
+    fail = SYNC_STATUS["fail"].get("warnings")
+    if ok is None:
+        if now - SYNC_STATUS.get("started", now) < 2 * 3600:
+            return dict(name=name, state="ok", detail="noch kein Abgleich seit dem Start")
+        return dict(name=name, state="down" if fail else "warn",
+                    detail="kein erfolgreicher Abgleich seit dem Start")
+    age = now - ok
+    state = "ok" if age < 3 * 3600 else ("warn" if age < 24 * 3600 else "down")
+    detail = f"letzter Abgleich {_fmt_age(age)}"
+    if fail and fail > ok:
+        state = "warn" if state == "ok" else state
+        detail += f" · letzter Versuch fehlgeschlagen ({_fmt_age(now - fail)})"
+    return dict(name=name, state=state, detail=detail)
+
+
+async def _ai_cost_tile(bot) -> dict:
+    """KI-Kosten heute (UTC) gegen Tagesbudget und 14-Tage-Schnitt."""
+    name = "KI-Kosten heute"
+    try:
+        from config import AI_CHAT_DAILY_BUDGET_USD as budget
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = await execute_db(
+            bot, "SELECT date, cost_usd FROM ai_chat_budget WHERE user_id=0 "
+                 "AND date >= date('now', '-14 days')", fetch=True) or []
+    except Exception as e:
+        return dict(name=name, state="off", detail=str(e)[:80])
+    cost = sum(r["cost_usd"] for r in rows if r["date"] == today)
+    avg = sum(r["cost_usd"] for r in rows if r["date"] != today) / 14
+    state, why = "ok", ""
+    if budget and cost >= budget:
+        state, why = "down", " · Tagesbudget erreicht"
+    elif budget and cost >= 0.8 * budget:
+        state, why = "warn", " · über 80 % des Tagesbudgets"
+    elif avg > 0 and cost >= 3 * avg and cost >= 0.10:
+        state, why = "warn", " · deutlich über dem Schnitt"
+    eur = lambda v: f"{v:.2f}".replace(".", ",")
+    detail = f"{eur(cost)} $ von {eur(budget)} $ · Ø 14 Tage {eur(avg)} $/Tag{why}"
+    return dict(name=name, state=state, detail=detail)
+
+
 async def _collect_health(app, lang: str = "de"):
     """Sammelt alle Health-Checks in Sektionen (Kern · In-Bot-Jobs · externe Cronjobs).
     Jeder Check ist gekapselt (ein Fehler bricht die Seite nicht ab). state ∈ ok|warn|down|off;
@@ -1498,6 +1618,8 @@ async def _collect_health(app, lang: str = "de"):
         core.append(dict(name="Board-Datenbank", state="down", detail=str(e)[:80]))
     core.append(dict(name="KI-Chat (öffentlich)", state="ok" if AI_CHAT_PUBLIC else "off",
                      detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
+    core.append(_sheet_tile())
+    core.append(await _ai_cost_tile(bot))
 
     # ── Sektion 2: Hintergrund-Jobs IM Bot-Prozess (discord.ext.tasks) ────────
     jobs = [_pipeline_tile(bot)] + [_job_tile(bot, c, a, lbl, crit, note)
@@ -1555,6 +1677,95 @@ async def _record_incidents(bot) -> None:
                     (open_row["id"],))
         except Exception as e:
             logger.warning("⚠️ Incident-Monitor: Check '%s' fehlgeschlagen: %s", key, e)
+
+
+# ── Alarm-DMs an den Owner ────────────────────────────────────────────────────
+_ALERT_AFTER_MIN = 10      # erst melden, wenn ein Vorfall so lange offen ist
+_ALERT_GAP_H = 3           # je Prüfung höchstens eine neue Meldung in diesem Zeitraum
+_ALERT_ICON = {"warn": "🟡", "down": "🔴"}
+
+
+def _parse_utc(s) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(s)).replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _dur(sec: float) -> str:
+    m = int(sec // 60)
+    if m < 60:
+        return f"{m} min"
+    h, m = divmod(m, 60)
+    if h < 48:
+        return f"{h} h {m} min" if m else f"{h} h"
+    return f"{h // 24} Tagen"
+
+
+def _status_link(key: str) -> str:
+    from urllib.parse import quote as _q
+    return f"{BOARD_PUBLIC_URL}/status/check/{_q(key, safe='')}" if BOARD_PUBLIC_URL else ""
+
+
+async def _owner_dm(bot, text: str) -> bool:
+    """DM an BOARD_OWNER_ID. False, wenn (noch) nicht zustellbar → nächste Minute erneut."""
+    if not BOARD_OWNER_ID or bot is None or not bot.is_ready():
+        return False
+    try:
+        user = bot.get_user(BOARD_OWNER_ID) or await bot.fetch_user(BOARD_OWNER_ID)
+        await user.send(text[:1900])
+        return True
+    except discord.Forbidden:
+        logger.warning("🔔 Alarm-DM blockiert (DMs geschlossen?)")
+        return True          # nicht endlos wiederholen
+    except Exception as e:
+        logger.warning("🔔 Alarm-DM fehlgeschlagen: %s", e)
+        return False
+
+
+async def _process_alerts(bot) -> None:
+    """Meldet länger offene Vorfälle per DM, eskaliert gelb→rot und meldet Entwarnung."""
+    if not BOARD_OWNER_ID:
+        return
+    now = datetime.now(timezone.utc)
+    rows = await board_query(
+        "SELECT i.id, i.check_key, i.state, i.detail, i.started_at, a.notified, a.state_sent "
+        "FROM board_incidents i LEFT JOIN board_alerts a ON a.incident_id = i.id "
+        "WHERE i.ended_at IS NULL AND i.started_at <= datetime('now', ?)",
+        (f"-{_ALERT_AFTER_MIN} minutes",))
+    for r in rows:
+        key, state = r["check_key"], r["state"]
+        since = _parse_utc(r["started_at"])
+        dur = _dur((now - since).total_seconds()) if since else "?"
+        link = _status_link(key)
+        if r["notified"] is None:
+            recent = await board_one(
+                "SELECT 1 FROM board_alerts WHERE check_key=? AND notified=1 "
+                "AND sent_at >= datetime('now', ?)", (key, f"-{_ALERT_GAP_H} hours"))
+            if recent:
+                await board_exec("INSERT OR IGNORE INTO board_alerts (incident_id, check_key, notified, "
+                                 "state_sent) VALUES (?,?,0,?)", (r["id"], key, state))
+                continue
+            text = (f"{_ALERT_ICON.get(state, '⚠️')} **{key}** ist seit {dur} "
+                    f"{'rot' if state == 'down' else 'gelb'}\n{r['detail'] or ''}"
+                    + (f"\n{link}" if link else ""))
+            if await _owner_dm(bot, text):
+                await board_exec("INSERT OR IGNORE INTO board_alerts (incident_id, check_key, notified, "
+                                 "state_sent) VALUES (?,?,1,?)", (r["id"], key, state))
+        elif r["notified"] == 1 and r["state_sent"] == "warn" and state == "down":
+            text = f"🔴 **{key}** ist jetzt rot (seit {dur} gestört)\n{r['detail'] or ''}" + (
+                f"\n{link}" if link else "")
+            if await _owner_dm(bot, text):
+                await board_exec("UPDATE board_alerts SET state_sent='down' WHERE incident_id=?", (r["id"],))
+    done = await board_query(
+        "SELECT i.id, i.check_key, i.started_at, i.ended_at FROM board_incidents i "
+        "JOIN board_alerts a ON a.incident_id = i.id "
+        "WHERE a.notified = 1 AND a.recovered_sent = 0 AND i.ended_at IS NOT NULL")
+    for r in done:
+        a, b = _parse_utc(r["started_at"]), _parse_utc(r["ended_at"])
+        dur = _dur((b - a).total_seconds()) if a and b else "?"
+        if await _owner_dm(bot, f"✅ **{r['check_key']}** wieder OK nach {dur}"):
+            await board_exec("UPDATE board_alerts SET recovered_sent=1 WHERE incident_id=?", (r["id"],))
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
@@ -1850,7 +2061,13 @@ async def h_stats(req):
         logger.warning("📊 Stats-Aggregation fehlgeschlagen: %s", e, exc_info=True)
     if data:
         l10n = _stats_l10n(lang, data, ts)
-    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n,
+    usage = None
+    try:
+        from utils import usage_stats
+        usage = await usage_stats.collect(req.app["bot"])
+    except Exception as e:
+        logger.warning("📈 Nutzungsstatistik nicht verfügbar: %s", e)
+    resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n, usage=usage,
                    ts_available=bool(ts and ts.get("available")), ts_range=range_key, ver=_stats_asset_v())
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -2043,7 +2260,7 @@ async def h_status_detail(req):
         d["ended_local"] = berlin_from_utc_naive(d["ended_at"], "%Y-%m-%d %H:%M:%S") if d["ended_at"] else None
         incidents.append(d)
     return _render(req, "statusdetail", title=f"Status: {key}", key=key,
-                   current=current, incidents=incidents, csrf=_csrf_token())
+                   current=current, incidents=incidents, csrf=_csrf_token(req))
 
 
 def _safe_local_redirect(target: str, fallback: str = "/") -> str:
@@ -2132,20 +2349,31 @@ async def h_detail(req):
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
+def _admin_login_url(lang: str) -> str:
+    if not (BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
+        return ""
+    return "/map/login?" + urlencode({"next": "/admin", "lang": lang})
+
+
 async def h_login_form(req):
-    return _render(req, "login", title=translate(pick_lang(req), "login_h"))
-
-
-async def h_login(req):
+    """Owner-/Admin-Login nur noch über „Login mit Discord“ (kein Token mehr).
+    Ist schon eine Mitglieder-Sitzung ohne Admin-Rechte da, wird das angezeigt statt
+    erneut weiterzuleiten (keine Login-Schleife)."""
     lang = pick_lang(req)
-    d = await req.post()
-    if BOARD_ADMIN_TOKEN and hmac.compare_digest((d.get("token") or ""), BOARD_ADMIN_TOKEN):
-        resp = web.HTTPFound(f"/admin?lang={lang}")
-        resp.set_cookie(_ADMIN_COOKIE, _hmac("owner", BOARD_ADMIN_TOKEN),
-                        max_age=604800, httponly=True, samesite="Lax")
-        raise resp
-    return _render(req, "login", title=translate(lang, "login_h"),
-                   flash=translate(lang, "flash_wrong_token"))
+    if _is_admin(req):
+        raise web.HTTPFound(f"/admin?lang={lang}")
+    url = _admin_login_url(lang)
+    member = _is_member(req)
+    if member and member in _admin_ids():          # Admin-Sitzung abgelaufen → neu anmelden
+        member = None
+    if url and not member and req.query.get("denied") is None:
+        raise web.HTTPFound(url)
+    flash = ""
+    if member or req.query.get("denied") is not None:
+        flash = translate(lang, "login_no_admin")
+    elif not url:
+        flash = translate(lang, "login_oauth_missing")
+    return _render(req, "login", title=translate(lang, "login_h"), flash=flash, login_url=url)
 
 
 async def h_logout(req):
@@ -2156,7 +2384,7 @@ async def h_logout(req):
 
 async def h_admin(req):
     if not _is_admin(req):
-        raise web.HTTPFound("/admin/login")
+        raise web.HTTPFound(f"/admin/login?lang={pick_lang(req)}")
     # Nach Status gruppiert (pending zuerst für die Queue, dann in Board-Spalten-
     # Reihenfolge), innerhalb eines Status nach ID (neueste zuerst).
     items = await _rows(
@@ -2167,7 +2395,7 @@ async def h_admin(req):
     )
     queue = [c for c in items if c["status"] == "pending"]
     return _render(req, "admin", title=translate(pick_lang(req), "nav_admin"),
-                   items=items, queue=queue, csrf=_csrf_token(),
+                   items=items, queue=queue, csrf=_csrf_token(req),
                    statuses=STATUSES, priorities=PRIORITIES, components=COMPONENTS)
 
 
@@ -2175,7 +2403,7 @@ async def _admin_guard(req):
     if not _is_admin(req):
         raise web.HTTPFound("/admin/login")
     d = await req.post()
-    if not _csrf_ok(d):
+    if not _csrf_ok(req, d):
         raise web.HTTPForbidden(text="CSRF-Token ungültig")
     return d
 
@@ -2225,7 +2453,7 @@ async def h_edit_form(req):
     comments = await _comments(sub["id"])
     return _render(req, "edit", title=translate(pick_lang(req), "edit_h", id=sub["id"]),
                    c=sub, comments=comments,
-                   csrf=_csrf_token(), types=TYPES, statuses=STATUSES,
+                   csrf=_csrf_token(req), types=TYPES, statuses=STATUSES,
                    priorities=PRIORITIES, components=COMPONENTS)
 
 
@@ -2427,7 +2655,7 @@ def _map_rate_ok(req) -> bool:
 
 
 _LOGIN_NEXT_COOKIE = "board_login_next"
-_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
+_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop|admin)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
 
 
 def _login_next(path: str) -> str:
@@ -2590,6 +2818,15 @@ async def h_map_callback(req):
             if nxt else _map_lang_redirect("/map", lang))
     resp.del_cookie(_OAUTH_STATE_COOKIE)
     resp.del_cookie(_LOGIN_NEXT_COOKIE)
+    if uid in _admin_ids():                    # Owner/Admin: zusätzlich Admin-Sitzung (7 Tage)
+        aexp = int(time.time()) + _ADMIN_TTL
+        resp.set_cookie(_ADMIN_COOKIE, f"{uid}.{aexp}.{_admin_sign(uid, aexp)}",
+                        max_age=_ADMIN_TTL, httponly=True, samesite="Lax")
+        logger.info("🔑 Admin-Login über Discord: %s", uid)
+    elif nxt == "/admin":
+        resp = web.HTTPFound(f"/admin/login?denied=1&lang={lang}")
+        resp.del_cookie(_OAUTH_STATE_COOKIE)
+        resp.del_cookie(_LOGIN_NEXT_COOKIE)
     resp.set_cookie(_MEMBER_COOKIE, f"{uid}.{exp}.{_member_sign(uid, exp)}",
                     max_age=_MEMBER_TTL, httponly=True, samesite="Lax")
     raise resp
@@ -3316,7 +3553,7 @@ def build_app(bot) -> web.Application:
         web.post("/status/incident/{id}/note", h_incident_note),
         web.get("/submit", h_submit_form), web.post("/submit", h_submit),
         web.post("/upvote/{id}", h_upvote), web.get("/submission/{id}", h_detail),
-        web.get("/admin/login", h_login_form), web.post("/admin/login", h_login),
+        web.get("/admin/login", h_login_form),
         web.get("/admin/logout", h_logout), web.get("/admin", h_admin),
         web.post("/admin/{id}/approve", h_approve), web.post("/admin/{id}/reject", h_reject),
         web.post("/admin/{id}/status", h_status), web.post("/admin/{id}/delete", h_delete),
@@ -3350,8 +3587,9 @@ class BoardCog(commands.Cog, name="Board"):
 
     async def _start(self):
         await self.bot.wait_until_ready()
-        if not BOARD_ADMIN_TOKEN:
-            logger.warning("⚠️ Board aktiv, aber BOARD_ADMIN_TOKEN leer – Owner-Login unmöglich.")
+        if not _admin_ids() or not (BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
+            logger.warning("⚠️ Board aktiv, aber Admin-Login unmöglich: BOARD_OWNER_ID und "
+                           "Discord-OAuth (BOARD_OAUTH_*) müssen gesetzt sein.")
         if not BOARD_OWNER_ID:
             logger.warning("⚠️ Board aktiv, aber BOARD_OWNER_ID=0 – Owner-DMs werden übersprungen.")
         try:
@@ -3370,6 +3608,10 @@ class BoardCog(commands.Cog, name="Board"):
     async def incident_monitor(self):
         """Wertet minütlich die Health-Checks aus und schreibt die Vorfall-Historie fort."""
         await _record_incidents(self.bot)
+        try:
+            await _process_alerts(self.bot)
+        except Exception as e:
+            logger.warning("🔔 Alarm-Verarbeitung fehlgeschlagen: %s", e)
 
     @incident_monitor.before_loop
     async def _before_incident_monitor(self):

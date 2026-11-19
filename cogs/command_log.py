@@ -245,6 +245,9 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     # ── DB-Retention ─────────────────────────────────────────────────────────
     @tasks.loop(hours=24)
     async def cleanup_log(self):
+        # Erst die Monatssummen der öffentlichen Nutzungsstatistik sichern, DANN löschen –
+        # so gehen durch die Retention keine Zahlen verloren.
+        await self._aggregate_usage()
         try:
             days = int(COMMAND_LOG_RETENTION_DAYS)
             rc = await execute_db(
@@ -257,9 +260,17 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
         except Exception as e:
             logger.error("❌ command_log Cleanup fehlgeschlagen: %s", e)
 
+    async def _aggregate_usage(self):
+        try:
+            from utils import usage_stats
+            await usage_stats.aggregate(self.bot)
+        except Exception as e:
+            logger.error("❌ Nutzungsstatistik-Aggregation fehlgeschlagen: %s", e)
+
     @cleanup_log.before_loop
     async def _before_cleanup(self):
         await self.bot.wait_until_ready()
+        await self._aggregate_usage()                    # sofort nach dem Start einmal füllen
         await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
 
