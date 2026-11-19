@@ -119,101 +119,208 @@ pip install -r requirements.txt
 Kopiere `.env.example` nach `.env` und fülle alle Pflichtfelder aus:
 
 ```env
+# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+
 # ── Discord ───────────────────────────────────────────────────
+# Bot-Token aus discord.com/developers/applications
 DISCORD_TOKEN=dein_token_hier
-REVIEW_CHANNEL_ID=123456789012345678      # Kanal für Shopbewertungen
-# ALLOWED_GUILD_ID=375031723601297409     # Guild-Lock: Bot läuft NUR auf diesem Server (Default: AAM); eigene Instanz -> eigene ID + eigener Token
+
+# ID des Kanals in dem Shopbewertungen gepostet werden
+REVIEW_CHANNEL_ID=123456789012345678
+
+# ── Sicherheit: Guild-Lock ────────────────────────────────────
+# Der Bot arbeitet AUSSCHLIESSLICH auf diesem einen Server; fremde Server
+# werden automatisch verlassen und Befehle dort blockiert (siehe main.py).
+# Standard ist die offizielle AAM-Server-ID. Für eine EIGENE Instanz auf die
+# eigene Server-ID setzen (und einen eigenen Bot-Token verwenden!).
+# ALLOWED_GUILD_ID=375031723601297409
 
 # ── Anthropic (KI-Parser) ─────────────────────────────────────
+# Von https://console.anthropic.com → API Keys
 ANTHROPIC_API_KEY=sk-ant-...
-# REVIEW_PARSER_MODEL=claude-haiku-5-5   # Modell für die Review-Extraktion
-# ACCUMULATION_DELAY=8                     # Sek. warten, um geteilte Review-Nachrichten zusammenzuführen
+# Modell für die KI-Extraktion der Reviews (Standard: claude-haiku-5-5)
+# REVIEW_PARSER_MODEL=claude-haiku-5-5
+# Wartezeit in Sekunden, bevor eine Review verarbeitet wird – damit geteilte
+# Nachrichten desselben Users zusammengeführt werden (Standard: 8)
+# ACCUMULATION_DELAY=8
 
 # ── Google Sheets ─────────────────────────────────────────────
+# Die ID aus der Sheets-URL:
+# https://docs.google.com/spreadsheets/d/<HIER>/edit
 GOOGLE_SPREADSHEET_ID=deine_spreadsheet_id_hier
 
-# ── Ameisen-Artenliste (AntCat) ───────────────────────────────
-# SPECIES_CATALOG_FILE=/pfad/zum/bot/data/ant_species.json   # AntCat-Artenliste (optional, Standard data/ant_species.json; erzeugen mit tools/build_ant_species.py)
+# ── Datenordner ───────────────────────────────────────────────
+# Zentraler Ordner für ALLE Laufzeitdaten (DBs, shops_data.json, price_history.db,
+# shop_mapping.csv, ant_species.json). Standard: <Projektordner>/data
+# Vorhandene Dateien im alten Root-Layout werden beim Start automatisch hierher
+# migriert. DATA_DIR=. behält das alte Layout (alles im Projektordner).
+# DATA_DIR=/pfad/zum/bot/data
 
-# ── AntCheck API ──────────────────────────────────────────────
+# Ordner für die Bot-Logdateien (bot_log_YYYYMMDD.log). Standard: <Projektordner>/logs
+# Bestehende Logs im Root werden beim Start automatisch hierher verschoben.
+# Auf /var/log nur zeigen lassen, wenn der Bot-User dort schreiben darf.
+# LOG_DIR=/opt/discord-bot/logs
+
+# ── AntCheck / Shop-Daten ─────────────────────────────────────
+# Nur setzen, wenn shops_data.json/price_history.db woanders liegen sollen als in
+# DATA_DIR. Standard: = DATA_DIR
+# DATA_DIRECTORY=/pfad/zum/bot/data
+# Datenbank-Datei des Bots (Standard: DATA_DIR/antcheckbot.db)
+# DB_FILE=/pfad/zum/bot/data/antcheckbot.db
+
+# Optionaler direkter Pfad zur shops_data.json
+# Standard: DATA_DIRECTORY/shops_data.json
+# SHOPS_DATA_FILE=/pfad/zum/bot/shops_data.json
+
+# Ameisen-Artenliste (AntCat) für Namensprüfung/Kanonisierung – optional.
+# Erzeugen mit:  python3 tools/build_ant_species.py  (schreibt data/ant_species.json)
+# Fehlt die Datei, ist die Namensprüfung inaktiv (Eingaben werden unverändert
+# akzeptiert). Nur setzen, wenn die Datei woanders liegt als data/ant_species.json:
+# SPECIES_CATALOG_FILE=/pfad/zum/bot/data/ant_species.json
+
+# AntCheck API Key (Pflicht fuer den Grabber)
 ANTCHECK_API_KEY=dein_api_key_hier
+
+# AntCheck API Basis-URL
 ANTCHECK_API_URL=https://antcheck.info
-ANTCHECK_VERIFY_SSL=false                 # false bei self-signed Zertifikat
-# ANTCHECK_TIMEOUT=30                      # Timeout pro API-Anfrage in Sek. (Grabber)
-# ANTCHECK_RETRIES=3                       # Anzahl Wiederholungen bei API-Fehlern
-# ANTCHECK_RETRY_DELAY=5                   # Wartezeit zwischen Wiederholungen in Sek.
+
+# SSL-Zertifikat pruefen (auf false setzen bei self-signed cert)
+ANTCHECK_VERIFY_SSL=false
+
+# Wie viele Versuche bei API-Fehlern (Standard: 3)
+# ANTCHECK_RETRIES=3
+# Timeout pro API-Anfrage in Sekunden (Grabber, Standard: 30)
+# ANTCHECK_TIMEOUT=30
+# Wartezeit zwischen Wiederholungen in Sekunden (Grabber, Standard: 5)
+# ANTCHECK_RETRY_DELAY=5
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────
-AI_CHAT_CHANNEL_IDS=123456789012345678   # Kanal-ID, in dem der Bot antwortet
-AI_CHAT_DAILY_BUDGET_USD=0.50            # Gesamtes Tagesbudget (alle User)
-AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
-# AI_CHAT_MODEL=claude-haiku-5-5          # Chat-Modell
-# AI_CHAT_CLASSIFY_MODEL=claude-haiku-5-5 # Modell für die Shop-Relevanz-Klassifikation
-AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + KI öffentlich zugänglich
-# AI_CHAT_MAX_INPUT_CHARS=1500             # Max. Eingabezeichen pro Anfrage
-# AI_CHAT_MAX_OUTPUT_TOKENS=800            # Max. Output-Tokens pro Antwort
-# AI_CHAT_MAX_HISTORY_TURNS=10             # Gespeicherte Gesprächsrunden pro Konversation
-# AI_CHAT_CONVERSATION_TTL_HOURS=24        # Aufbewahrung einer Konversation in Stunden
-# AI_CHAT_RECOMMENDED_MODEL=claude-sonnet-5-5 # im Modell-Dropdown mit 👍 empfohlen (leer = keine Empfehlung)
-# AI_CHAT_BUDGET_OUTPUT_RATIO=0.5          # Anteil der max. Output-Tokens für die Budget-Schätzung (0.5 realistisch, 1.0 = Maximum)
+# Kanal-ID in dem der Bot auf @-Erwaehnung reagiert.
+AI_CHAT_CHANNEL_IDS=123456789012345678
+
+# Standard-/Vorauswahl-Modell für den KI-Chat (Standard: claude-haiku-5-5).
+# Bei @Bot erscheint ein Dropdown mit 4 Modellen (billig->teuer):
+#   claude-haiku-5-5 (Sehr günstig) · claude-sonnet-5-5 (Günstig) ·
+#   claude-opus-5-5 (Teuer) · claude-fable-5-1 (Sehr teuer)
+# Dieses Modell ist im Dropdown vorausgewählt und wird nach 60 s ohne Auswahl genutzt.
+# AI_CHAT_MODEL=claude-haiku-5-5
+# Im Dropdown mit 👍 als Empfehlung markiertes Modell (unabhängig von der Vorauswahl).
+# Leer lassen = keine Empfehlung anzeigen.
+# AI_CHAT_RECOMMENDED_MODEL=claude-sonnet-5-5
+# Modell für die Stufe-2-Shop-Relevanz-Klassifikation (Standard: claude-haiku-5-5)
+# AI_CHAT_CLASSIFY_MODEL=claude-haiku-5-5
+
+# Tages-Budgets in USD (Reset taeglich 00:00 UTC)
+AI_CHAT_DAILY_BUDGET_USD=0.50
+AI_CHAT_USER_DAILY_BUDGET_USD=0.10
+
+# Limits pro Anfrage
+# AI_CHAT_MAX_INPUT_CHARS=1500
+# AI_CHAT_MAX_OUTPUT_TOKENS=800
+# Anteil der max. Output-Tokens für die Budget-VORAB-Schätzung (0.5 = realistisch,
+# 1.0 = immer Maximum/sehr konservativ). Ist-Kosten werden danach exakt abgerechnet.
+# AI_CHAT_BUDGET_OUTPUT_RATIO=0.5
+# Prompt-Caching (5-Min) für System+Shop-Präfix – nur bei Reply-Fortsetzungen
+# (aktive Gespräche); spart Tokens bei Mehr-Turn-Chats. false = ganz aus.
+# AI_CHAT_PROMPT_CACHE=true
+# AI_CHAT_MAX_HISTORY_TURNS=10
+# AI_CHAT_CONVERSATION_TTL_HOURS=24
+AI_CHAT_PUBLIC=false              # true = KI-Befehle in /help anzeigen und KI öffentlich zugänglich
+
+# ── Command-Log (Moderation) ──────────────────────────────────
+# Kanal-ID für das gebündelte Befehls-Nutzungsprotokoll (leer/0 = kein
+# Kanal-Post; das DB-Log läuft trotzdem).
+# MOD_LOG_CHANNEL_ID=123456789012345678
+# Aufbewahrung der Log-Zeilen in der DB in Tagen (Standard: 365)
+# COMMAND_LOG_RETENTION_DAYS=365
 
 # ── Schlagwort-Alerts für den Angebote-Kanal (/offer_alert) ───
-# OFFER_CHANNEL_ID=543512785171251201      # Überwachter Angebote-Kanal (leer/0 = Feature inaktiv)
-# OFFER_ALERT_DELAY_MIN=60                 # Team-Review-Puffer in Minuten
-# OFFER_BACKFILL_DAYS=90                   # Rückblick beim ersten Hinterlegen eines Schlagworts (Tage)
-# OFFER_SOLD_EMOTE_ID=577904916006174741   # Custom-Emote-ID für „verkauft“ (Text/Reaktion)
-# OFFER_QUIET_START_HOUR=23                # Nachtruhe Beginn (Berlin); START==END = aus
-# OFFER_QUIET_END_HOUR=9                   # Nachtruhe Ende (Berlin)
+# Überwachter Angebote-Kanal (leer/0 = Feature inaktiv).
+# OFFER_CHANNEL_ID=543512785171251201
+# Prüf-Puffer: Angebote jünger als so viele Minuten werden NICHT gemeldet (Team-Review).
+# OFFER_ALERT_DELAY_MIN=60
+# Rückblick beim einmaligen Backfill nach dem Hinterlegen eines Schlagworts (Tage).
+# OFFER_BACKFILL_DAYS=90
+# Custom-Emote-ID, mit der „verkauft" markiert wird (Text/Reaktion).
+# OFFER_SOLD_EMOTE_ID=577904916006174741
+# Nachtruhe (Berlin): in [START, END) gepostete Angebote werden erst nach Fenster-Ende
+# gemeldet. Standard 23–9 Uhr; START==END schaltet die Nachtruhe aus.
+# OFFER_QUIET_START_HOUR=23
+# OFFER_QUIET_END_HOUR=9
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
-DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
-# DISCOUNT_CHANNEL_ID_2=234567890123456789          # optionaler 2. Rabattcode-Kanal
-# DISCOUNT_CHANNEL_IDS=111...,222...                # alternativ mehrere kommagetrennt (wird zusammengeführt)
-# DISCOUNT_PARSER_MODEL=claude-haiku-5-5   # Modell für die Code-Extraktion
-# DISCOUNT_VISION_ENABLED=true             # Bilder (Screenshots/Flyer) auf Codes prüfen
-# DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
-# DISCOUNT_VISION_MAX_BYTES=4000000        # Max. Bildgröße in Bytes (4 MB)
+# Kanäle, in denen Rabattcodes gepostet werden (leer/0 = Feature inaktiv).
+DISCOUNT_CHANNEL_ID=123456789012345678
+# Optional ein ZWEITER Kanal, der ebenfalls nach Rabattcodes gelesen wird:
+# DISCOUNT_CHANNEL_ID_2=234567890123456789
+# Alternativ beliebig viele Kanäle kommagetrennt (wird mit den beiden oben
+# zusammengeführt und dedupliziert):
+# DISCOUNT_CHANNEL_IDS=123456789012345678,234567890123456789
+# Modell für die Code-Extraktion (Standard: claude-haiku-5-5)
+# DISCOUNT_PARSER_MODEL=claude-haiku-5-5
+# Bild-Analyse: gepostete Screenshots/Flyer per Vision auf Codes prüfen
+# (Standard: true). Nur Datei-Anhänge, keine verlinkten Bilder.
+# DISCOUNT_VISION_ENABLED=true
+# Max. Anzahl Bilder pro Nachricht an die Vision-API (Standard: 4)
+# DISCOUNT_VISION_MAX_IMAGES=4
+# Max. Bildgröße in Bytes; größere werden übersprungen (Standard: 4000000 = 4 MB)
+# DISCOUNT_VISION_MAX_BYTES=4000000
 
-# ── Command-Log (Moderation, optional) ────────────────────────
-# MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
-# COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
-
-
-# ── Feedback-Board (öffentliches Ideen-/Bug-Board, optional) ──
-# Standardmäßig AUS. Läuft im Bot-Prozess (aiohttp), eigene DB. Reverse-Proxy/HTTPS davor.
+# ── Feedback-Board (öffentliches Ideen-/Bug-Board, eigener Webdienst) ──────────
+# Standardmäßig AUS. Erst aktivieren, wenn eingerichtet (Reverse-Proxy/HTTPS davor).
 # BOARD_ENABLED=false
-# BOARD_BIND=127.0.0.1                     # nur lokal binden (Caddy/nginx macht HTTPS)
+# Nur lokal binden – Caddy/nginx macht HTTPS und die öffentliche Domain:
+# BOARD_BIND=127.0.0.1
 # BOARD_PORT=8080
-# BOARD_PUBLIC_URL=                        # öffentliche URL (für Links/DM) – darf leer bleiben
-# BOARD_ADMIN_TOKEN=                       # Owner-Login-Token (Pflicht wenn aktiv)
-# BOARD_OWNER_ID=                          # Discord-User-ID für die Einreichungs-DM (leer/0 = übersprungen)
-# BOARD_DB_FILE=/opt/discord-bot/board.db  # eigene DB-Datei (getrennt von der Haupt-DB)
-# BOARD_HASH_SALT=ein-langes-zufaelliges-salt   # IP-Hashing (keine Roh-IP gespeichert)
+# Öffentliche URL (für Links/DM-Hinweis) – darf zunächst LEER bleiben:
+# BOARD_PUBLIC_URL=
+# Discord-Einladungslink für den Kasten „Mitmachen“ auf der Karte (leer = kein Button):
+# DISCORD_INVITE_URL=https://discord.gg/xxxxxxx
+# Deine Discord-User-ID: Owner-DMs (Einreichungen, Alarme) UND Admin-Login im Board.
+# Der Admin-Login läuft über „Login mit Discord“ (BOARD_OAUTH_* und MAP_GUILD_ID nötig),
+# ein Token gibt es nicht mehr.
+# BOARD_OWNER_ID=
+# Optional weitere Discord-IDs mit Admin-Rechten im Board, kommagetrennt:
+# BOARD_ADMIN_IDS=
+# Eigene DB-Datei fürs Board (getrennt von der Haupt-Bot-DB):
+# BOARD_DB_FILE=/opt/discord-bot/board.db
+# KI-Chat als Fenster auf dem Board (nur eingeloggte AAM-Mitglieder, gleiches Budget wie Discord):
+# BOARD_AI_CHAT=true
+# BOARD_AI_CHAT_PER_MIN=5
+# BOARD_AI_CHAT_PER_HOUR=40
+# Salt fürs IP-Hashing (in Produktion setzen; keine Roh-IP wird gespeichert):
+# BOARD_HASH_SALT=ein-langes-zufaelliges-salt
 
-# ── Halter-Karte (optional) ───────────────────────────────────
-# Standardmäßig AUS. Benötigt das aktivierte Feedback-Board (gemeinsamer Webdienst).
+# ── Halter-Karte (Map-Feature) ────────────────────────────────────────────────
+# Standardmäßig AUS. DACH-Karte + International als Liste.
 # MAP_ENABLED=false
-# MAP_GUILD_ID=123456789012345678          # Guild für Mitgliedschaftsprüfung + Auto-Löschung
-# MAP_JITTER_METERS=3000                   # fester Pin-Versatz (±, aus user_id geseedet)
-# MAP_MAX_ZOOM=10                          # max. Zoom (Stadt/Umland, keine Straßenebene)
-# MAP_REMIND_MONTHS=12                     # Jahres-Bestätigung: erinnern
-# MAP_DELETE_MONTHS=24                     # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
-# MAP_GEODATA_AUTO=false                   # Bot stellt Geodaten selbst bereit & hält sie aktuell
-# MAP_GEODATA_REFRESH_DAYS=30              # Intervall der Selbst-Aktualisierung
+# Guild-ID für Mitgliedschaftsprüfung (Login) + Auto-Löschung bei Austritt:
+# MAP_GUILD_ID=123456789012345678
+# MAP_JITTER_METERS=3000      # fester Pin-Versatz (±, aus user_id geseedet)
+# MAP_MAX_ZOOM=10             # max. Zoom (Stadt/Umland, keine Straßenebene)
+# MAP_REMIND_MONTHS=12        # Jahres-Bestätigung: erinnern
+# MAP_DELETE_MONTHS=24        # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
+# MAP_GEODATA_AUTO=false      # Bot lädt/konvertiert Geodaten selbst (Leaflet + GeoJSON/CSV)
+# MAP_GEODATA_REFRESH_DAYS=30 # Intervall der Selbst-Aktualisierung
 # Discord-OAuth2 ("Login mit Discord", nur Scope identify) – Secrets NICHT committen:
 # BOARD_OAUTH_CLIENT_ID=
 # BOARD_OAUTH_CLIENT_SECRET=
 # BOARD_OAUTH_REDIRECT_URI=https://board.jonasants.de:4443/map/callback
 
-# ── Pfade (optional) ──────────────────────────────────────────
-DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
-# SHOPS_DATA_FILE=/pfad/zu/shops_data.json  # Voller Pfad-Override (statt DATA_DIRECTORY)
-
 # ── Python ────────────────────────────────────────────────────
+# Ausgabe sofort flushen (empfohlen für Logs in Docker/systemd)
 PYTHONUNBUFFERED=1
+
+# ── Jahresrückblick ───────────────────────────────────────────────────────────
+# Kanal für den Community-Rückblick am 31.12. um 23:00 (Berliner Zeit). Leer/0 = kein Post.
+# YEAR_REVIEW_CHANNEL_ID=
+# KI-Chat-Werkzeuge (Angebote, Preise, Shops, Codes abfragen) und max. Runden pro Frage:
+# AI_CHAT_TOOLS=true
+# AI_CHAT_TOOL_ROUNDS=3
 ```
 
-Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block enthält alle unterstützten Variablen; dieselbe Liste steht auch in `.env.example`.
+Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV` und `SERVICE` liest nur `update.py`; sie werden in `aam-bot-update.service` gesetzt.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
@@ -721,6 +828,9 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/event_add` | – (geführt) | Schlägt einen **Termin/Event** für die Karte vor (alle dürfen einreichen). Geführter Ablauf: 1) Formular mit **Titel**, **Datum** (`TT.MM.JJJJ`), **Ort** (Pflicht) sowie Uhrzeit und Beschreibung (optional). 2) Auswahlmenüs für **Art** (Börse/Messe, Treffen, Shop-Event, Workshop/Vortrag, Exkursion, Sonstiges), **Wiederholung** (einmalig/wöchentlich/monatlich/jährlich) und **Land**; Button **Weitere Angaben** für PLZ (Kartenpunkt in DACH), Enddatum (mehrtägig) und **Endzeit** (`HH:MM`; nur mit Startzeit, ohne Enddatum gilt der Starttag) und Link. 3) **Einreichen**. Erscheint **erst nach Freigabe** durch einen Admin (Betreiber bekommt eine PN). Nur **öffentliche** Veranstaltungsorte, keine Privatadressen. Wiederholungen werden als iCal-RRULE gespeichert (auch im ICS-Feed `/map/events.ics`). | `/event_add` |
 | `/art` / `/sells`: Preis-Ampel & Saison | – | **Preis-Ampel:** jedes lagernde Angebot wird mit seinem **eigenen** Preis der letzten 12 Monate verglichen (gleiche Koloniegröße, gleiche Währung; `utils/price_signal.py`): 🟢 unteres Drittel der Spanne, 🟡 Mitte, 🔴 oberes Drittel. Keine Ampel bei weniger als 90 Tagen Historie oder ohne nennenswerte Preisbewegung (< 5 % bzw. 0,50). Angezeigt in `/sells`, `/art` und auf Art- und Händlerseite im Board. **Saison:** die Daten-Pipeline erfasst stündlich je Art die Zahl der Shops mit lagerndem Angebot (`species_stock_daily`, Maximum pro Tag; `utils/season.py`). Sobald ein volles Jahr erfasst ist, zeigen `/art` und die Artseite, in welchen Monaten die Art meist lagernd ist (Monat zählt ab 50 % der Tage, ganzjährig ab 80 % in jedem Monat). | – |
 | KI-Chat auf dem Board | – | Schwebendes Chatfenster (💬 unten rechts) auf allen Board-Seiten außer der Karte, **nur für eingeloggte AAM-Mitglieder** (Login mit Discord). Gleiche KI, Werkzeuge, Modellauswahl und gleiches Tagesbudget wie im Discord; Folgefragen im laufenden Gespräch, „Neues Gespräch“ setzt zurück. Verläufe in `ai_chat_history` mit `channel_id = -1`, Löschung nach `AI_CHAT_CONVERSATION_TTL_HOURS`. Nur Text, keine Bilder. Schutz: CSRF-Token, Begrenzung `BOARD_AI_CHAT_PER_MIN`/`BOARD_AI_CHAT_PER_HOUR` je Mitglied, abschaltbar mit `BOARD_AI_CHAT=false`. Endpunkte `/chat/models`, `/chat/send` (im nginx-Proxy freigeben). | – |
+| `/inat_verknuepfen` | `login` (dein iNat-Name; leer = offenen Code prüfen) | Verknüpft dein iNaturalist-Konto: Der Bot nennt einen Code (1 h gültig), den du in die Bio deines iNat-Profils schreibst, dann „Jetzt prüfen“. Erst danach zählen deine Beobachtungen im iNat-Kanal, auch frühere Posts. | `/inat_verknuepfen login:jonas_ants` |
+| `/inat_statistik` | `jahr` (optional) | Deine iNat-Statistik, nur für dich sichtbar: Beobachtungen und Arten im Jahr und insgesamt, dein Platz, gefundene Arten. | `/inat_statistik` |
+| `/inat_trennen` | – | Löst die iNat-Verknüpfung; deine Posts zählen dann nicht mehr. | `/inat_trennen` |
 | `/rueckblick` | `jahr` (optional) | Persönlicher **Jahresrückblick** (nur für dich sichtbar): eigene Bewertungen, Befehle, Benachrichtigungen, Erfolge. Nur vom **1. November bis 31. Januar** verfügbar (im Januar für das Vorjahr); außerhalb kommt ein Hinweis mit einem Ameisen-Fakt samt Quelle (`utils/ant_facts.py`). Abgeschlossene Jahre bleiben das ganze Jahr über abrufbar (`/rueckblick jahr:…`, auf dem Board als Kacheln, auch auf der Hinweisseite). Die Board-Seite `/rueckblick` folgt demselben Zeitfenster, zeigt ältere Jahre als Kacheln und eingeloggten Mitgliedern oben zusätzlich ihren persönlichen Teil. Am 31.12. um 23 Uhr postet der Bot den Community-Rückblick in `YEAR_REVIEW_CHANNEL_ID`. | `/rueckblick jahr:2026` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Der **User-Teil ist immer öffentlich** im Kanal sichtbar. Der **Admin-Abschnitt** wird nur Mitgliedern mit „Nachrichten verwalten"/„Administrator" gezeigt und kommt separat **ephemer** (nur für sie sichtbar), damit er nicht öffentlich gepostet wird. *(`!help` als Textbefehl kann nicht ephemer antworten und zeigt daher nur den öffentlichen User-Teil.)* | `/help` |
 
@@ -740,6 +850,7 @@ Die meisten Admin-Befehle sind zu **Gruppen** zusammengefasst, damit das Befehls
 | `/wartung aktion:Bewertungen abgleichen` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. | `/wartung aktion:Bewertungen abgleichen` |
 | `/review neu_verarbeiten` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). | `/review neu_verarbeiten ids:1176542880 1176542995` |
 | `/bot export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). | `/bot export user_id:123456789012345678` |
+| `/rueckblick_post` | `posten` (Ja/Nein) | Community-Jahresrückblick als Vorschau anzeigen oder sofort in `YEAR_REVIEW_CHANNEL_ID` posten (sonst automatisch am 31.12. um 23 Uhr). | `/rueckblick_post posten:False` |
 | `/export_chat` | `channel` (ID, Pflicht), `von`/`bis` (`JJJJ-MM-TT`, optional, `bis` inklusive), `reaktionen_detail` (optional, Standard aus) | Exportiert einen **kompletten Channel/Thread** (optional im Datumsbereich) als **umfangreiche JSON** und liefert sie als **Datei-Download in der ephemeren Antwort**. Erfasst pro Nachricht Autor, Zeitstempel (erstellt/bearbeitet), Inhalt, **Anhänge inkl. Bild-Links**, Embeds, Sticker, **Reaktionen** (Emoji + Anzahl; mit `reaktionen_detail:true` auch **wer** reagiert hat – langsam bei großen Channels), Antwort-/Referenzbezug, Mentions und Thread-Info. Ohne Zeitraum wird **alles** exportiert. Bei Überschreitung des Server-Upload-Limits wird automatisch **gzip** komprimiert (`.json.gz`). Nicht abrufbar (Discord-API): gelöschte Nachrichten, frühere Bearbeitungsversionen, „gelesen von". | `/export_chat channel:123… von:2026-07-01 bis:2026-07-31` |
 | `/bot stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/bot stats` |
 | `/bot system` | – | Systemstatus: **laufende Bot-Version**, Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/bot system` |
@@ -1005,6 +1116,15 @@ SQLite-Datei (in `data/`), wird beim Start automatisch angelegt. Wichtige Tabell
 | `map_entry_tags` | **Halter-Karte:** selbst gewählte Schlagworte je User (fester Katalog) |
 | `map_entry_regions` | **Halter-Karte:** „Auch aktiv in“ – bis zu 2 weitere Bundesländer/Kantone je User (nur 18+, nur Region, kein Ort) |
 | `map_events` | **Halter-Karte:** eingereichte Termine/Events (Titel, Zeit, Ort, Koordinate, `rrule`, Status `pending`/`approved`/`rejected`) |
+| `map_event_rsvp` | **Halter-Karte:** „Ich gehe hin“ je Termin-Vorkommen (Discord-ID, Datum; Löschung 30 Tage nach dem Termin) |
+| `offer_keywords`, `offer_alert_seen`, `offer_alert_msgs`, `offer_cursor`, `offer_deferred` | `/offer_alert`: Schlagworte je User, bereits gemeldete Angebote, gesendete PNs, Scan-Fortschritt, verschobene Meldungen |
+| `review_delivery` | Lieferzeit je Bewertung (Kalendertage) für die Ø-Lieferzeit je Shop |
+| `review_authors` | Discord-ID der verfassenden Person je Bewertung – nur für den persönlichen Rückblick |
+| `year_review_posted` | Bereits gepostete Community-Jahresrückblicke (kein Doppel-Post) |
+| `usage_monthly` | Öffentliche Nutzungsstatistik: Monatssummen ohne Admin-Befehle |
+| `species_stock_daily` | Saison-Verfügbarkeit: Zahl der Shops mit lagernder Art je Tag |
+| `inat_accounts`, `inat_link_codes` | iNat-Statistik: bestätigte Verknüpfung Discord ↔ iNat, offene Verknüpfungs-Codes (1 h) |
+| `inat_obs`, `inat_posted_months` | iNat-Statistik: gepostete Beobachtungen mit Bestimmung, bereits gepostete Monats-Treppchen |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -1029,10 +1149,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── .env                     # Umgebungsvariablen (nicht im Git)
 ├── .env.example             # Vorlage
 ├── requirements.txt
-├── shops_data.json          # Von grabber.py erzeugt (nicht im Git)
-├── antcheckbot.db           # SQLite Bot-Datenbank (nicht im Git)
-├── price_history.db         # SQLite Preishistorie – vom Grabber befüllt (nicht im Git)
-├── shop_mapping.csv         # Manuelles Shop-Mapping (nicht im Git)
+├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db,
+│                            #   shops_data.json, shop_mapping.csv, species_profiles.json, plz_dach.csv
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
 ├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
 ├── ai_chat_system_prompt_eo.txt  # System-Prompt Esperanto
@@ -1051,7 +1169,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── shop_mapping.py      # /shopmap: Review-CSV Shop-Text → URL (löst 🟡)
 │   ├── tasks.py             # Alle Hintergrundaufgaben
 │   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset, /ai_prompt
-│   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
+│   ├── inat_tracker.py      # iNat-Statistik: /inat_verknuepfen /inat_statistik /inat_trennen, Treppchen
 │   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes, /codes_admin, Wartung: Rabattcodes scannen
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
@@ -1059,7 +1177,11 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   ├── offers.py            # /offers: alle lagernden Angebote eines Shops
 │   ├── custom_commands.py   # /info: benutzerdefinierte Text-Befehle (Info-Einträge)
-│   ├── board.py             # Feedback-Board + Halter-Karte (/map, OAuth, JSON-APIs, ICS)
+│   ├── offer_alerts.py      # /offer_alert: Schlagwort-Alerts für den Angebote-Kanal
+│   ├── chat_export.py       # /export_chat: Kanal als JSON exportieren (Admin)
+│   ├── directory.py         # /art (Artensteckbrief) und /shop (Händlerseite)
+│   ├── year_review.py       # /rueckblick + Community-Rückblick am 31.12. um 23 Uhr
+│   ├── board.py             # Board: Feedback, Halter-Karte, Statistik, Arten/Shops, Rückblick, KI-Chat, OAuth
 │   ├── map.py               # Halter-Karte: /map_join /map_tags /map_confirm /map_remove /event_add, /event_admin … (nur MAP_ENABLED)
 │   ├── map_tasks.py         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup (nur MAP_ENABLED)
 │   └── admin_groups.py      # Admin-Gruppen /bot /review /codes_admin /info_admin /event_admin + /wartung (lädt als letztes)
@@ -1088,14 +1210,36 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── text_chunks.py       # Text-Chunking-Helfer (lange Nachrichten aufteilen)
 │   ├── timez.py             # Zeit-/Zeitzonen-Helfer (Berlin/UTC)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
-│   └── logging_setup.py     # Rotating File Handler
+│   ├── logging_setup.py     # Rotating File Handler
+│   ├── ai_compat.py         # Modell-Unterschiede der Claude-API (Thinking, max_tokens)
+│   ├── ai_tools.py          # Werkzeuge des KI-Chats (Arten, Angebote, Preise, Shops, Codes)
+│   ├── board_i18n.py        # Texte der Board-Seiten (de/en/eo)
+│   ├── shop_stats.py        # Auswertungen für die Statistik-Seite
+│   ├── usage_stats.py       # Nutzungsstatistik (Monatssummen, ohne Admin-Befehle)
+│   ├── directory.py         # Daten für /art und /shop (Angebote, Bewertungen, Lieferzeit)
+│   ├── species_profile.py   # Kurzsteckbrief: Wikipedia + GBIF (mit Cache)
+│   ├── price_signal.py      # Preis-Ampel (Angebot vs. eigener 12-Monats-Preis)
+│   ├── season.py            # Saison-Verfügbarkeit je Art
+│   ├── year_review.py       # Zahlen für den Jahresrückblick + Zeitfenster
+│   ├── ant_facts.py         # Ameisen-Fakten mit Quellen (Rückblick-Winterruhe)
+│   └── inat.py              # iNat-Statistik: API, Verknüpfung, Zählung
 │
 ├── locales/
 │   ├── de.json              # Deutsch
 │   ├── en.json              # English
 │   └── eo.json              # Esperanto
 │
-└── static/                  # self-hosted Assets (kein CDN): Chart.js, stats.js
+├── tools/
+│   ├── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
+│   ├── test_species_profile.py  # Steckbrief (Wikipedia/GBIF) einer Art testen
+│   └── test_inat.py             # iNaturalist-API für die iNat-Statistik testen
+│
+├── legal/                   # Rechtsseiten: nur *.example.* im Git, echte Dateien nur auf dem Server
+│
+└── static/                  # self-hosted Assets (kein CDN)
+    ├── chart.umd.js, chartjs-chart-treemap.min.js  # Chart.js (siehe README_chartjs.txt)
+    ├── stats.js, map_stats.js   # Statistik-Seite und Karten-Statistik
+    ├── favicon.png, favicon.gif, apple-touch-icon.png
     ├── map.js               # Halter-Karte: Leaflet-Frontend (Choropleth/Pins/Liste/Events)
     ├── leaflet.js, leaflet.css          # vom Bot geladen (utils/map_geodata.py)
     └── *_bundeslaender.geojson, …       # GeoJSON-Umrisse (vom Bot geladen)
@@ -1195,7 +1339,7 @@ Der Status-Bereich **aktualisiert sich alle 5 Sekunden von selbst** (JSON-Poll a
 
 ### Moderation (Owner)
 
-Der Owner meldet sich unter `/admin/login` mit dem `BOARD_ADMIN_TOKEN` an und kann dann:
+Der Owner meldet sich unter `/admin/login` über **„Login mit Discord“** an. Zugang haben nur die Discord-IDs aus `BOARD_OWNER_ID` und `BOARD_ADMIN_IDS` (Cookie `board_admin`, 7 Tage, mit CSRF-Schutz). Danach kann er:
 
 - **Queue abarbeiten:** Einreichungen **freigeben** (→ öffentlich), **ablehnen** oder **löschen**.
 - In der Übersicht je Eintrag schnell **Status / Priorität / Komponente / Version** setzen.
@@ -1215,10 +1359,13 @@ Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam
 | `BOARD_BIND` | Bind-Adresse | `127.0.0.1` (nur lokal; Reverse-Proxy davor) |
 | `BOARD_PORT` | interner Port | `8080` |
 | `BOARD_PUBLIC_URL` | öffentliche URL (für Links/DM) | darf zunächst **leer** bleiben |
-| `BOARD_ADMIN_TOKEN` | Owner-Login-Token | **Pflicht wenn aktiv** – sicheres Secret wählen |
+| `BOARD_ADMIN_IDS` | weitere Discord-IDs mit Admin-Rechten im Board | kommagetrennt; Login über Discord (`BOARD_OAUTH_*` nötig) |
 | `BOARD_OWNER_ID` | Discord-User-ID für die Einreichungs-DM | leer/0 = DM wird übersprungen (nur Log) |
 | `BOARD_DB_FILE` | eigene DB-Datei | Standard `board.db` im Projektordner |
 | `BOARD_HASH_SALT` | Salt fürs IP-Hashing | in Produktion setzen (keine Roh-IP gespeichert) |
+| `BOARD_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | „Login mit Discord“ (Mitglieder und Admins) | ohne Werte kein Login |
+| `BOARD_AI_CHAT` | KI-Chat-Fenster für eingeloggte Mitglieder | `true` |
+| `BOARD_AI_CHAT_PER_MIN` / `_PER_HOUR` | Nachrichtenlimit je Mitglied | `5` / `40` |
 
 ### Starten / Deployen
 
@@ -1227,7 +1374,7 @@ Das Board läuft **im bestehenden `aam-bot`-Dienst** mit – kein zweiter Prozes
 ```bash
 # 1. In der .env setzen (Beispiel):
 #    BOARD_ENABLED=true
-#    BOARD_ADMIN_TOKEN=<langes-zufälliges-secret>
+#    BOARD_OAUTH_CLIENT_ID=… / BOARD_OAUTH_CLIENT_SECRET=… / BOARD_OAUTH_REDIRECT_URI=…
 #    BOARD_HASH_SALT=<langes-zufälliges-salt>
 #    BOARD_OWNER_ID=<deine-discord-user-id>      # optional, für die DM
 #    BOARD_PUBLIC_URL=https://board.example.com  # optional
@@ -1281,10 +1428,12 @@ Dieser Bot steht auf den Schultern anderer – vielen Dank an:
 - **[antcheck.info](https://antcheck.info)** – Datenquelle für Shops, Produkte, Varianten und Preise (Grabber + Preis-Tracking).
 - **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise, EZB-Kurse).
 - **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api)** – offene, key-lose Wechselkurse als Fallback (150+ Währungen inkl. TWD).
-- **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
+- **[iNaturalist](https://www.inaturalist.org)** – öffentliche API für die iNat-Statistik (Bestimmung, Besitzer, Datum der Beobachtungen).
 - **[AntCat](https://antcat.org)** – World Catalog of Ants (REST-API `antcat.org/v1`) als **maßgebliche** Datenquelle für die Ameisen-Artenliste (Namensprüfung, Tippfehler-Vorschläge, Synonym-Auflösung, `canonical_species`). Danke an Brian Fisher & das AntCat-Team.
 - **[Anthropic Claude](https://www.anthropic.com)** – KI (Claude Haiku) für den Review- und Rabattcode-Parser sowie den optionalen KI-Chat.
-- **[Google Sheets / gspread](https://github.com/burnash/gspread)** – Ablage der Shopbewertungen und iNat-Ranglisten.
+- **[Google Sheets / gspread](https://github.com/burnash/gspread)** – Ablage der Shopbewertungen.
+- **[Wikipedia](https://www.wikipedia.org)** (CC BY-SA 4.0) und **[GBIF](https://www.gbif.org)** – Kurzbeschreibung und Verbreitung der Arten auf den Artseiten.
+- **[Leaflet](https://leafletjs.com)**, **[geoBoundaries](https://www.geoboundaries.org)** und **[GeoNames](https://www.geonames.org)** – Halter-Karte (Karte, Umrisse, PLZ und Städte).
 - **[py-cord](https://pycord.dev)** – Discord-Bibliothek (Slash Commands, Interaktionen).
 - **[Babel](https://babel.pocoo.org) (CLDR)** – lokalisierte Länder-/Sprachnamen.
 - **[matplotlib](https://matplotlib.org)** – lokal gerenderte Preisverlauf- und Ranking-Diagramme.
