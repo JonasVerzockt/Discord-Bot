@@ -43,6 +43,7 @@ from utils.db import execute_db, execute_many
 logger = logging.getLogger(__name__)
 
 API = "https://api.inaturalist.org/v1"
+API_V2 = "https://api.inaturalist.org/v2"
 UA = {"User-Agent": "AAM-Discord-Bot (board.jonasants.de)", "Accept": "application/json"}
 FORMICOIDEA = 1269340
 BATCH = 200                       # max. Beobachtungen pro Anfrage (iNat-Empfehlung)
@@ -59,11 +60,11 @@ def _now() -> str:
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
-async def _get(path: str, params: dict) -> dict | None:
+async def _get(path: str, params: dict, base: str = API) -> dict | None:
     """GET auf die iNat-API. None bei Netzwerk-/Serverfehler (später erneut versuchen)."""
     try:
         async with aiohttp.ClientSession(headers=UA) as s:
-            async with s.get(f"{API}{path}", params=params,
+            async with s.get(f"{base}{path}", params=params,
                              timeout=aiohttp.ClientTimeout(total=20)) as r:
                 if r.status == 404:
                     return {"results": []}
@@ -109,18 +110,20 @@ async def fetch_observations(ids: list[int]) -> dict | None:
 
 
 async def find_user(login: str) -> dict | None:
-    """{'id', 'login', 'description'} oder {} wenn unbekannt; None = API nicht erreichbar."""
+    """{'id', 'login', 'name', 'description'} oder {} wenn unbekannt; None = API nicht erreichbar.
+    Die Profil-Bio liefert nur die API v2 mit fields=description (v1 kennt das Feld nicht;
+    beides auf dem Server geprüft). Suche per Login über v1 (autocomplete)."""
     d = await _get("/users/autocomplete", {"q": login, "per_page": "10"})
     if d is None:
         return None
     for u in d.get("results") or []:
         if (u.get("login") or "").lower() == login.lower():
-            desc = u.get("description")
-            if not desc:                          # Autocomplete liefert die Bio oft nicht → Einzelabruf
-                d2 = await _get(f"/users/{u['id']}", {})
-                if d2 and d2.get("results"):
-                    desc = d2["results"][0].get("description")
-            return {"id": u["id"], "login": u["login"], "description": desc or ""}
+            d2 = await _get(f"/users/{u['id']}", {"fields": "id,login,name,description"}, base=API_V2)
+            if d2 is None:
+                return None                       # v2 nicht erreichbar → später erneut prüfen
+            desc = ((d2.get("results") or [{}])[0]).get("description")
+            return {"id": u["id"], "login": u["login"], "name": u.get("name") or "",
+                    "description": desc or ""}
     return {}
 
 
@@ -163,6 +166,7 @@ async def verify_link(bot, discord_id) -> tuple[str, dict | None]:
         return "api", None
     if not u:
         return "unknown_user", None
+    # Code muss in der Bio stehen (nur über API v2 abrufbar)
     if p["code"].lower() not in (u.get("description") or "").lower():
         return "code_missing", u
     other = await execute_db(bot, "SELECT discord_id FROM inat_accounts WHERE inat_user_id=? AND discord_id<>?",
