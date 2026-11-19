@@ -182,7 +182,17 @@ async def personal(bot, user_id: str, year: int) -> dict:
                                    "AND substr(added_at,1,4)=?", (uid, y)),
         "rsvps": await _one(bot, "SELECT COUNT(*) FROM map_event_rsvp WHERE user_id=? "
                                  "AND substr(occ_date,1,4)=?", (uid, y)),
+        "inat": await _inat(bot, uid, year),
     }
+
+
+async def _inat(bot, uid: str, year: int) -> dict:
+    try:
+        from utils.inat import user_stats
+        st = await user_stats(bot, uid, year)
+        return {"obs": st["obs"], "species": st["species"]}
+    except Exception:
+        return {"obs": 0, "species": 0}
 
 
 def mask(n) -> str:

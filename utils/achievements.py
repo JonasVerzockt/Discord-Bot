@@ -75,6 +75,9 @@ ACHIEVEMENTS = [
     Ach("code_bringer_2","🏷️", False, "community", lambda s: (s["codes"], 5)),
     Ach("code_bringer_3","🏷️", False, "community", lambda s: (s["codes"], 15)),
     Ach("ai_first",    "🤖", False, "community", lambda s: (min(s["ai_used"], 1), 1)),
+    Ach("inat_10",     "🔬", False, "community", lambda s: (s["inat_species"], 10)),
+    Ach("inat_25",     "🔬", False, "community", lambda s: (s["inat_species"], 25)),
+    Ach("inat_50",     "🔬", False, "community", lambda s: (s["inat_species"], 50)),
     # Aktivität / Nutzung
     Ach("regular",      "📅", False, "usage", lambda s: (s["distinct_days"], 7)),
     Ach("marathon",     "🏃", False, "usage", lambda s: (s["max_per_day"], 15)),
@@ -147,6 +150,11 @@ async def gather_stats(bot, user_id: str, username: str | None = None) -> dict:
     s["digest"]          = await _count(bot, "SELECT COUNT(*) FROM digest_subscribers WHERE user_id=?", (uid,))
     s["codes"]           = (await _count(bot, "SELECT COUNT(*) FROM discount_codes WHERE author=?", (username,))) if username else 0
     s["ai_used"]         = await _count(bot, "SELECT COUNT(*) FROM ai_chat_budget WHERE user_id=?", (uid,))
+    try:                                     # iNat: gefundene Arten insgesamt (nur verknüpft + eigene)
+        from utils.inat import user_stats as _inat_stats
+        s["inat_species"] = (await _inat_stats(bot, uid))["species"]
+    except Exception:
+        s["inat_species"] = 0
 
     ev_rows = await execute_db(bot, "SELECT event, ts FROM user_events WHERE user_id=?", (uid,), fetch=True) or []
     cmd_set, night, early, target_hit = set(), False, False, False

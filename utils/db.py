@@ -417,6 +417,43 @@ CREATE TABLE IF NOT EXISTS review_authors (
 );
 CREATE INDEX IF NOT EXISTS idx_review_authors_user ON review_authors (user_id, review_date);
 
+-- iNaturalist-Statistik (ersetzt den früheren Wettbewerb mit Google-Tabelle).
+-- Bestätigte Verknüpfung Discord-Konto ↔ iNat-Konto (/inat_verknuepfen, Code im iNat-Profil).
+CREATE TABLE IF NOT EXISTS inat_accounts (
+    discord_id    TEXT PRIMARY KEY,
+    inat_user_id  INTEGER NOT NULL UNIQUE,
+    inat_login    TEXT NOT NULL,
+    verified_at   TEXT NOT NULL
+);
+-- Offene Verknüpfungs-Codes (1 Stunde gültig).
+CREATE TABLE IF NOT EXISTS inat_link_codes (
+    discord_id  TEXT PRIMARY KEY,
+    inat_login  TEXT NOT NULL,
+    code        TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+-- Gepostete Beobachtungen. Gezählt wird nur, wenn inat_user_id zum verknüpften Konto passt.
+CREATE TABLE IF NOT EXISTS inat_obs (
+    obs_id        INTEGER PRIMARY KEY,
+    discord_id    TEXT NOT NULL,
+    message_id    TEXT,
+    posted_at     TEXT NOT NULL,          -- UTC
+    inat_user_id  INTEGER,
+    observed_on   TEXT,                   -- YYYY-MM-DD laut iNat
+    taxon_id      INTEGER,
+    taxon_name    TEXT,
+    taxon_rank    TEXT,
+    ancestors     TEXT,                   -- JSON-Liste der Vorfahren-IDs
+    is_ant        INTEGER NOT NULL DEFAULT 0,
+    missing       INTEGER NOT NULL DEFAULT 0,   -- 1 = bei iNat gelöscht/nicht gefunden
+    checked_at    TEXT                    -- NULL = noch nicht von der API geprüft
+);
+CREATE INDEX IF NOT EXISTS idx_inat_obs_user ON inat_obs (discord_id);
+CREATE TABLE IF NOT EXISTS inat_posted_months (
+    month      TEXT PRIMARY KEY,          -- YYYY-MM, verhindert Doppel-Posts
+    posted_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Saison-Verfügbarkeit: je Tag und Art die Zahl der Shops mit lagerndem Angebot
 -- (Maximum über die stündlichen Läufe des Tages). species_key '*' markiert, dass der
 -- Tag erfasst wurde (fehlende Art an so einem Tag = 0 Shops).
