@@ -1540,8 +1540,13 @@ def _sheet_tile() -> dict:
     except Exception:
         return dict(name=name, state="off", detail="nicht verfügbar")
     now = time.time()
-    ok = SYNC_STATUS["ok"].get("warnings")
-    fail = SYNC_STATUS["fail"].get("warnings")
+    # Jeder erfolgreiche Zugriff zählt: Bewertungen beim Start, Warnhinweise stündlich,
+    # Shop-Bewertungen alle 48 h.
+    labels = {"reviews": "Bewertungen geladen", "warnings": "Warnhinweise abgeglichen",
+              "ratings": "Shop-Bewertungen abgeglichen"}
+    ok_kind = max(SYNC_STATUS["ok"], key=SYNC_STATUS["ok"].get, default=None)
+    ok = SYNC_STATUS["ok"].get(ok_kind) if ok_kind else None
+    fail = max(SYNC_STATUS["fail"].values(), default=None)
     if ok is None:
         if now - SYNC_STATUS.get("started", now) < 2 * 3600:
             return dict(name=name, state="ok", detail="noch kein Abgleich seit dem Start")
@@ -1549,7 +1554,7 @@ def _sheet_tile() -> dict:
                     detail="kein erfolgreicher Abgleich seit dem Start")
     age = now - ok
     state = "ok" if age < 3 * 3600 else ("warn" if age < 24 * 3600 else "down")
-    detail = f"letzter Abgleich {_fmt_age(age)}"
+    detail = f"{labels.get(ok_kind, 'Zugriff')} {_fmt_age(age)}"
     if fail and fail > ok:
         state = "warn" if state == "ok" else state
         detail += f" · letzter Versuch fehlgeschlagen ({_fmt_age(now - fail)})"
