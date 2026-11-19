@@ -264,7 +264,7 @@
     document.addEventListener("keydown", el._key);
     document.body.appendChild(el);
     requestAnimationFrame(function () { el.classList.add("on"); });
-    setTimeout(function () { close(el); }, d.link ? 5200 : 3400);
+    setTimeout(function () { close(el); }, d.link ? 8200 : 6400);
   }
   function go() {
     fetch(url, {credentials: "same-origin", headers: {"Accept": "application/json"}})
