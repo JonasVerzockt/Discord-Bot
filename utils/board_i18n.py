@@ -555,6 +555,7 @@ T: dict[str, dict[str, str]] = {
 
 # ── Artensteckbrief & Händlerseiten ─────────────────────────────────────────
 T.update({
+    'nav_yearreview': {"de": '🎆 Jahresrückblick', "en": '🎆 Year in review', "eo": '🎆 Jarresumo'},
     'yr_page_h': {"de": 'Jahresrückblick {y}', "en": 'Year in review {y}', "eo": 'Jarresumo {y}'},
     'yr_page_intro': {"de": 'Das Ameisenjahr {y} der Community in Zahlen. Guten Rutsch ins Jahr {n}!', "en": "The community's ant year {y} in numbers. Happy New Year {n}!", "eo": 'La formika jaro {y} de la komunumo en nombroj. Feliĉan novjaron {n}!'},
     'yr_k_reviews': {"de": 'neue Bewertungen', "en": 'new ratings', "eo": 'novaj taksoj'},
