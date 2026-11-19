@@ -405,6 +405,18 @@ CREATE TABLE IF NOT EXISTS review_delivery (
 );
 CREATE INDEX IF NOT EXISTS idx_review_delivery_shop ON review_delivery (shop);
 
+-- Wer hat welche Bewertung geschrieben – NUR für den persönlichen Rückblick (/rueckblick,
+-- nur für die Person selbst sichtbar). Die Bewertungstabelle (Sheet) bleibt anonym.
+-- rating NULL = Bewertung keiner Tabellenzeile zugeordnet.
+CREATE TABLE IF NOT EXISTS review_authors (
+    message_id   TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL,
+    review_date  TEXT NOT NULL,       -- YYYY-MM-DD
+    shop         TEXT NOT NULL DEFAULT '',
+    rating       REAL
+);
+CREATE INDEX IF NOT EXISTS idx_review_authors_user ON review_authors (user_id, review_date);
+
 -- Jahresrückblick: bereits gepostete Jahre (verhindert Doppel-Posts nach Neustart).
 CREATE TABLE IF NOT EXISTS year_review_posted (
     year       INTEGER PRIMARY KEY,

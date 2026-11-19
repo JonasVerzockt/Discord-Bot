@@ -64,7 +64,19 @@ def _admin_command_names(bot) -> set[str]:
 
     for cmd in getattr(bot, "pending_application_commands", []) or getattr(bot, "application_commands", []):
         walk(cmd)
-    return names
+    return names | _LEGACY_ADMIN
+
+
+# Frühere Namen der Admin-Befehle (vor /bot, /review, /codes_admin, /info_admin,
+# /event_admin, /wartung): ältere Einträge im Befehlsprotokoll bleiben so ausgeblendet.
+_LEGACY_ADMIN = {
+    "status", "system", "stats", "known_users", "command_log", "export",
+    "offer_alert check", "pending", "test", "reprocess", "run_jobs", "rescan",
+    "reloadshops", "codes_set", "codes_date", "codes_edit", "codes_rescan",
+    "codes_fix_links", "info_add", "info_edit", "info_remove", "info_raw",
+    "event_pending", "event_approve", "event_reject", "event_exclude",
+    "event_edit", "map_refresh", "lieferzeit_backfill",
+}
 
 
 async def aggregate(bot) -> int:

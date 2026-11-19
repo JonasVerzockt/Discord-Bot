@@ -159,8 +159,17 @@ async def personal(bot, user_id: str, year: int) -> dict:
     ach = await execute_db(
         bot, "SELECT achievement_id FROM achievements WHERE user_id=? AND substr(unlocked_at,1,4)=? "
              "ORDER BY unlocked_at", (uid, y), fetch=True) or []
+    revs = await execute_db(
+        bot, "SELECT shop, rating, review_date FROM review_authors WHERE user_id=? "
+             "AND substr(review_date,1,4)=? ORDER BY review_date", (uid, y), fetch=True) or []
+    ratings = [r["rating"] for r in revs if r["rating"] is not None]
+    shops = Counter(r["shop"] for r in revs if r["shop"])
     return {
         "year": year,
+        "reviews": len(revs),
+        "reviews_avg": round(sum(ratings) / len(ratings), 1) if ratings else None,
+        "reviews_top": shops.most_common(3),
+        "reviews_first": revs[0]["review_date"] if revs else None,
         "commands": sum(r["n"] for r in cmds),
         "top_commands": [(r["command"], r["n"]) for r in cmds[:3]],
         "first": min((r["first"] for r in cmds), default=None),
