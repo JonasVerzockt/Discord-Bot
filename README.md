@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `4.0.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `3.0.4` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -748,6 +748,7 @@ Dauerhafte Statistik für den iNaturalist-Kanal (`INAT_CHANNEL_ID` in `cogs/inat
 
 **Artenliste im Board**: `/inat` zeigt alle je von der Community gefundenen Arten (nach Gattung einklappbar, Beobachtungen und Erstfund-Jahr je Art, nur Summen, keine Namen); verlinkt im Footer und im Rückblick.
 
+
 ## Erfolge
 
 Sammelbare Achievements – **rein persönlich, ohne Rollen**. Abrufbar per `/achievements`: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und die **Existenz** versteckter Erfolge (🔒 `???`). Pro neu freigeschaltetem Erfolg schickt der Bot eine dezente DM (sind DMs gesperrt, bleibt die Freischaltung trotzdem erhalten).
@@ -818,6 +819,7 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/info_list` | – | Verfügbare Info-Einträge auflisten (Admins sehen auch admin-only Einträge, markiert mit 🔒). | `/info_list` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/offer_alert` | Gruppe: `add schlagwort:<…>` (mehrere **kommagetrennt**), `list`, `remove`, `check` (🔒 Admin) | **Schlagwort-Alerts für den Angebote-Kanal.** Hinterlege Begriffe (Arten *oder* Beliebiges) – mehrere Schlagworte in einem `add` mit Komma/Semikolon trennen (ein Begriff *mit Leerzeichen* bleibt ein Schlagwort). Artnamen werden **synonym-bewusst** gematcht (AntCat, wie bei `/sells`), sodass z. B. „Camponotus ligniperdus" auch „…ligniperda" findet. Lange PN-Trefferlisten werden automatisch in mehrere Nachrichten (≤ 4000 Zeichen) aufgeteilt; passt ein Angebot dazu, kommt eine **PN mit Link**. Beim `add` werden **einmalig** noch offene Angebote der letzten `OFFER_BACKFILL_DAYS` (Standard 90) Tage gebündelt gemeldet; danach neue Posts, die älter als der Team-Review-Puffer (`OFFER_ALERT_DELAY_MIN`, Standard 60 min) sind. **Nachtruhe:** Angebote, die in der Nachtruhe (`OFFER_QUIET_START_HOUR`–`OFFER_QUIET_END_HOUR`, Berlin, Standard **23–9 Uhr**) gepostet werden, werden zurückgehalten und erst nach Fenster-Ende gemeldet. **Admin-Pause:** reagiert ein Team-/Mod-Mitglied (Manage Messages) mit **⏸️ (`:pause_button:`)** auf ein Angebot, wird es zurückgehalten, solange die Reaktion gesetzt ist. Der **Backfill** beim Einrichten überspringt per **⏸️ pausierte** Angebote; wird er **während** der Nachtruhe ausgelöst, lässt er zusätzlich – analog zum 60-min-Puffer – die Angebote der **gerade laufenden Nacht** weg (nachts gepostete Angebote *früherer* Tage sind normal dabei; wird tagsüber ausgelöst, gibt es keinen Nacht-Cut). Als **verkauft** markierte Positionen (`:sold:`-Emote im Text, `~~durchgestrichen~~`, „verkauft/reserviert/…") werden **pro Zeile und pro Nachricht** aussortiert; eine `:sold:`-**Reaktion** zählt dabei nur, wenn sie vom **Autor** oder einem Mitglied mit **„Nachrichten verwalten"** (Team/Mod) stammt – Reaktionen beliebiger Mitglieder werden ignoriert. Auf jede Alert-PN: **✅** = erledigt (Schlagwort entfernen) · **🔄** = weiter suchen. `check` listet Admins alle aktuell als verfügbar erkannten Angebote (Prüfung). | `/offer_alert add schlagwort:Lasius niger` |
+| `/bewerten` | `shop` (Pflicht, Vorschläge aus den bekannten Shops, Freitext erlaubt) | Bewertung nach der Community-Vorlage ausfüllen: zwei Formulare (Discord erlaubt höchstens 5 Felder je Formular), Note als Freitext 0 bis 10 (z. B. `7,5`), Vorschau, dann der fertige Text im Kopierblock. Leere Felder bleiben mit Überschrift stehen, damit jede Bewertung gleich aussieht. **Der Bot postet nichts und speichert nichts**; du postest den Text selbst im Bewertungskanal, der Bewertungs-Bot verarbeitet ihn wie jede andere Bewertung. Wie alle User-Befehle nur im Bot-Kanal. | `/bewerten shop:antstore.net` |
 | `/konto` | – | Schickt dir (nur für dich sichtbar) den Link zu deiner Kontoseite im Board: alles, was der Bot zu dir gespeichert hat, ansehen, ändern, herunterladen und löschen. Siehe [Mein Konto](#mein-konto-konto). | `/konto` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, **AAM-Bewertung** (falls vorhanden), Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/offers shop:Antstore` |
@@ -1180,6 +1182,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
 │   ├── account.py           # /konto + PN-Verlauf-Hook + Konto-Einstellungen laden
+│   ├── bewerten.py          # /bewerten: Bewertung nach Vorlage ausfüllen, Text zum Kopieren
 │   ├── command_log.py       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   ├── offers.py            # /offers: alle lagernden Angebote eines Shops
