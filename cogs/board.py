@@ -1267,6 +1267,7 @@ CHATWIDGET = r"""<style>
 .aic-u{background:#1f6feb33;margin-left:auto}
 .aic-a{background:#161b22;border:1px solid #21262d}
 .aic-a code{background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:0 4px}
+.aic-s{display:block;color:#8b949e;font-size:12px}
 .aic-f{display:block;color:#8b949e;font-size:11px;margin-top:6px;white-space:normal}
 #aic-form{display:flex;gap:6px;padding:8px;border-top:1px solid #21262d}
 #aic-in{flex:1;resize:none;height:54px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:8px;padding:6px 8px;font:inherit;font-size:14px}
@@ -1293,6 +1294,8 @@ CHATWIDGET = r"""<style>
   t=t.replace(/`([^`\n]+)`/g,"<code>$1</code>");
   t=t.replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g,"$1<i>$2</i>");
   t=t.replace(/\[([^\]\n]+)\]\(&lt;?(https?:\/\/[^\s)&]+(?:&amp;[^\s)&]+)*)&gt;?\)/g,'<a href="$2" target=_blank rel="noopener noreferrer">$1</a>');
+  t=t.replace(/&lt;(https?:\/\/[^\s<>]+?)&gt;/g,'<a href="$1" target=_blank rel="noopener noreferrer">$1</a>');
+  t=t.replace(/^-# (.+)$/gm,'<span class=aic-s>$1</span>');
   t=t.replace(/^#{1,3} (.+)$/gm,"<b>$1</b>");
   return t}
  var hist=[];try{hist=JSON.parse(sessionStorage.getItem("aic-hist")||"[]")}catch(e){}
