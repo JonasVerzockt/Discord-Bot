@@ -661,5 +661,9 @@
   "yrp_reviews": "{n} ratings written",
   "yrp_reviews_avg": "Ø given {avg} of 10",
   "yrp_reviews_top": "Rated most often: {list}",
-  "yrp_reviews_first": "First rating of the year: {date}"
+  "yrp_reviews_first": "First rating of the year: {date}",
+  "yrp_closed_h": "🐜💤 The year in review is hibernating",
+  "yrp_closed": "The review of {year} is available from {date} until the end of January. Until then, an ant fact:",
+  "yrp_fact_h": "Did you know?",
+  "yrp_bad_year": "There is no review for {year}. Available years: {first} to {last}."
 }

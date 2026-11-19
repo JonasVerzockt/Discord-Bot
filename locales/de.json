@@ -661,5 +661,9 @@
   "yrp_reviews": "{n} Bewertungen geschrieben",
   "yrp_reviews_avg": "Ø vergeben {avg} von 10",
   "yrp_reviews_top": "Am häufigsten bewertet: {list}",
-  "yrp_reviews_first": "Erste Bewertung im Jahr: {date}"
+  "yrp_reviews_first": "Erste Bewertung im Jahr: {date}",
+  "yrp_closed_h": "🐜💤 Der Jahresrückblick hält Winterruhe",
+  "yrp_closed": "Den Rückblick auf {year} gibt es ab dem {date} bis Ende Januar. Bis dahin ein Ameisen-Fakt:",
+  "yrp_fact_h": "Schon gewusst?",
+  "yrp_bad_year": "Für {year} gibt es keinen Rückblick. Verfügbar sind die Jahre {first} bis {last}."
 }

@@ -661,5 +661,9 @@
   "yrp_reviews": "{n} taksoj verkitaj",
   "yrp_reviews_avg": "Ø donita {avg} el 10",
   "yrp_reviews_top": "Plej ofte taksitaj: {list}",
-  "yrp_reviews_first": "Unua takso de la jaro: {date}"
+  "yrp_reviews_first": "Unua takso de la jaro: {date}",
+  "yrp_closed_h": "🐜💤 La jara resumo vintrumas",
+  "yrp_closed": "La resumo pri {year} estos havebla de {date} ĝis la fino de januaro. Ĝis tiam, fakto pri formikoj:",
+  "yrp_fact_h": "Ĉu vi sciis?",
+  "yrp_bad_year": "Ne ekzistas resumo por {year}. Haveblaj jaroj: {first} ĝis {last}."
 }
