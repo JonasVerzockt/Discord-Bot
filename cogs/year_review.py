@@ -181,13 +181,31 @@ class YearReviewCog(commands.Cog, name="YearReview"):
     )
     async def rueckblick(
         self, ctx: discord.ApplicationContext,
-        jahr: discord.Option(int, "Year (default: current year)", required=False, default=None,
+        jahr: discord.Option(int, "Year (default: the year currently under review)", required=False, default=None,
                              min_value=2020, max_value=2100,
-                             description_localizations={"de": "Jahr (Standard: aktuelles Jahr)"}),
+                             description_localizations={"de": "Jahr (Standard: das gerade betrachtete Jahr)"}),
     ):
         await ctx.defer(ephemeral=True)
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        year = jahr or datetime.now(BERLIN).year
+        if not YR.is_open():
+            # Nur vom 1. November bis 31. Januar; sonst Hinweis plus Ameisen-Fakt.
+            from utils import ant_facts
+            f = ant_facts.pick(lang)
+            nxt = YR.next_open()
+            e = discord.Embed(title=l10n.get("yrp_closed_h", lang),
+                              description=l10n.get("yrp_closed", lang, year=nxt.year,
+                                                   date=nxt.strftime("%d.%m.%Y")), color=_COLOR)
+            e.add_field(name=l10n.get("yrp_fact_h", lang),
+                        value=f"{f['text']}\n[{f['src']}]({f['url']})", inline=False)
+            await ctx.followup.send(embed=e, ephemeral=True)
+            return
+        ry = YR.review_year()
+        fy = await YR.first_year(self.bot)
+        year = jahr or ry
+        if year < fy or year > ry:
+            await ctx.followup.send(l10n.get("yrp_bad_year", lang, year=year, first=fy, last=ry),
+                                    ephemeral=True)
+            return
         p = await YR.personal(self.bot, str(ctx.author.id), year)
         await ctx.followup.send(embed=personal_embed(p, lang, ctx.author), ephemeral=True)
 

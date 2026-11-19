@@ -1197,6 +1197,35 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
 {% macro m(n) %}{% if 0 < n < 3 %}&lt; 3{% else %}{{ n }}{% endif %}{% endmacro %}
 <h2 style="margin-bottom:6px">🎆 {{ t('yr_page_h', y=d.year) }}</h2>
 <p class=muted style="margin-top:0">{{ t('yr_page_intro', y=d.year, n=d.year + 1) }}</p>
+{% if years|length > 1 %}<div class=kpigrid style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin-bottom:12px">
+ {% for y in years %}<a class=kpi href="/rueckblick/{{ y }}{{ qs() }}" style="text-decoration:none;{% if y == d.year %}border-color:#58a6ff;background:#1f6feb22{% endif %}"><div class=v>{{ y }}</div><div class=l>{% if y == d.year %}{{ t('yr_tile_now') }}{% else %}{{ t('yr_tile_open') }}{% endif %}</div></a>{% endfor %}
+</div>{% endif %}
+{% if me %}<div class=chartbox style="border-color:#58a6ff">
+ <h3 style="margin-top:0">{{ tp('yrp_title', year=d.year, name=me.name) }} <span class=muted style="font-size:12px;font-weight:normal">· 🔒 {{ t('yr_me_private') }}</span></h3>
+ {% if not me.has %}<p>{{ tp('yrp_empty', year=d.year) }}</p>{% else %}
+ <div class=kpigrid>
+  <div class=kpi><div class=v>{{ me.reviews }}</div><div class=l>{{ tp('yrp_h_reviews') }}</div></div>
+  {% if me.reviews_avg is not none %}<div class=kpi><div class=v>⭐ {{ ('%.1f'|format(me.reviews_avg)).replace('.', ',') if lang == 'de' else '%.1f'|format(me.reviews_avg) }}</div><div class=l>Ø / 10</div></div>{% endif %}
+  <div class=kpi><div class=v>{{ me.commands }}</div><div class=l>{{ tp('yrp_h_bot') }}</div></div>
+  <div class=kpi><div class=v>{{ me.achievements|length }}</div><div class=l>🏅</div></div>
+ </div>
+ {% if me.reviews %}<h4>{{ tp('yrp_h_reviews') }}</h4>
+  <p style="margin:2px 0">{{ tp('yrp_reviews', n=me.reviews) }}</p>
+  {% if me.reviews_top %}<p style="margin:2px 0">{{ tp('yrp_reviews_top', list='') }}{% for s, n in me.reviews_top %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if me.reviews_first %}<p style="margin:2px 0">{{ tp('yrp_reviews_first', date=me.reviews_first) }}</p>{% endif %}
+ {% endif %}
+ <h4>{{ tp('yrp_h_bot') }}</h4>
+  <p style="margin:2px 0">{{ tp('yrp_commands', n=me.commands) }}</p>
+  {% if me.top_commands %}<p style="margin:2px 0">{{ tp('yrp_top', list='') }}{% for c, n in me.top_commands %}<code>/{{ c }}</code> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if me.first %}<p style="margin:2px 0">{{ tp('yrp_first', date=me.first) }}</p>{% endif %}
+ <h4>{{ tp('yrp_h_ants') }}</h4>
+  <p style="margin:2px 0">{{ tp('yrp_notifications', n=me.notifications) }} · {{ tp('yrp_watches', n=me.watches) }} · {{ tp('yrp_tracked', n=me.tracked) }}{% if me.rsvps %} · {{ tp('yrp_rsvps', n=me.rsvps) }}{% endif %}</p>
+ {% if me.ach %}<h4>{{ tp('yrp_h_ach', n=me.ach|length) }}</h4>
+  <p style="margin:2px 0">{% for e, n in me.ach %}{{ e }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+ {% endif %}
+</div>
+{% elif login_url %}<div class=flash>✨ {{ t('yr_me_login') }} <a href="{{ login_url }}">{{ t('dir_login_btn') }}</a></div>{% endif %}
+{% if me or login_url %}<h3>👥 {{ t('yr_community_h') }}</h3>{% endif %}
 <div class=kpigrid>
  <div class=kpi><div class=v>{{ d.reviews.count }}</div><div class=l>{{ t('yr_k_reviews') }}</div></div>
  {% if d.reviews.avg is not none %}<div class=kpi><div class=v>⭐ {{ '%.2f'|format(d.reviews.avg) }}</div><div class=l>{{ t('yr_k_avg') }}</div></div>{% endif %}
@@ -1218,6 +1247,25 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
 </div>{% endif %}
 {% if d.new_shops %}<div class=chartbox><h4>🏪 {{ t('yr_k_shops') }}</h4><p style="margin:0">{{ d.new_shops|join(', ') }}</p></div>{% endif %}
 <p class=muted>{{ t('yr_page_note') }}</p>
+{% endblock %}"""
+
+RUECKBLICK_WAIT = """{% extends "base" %}{% block body %}
+<div style="max-width:680px;margin:30px auto;text-align:center">
+<div style="font-size:54px">🐜💤</div>
+<h2 style="margin:8px 0">{{ t('yr_wait_h') }}</h2>
+<p class=muted>{{ t('yr_wait_text', d=opens, y=ry) }}</p>
+<div class=chartbox style="text-align:left;margin-top:22px">
+ <h4>🐜 {{ t('yr_wait_fact_h') }}</h4>
+ <p id=fact style="font-size:16px;line-height:1.5;margin:6px 0 10px">{{ facts[start].text }}</p>
+ <p class=muted style="font-size:12px;margin:0">{{ t('yr_wait_src') }}: <a id=factsrc href="{{ facts[start].url }}" target=_blank rel="noopener noreferrer">{{ facts[start].src }}</a></p>
+ <p style="margin:12px 0 0"><a href="#" id=factnext class=btn>{{ t('yr_wait_more') }}</a></p>
+</div>
+</div>
+<script>(function(){var F={{ facts|tojson }},i={{ start }},
+ p=document.getElementById("fact"),s=document.getElementById("factsrc");
+ document.getElementById("factnext").addEventListener("click",function(e){e.preventDefault();
+  i=(i+1+Math.floor(Math.random()*(F.length-1)))%F.length;
+  p.textContent=F[i].text;s.textContent=F[i].src;s.href=F[i].url;});})();</script>
 {% endblock %}"""
 
 GENMAC = """{% macro genlist(gid, groups, total, filter_id, q='') %}
@@ -1258,7 +1306,7 @@ ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUB
                                      "stats": STATS, "legal": LEGAL, "map": MAP,
                                      "art_index": ART_INDEX, "art": ART, "art_missing": ART_MISSING,
                                      "shops": SHOPS, "shop": SHOP, "genmac": GENMAC,
-                                     "rueckblick": RUECKBLICK}),
+                                     "rueckblick": RUECKBLICK, "rueckblick_wait": RUECKBLICK_WAIT}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -2256,11 +2304,23 @@ async def h_rueckblick(req):
     """Öffentlicher Jahresrückblick (nur Summen). 30-min-Cache je Jahr."""
     from utils import year_review as YR
     from utils import directory as dirx
+    from utils.localization import l10n
     lang = pick_lang(req)
-    now_y = datetime.now(BERLIN).year
-    year = int(req.match_info.get("year") or now_y)
-    if year < 2020 or year > now_y:
-        raise web.HTTPFound(f"/rueckblick/{now_y}?lang={lang}")
+    if not YR.is_open():
+        # Außerhalb 1. Nov bis 31. Jan: Hinweisseite mit Ameisen-Fakten (Quellen verlinkt).
+        from utils import ant_facts
+        facts = ant_facts.all_for(lang)
+        start = ant_facts.pick(lang)["index"]
+        resp = _render(req, "rueckblick_wait", title=translate(lang, "yr_wait_h"),
+                       facts=facts, start=start, opens=YR.next_open().strftime("%d.%m.%Y"),
+                       ry=YR.next_open().year)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    ry = YR.review_year()
+    fy = await YR.first_year(req.app["bot"])
+    year = int(req.match_info.get("year") or ry)
+    if year < fy or year > ry:
+        raise web.HTTPFound(f"/rueckblick/{ry}?lang={lang}")
     hit = _YR_CACHE.get(year)
     if hit and time.time() - hit[0] < 1800:
         d = hit[1]
@@ -2268,7 +2328,32 @@ async def h_rueckblick(req):
         d = await YR.community(req.app["bot"], year)
         _YR_CACHE[year] = (time.time(), d)
     names = {dom: sh["name"] for dom, sh in (await asyncio.to_thread(dirx.all_shops)).items()}
-    return _render(req, "rueckblick", title=translate(lang, "yr_page_h", y=year), d=d, names=names)
+    # Persönlicher Teil: nur für eingeloggte AAM-Mitglieder, nie gecacht, nur eigene Daten.
+    me = None
+    uid = _aam_member(req)
+    if uid:
+        me = await YR.personal(req.app["bot"], uid, year)
+        me["name"] = _member_name(req.app, uid) or ""
+        me["has"] = bool(me["commands"] or me["achievements"] or me["reviews"]
+                         or me["notifications"] or me["watches"] or me["tracked"])
+        try:
+            from utils.achievements import ACHIEVEMENTS
+            emo = {a.id: a.emoji for a in ACHIEVEMENTS}
+        except Exception:
+            emo = {}
+        me["ach"] = [(emo.get(a, "🏅"), l10n.get(f"ach_{a}_t", lang)) for a in me["achievements"]]
+        for k in ("first", "reviews_first"):
+            try:
+                me[k] = datetime.fromisoformat(me[k]).strftime("%d.%m.%Y") if me[k] else None
+            except ValueError:
+                me[k] = None
+    tp = lambda key, **kw: l10n.get(key, lang, **kw)
+    resp = _render(req, "rueckblick", title=translate(lang, "yr_page_h", y=year), d=d, names=names,
+                   me=me, tp=tp, login_url="" if uid else _login_url(req),
+                   years=list(range(ry, fy - 1, -1)))
+    if uid:
+        resp.headers["Cache-Control"] = "private, no-store"   # persönliche Daten nie zwischenspeichern
+    return resp
 
 
 async def h_static(req):
@@ -2713,11 +2798,11 @@ def _map_rate_ok(req) -> bool:
 
 
 _LOGIN_NEXT_COOKIE = "board_login_next"
-_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop|admin)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
+_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop|admin|rueckblick)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
 
 
 def _login_next(path: str) -> str:
-    """Rücksprung nach dem Discord-Login – nur auf Art-/Händlerseiten (Whitelist)."""
+    """Rücksprung nach dem Discord-Login – nur auf Art-/Händler-/Rückblickseiten (Whitelist)."""
     p = (path or "").strip()
     return p if _LOGIN_NEXT_RE.match(p) else ""
 
