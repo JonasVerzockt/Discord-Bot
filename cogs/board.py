@@ -4109,6 +4109,10 @@ KONTO = """{% extends "base" %}{% block body %}
  .hist div{padding:5px 0;border-bottom:1px solid #161b22;font-size:14px} .hist .w{color:#8b949e;font-size:12px;margin-right:8px;white-space:nowrap}
  .codebox{font:600 20px ui-monospace,monospace;background:#0d1117;border:1px dashed #58a6ff;border-radius:8px;padding:8px 14px;display:inline-block;letter-spacing:1px}
  .danger{border-color:#8b2b2b !important}
+ .kdanger{display:none !important} .kunlocked .kdanger{display:inline-block !important} .kunlocked .kdanger.kb{display:block !important}
+ .kunlocked .klocked{display:none !important}
+ .kunlock{display:flex;gap:10px;align-items:flex-start;background:#8b2b2b22;border:1px solid #8b2b2b;border-radius:8px;padding:10px 12px;margin:10px 0 4px;cursor:pointer}
+ .kunlock input{width:auto;margin-top:4px} .kunlock b{display:block}
  .kt input,.kt select{padding:4px 6px}
  @media(max-width:700px){.kt .hm{display:none}}
 </style>
@@ -4119,9 +4123,12 @@ KONTO = """{% extends "base" %}{% block body %}
 </div>
 {% else %}
 {% macro cs() %}<input type=hidden name=csrf value="{{ csrf }}">{% endmacro %}
+{% macro ul() %}<input type=hidden name=unlock value="" class=kul>{% endmacro %}
 {% macro act(a) %}/konto/{{ a }}{{ qs() }}{% endmacro %}
 <h2 style="margin-bottom:4px">👤 {{ t('konto_h') }}{% if member_name %} · {{ member_name }}{% endif %}</h2>
 <p class=muted style="margin-top:0">🔒 {{ t('konto_intro') }}</p>
+<label class=kunlock for=kunlock><input type=checkbox id=kunlock autocomplete=off><span><b>🗑️ {{ t('konto_unlock_t') }}</b><span class=muted>{{ t('konto_unlock_s') }}</span></span></label>
+<script>(function(){var c=document.getElementById("kunlock");c.checked=false;function u(){document.body.classList.toggle("kunlocked",c.checked);document.querySelectorAll(".kul").forEach(function(i){i.value=c.checked?"1":"";});}c.addEventListener("change",u);window.addEventListener("pageshow",function(){c.checked=false;u();});u();})();</script>
 <nav class=secnav>
  <a href="#uebersicht">{{ t('konto_s_overview') }}</a><a href="#benachrichtigungen">{{ t('konto_s_notif') }}</a><a href="#preise">{{ t('konto_s_prices') }}</a><a href="#einstellungen">{{ t('konto_s_settings') }}</a><a href="#termine">{{ t('konto_s_events') }}</a><a href="#karte">{{ t('konto_s_map') }}</a><a href="#inat">{{ t('konto_s_inat') }}</a><a href="#erfolge">{{ t('konto_s_ach') }}</a><a href="#bewertungen">{{ t('konto_s_reviews') }}</a><a href="#verlauf">{{ t('konto_s_history') }}</a><a href="#daten">{{ t('konto_s_data') }}</a>
 </nav>
@@ -4154,10 +4161,10 @@ KONTO = """{% extends "base" %}{% block body %}
  <td><span class="pill {{ 'p-active' if n.status == 'active' else ('p-paused' if n.status == 'paused' else 'p-done') }}">{{ t('konto_st_' ~ (n.status if n.status in sts else 'other')) }}</span>{% if n.notified_at %}<div class=muted>{{ t('konto_notified') }} {{ n.notified_at|dmy }}</div>{% endif %}</td>
  <td class=hm>{{ n.created_at|dmy }}</td>
  <td style="white-space:nowrap">
-  <form class=inl method=post action="{{ act('benachrichtigung') }}">{{ cs() }}<input type=hidden name=id value="{{ n.id }}">
+  <form class=inl method=post action="{{ act('benachrichtigung') }}">{{ cs() }}{{ ul() }}<input type=hidden name=id value="{{ n.id }}">
   {% if n.status == 'active' %}<button class="btn grey small" name=do value=pause>⏸️ {{ t('konto_pause') }}</button>
   {% else %}<button class="btn small" name=do value=resume>▶️ {{ t('konto_resume') }}</button>{% endif %}
-  <button class="btn red small" name=do value=delete onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form>
+  <button class="btn red small kdanger" name=do value=delete onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form>
  </td></tr>{% endfor %}</table>
 {% else %}<p>{{ t('konto_notif_none') }}</p>{% endif %}
 <details class=chartbox {% if open_form == 'notif' %}open{% endif %}><summary style="cursor:pointer;font-weight:600">➕ {{ t('konto_notif_new') }}</summary>
@@ -4191,7 +4198,7 @@ KONTO = """{% extends "base" %}{% block body %}
   <input name=price inputmode=decimal style="width:80px" value="{{ ('%.2f'|format(p.target_price)) if p.target_price is not none else '' }}" placeholder="{{ p.currency_iso }}">
   <select name=mode style="width:auto"><option value=additional {% if p.target_mode != 'replace' %}selected{% endif %}>{{ t('konto_mode_add') }}</option><option value=replace {% if p.target_mode == 'replace' %}selected{% endif %}>{{ t('konto_mode_replace') }}</option></select>
   <button class="btn grey small">🎯</button></form></td>
- <td><form class=inl method=post action="{{ act('preis/entfernen') }}">{{ cs() }}<input type=hidden name=pid value="{{ p.product_id }}"><input type=hidden name=vid value="{{ p.variant_id }}"><button class="btn red small" onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form></td>
+ <td><form class="inl kdanger" method=post action="{{ act('preis/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=pid value="{{ p.product_id }}"><input type=hidden name=vid value="{{ p.variant_id }}"><button class="btn red small" onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form></td>
 </tr>{% endfor %}</table>
 <p class=muted>{{ t('konto_target_hint') }}</p>
 {% else %}<p>{{ t('konto_tracked_none') }}</p>{% endif %}
@@ -4213,7 +4220,7 @@ KONTO = """{% extends "base" %}{% block body %}
 
 <h4 style="margin:16px 0 6px">{{ t('konto_watches_h') }}</h4>
 <p class=muted style="margin-top:0">{{ t('konto_watches_intro') }}</p>
-{% if d.watches %}<div>{% for w in d.watches %}<form class=inl method=post action="{{ act('beobachtung/entfernen') }}">{{ cs() }}<input type=hidden name=species value="{{ w.species }}"><span class=tag style="font-size:13px;padding:3px 8px"><i>{{ w.species|capitalize }}</i>{% if w.is_genus %} ({{ t('konto_kind_genus') }}){% endif %} <button class="btn red small" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>
+{% if d.watches %}<div>{% for w in d.watches %}<form class=inl method=post action="{{ act('beobachtung/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=species value="{{ w.species }}"><span class=tag style="font-size:13px;padding:3px 8px"><i>{{ w.species|capitalize }}</i>{% if w.is_genus %} ({{ t('konto_kind_genus') }}){% endif %} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>
 {% else %}<p>{{ t('konto_watches_none') }}</p>{% endif %}
 <form method=post action="{{ act('beobachtung/neu') }}" class=kform>{{ cs() }}
  <div style="flex:3"><label>{{ t('konto_watch_new') }}</label><input name=species list=kspecies required maxlength=80 placeholder="Camponotus"></div>
@@ -4241,14 +4248,14 @@ KONTO = """{% extends "base" %}{% block body %}
 
 <h4 style="margin:18px 0 6px">🚫 {{ t('konto_bl_h') }}</h4>
 <p class=muted style="margin-top:0">{{ t('konto_bl_intro') }}</p>
-{% if blacklist %}<div>{% for sid, sname in blacklist %}<form class=inl method=post action="{{ act('blacklist/entfernen') }}">{{ cs() }}<input type=hidden name=shop value="{{ sid }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ sname }} <button class="btn red small" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_bl_none') }}</p>{% endif %}
+{% if blacklist %}<div>{% for sid, sname in blacklist %}<form class=inl method=post action="{{ act('blacklist/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=shop value="{{ sid }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ sname }} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_bl_none') }}</p>{% endif %}
 <form method=post action="{{ act('blacklist/neu') }}" class=kform>{{ cs() }}
  <div style="flex:3"><label>{{ t('konto_bl_add') }}</label><select name=shop required><option value="">…</option>{% for sid, sname in shops %}<option value="{{ sid }}">{{ sname }}</option>{% endfor %}</select></div>
  <button class="btn grey">{{ t('konto_add') }}</button></form>
 
 <h4 style="margin:18px 0 6px">🛒 {{ t('konto_kw_h') }}</h4>
 <p class=muted style="margin-top:0">{{ t('konto_kw_intro', n=kw_max) }}</p>
-{% if d.keywords %}<div>{% for k in d.keywords %}<form class=inl method=post action="{{ act('schlagwort/entfernen') }}">{{ cs() }}<input type=hidden name=kw value="{{ k.keyword }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ k.keyword_raw or k.keyword }} <button class="btn red small" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_kw_none') }}</p>{% endif %}
+{% if d.keywords %}<div>{% for k in d.keywords %}<form class=inl method=post action="{{ act('schlagwort/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=kw value="{{ k.keyword }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ k.keyword_raw or k.keyword }} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_kw_none') }}</p>{% endif %}
 {% if kw_enabled %}<form method=post action="{{ act('schlagwort/neu') }}" class=kform>{{ cs() }}
  <div style="flex:3"><label>{{ t('konto_kw_add') }}</label><input name=kw required maxlength=400 placeholder="Lasius niger, Formicarium"></div>
  <button class="btn grey">{{ t('konto_add') }}</button></form>{% endif %}
@@ -4260,7 +4267,7 @@ KONTO = """{% extends "base" %}{% block body %}
  <td>{{ r.title }}{% if r.url %} <a href="{{ r.url }}" target=_blank rel="noopener noreferrer">🔗</a>{% endif %}</td>
  <td class=hm>{{ r.venue or '' }}{% if r.country %} ({{ r.country|upper }}){% endif %}</td>
  <td style="white-space:nowrap"><a class="btn grey small" href="/map/events/{{ r.event_id }}.ics">📥</a>
-  <form class=inl method=post action="{{ act('termin/absagen') }}">{{ cs() }}<input type=hidden name=eid value="{{ r.event_id }}"><input type=hidden name=occ value="{{ r.occ_date }}"><button class="btn red small">{{ t('konto_cancel') }}</button></form></td></tr>{% endfor %}</table>
+  <form class="inl kdanger" method=post action="{{ act('termin/absagen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=eid value="{{ r.event_id }}"><input type=hidden name=occ value="{{ r.occ_date }}"><button class="btn red small">{{ t('konto_cancel') }}</button></form></td></tr>{% endfor %}</table>
 {% else %}<p>{{ t('konto_events_none') }} <a href="/map{{ qs() }}">{{ t('nav_map') }}</a></p>{% endif %}
 <div class=chartbox><h4>🗓️ {{ t('konto_ics_h') }}</h4>
  <p class=muted style="margin-top:0">{{ t('konto_ics_intro') }}</p>
@@ -4278,7 +4285,7 @@ KONTO = """{% extends "base" %}{% block body %}
  {% for g in tag_groups %}<label>{{ g.label }}</label><div>{% for c, l in g.tags %}<span class=kchk><input type=checkbox name=tag value="{{ c }}" {% if c in d.map_tags %}checked{% endif %}> {{ l }}</span>{% endfor %}</div>{% endfor %}
  <p><button class="btn grey">{{ t('konto_map_tags_save') }}</button></p></form>
  <p class=muted>{{ t('konto_map_change') }}</p>
- <form method=post action="{{ act('karte/loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_map')|tojson }})">{{ cs() }}<button class="btn red">🗑️ {{ t('konto_map_delete') }}</button></form>
+ <form class="kdanger kb" method=post action="{{ act('karte/loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_map')|tojson }})">{{ cs() }}{{ ul() }}<button class="btn red">🗑️ {{ t('konto_map_delete') }}</button></form>
 {% else %}<p>{{ t('konto_map_none') }}</p>{% endif %}
 </section>
 
@@ -4334,10 +4341,11 @@ KONTO = """{% extends "base" %}{% block body %}
  <a class=btn href="/konto/daten.json{{ qs() }}">{{ t('konto_export_btn') }}</a></div>
 <div class=chartbox><h4>🔑 {{ t('konto_sessions_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_sessions_intro') }}</p>
  <form method=post action="{{ act('abmelden') }}" onsubmit="return confirm({{ t('konto_confirm_logout')|tojson }})">{{ cs() }}<button class="btn grey">{{ t('konto_logout_all') }}</button></form></div>
-<div class="chartbox danger"><h4>🗑️ {{ t('konto_delete_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_delete_intro') }}</p>
+<div class="chartbox klocked" style="border-style:dashed">🔒 {{ t('konto_delete_locked') }} <a href="#kunlock">{{ t('konto_delete_locked_link') }}</a></div>
+<div class="chartbox danger kdanger kb"><h4>🗑️ {{ t('konto_delete_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_delete_intro') }}</p>
  <table class=kt>{% for a in areas %}<tr><td><b>{{ t('konto_area_' ~ a) }}</b><div class=muted>{{ t('konto_area_' ~ a ~ '_d') }}</div></td>
-  <td style="white-space:nowrap;text-align:right"><form class=inl method=post action="{{ act('loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_area')|tojson }})">{{ cs() }}<input type=hidden name=area value="{{ a }}"><button class="btn red small">{{ t('konto_delete_btn') }}</button></form></td></tr>{% endfor %}</table>
- <form method=post action="{{ act('loeschen') }}" style="margin-top:14px" onsubmit="return confirm({{ t('konto_confirm_all')|tojson }})">{{ cs() }}<input type=hidden name=area value=all>
+  <td style="white-space:nowrap;text-align:right"><form class=inl method=post action="{{ act('loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_area')|tojson }})">{{ cs() }}{{ ul() }}<input type=hidden name=area value="{{ a }}"><button class="btn red small">{{ t('konto_delete_btn') }}</button></form></td></tr>{% endfor %}</table>
+ <form method=post action="{{ act('loeschen') }}" style="margin-top:14px" onsubmit="return confirm({{ t('konto_confirm_all')|tojson }})">{{ cs() }}{{ ul() }}<input type=hidden name=area value=all>
   <span class=kchk><input type=checkbox name=sure value=1 required> {{ t('konto_delete_all_sure') }}</span>
   <button class="btn red">{{ t('konto_delete_all') }}</button></form>
  <p class=muted style="margin-bottom:0">{{ t('konto_delete_note', d=log_days) }}</p>
@@ -4370,6 +4378,8 @@ def _f_berlin(v) -> str:
 ENV.filters["dmy"] = _f_dmy
 ENV.filters["berlin"] = _f_berlin
 
+_KONTO_DANGER = {"preis/entfernen", "beobachtung/entfernen", "blacklist/entfernen", "schlagwort/entfernen",
+                 "termin/absagen", "karte/loeschen", "loeschen"}
 _KONTO_STATUSES = ("active", "paused", "completed", "pending_feedback", "expired", "failed")
 _KONTO_SPECIES_CACHE: dict = {"at": 0.0, "names": []}
 _MD_STRIP = re.compile(r"(\*\*|__|`+)")
@@ -4520,6 +4530,10 @@ async def h_konto_post(req):
     bot = req.app["bot"]
     act = req.match_info["action"]
     T = lambda key, **kw: translate(lang, key, **kw)
+    # Löschen nur mit freigeschaltetem Schalter „Löschen freischalten“ (Seite oben).
+    if (act in _KONTO_DANGER or (act == "benachrichtigung" and form.get("do") == "delete")) \
+            and form.get("unlock") != "1":
+        raise _konto_back(req, "locked", "")
 
     # ── Benachrichtigungen ────────────────────────────────────────────────────
     if act == "benachrichtigung":
