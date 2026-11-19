@@ -555,7 +555,6 @@ T: dict[str, dict[str, str]] = {
 
 # ── Artensteckbrief & Händlerseiten ─────────────────────────────────────────
 T.update({
-    'nav_yearreview': {"de": '🎆 Jahresrückblick', "en": '🎆 Year in review', "eo": '🎆 Jarresumo'},
     'yr_page_h': {"de": 'Jahresrückblick {y}', "en": 'Year in review {y}', "eo": 'Jarresumo {y}'},
     'yr_page_intro': {"de": 'Das Ameisenjahr {y} der Community in Zahlen. Guten Rutsch ins Jahr {n}!', "en": "The community's ant year {y} in numbers. Happy New Year {n}!", "eo": 'La formika jaro {y} de la komunumo en nombroj. Feliĉan novjaron {n}!'},
     'yr_k_reviews': {"de": 'neue Bewertungen', "en": 'new ratings', "eo": 'novaj taksoj'},
@@ -571,7 +570,17 @@ T.update({
     'yr_best_l': {"de": 'Am besten bewertet (ab 4 Bewertungen)', "en": 'Best rated (4+ ratings)', "eo": 'Plej bone taksitaj (ekde 4 taksoj)'},
     'yr_fast_l': {"de": 'Schnellster Versand', "en": 'Fastest shipping', "eo": 'Plej rapida sendado'},
     'yr_drops_h': {"de": 'Größte Preisstürze', "en": 'Biggest price drops', "eo": 'Plej grandaj prezfaloj'},
-    'yr_page_note': {"de": 'Nur Summen, keine Personen. Werte unter 3 erscheinen als „< 3“. Deinen persönlichen Rückblick gibt es im Discord mit /rueckblick.', "en": 'Totals only, no individuals. Values below 3 are shown as “< 3”. Your personal review is available on Discord via /rueckblick.', "eo": 'Nur sumoj, neniuj personoj. Valoroj sub 3 aperas kiel „< 3“. Vian personan resumon vi trovas en Discord per /rueckblick.'},
+    'yr_page_note': {"de": 'Gemeinschaftsteil: nur Summen, keine Personen. Werte unter 3 erscheinen als „< 3“. Deinen persönlichen Rückblick gibt es auch im Discord mit /rueckblick.', "en": 'Community part: totals only, no individuals. Values below 3 are shown as “< 3”. Your personal review is also available on Discord via /rueckblick.', "eo": 'Komunuma parto: nur sumoj, neniuj personoj. Valoroj sub 3 aperas kiel „< 3“. Vian personan resumon vi trovas ankaŭ en Discord per /rueckblick.'},
+    'yr_me_login': {"de": 'Mit Discord einloggen und deinen persönlichen Rückblick sehen (nur für dich sichtbar).', "en": 'Log in with Discord to see your personal year in review (visible only to you).', "eo": 'Ensalutu per Discord por vidi vian personan jaran resumon (videbla nur por vi).'},
+    'yr_me_private': {"de": 'Nur für dich sichtbar', "en": 'Visible only to you', "eo": 'Videbla nur por vi'},
+    'yr_tile_now': {"de": 'angezeigt', "en": 'shown', "eo": 'montrata'},
+    'yr_tile_open': {"de": 'ansehen', "en": 'view', "eo": 'rigardi'},
+    'yr_wait_h': {"de": 'Der Jahresrückblick hält gerade Winterruhe', "en": 'The year in review is hibernating', "eo": 'La jara resumo nun vintrumas'},
+    'yr_wait_text': {"de": 'Der Rückblick auf {y} öffnet am {d} und bleibt bis Ende Januar offen. Bis dahin: ein paar Ameisen-Fakten.', "en": 'The review of {y} opens on {d} and stays open until the end of January. Until then: some ant facts.', "eo": 'La resumo pri {y} malfermiĝos je {d} kaj restos malfermita ĝis la fino de januaro. Ĝis tiam: kelkaj faktoj pri formikoj.'},
+    'yr_wait_fact_h': {"de": 'Schon gewusst?', "en": 'Did you know?', "eo": 'Ĉu vi sciis?'},
+    'yr_wait_src': {"de": 'Quelle', "en": 'Source', "eo": 'Fonto'},
+    'yr_wait_more': {"de": 'Noch ein Fakt', "en": 'Another fact', "eo": 'Plia fakto'},
+    'yr_community_h': {"de": 'Die Community', "en": 'The community', "eo": 'La komunumo'},
     'dir_days': {"de": 'Tage', "en": 'days', "eo": 'tagoj'},
     'dir_kpi_delivery': {"de": 'Ø Lieferzeit ({n} Bewertungen)', "en": 'Ø delivery time ({n} ratings)', "eo": 'Ø liverdaŭro ({n} taksoj)'},
     'dir_delivery_exp': {"de": 'Kalendertage von Bestellung bis Ankunft, wie in den Bewertungen beschrieben. Median: {m} Tage.', "en": 'Calendar days from order to arrival as described in the ratings. Median: {m} days.', "eo": 'Kalendaraj tagoj de mendo ĝis alveno laŭ la taksoj. Mediano: {m} tagoj.'},

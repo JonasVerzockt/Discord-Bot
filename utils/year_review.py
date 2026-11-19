@@ -195,3 +195,58 @@ def mask(n) -> str:
 
 def current_year() -> int:
     return datetime.now(timezone.utc).year
+
+
+# ── Zeitfenster: Rückblick nur vom 1. November bis 31. Januar ───────────────────
+OPEN_MONTHS = (11, 12, 1)
+OPENS_MONTH = 11
+
+
+def is_open(now: datetime | None = None) -> bool:
+    """True vom 1. November bis 31. Januar (Berliner Zeit)."""
+    from utils.timez import BERLIN
+    now = now or datetime.now(BERLIN)
+    return now.month in OPEN_MONTHS
+
+
+def review_year(now: datetime | None = None) -> int:
+    """Jahr, um das es gerade geht: Nov/Dez das laufende, im Januar das Vorjahr.
+    Außerhalb des Fensters das zuletzt abgeschlossene Jahr."""
+    from utils.timez import BERLIN
+    now = now or datetime.now(BERLIN)
+    return now.year if now.month >= OPENS_MONTH else now.year - 1
+
+
+def next_open(now: datetime | None = None) -> datetime:
+    """Nächster Öffnungstag (1. November)."""
+    from utils.timez import BERLIN
+    now = now or datetime.now(BERLIN)
+    return datetime(now.year, OPENS_MONTH, 1)
+
+
+_FIRST_YEAR: list = []
+
+
+async def first_year(bot) -> int:
+    """Erstes Jahr mit Daten (älteste Bewertung im Sheet oder ältester Befehl)."""
+    if _FIRST_YEAR:
+        return _FIRST_YEAR[0]
+    years = []
+    try:
+        from utils.sheet import sheet
+        for r in (getattr(sheet, "_rows", None) or [])[1:]:
+            d = (r[0] if r else "").strip()
+            if len(d) == 10 and d[6:10].isdigit():
+                years.append(int(d[6:10]))
+    except Exception:
+        pass
+    try:
+        r = await execute_db(bot, "SELECT MIN(substr(created_at,1,4)) FROM command_log", fetch=True)
+        if r and r[0][0]:
+            years.append(int(r[0][0]))
+    except Exception:
+        pass
+    y = max(2020, min(years)) if years else review_year()
+    if years:
+        _FIRST_YEAR.append(y)
+    return y
