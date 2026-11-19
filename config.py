@@ -162,6 +162,13 @@ AI_CHAT_BUDGET_OUTPUT_RATIO = float(os.getenv("AI_CHAT_BUDGET_OUTPUT_RATIO", "0.
 # Reply-Fortsetzungen (aktive Gespraeche), wo Folge-Turns den Cache lesen.
 # Kalte Einzelfragen bleiben ungecacht. false = Caching komplett aus.
 AI_CHAT_PROMPT_CACHE = os.getenv("AI_CHAT_PROMPT_CACHE", "true").lower() == "true"
+# Werkzeuge (Tool Use): der Chat fragt Angebote, Preise, Shops und Codes selbst ab.
+AI_CHAT_TOOLS = os.getenv("AI_CHAT_TOOLS", "true").lower() == "true"
+# Höchstens so viele Werkzeug-Runden pro Frage (jede Runde = ein weiterer API-Aufruf).
+AI_CHAT_TOOL_ROUNDS = int(os.getenv("AI_CHAT_TOOL_ROUNDS", "3"))
+
+# Jahresrückblick: Kanal für den Post am 31.12. um 23 Uhr (Berliner Zeit). 0 = kein Post.
+YEAR_REVIEW_CHANNEL_ID = int(os.getenv("YEAR_REVIEW_CHANNEL_ID", "0") or "0")
 
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
