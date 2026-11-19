@@ -34,7 +34,7 @@ from utils import directory as D
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.timez import BERLIN
-from cogs.server_settings import admin_or_manage_messages
+from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
 _COLOR = 0xD29922
@@ -191,6 +191,7 @@ class YearReviewCog(commands.Cog, name="YearReview"):
         description="Your personal year in review (only visible to you)",
         description_localizations={"de": "Dein persönlicher Jahresrückblick (nur für dich sichtbar)"},
     )
+    @allowed_channel()
     async def rueckblick(
         self, ctx: discord.ApplicationContext,
         jahr: discord.Option(int, "Year (default: the year currently under review)", required=False, default=None,

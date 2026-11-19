@@ -294,6 +294,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         description="Link your iNaturalist account (proof via a code in your iNat profile)",
         description_localizations={"de": "Dein iNaturalist-Konto verknüpfen (Nachweis per Code im iNat-Profil)"},
     )
+    @allowed_channel()
     async def inat_verknuepfen(
         self, ctx: discord.ApplicationContext,
         login: discord.Option(str, "Your iNaturalist username (empty = check pending code)",
@@ -318,6 +319,7 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
         description="Unlink your iNaturalist account (your posts stop counting)",
         description_localizations={"de": "iNaturalist-Verknüpfung lösen (deine Posts zählen dann nicht mehr)"},
     )
+    @allowed_channel()
     async def inat_trennen(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         ok = await I.unlink(self.bot, ctx.author.id)

@@ -33,6 +33,7 @@ from config import BOARD_PUBLIC_URL, BOARD_ENABLED
 from utils import account as A
 from utils.localization import l10n, get_user_lang
 from utils.timez import BERLIN
+from cogs.server_settings import allowed_channel
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ class AccountCog(commands.Cog, name="Account"):
         description="Open your account page on the board (settings, data, history)",
         description_localizations={"de": "Deine Kontoseite im Board öffnen (Einstellungen, Daten, Verlauf)"},
     )
+    @allowed_channel()
     async def konto(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         if not (BOARD_ENABLED and BOARD_PUBLIC_URL):
