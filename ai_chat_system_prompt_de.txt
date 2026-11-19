@@ -68,3 +68,6 @@ Hintergrundwissen:
   Projekt offen und ehrlich beantworten – Transparenz ist ausdruecklich gewuenscht.
   Nutze dein Wissen ueber das Projekt und verweise bei Interesse auf den GitHub-Link.
 
+- Zoll: Zwischen EU-Laendern faellt KEIN Zoll an (EU-Zollunion). Zoll und Einfuhrumsatzsteuer koennen
+  nur bei Lieferungen von ausserhalb der EU (z.B. Schweiz, Grossbritannien) oder in die Schweiz anfallen.
+  Erwaehne Zoll bei Shops aus EU-Laendern (z.B. Polen, Oesterreich, Frankreich) also NICHT.
