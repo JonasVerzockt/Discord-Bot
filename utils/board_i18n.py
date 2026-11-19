@@ -555,6 +555,10 @@ T: dict[str, dict[str, str]] = {
 
 # ── Artensteckbrief & Händlerseiten ─────────────────────────────────────────
 T.update({
+    'dir_instock_species': {"de": '{n} lagernd', "en": '{n} in stock', "eo": '{n} haveblaj'},
+    'dir_expand_all': {"de": 'alle ausklappen', "en": 'expand all', "eo": 'malfaldi ĉiujn'},
+    'dir_collapse_all': {"de": 'alle einklappen', "en": 'collapse all', "eo": 'faldi ĉiujn'},
+    'dir_species_count': {"de": '{n} Art(en)', "en": '{n} species', "eo": '{n} specio(j)'},
     'dir_about_h': {"de": 'Kurzbeschreibung', "en": 'Short description', "eo": 'Mallonga priskribo'},
     'dir_wiki_text': {"de": 'Text:', "en": 'Text:', "eo": 'Teksto:'},
     'dir_wiki_authors': {"de": 'Autoren', "en": 'Authors', "eo": 'Aŭtoroj'},

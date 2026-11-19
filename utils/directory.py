@@ -73,9 +73,45 @@ def unslug(s: str) -> str:
 
 
 # ── Index aus shops_data.json ─────────────────────────────────────────────────
+def _orig_price(p: dict) -> tuple[float | None, str]:
+    """Niedrigster positiver Preis in der Originalwährung (für Anzeige ohne Kurs)."""
+    from utils.shop_stats import _num
+    cur = (p.get("currency_iso") or "EUR").upper()
+    vals = []
+    variants = p.get("variants") or []
+    active = [v for v in variants if v.get("is_active", True)]
+    for v in (active or variants):
+        x = _num(v.get("price"))
+        if x and x > 0:
+            vals.append((x, (v.get("currency_iso") or cur).upper()))
+    if not vals:
+        for fld in ("min_price", "max_price"):
+            x = _num(p.get(fld))
+            if x and x > 0:
+                vals.append((x, cur))
+                break
+    if not vals:
+        return None, cur
+    x, c = min(vals)
+    return round(x, 2), c
+
+
+def fmt_price(o: dict) -> str:
+    """'23,50 €' · fremde Währung: '23,50 € (34,49 CAD)' · ohne Kurs: '34,49 CAD'."""
+    def f(v, c):
+        return f"{v:.2f}".replace(".", ",") + (" €" if c == "EUR" else f" {c}")
+    eur, orig, cur = o.get("price"), o.get("price_orig"), o.get("currency") or "EUR"
+    if eur is not None and (cur == "EUR" or orig is None):
+        return f(eur, "EUR")
+    if eur is not None:
+        return f"{f(eur, 'EUR')} ({f(orig, cur)})"
+    return f(orig, cur) if orig is not None else "–"
+
+
 def _build(d: dict) -> dict:
     shops: dict[str, dict] = {}
     species: dict[str, dict] = {}
+    fx_missing = 0
     for s in _iter_shops(d):
         dom = domain_of(s.get("url") or "") or (s.get("name") or "").strip().lower()
         if not dom:
@@ -94,10 +130,14 @@ def _build(d: dict) -> dict:
                 continue
             key = cs_raw.lower() if cs_raw else ""
             eur = _entry_price_eur(p)
+            orig, cur = _orig_price(p)
+            if eur is None and orig is not None:
+                fx_missing += 1                     # Kurs fehlte beim Aufbau
             offer = {
                 "pid": p.get("id"), "species": name, "key": key,
                 "shop": sh["name"], "domain": dom,
                 "price": round(eur, 2) if eur else None,
+                "price_orig": orig, "currency": cur,
                 "in_stock": bool(p.get("in_stock") and p.get("is_active")),
                 "url": p.get("shop_url") or p.get("antcheck_url") or sh["url"],
             }
@@ -131,14 +171,18 @@ def _build(d: dict) -> dict:
         sh["instock_count"] = sum(1 for o in sh["offers"] if o["in_stock"])
         sh["species"] = sorted(species[k]["name"] for k in sh["species"])
     meta = d.get("_meta", {}) if isinstance(d.get("_meta"), dict) else {}
-    return {"shops": shops, "species": species, "fetched_at": meta.get("fetched_at")}
+    return {"shops": shops, "species": species, "fetched_at": meta.get("fetched_at"),
+            "fx_missing": fx_missing}
 
 
 def index(force: bool = False) -> dict:
     now = time.time()
     with _lock:
-        if not force and _cache["data"] is not None and now - _cache["at"] < _TTL:
-            return _cache["data"]
+        data = _cache["data"]
+        # Fehlten beim letzten Aufbau Wechselkurse, nach 60 s neu rechnen statt 15 min
+        ttl = 60 if (data and data.get("fx_missing")) else _TTL
+        if not force and data is not None and now - _cache["at"] < ttl:
+            return data
     try:
         with open(SHOPS_DATA_FILE, encoding="utf-8") as f:
             d = json.load(f)
