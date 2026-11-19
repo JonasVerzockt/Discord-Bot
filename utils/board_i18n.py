@@ -570,6 +570,7 @@ T.update({
     'yr_best_l': {"de": 'Am besten bewertet (ab 4 Bewertungen)', "en": 'Best rated (4+ ratings)', "eo": 'Plej bone taksitaj (ekde 4 taksoj)'},
     'yr_fast_l': {"de": 'Schnellster Versand', "en": 'Fastest shipping', "eo": 'Plej rapida sendado'},
     'yr_drops_h': {"de": 'Größte Preisstürze', "en": 'Biggest price drops', "eo": 'Plej grandaj prezfaloj'},
+    'nav_yearreview': {"de": '🎆 Jahresrückblick', "en": '🎆 Year in review', "eo": '🎆 Jarresumo'},
     'yr_page_note': {"de": 'Gemeinschaftsteil: nur Summen, keine Personen. Werte unter 3 erscheinen als „< 3“. Deinen persönlichen Rückblick gibt es auch im Discord mit /rueckblick.', "en": 'Community part: totals only, no individuals. Values below 3 are shown as “< 3”. Your personal review is also available on Discord via /rueckblick.', "eo": 'Komunuma parto: nur sumoj, neniuj personoj. Valoroj sub 3 aperas kiel „< 3“. Vian personan resumon vi trovas ankaŭ en Discord per /rueckblick.'},
     'yr_me_login': {"de": 'Mit Discord einloggen und deinen persönlichen Rückblick sehen (nur für dich sichtbar).', "en": 'Log in with Discord to see your personal year in review (visible only to you).', "eo": 'Ensalutu per Discord por vidi vian personan jaran resumon (videbla nur por vi).'},
     'yr_me_private': {"de": 'Nur für dich sichtbar', "en": 'Visible only to you', "eo": 'Videbla nur por vi'},
