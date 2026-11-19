@@ -82,6 +82,15 @@ def community_embed(d: dict, lang: str) -> discord.Embed:
              t("yr_achievements", n=YR.mask(d["achievements"])),
              t("yr_commands", n=YR.mask(d["commands"])), t("yr_notifications", n=YR.mask(d["notifications"]))]
     e.add_field(name=t("yr_h_community"), value="\n".join(lines), inline=False)
+    i = d.get("inat") or {}
+    if i.get("obs"):
+        lines = [t("yr_inat_line", obs=i["obs"], species=i["species"]),
+                 t("yr_inat_people", n=YR.mask(i["people"]))]
+        if i.get("new"):
+            lines.append(t("yr_inat_new", n=i["new"]))
+        if i.get("top"):
+            lines.append(t("yr_inat_top", name=i["top"][0], n=i["top"][1]))
+        e.add_field(name=t("yr_h_inat"), value="\n".join(lines), inline=False)
     e.add_field(name=t("yr_h_personal"), value=t("yr_personal_hint", year=y), inline=False)
     e.set_footer(text=t("yr_footer", next=y + 1))
     return e
@@ -114,13 +123,14 @@ def personal_embed(p: dict, lang: str, user: discord.abc.User) -> discord.Embed:
         except ValueError:
             pass
     e.add_field(name=t("yrp_h_bot"), value="\n".join(lines), inline=False)
-    lines = [t("yrp_notifications", n=p["notifications"]), t("yrp_watches", n=p["watches"]),
-             t("yrp_tracked", n=p["tracked"])]
+    lines = [t(k, n=p[f]) for k, f in (("yrp_notifications", "notifications"),
+                                        ("yrp_watches", "watches"), ("yrp_tracked", "tracked")) if p[f]]
     if p["rsvps"]:
         lines.append(t("yrp_rsvps", n=p["rsvps"]))
     if p.get("inat", {}).get("obs"):
         lines.append(t("yrp_inat", obs=p["inat"]["obs"], species=p["inat"]["species"]))
-    e.add_field(name=t("yrp_h_ants"), value="\n".join(lines), inline=False)
+    if lines:                                    # Nullwerte ausgeblendet
+        e.add_field(name=t("yrp_h_ants"), value="\n".join(lines), inline=False)
     if p["achievements"]:
         try:
             from utils.achievements import ACHIEVEMENTS

@@ -1209,10 +1209,11 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
  <h3 style="margin-top:0">{{ tp('yrp_title', year=d.year, name=me.name) }} <span class=muted style="font-size:12px;font-weight:normal">· 🔒 {{ t('yr_me_private') }}</span></h3>
  {% if not me.has %}<p>{{ tp('yrp_empty', year=d.year) }}</p>{% else %}
  <div class=kpigrid>
-  <div class=kpi><div class=v>{{ me.reviews }}</div><div class=l>{{ tp('yrp_h_reviews') }}</div></div>
-  {% if me.reviews_avg is not none %}<div class=kpi><div class=v>⭐ {{ ('%.1f'|format(me.reviews_avg)).replace('.', ',') if lang == 'de' else '%.1f'|format(me.reviews_avg) }}</div><div class=l>Ø / 10</div></div>{% endif %}
-  <div class=kpi><div class=v>{{ me.commands }}</div><div class=l>{{ tp('yrp_h_bot') }}</div></div>
-  <div class=kpi><div class=v>{{ me.achievements|length }}</div><div class=l>🏅</div></div>
+  <div class=kpi><div class=v>{{ me.reviews }}</div><div class=l>⭐ {{ t('yr_me_k_reviews') }}</div></div>
+  {% if me.reviews_avg is not none %}<div class=kpi><div class=v>⭐ {{ ('%.1f'|format(me.reviews_avg)).replace('.', ',') if lang == 'de' else '%.1f'|format(me.reviews_avg) }}</div><div class=l>{{ t('yr_me_k_avg') }}</div></div>{% endif %}
+  <div class=kpi><div class=v>{{ me.commands }}</div><div class=l>🤖 {{ t('yr_me_k_cmds') }}</div></div>
+  <div class=kpi><div class=v>{{ me.achievements|length }}</div><div class=l>🏅 {{ t('yr_me_k_ach') }}</div></div>
+  {% if me.inat and me.inat.obs %}<div class=kpi><div class=v>{{ me.inat.species }}</div><div class=l>🔬 {{ t('yr_me_k_inat') }}</div></div>{% endif %}
  </div>
  {% if me.reviews %}<h4>{{ tp('yrp_h_reviews') }}</h4>
   <p style="margin:2px 0">{{ tp('yrp_reviews', n=me.reviews) }}</p>
@@ -1223,8 +1224,9 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
   <p style="margin:2px 0">{{ tp('yrp_commands', n=me.commands) }}</p>
   {% if me.top_commands %}<p style="margin:2px 0">{{ tp('yrp_top', list='') }}{% for c, n in me.top_commands %}<code>/{{ c }}</code> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
   {% if me.first %}<p style="margin:2px 0">{{ tp('yrp_first', date=me.first) }}</p>{% endif %}
- <h4>{{ tp('yrp_h_ants') }}</h4>
-  <p style="margin:2px 0">{{ tp('yrp_notifications', n=me.notifications) }} · {{ tp('yrp_watches', n=me.watches) }} · {{ tp('yrp_tracked', n=me.tracked) }}{% if me.rsvps %} · {{ tp('yrp_rsvps', n=me.rsvps) }}{% endif %}</p>
+ {% if me.notifications or me.watches or me.tracked or me.rsvps or (me.inat and me.inat.obs) %}<h4>{{ tp('yrp_h_ants') }}</h4>{% endif %}
+  {% set ants = [] %}{% if me.notifications %}{% set _ = ants.append(tp('yrp_notifications', n=me.notifications)) %}{% endif %}{% if me.watches %}{% set _ = ants.append(tp('yrp_watches', n=me.watches)) %}{% endif %}{% if me.tracked %}{% set _ = ants.append(tp('yrp_tracked', n=me.tracked)) %}{% endif %}{% if me.rsvps %}{% set _ = ants.append(tp('yrp_rsvps', n=me.rsvps)) %}{% endif %}
+  {% if ants %}<p style="margin:2px 0">{{ ants|join(' · ') }}</p>{% endif %}
   {% if me.inat and me.inat.obs %}<p style="margin:2px 0">{{ tp('yrp_inat', obs=me.inat.obs, species=me.inat.species) }}</p>{% endif %}
  {% if me.ach %}<h4>{{ tp('yrp_h_ach', n=me.ach|length) }}</h4>
   <p style="margin:2px 0">{% for e, n in me.ach %}{{ e }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
@@ -1242,7 +1244,14 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
  <div class=kpi><div class=v>{{ d.events }}</div><div class=l>{{ t('yr_k_events') }}</div></div>
  <div class=kpi><div class=v>{{ m(d.achievements) }}</div><div class=l>{{ t('yr_k_ach') }}</div></div>
  <div class=kpi><div class=v>{{ m(d.commands) }}</div><div class=l>{{ t('yr_k_cmds') }}</div></div>
+ {% if d.inat and d.inat.obs %}<div class=kpi><div class=v>{{ d.inat.obs }}</div><div class=l>🔬 {{ t('yr_k_inat_obs') }}</div></div>
+ <div class=kpi><div class=v>{{ d.inat.species }}</div><div class=l>🔬 {{ t('yr_k_inat_species') }}</div></div>{% endif %}
 </div>
+{% if d.inat and d.inat.obs %}<div class=chartbox><h4>🔬 {{ t('yr_inat_h') }}</h4>
+ <p style="margin:2px 0">👥 {{ m(d.inat.people) }} {{ t('yr_inat_people') }}</p>
+ {% if d.inat.new %}<p style="margin:2px 0">🌟 {{ d.inat.new }} {{ t('yr_inat_new') }}</p>{% endif %}
+ {% if d.inat.top %}<p style="margin:2px 0">🏆 {{ t('yr_inat_top') }}: <a href="/art/{{ d.inat.top[0]|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ d.inat.top[0] }}</i></a> ({{ d.inat.top[1] }}×)</p>{% endif %}
+</div>{% endif %}
 {% if d.reviews.most or d.reviews.best or d.fastest %}<div class=chartbox><h4>⭐ {{ t('yr_k_reviews') }}</h4>
  {% if d.reviews.most %}<p>{{ t('yr_most_l') }}: {% for s, n in d.reviews.most %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
  {% if d.reviews.best %}<p>{{ t('yr_best_l') }}: {% for s, a, n in d.reviews.best %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> (⭐ {{ '%.2f'|format(a) }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
