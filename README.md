@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `3.0.4` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `4.0.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -748,8 +748,6 @@ Dauerhafte Statistik für den iNaturalist-Kanal (`INAT_CHANNEL_ID` in `cogs/inat
 
 **Artenliste im Board**: `/inat` zeigt alle je von der Community gefundenen Arten (nach Gattung einklappbar, Beobachtungen und Erstfund-Jahr je Art, nur Summen, keine Namen); verlinkt im Footer und im Rückblick.
 
-**Test auf dem Server**: `python tools/test_inat.py <iNat-Name> [Beobachtungs-ID]` prüft, ob die API Profilname/Bio und Beobachtungsfelder wie erwartet liefert.
-
 ## Erfolge
 
 Sammelbare Achievements – **rein persönlich, ohne Rollen**. Abrufbar per `/achievements`: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und die **Existenz** versteckter Erfolge (🔒 `???`). Pro neu freigeschaltetem Erfolg schickt der Bot eine dezente DM (sind DMs gesperrt, bleibt die Freischaltung trotzdem erhalten).
@@ -1241,9 +1239,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   └── eo.json              # Esperanto
 │
 ├── tools/
-│   ├── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
-│   ├── test_species_profile.py  # Steckbrief (Wikipedia/GBIF) einer Art testen
-│   └── test_inat.py             # iNaturalist-API für die iNat-Statistik testen
+│   └── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
 │
 ├── legal/                   # Rechtsseiten: nur *.example.* im Git, echte Dateien nur auf dem Server
 │
