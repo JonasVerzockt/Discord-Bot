@@ -99,9 +99,18 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     # ── Parameter aufbereiten ────────────────────────────────────────────────
     @staticmethod
     def _format_params(ctx: discord.ApplicationContext) -> str:
-        opts = getattr(ctx, "selected_options", None) or []
+        opts = list(getattr(ctx, "selected_options", None) or [])
+        # Unterbefehle (/bot export …): verschachtelte Optionen flach auslesen,
+        # damit auch dort sensible Werte zuverlässig ausgeblendet werden.
+        flat = []
+        while opts:
+            o = opts.pop(0)
+            if isinstance(o, dict) and "options" in o and "value" not in o:
+                opts = list(o.get("options") or []) + opts
+                continue
+            flat.append(o)
         parts = []
-        for o in opts:
+        for o in flat:
             try:
                 name = o.get("name")
                 value = o.get("value")

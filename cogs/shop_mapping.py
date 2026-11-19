@@ -43,15 +43,15 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
 
     shopmap = discord.SlashCommandGroup(
         "shopmap",
-        "🔒 [Admin] Review-Bot: Shop-Text einer URL zuordnen (löst 🟡 auf)",
+        "🔒 [Admin] Review bot: map a shop text to a URL (resolves 🟡)",
         description_localizations={"de": "🔒 [Admin] Review-Bot: Shop-Text einer URL zuordnen (löst 🟡 auf)"},
         default_member_permissions=discord.Permissions(manage_messages=True),
     )
 
     @shopmap.command(
         name="set",
-        description="Map a review shop text to a shop URL (resolves the 🟡).",
-        description_localizations={"de": "Shop-Text aus einer Bewertung einer Shop-URL zuordnen (löst 🟡 auf)."},
+        description="🔒 [Admin] Map a review shop text to a shop URL (resolves the 🟡).",
+        description_localizations={"de": "🔒 [Admin] Shop-Text aus einer Bewertung einer Shop-URL zuordnen (löst 🟡 auf)."},
     )
     @admin_or_manage_messages()
     @allowed_channel()
@@ -82,8 +82,8 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
 
     @shopmap.command(
         name="remove",
-        description="Remove a review shop mapping.",
-        description_localizations={"de": "Eine Shop-Zuordnung entfernen."},
+        description="🔒 [Admin] Remove a review shop mapping.",
+        description_localizations={"de": "🔒 [Admin] Eine Shop-Zuordnung entfernen."},
     )
     @admin_or_manage_messages()
     @allowed_channel()
@@ -104,8 +104,8 @@ class ShopMappingCsvCog(commands.Cog, name="ShopMappingCsv"):
 
     @shopmap.command(
         name="list",
-        description="Show all review shop mappings.",
-        description_localizations={"de": "Alle Shop-Zuordnungen anzeigen."},
+        description="🔒 [Admin] Show all review shop mappings.",
+        description_localizations={"de": "🔒 [Admin] Alle Shop-Zuordnungen anzeigen."},
     )
     @admin_or_manage_messages()
     @allowed_channel()

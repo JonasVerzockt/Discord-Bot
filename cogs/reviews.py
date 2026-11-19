@@ -45,12 +45,6 @@ from utils.shop import (
 )
 from utils.ai_parser import looks_like_review, parse_with_ai, build_row, delivery_days
 from utils.db import execute_db
-from utils.ai_parser import parse_delivery
-from cogs.server_settings import admin_or_manage_messages
-import re as _re
-
-_DELIVERY_HINT = _re.compile(r"🚚|versand|liefer|angekommen|ankunft|bestellt|zugestellt|post\b|dhl|tage?\b",
-                             _re.I)
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +122,13 @@ class ReviewsCog(commands.Cog, name="Reviews"):
                     self._verify_row(existing_row, date_str, shop)
                 await asyncio.to_thread(sheet.update, existing_row, row)
                 await self._store_delivery(mid, shop, days, message.created_at)
+                await self._store_author(message, shop, parsed.get("bewertung"))
                 logger.info(f"✏️  [{date_str}] {parsed['shop_name']} Zeile {existing_row}")
             else:
                 row_num = await asyncio.to_thread(sheet.append, row)
                 await set_tracking(self.bot, mid, row_num)
                 await self._store_delivery(mid, shop, days, message.created_at)
+                await self._store_author(message, shop, parsed.get("bewertung"))
                 logger.info(f"➕ [{date_str}] {parsed['shop_name']} {parsed.get('bewertung')}/10")
 
     @staticmethod
@@ -179,6 +175,57 @@ class ReviewsCog(commands.Cog, name="Reviews"):
                 commit=True)
         except Exception as e:
             logger.warning(f"Lieferzeit für {mid} nicht gespeichert: {e}")
+
+    async def _store_author(self, message: discord.Message, shop: str, rating) -> None:
+        """Verfasser einer Bewertung merken – nur für den persönlichen /rueckblick."""
+        try:
+            r = float(rating) if rating not in (None, "") else None
+        except (TypeError, ValueError):
+            r = None
+        try:
+            await execute_db(
+                self.bot,
+                "INSERT INTO review_authors (message_id, user_id, review_date, shop, rating) "
+                "VALUES (?,?,?,?,?) ON CONFLICT(message_id) DO UPDATE SET shop=excluded.shop, "
+                "rating=excluded.rating",
+                (str(message.id), str(message.author.id), message.created_at.strftime("%Y-%m-%d"),
+                 clean_shop_name(shop).lower(), r),
+                commit=True)
+        except Exception as e:
+            logger.warning(f"Verfasser für {message.id} nicht gespeichert: {e}")
+
+    async def _backfill_authors(self, channel: discord.TextChannel) -> int:
+        """Einmal pro Start: Bewertungen seit 1.1. des laufenden Jahres, deren Verfasser
+        noch fehlt, nachtragen. Ohne KI: Shop und Note aus der Tabellenzeile (falls
+        zugeordnet), sonst Shop aus der Zeile „Shop:“."""
+        from utils.timez import BERLIN
+        start = datetime.now(BERLIN).replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        known = {r["message_id"] for r in await execute_db(
+            self.bot, "SELECT message_id FROM review_authors", fetch=True) or []}
+        tracking = await get_all_tracking(self.bot)
+        added = 0
+        async for msg in channel.history(limit=None, after=start, oldest_first=True):
+            mid = str(msg.id)
+            if msg.author.bot or mid in known or not looks_like_review(msg.content):
+                continue
+            shop, rating = "", None
+            row_num = tracking.get(mid)
+            if row_num:
+                try:
+                    row = sheet.rows[row_num - 1]
+                    shop = row[2].strip() if len(row) > 2 else ""
+                    rating = row[6] if len(row) > 6 else None
+                    rating = str(rating).replace(",", ".") if rating not in (None, "") else None
+                except IndexError:
+                    pass
+            if not shop:
+                ident = extract_identifier(msg.content) or ""
+                shop = mapping_get(ident) or ("" if ident.isdigit() else ident)
+            await self._store_author(msg, shop, rating)
+            added += 1
+        if added:
+            logger.info(f"⭐ Verfasser von {added} Bewertungen seit {start:%d.%m.%Y} nachgetragen")
+        return added
 
     async def _mark_unresolvable(self, msg: discord.Message, e: UnresolvableShop) -> None:
         add_to_csv(e.identifier, str(msg.id), msg.created_at.strftime("%d.%m.%Y"))
@@ -290,6 +337,10 @@ class ReviewsCog(commands.Cog, name="Reviews"):
         logger.info(f"🔍 Gleiche letzte {SCAN_DAYS} Tage mit bestehenden Zeilen ab…")
         mapped, written = await self._reconcile_scan(channel)
         self._reconcile_done = True
+        try:
+            await self._backfill_authors(channel)
+        except Exception as e:
+            logger.warning(f"Verfasser-Nachtrag fehlgeschlagen: {e}")
         all_pending = await get_all_pending(self.bot)
         logger.info(
             f"✅ Fertig – {mapped} gemappt, {written} neu geschrieben, "
@@ -404,56 +455,6 @@ class ReviewsCog(commands.Cog, name="Reviews"):
             await self._mark_error(message, e)
 
 
-    # ── Lieferzeit nachträglich aus alten Bewertungen auswerten (einmalig) ──────
-    @discord.slash_command(
-        name="lieferzeit_backfill",
-        description="🔒 [Admin] Extract delivery times from existing reviews (one-time)",
-        description_localizations={"de": "🔒 [Admin] Lieferzeiten aus vorhandenen Bewertungen auswerten (einmalig)"},
-    )
-    @discord.default_permissions(manage_messages=True)
-    @admin_or_manage_messages()
-    async def lieferzeit_backfill(self, ctx: discord.ApplicationContext):
-        """Geht den Review-Kanal durch: jede getrackte Bewertung ohne Eintrag in
-        review_delivery wird ausgewertet. KI-Aufruf nur, wenn der Text überhaupt etwas
-        zum Versand sagt; Shop kommt aus der Tabellenzeile."""
-        await ctx.defer(ephemeral=True)
-        channel = self.bot.get_channel(REVIEW_CHANNEL_ID)
-        if not channel:
-            await ctx.followup.send("❌ Review-Kanal nicht gefunden.", ephemeral=True)
-            return
-        tracking = await get_all_tracking(self.bot)
-        done = {r["message_id"] for r in await execute_db(
-            self.bot, "SELECT message_id FROM review_delivery", fetch=True) or []}
-        checked = found = ai_calls = 0
-        async for msg in channel.history(limit=None, oldest_first=True):
-            mid = str(msg.id)
-            if mid not in tracking or mid in done or msg.author.bot:
-                continue
-            row_num = tracking[mid]
-            try:
-                shop = sheet.rows[row_num - 1][2].strip()
-            except (IndexError, AttributeError):
-                continue
-            if not shop:
-                continue
-            days = None
-            if _DELIVERY_HINT.search(msg.content or ""):
-                try:
-                    days = await asyncio.to_thread(parse_delivery, msg.content,
-                                                   msg.created_at.strftime("%d.%m.%Y"))
-                    ai_calls += 1
-                    await asyncio.sleep(0.3)
-                except Exception as e:
-                    logger.warning(f"Lieferzeit {mid}: {e}")
-                    continue
-            await self._store_delivery(mid, shop, days, msg.created_at)
-            checked += 1
-            found += days is not None
-        await ctx.followup.send(
-            f"✅ {checked} Bewertungen ausgewertet, {found} mit Lieferzeit "
-            f"({ai_calls} KI-Aufrufe).", ephemeral=True)
-        logger.info(f"🚚 Lieferzeit-Backfill: {checked} geprüft, {found} mit Angabe, {ai_calls} KI-Aufrufe")
-
     # ── Loeschungen: Nachricht weg -> Sheet-Zeile leeren + DB bereinigen ─────────
     async def _handle_deletions(self, message_ids: list[str]) -> None:
         """Leert fuer jede geloeschte Review-Nachricht die zugehoerige Sheet-Zeile
@@ -488,6 +489,8 @@ class ReviewsCog(commands.Cog, name="Reviews"):
                 # Pending immer mitbereinigen (Nachricht war evtl. noch nicht im Sheet)
                 await remove_pending(self.bot, mid)
                 await execute_db(self.bot, "DELETE FROM review_delivery WHERE message_id=?",
+                                 (mid,), commit=True)
+                await execute_db(self.bot, "DELETE FROM review_authors WHERE message_id=?",
                                  (mid,), commit=True)
 
     @commands.Cog.listener()

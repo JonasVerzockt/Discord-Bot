@@ -172,8 +172,9 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
 
     @discord.slash_command(
         name="startup",
-        description="Set server language and bot channel (Admin/Mod only)", description_localizations={"de": "Serversprache und Bot-Kanal festlegen (nur Admin/Mod)"},
+        description="🔒 [Admin] Set server language and bot channel", description_localizations={"de": "🔒 [Admin] Serversprache und Bot-Kanal festlegen"},
     )
+    @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
     @allowed_channel()
     async def startup(

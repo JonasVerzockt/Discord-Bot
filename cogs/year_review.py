@@ -90,9 +90,21 @@ def community_embed(d: dict, lang: str) -> discord.Embed:
 def personal_embed(p: dict, lang: str, user: discord.abc.User) -> discord.Embed:
     t = lambda k, **kw: l10n.get(k, lang, **kw)
     e = discord.Embed(title=t("yrp_title", year=p["year"], name=user.display_name), color=_COLOR)
-    if not p["commands"] and not p["achievements"] and not (p["notifications"] or p["watches"] or p["tracked"]):
+    if not (p["commands"] or p["achievements"] or p["reviews"]
+            or p["notifications"] or p["watches"] or p["tracked"]):
         e.description = t("yrp_empty", year=p["year"])
         return e
+    if p["reviews"]:
+        lines = [t("yrp_reviews", n=p["reviews"])]
+        if p["reviews_avg"] is not None:
+            lines[0] += " · " + t("yrp_reviews_avg", avg=f"{p['reviews_avg']:.1f}".replace(".", ","))
+        if p["reviews_top"]:
+            lines.append(t("yrp_reviews_top", list=", ".join(
+                f"{_shop_name(s)} ({n})" for s, n in p["reviews_top"])))
+        if p["reviews_first"]:
+            lines.append(t("yrp_reviews_first", date=datetime.strptime(
+                p["reviews_first"], "%Y-%m-%d").strftime("%d.%m.%Y")))
+        e.add_field(name=t("yrp_h_reviews"), value="\n".join(lines), inline=False)
     lines = [t("yrp_commands", n=p["commands"])]
     if p["top_commands"]:
         lines.append(t("yrp_top", list=", ".join(f"/{c} ({n})" for c, n in p["top_commands"])))

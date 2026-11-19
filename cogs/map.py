@@ -1089,7 +1089,8 @@ class MapCog(commands.Cog, name="Map"):
 
     # ── /map_join (geführt) ──────────────────────────────────────────────────
     @discord.slash_command(name="map_join",
-        description="Auf der Halter-Karte eintragen (freiwillig, grob, DSGVO-konform)")
+        description="Join the keeper map (voluntary, coarse location, GDPR compliant)",
+        description_localizations={"de": "Auf der Halter-Karte eintragen (freiwillig, grob, DSGVO-konform)"})
     @allowed_channel()
     async def map_join(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
@@ -1107,7 +1108,8 @@ class MapCog(commands.Cog, name="Map"):
         await ctx.respond(intro[:2000], view=MapJoinView(lang, existing, tags), ephemeral=True)
 
     # ── /map_remove ──────────────────────────────────────────────────────────
-    @discord.slash_command(name="map_remove", description="Eigenen Karteneintrag löschen")
+    @discord.slash_command(name="map_remove", description="Delete your own map entry",
+        description_localizations={"de": "Eigenen Karteneintrag löschen"})
     @allowed_channel()
     async def map_remove(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
@@ -1120,7 +1122,8 @@ class MapCog(commands.Cog, name="Map"):
         await ctx.followup.send(l10n.get("map_removed", lang), ephemeral=True)
 
     # ── /map_tags ────────────────────────────────────────────────────────────
-    @discord.slash_command(name="map_tags", description="Tags für den Karteneintrag setzen/ändern")
+    @discord.slash_command(name="map_tags", description="Set or change tags for your map entry",
+        description_localizations={"de": "Tags für den Karteneintrag setzen/ändern"})
     @allowed_channel()
     async def map_tags_cmd(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
@@ -1136,7 +1139,8 @@ class MapCog(commands.Cog, name="Map"):
                                 view=TagView(lang, pre), ephemeral=True)
 
     # ── /map_confirm ─────────────────────────────────────────────────────────
-    @discord.slash_command(name="map_confirm", description="Karteneintrag als aktuell bestätigen")
+    @discord.slash_command(name="map_confirm", description="Confirm your map entry is still current",
+        description_localizations={"de": "Karteneintrag als aktuell bestätigen"})
     @allowed_channel()
     async def map_confirm(
         self, ctx: discord.ApplicationContext,
@@ -1157,14 +1161,16 @@ class MapCog(commands.Cog, name="Map"):
 
     # ── /event_add (geführt; alle dürfen einreichen, Freigabe durch Admin) ───
     @discord.slash_command(name="event_add",
-        description="Termin/Messe/Treffen für die Karte vorschlagen (Freigabe durch Admin)")
+        description="Suggest an event, fair or meetup for the map (approved by admins)",
+        description_localizations={"de": "Termin/Messe/Treffen für die Karte vorschlagen (Freigabe durch Admin)"})
     @allowed_channel()
     async def event_add(self, ctx: discord.ApplicationContext):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         await ctx.send_modal(EventAddModal(lang))
 
     # ── Admin: Events freigeben ──────────────────────────────────────────────
-    @discord.slash_command(name="event_pending", description="🔒 [Admin] Offene Event-Vorschläge anzeigen",
+    @discord.slash_command(name="event_pending", description="🔒 [Admin] Show pending event suggestions",
+        description_localizations={"de": "🔒 [Admin] Offene Event-Vorschläge anzeigen"},
         default_member_permissions=discord.Permissions(manage_messages=True))
     @admin_or_manage_messages()
     @allowed_channel()
@@ -1179,7 +1185,8 @@ class MapCog(commands.Cog, name="Map"):
                  f"({r['country'] or '?'})" for r in rows]
         await ctx.followup.send("**Offen:**\n" + "\n".join(lines)[:1900], ephemeral=True)
 
-    @discord.slash_command(name="event_approve", description="🔒 [Admin] Event freigeben",
+    @discord.slash_command(name="event_approve", description="🔒 [Admin] Approve an event",
+        description_localizations={"de": "🔒 [Admin] Event freigeben"},
         default_member_permissions=discord.Permissions(manage_messages=True))
     @admin_or_manage_messages()
     @allowed_channel()
@@ -1190,7 +1197,8 @@ class MapCog(commands.Cog, name="Map"):
         await ctx.followup.send(("✅ Freigegeben." if row else "❌ Nicht gefunden/bereits bearbeitet."),
                                 ephemeral=True)
 
-    @discord.slash_command(name="event_reject", description="🔒 [Admin] Event ablehnen",
+    @discord.slash_command(name="event_reject", description="🔒 [Admin] Reject an event",
+        description_localizations={"de": "🔒 [Admin] Event ablehnen"},
         default_member_permissions=discord.Permissions(manage_messages=True))
     @admin_or_manage_messages()
     @allowed_channel()
@@ -1205,7 +1213,8 @@ class MapCog(commands.Cog, name="Map"):
                                 ephemeral=True)
 
     @discord.slash_command(name="event_exclude",
-        description="🔒 [Admin] Einzelnen Serien-Termin absagen (EXDATE)",
+        description="🔒 [Admin] Cancel a single date of a recurring event",
+        description_localizations={"de": "🔒 [Admin] Einzelnen Serien-Termin absagen (EXDATE)"},
         default_member_permissions=discord.Permissions(manage_messages=True))
     @admin_or_manage_messages()
     @allowed_channel()
@@ -1250,7 +1259,8 @@ class MapCog(commands.Cog, name="Map"):
 
 
     @discord.slash_command(name="event_edit",
-        description="🔒 [Admin] Eingereichtes/aktives Event anpassen (nur angegebene Felder)",
+        description="🔒 [Admin] Edit a submitted or active event (only given fields)",
+        description_localizations={"de": "🔒 [Admin] Eingereichtes/aktives Event anpassen (nur angegebene Felder)"},
         default_member_permissions=discord.Permissions(manage_messages=True))
     @admin_or_manage_messages()
     @allowed_channel()
@@ -1359,7 +1369,8 @@ class MapCog(commands.Cog, name="Map"):
         logger.info("🗺️ event_edit #%s von %s", event_id, ctx.author.id)
 
     @discord.slash_command(name="map_refresh",
-        description="🔒 [Admin] Karten-Geodaten jetzt neu laden (Leaflet/GeoJSON/PLZ)",
+        description="🔒 [Admin] Reload map geodata now (Leaflet/GeoJSON/postcodes)",
+        description_localizations={"de": "🔒 [Admin] Karten-Geodaten jetzt neu laden (Leaflet/GeoJSON/PLZ)"},
         default_member_permissions=discord.Permissions(manage_messages=True))
     @admin_or_manage_messages()
     @allowed_channel()
