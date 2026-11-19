@@ -15,7 +15,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird. Alternativ kann über "Alle Shops beobachten" eine gesamte Art oder Gattung shopübergreifend beobachtet werden – der Bot benachrichtigt dann bei Preisänderungen. Neue Produkte werden automatisch in die Beobachtung aufgenommen, lösen aber keine separate DM aus (dafür gibt es die Verfügbarkeitsbenachrichtigung via `/notification`).
 - **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Anthropic Claude) auf @-Erwähnung. Das Antwortmodell ist pro Anfrage über ein Auswahl-Menü wählbar (Haiku 5.5, Sonnet 5.5, Opus 5.5 oder Fable 5.1). Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen, das verwendete Modell sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
 - **KI-Chat auf dem Board** – dieselbe KI steht eingeloggten Mitgliedern des AAM-Servers zusätzlich als Chatfenster auf board.jonasants.de zur Verfügung (Login mit Discord). Es gilt dasselbe Tagesbudget wie im Discord. Deine Nachrichten werden zur Beantwortung an die Anthropic API übermittelt; der Gesprächsverlauf wird zusammen mit deiner Discord-ID gespeichert, damit Folgefragen möglich sind, und nach Ablauf der Speicherfrist (Standard 24 Stunden) automatisch gelöscht. Bilder und Dateien können dort nicht hochgeladen werden.
-- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht. Nach jeweils 15 eingetragenen Beobachtungen postet der Bot – nach einer kurzen Wartezeit von 5 Minuten, um kurz aufeinanderfolgende Einträge zu bündeln – automatisch ein aktuelles Ranking-Bild (aus dem Übersicht-Tab des Sheets) im Channel; das Bild trägt einen Zeitstempel des Datenstands, damit erkennbar ist, welche danach geposteten Links noch nicht enthalten sind. Durch das Schreiben von `Rangliste` im Channel kann das Ranking-Bild jederzeit manuell abgerufen werden (maximal einmal alle 3 Stunden).
+- **iNat-Statistik** – zählt im dafür vorgesehenen Kanal gepostete iNaturalist-Beobachtungen von Ameisen (Überfamilie Formicoidea). Gezählt werden nur eigene Beobachtungen: Dafür verknüpfst du einmalig dein iNaturalist-Konto per `/inat_verknuepfen` (Nachweis über einen kurzen Code, den du vorübergehend in dein iNat-Profil schreibst). Je Person werden Beobachtungen und gefundene Arten gezählt, im laufenden Jahr und insgesamt. `/inat_statistik` zeigt deine eigenen Zahlen, `Statistik` im Kanal das Treppchen (Arten im laufenden Jahr), am 1. jedes Monats postet der Bot es selbst. Bestimmungen werden bei iNaturalist regelmäßig neu abgerufen (für Beobachtungen der letzten 6 Monate). Wer einen Post löscht, entfernt damit auch die zugehörigen Beobachtungen; `/inat_trennen` löst die Verknüpfung. Es gibt keinen Wettbewerb und keine Preise.
 - **Rabattcode-Tracker** – liest im dafür vorgesehenen Kanal alle Nachrichten und extrahiert per KI (Claude Haiku) Rabattcodes inkl. Shop, Rabatthöhe und Gültigkeitszeitraum. Codes werden auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) erkannt. Jede Nachricht wird dabei nur einmal an die KI übermittelt; beim Start wird der gesamte Kanalverlauf einmalig verarbeitet. Über `/codes` rufen Mitglieder die aktuell gültigen Codes ab. Abgelaufene Codes werden automatisch ausgeblendet. **Alle** Textnachrichten sowie Bild-Anhänge dieses Kanals werden zur Auswertung an die Anthropic API übermittelt.
 - **Feedback-Board** *(optional)* – ein öffentlich einsehbares Ideen- und Bug-Board (eigener Webdienst). Jede/r kann – auch anonym ohne Account – Fehler, Feature-Wünsche und Ideen zum Bot einreichen und bestehende Einträge hochvoten. Einreichungen werden vor der Veröffentlichung geprüft (Moderation).
 
@@ -143,16 +143,16 @@ Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Da
 
 **Nicht** gespeichert werden: Nutzernamen oder der Nachrichtentext selbst außerhalb des Gesprächsverlaufs.
 
-#### iNat-Tracker
+#### iNat-Statistik
 
 | Daten | Zweck | Speicherort |
 |-------|-------|-------------|
-| Discord-Username (z.B. jonasverzockt) | Zuordnung der Beobachtung zur einsendenden Person | Google Sheets (separates Sheet) |
-| Anzeigename auf dem Server (display_name) | Leserliche Zuordnung im Sheet | Google Sheets (separates Sheet) |
-| iNaturalist-Beobachtungslink | Kern-Inhalt der Erfassung | Google Sheets (separates Sheet) |
-| Datum der Nachricht (Berliner Zeit) | Zeitliche Zuordnung | Google Sheets (separates Sheet) |
+| Discord-ID mit verknüpftem iNaturalist-Benutzernamen und iNat-Nutzer-ID | Nur eigene Beobachtungen zählen | Lokale SQLite-Datenbank auf dem Server |
+| Verknüpfungs-Code (1 Stunde gültig) | Nachweis, dass das iNat-Konto dir gehört | Lokale SQLite-Datenbank auf dem Server |
+| Gepostete Beobachtungs-ID mit Discord-ID, Nachrichten-ID und Postzeitpunkt | Zählung und Doppel-Erkennung | Lokale SQLite-Datenbank auf dem Server |
+| Von iNaturalist abgerufen: Beobachtungsdatum, Besitzer (iNat-Nutzer-ID), Bestimmung (Taxon, Rang) | Zählung von Beobachtungen und Arten | Lokale SQLite-Datenbank auf dem Server |
 
-Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten werden ausschließlich im Google Sheet gespeichert – lokal auf dem Server werden keine iNat-Tracker-Daten abgelegt.
+Abgerufen werden nur öffentlich einsehbare Daten über die iNaturalist-API; Fundorte werden nicht gespeichert. Löschst du deinen Post im Kanal, werden die zugehörigen Beobachtungen entfernt. Die Verknüpfung löst du jederzeit per `/inat_trennen`. Im öffentlichen Treppchen erscheinen nur dein Anzeigename auf dem Server und deine Zahlen.
 
 #### Rabattcode-Tracker
 
@@ -232,8 +232,13 @@ Gesprächsverläufe werden lokal für **maximal 24 Stunden** zwischengespeichert
 
 #### Google (Tabellenspeicherung)
 
-Ausgewertete Bewertungen und iNat-Daten werden in Google Sheets (Deutschland) gespeichert.  
+Ausgewertete Bewertungen werden in Google Sheets (Deutschland) gespeichert.  
 → Datenschutz: https://policies.google.com/privacy
+
+#### iNaturalist
+
+Für die iNat-Statistik ruft der Bot öffentliche Daten zu geposteten Beobachtungen und zum verknüpften Profil über die iNaturalist-API ab (iNaturalist, USA). Dabei wird keine Discord-Information an iNaturalist übermittelt.  
+→ Datenschutz: https://www.inaturalist.org/pages/privacy
 
 #### Währungskurse (Frankfurter API + fawazahmed0-Fallback)
 
@@ -269,6 +274,7 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **KI-Ausgaben-Ledger** (User-ID + kumulierte Kosten pro Tag/Woche/Monat/Jahr) und die **zuletzt gewählte Modell-Vorauswahl** werden dauerhaft vorgehalten (dienen der Kostentransparenz und sind nur im persönlichen Datenexport einsehbar); Löschung auf Anfrage.
 - **Rabattcodes** (extrahierte Codes inkl. Quell-Username und Scan-Historie) werden gespeichert, solange sie für die Community relevant sind; eine Bereinigung erfolgt bei Bedarf manuell.
 - **Digest-Anmeldung** (nur User-ID) wird gespeichert, bis du dich per `/digest action:deaktivieren` abmeldest.
+- **iNat-Statistik**: Verknüpfung bis `/inat_trennen`; Beobachtungen, bis du den zugehörigen Post im Kanal löschst; offene Verknüpfungs-Codes verfallen nach 1 Stunde.
 - **Befehls-Nutzungsprotokoll** wird **12 Monate** in der lokalen Datenbank vorgehalten und danach automatisch gelöscht. Diese Dauer ist zweckgebunden für die Moderations- und Missbrauchskontrolle (ein voller Jahreszyklus erlaubt das Nachvollziehen wiederkehrender/saisonaler Muster, Ban-Evasion und später auftauchender Streitfälle) und an gängige Praxis für Moderations-/Audit-Logs angelehnt – sie ist **keine** gesetzlich vorgeschriebene Höchstfrist (die DSGVO nennt keine feste Frist; maßgeblich ist die Speicherbegrenzung nach Art. 5 Abs. 1 lit. e). Im Mod-Kanal gepostete Übersichten bleiben bestehen.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 

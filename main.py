@@ -108,7 +108,7 @@ INITIAL_COGS = [
     "cogs.shop_mapping",      # /shopmap set|list|remove (Review-CSV: Shop-Text → URL)
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
     "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
-    "cogs.inat_tracker",      # iNaturalist-Links → Google Sheets
+    "cogs.inat_tracker",      # iNaturalist-Statistik: /inat_verknuepfen /inat_statistik
     "cogs.price_tracking",    # /track_price /my_price_tracking /untrack_price + stündl. Preischeck
     "cogs.price_history",     # /price_history (Preisverlauf-Chart mit Bestpreis-Marker)
     "cogs.price_targets",     # /set_target (Zielpreis-Alerts)

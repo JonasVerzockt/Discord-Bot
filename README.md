@@ -13,7 +13,7 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen (Neuerscheinungen werden still in die Beobachtung aufgenommen, aber nicht separat gemeldet – dafür gibt es `/notification`)
 - **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku), erkennt sie auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision und stellt die aktuell gültigen Codes per `/codes` bereit
 - **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit **wählbarem Claude-Modell** (Haiku 5.5 / Sonnet 5.5 / Opus 5.5 / Fable 5.1 per Dropdown), inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
-- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
+- **iNat-Statistik** – zählt im iNat-Kanal gepostete iNaturalist-Ameisenbeobachtungen je Person (Beobachtungen und gefundene Arten, Jahr und gesamt). Nur eigene Beobachtungen mit per `/inat_verknuepfen` bestätigtem iNat-Konto zählen. Treppchen auf Abruf (`Statistik`) und monatlich.
 - **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
 - **Feedback-Board** *(optional, standardmäßig aus)* – öffentliches Ideen-/Bug-Board als eigener Webdienst im Bot-Prozess (aiohttp, **eigene DB**): jeder darf **anonym einreichen** und hochvoten (Moderations-Queue), der Owner bekommt bei jeder neuen Einreichung eine **private DM**
 
@@ -51,7 +51,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 10. [Wochen-Digest](#wochen-digest)
 11. [Rabattcode-Tracker](#rabattcode-tracker)
 12. [AI-Chat-Bot](#ai-chat-bot)
-13. [iNat-Tracker](#inat-tracker)
+13. [iNat-Statistik](#inat-statistik)
 14. [Erfolge](#erfolge)
 15. [Feedback-Board](#feedback-board)
 16. [Slash Commands](#slash-commands)
@@ -178,10 +178,6 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
 # COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
 
-# ── iNaturalist-Tracker (optional) ────────────────────────────
-# Wenn gesetzt: Bot triggert das Google Apps Script nach jedem 5. iNat-Eintrag
-# INAT_WEBAPP_URL=https://script.google.com/macros/s/DEINE_DEPLOYMENT_ID/exec
-# INAT_WEBAPP_SECRET=dein-geheimes-token-hier   # muss mit BOT_TRIGGER_SECRET im Apps Script übereinstimmen
 
 # ── Feedback-Board (öffentliches Ideen-/Bug-Board, optional) ──
 # Standardmäßig AUS. Läuft im Bot-Prozess (aiohttp), eigene DB. Reverse-Proxy/HTTPS davor.
@@ -626,73 +622,24 @@ Das in `AI_CHAT_MODEL` gesetzte Modell (bzw. die **zuletzt vom User gewählte** 
 
 ---
 
-## iNat-Tracker
+## iNat-Statistik
 
-Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in ein separates Google Sheet – gedacht für Community-Events mit zeitlich begrenzter Erfassung.
+Dauerhafte Statistik für den iNaturalist-Kanal (`INAT_CHANNEL_ID` in `cogs/inat_tracker.py`). Der frühere Wettbewerb mit Google-Tabelle, Apps Script, Zeitfenster und Countdown ist vollständig entfernt; alles liegt jetzt in der Bot-Datenbank (`utils/inat.py`).
 
-**Funktionsweise:**
-- Überwacht den konfigurierten `INAT_CHANNEL_ID` auf Nachrichten mit iNaturalist-Links (mit oder ohne `www.`)
-- Akzeptiert sowohl `http://` als auch `https://`-Links – schreibt immer `https`
-- Verarbeitet nur Nachrichten innerhalb des konfigurierten Zeitfensters (`INAT_START` – `INAT_END`, Berliner Zeit)
-- Vor dem Eintragen werden zwei Prüfungen durchgeführt:
-  1. **Duplikat-Check:** Ist der Link bereits in Spalte D vorhanden? → ignorieren (wird geloggt)
-  2. **Taxon-Check via iNaturalist API:** Gehört die Beobachtung zur Überfamilie Formicoidea (`taxon_id=1269340`)? → sonst ignorieren (wird geloggt)
-- Reagiert mit ✅ wenn mindestens ein Link eingetragen wurde
-- Ist die iNaturalist API nicht erreichbar: ⏳-Reaktion + automatischer Retry alle 5 Minuten bis die API antwortet; bei Erfolg wird ⏳ durch ✅ ersetzt
-- Spalte C im Sheet wird bewusst nicht beschrieben (wird von der Tabelle selbst befüllt)
+**Ablauf**
+- Wer einen Beobachtungslink (`inaturalist.org/observations/<id>`, mit oder ohne `www.`) postet, wird mit Discord-ID, Nachrichten-ID und Zeitpunkt in `inat_obs` gemerkt. Doppelte Links werden ignoriert.
+- Der Bot holt per iNaturalist-API (bis 200 IDs je Anfrage, eigener User-Agent) Besitzer, Beobachtungsdatum und Bestimmung. Nur Taxa unterhalb von Formicoidea (`1269340`) zählen.
+- **Gezählt** wird nur, wenn die Beobachtung dem per `/inat_verknuepfen` bestätigten iNat-Konto der postenden Person gehört. Posts vor der Verknüpfung zählen nachträglich automatisch mit; fremde Beobachtungen nie.
+- Reaktionen: ✅ gezählt · 🆕 neue Art für dich · 🌟 neu für die Community · 🔗 Konto noch nicht verknüpft (einmaliger Hinweis, löscht sich nach 90 s) · ❌ fremde Beobachtung · ⏳ iNat nicht erreichbar (stündlicher Nachholversuch, danach werden die Reaktionen gesetzt).
+- **Arten** wie früher in der Tabelle: verschiedene Taxa; grobe Bestimmungen (Gattung, Untergattung, Tribus, Unterfamilie, Familie) zählen nur, wenn die Person darin noch keine genauere Bestimmung hat. **Jahr** = Beobachtungsdatum.
+- Bestimmungen werden täglich um 04:17 neu abgerufen, aber nur für Posts der letzten 6 Monate (`REFRESH_DAYS`).
+- Post gelöscht → zugehörige Beobachtungen werden entfernt.
 
-**Ranking-Snapshot:**
+**Verknüpfung (`/inat_verknuepfen login:<name>`)**: Der Bot nennt einen Code (`AAM-XXXXXX`, 1 h gültig), den man in die Bio des iNat-Profils schreibt; Button „Jetzt prüfen“ bzw. `/inat_verknuepfen` ohne Namen prüft ihn über die öffentliche API. Ein iNat-Konto kann nur mit einem Discord-Konto verknüpft sein. `/inat_trennen` löst die Verknüpfung.
 
-Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 15) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …). Nach dem Erreichen der Schwelle wartet der Bot zunächst `INAT_SNAPSHOT_DEBOUNCE` Sekunden (Standard: 300 = 5 Min) auf weitere Links – **jeder** weitere Link setzt diesen Timer zurück, sodass kurz aufeinanderfolgende Einträge gebündelt werden und kein Link mitten im Prozess verloren geht. **Sobald der Post tatsächlich startet, wird er nicht mehr abgebrochen** – Links, die genau während des Postens eingehen, lösen stattdessen direkt danach einen weiteren (Follow-up-)Snapshot aus.
+**Anzeige**: `/inat_statistik [jahr]` (nur für dich: Jahr und gesamt, Platz, gefundene Arten). `Statistik` (oder `Rangliste`) im Kanal postet das Treppchen-Bild des laufenden Jahres (höchstens alle 3 Stunden). Am 1. jedes Monats postet der Bot es automatisch, am 1. Januar den Endstand des Vorjahres. Erfolge bei 10/25/50 Arten, Zeile im persönlichen Jahresrückblick.
 
-Ablauf:
-1. **Debounce:** Ab Erreichen der Schwelle `INAT_SNAPSHOT_DEBOUNCE` Sekunden (Standard: 300) auf weitere Links warten; jeder neue Link setzt den Timer zurück. Erst nach dieser Ruhezeit geht es weiter. (Ein manueller `Rangliste`-Trigger überspringt diesen Schritt.)
-2. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
-3. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
-4. 5 Sekunden warten damit das Script Z2 auf `block` setzen kann
-5. Warten bis Z2 **stabil leer** ist (mehrfach hintereinander leer, nicht nur einmal) – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600). Damit wird **nie** während einer laufenden Validierung gerendert.
-6. Daten `A1:C` lesen, lokal als Treppchen-PNG (matplotlib) rendern und im Channel posten. Die Bild-Caption enthält den **Datenschnitt-Zeitstempel** (`🕒 Stand: TT.MM.JJJJ HH:MM:SS`) – so ist erkennbar, dass Links, die **nach** diesem Zeitpunkt gepostet wurden, in diesem Bild noch nicht enthalten sind. Schlägt das Rendern fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) mit demselben Zeitstempel gepostet – die Rangliste geht also nie verloren.
-
-Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
-
-**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 3 Stunden (⏱️-Reaktion wenn zu früh). Ein laufender Debounce-Puffer wird dabei abgebrochen und sofort gepostet; läuft bereits ein Post, wird der manuelle Trigger ignoriert (kein doppelter Post).
-
-**Sheet-Struktur (Rohdaten-Tab):**
-
-| Spalte | Inhalt |
-|--------|--------|
-| A | Discord Username (z.B. `jonasverzockt`) |
-| B | Anzeigename auf dem Server (display_name) |
-| C | *(leer – vom Sheet selbst befüllt)* |
-| D | iNaturalist-Link (`https://www.inaturalist.org/observations/ID`) |
-| E | Datum (Berliner Zeit, `DD.MM.YYYY`) |
-
-**Konfiguration** (ganz oben in `cogs/inat_tracker.py`):
-
-```python
-INAT_CHANNEL_ID      = 123456789012345678       # zu überwachender Kanal
-INAT_SHEET_ID        = "DEINE_GOOGLE_SHEET_ID"  # separates Sheet (nicht das Review-Sheet)
-INAT_WORKSHEET       = "Rohdaten"               # Tab mit den Rohdaten
-INAT_UEBERSICHT      = "Übersicht"              # Tab mit dem Ranking (für Snapshot)
-INAT_START           = "2026-06-05 00:00"       # Zeitfenster Beginn (Berliner Zeit)
-INAT_END             = "2026-10-30 20:00"       # Zeitfenster Ende (Berliner Zeit)
-INAT_SNAPSHOT_EVERY  = 15                       # Snapshot nach jeweils N Einträgen
-INAT_SNAPSHOT_DEBOUNCE = 300                    # Nach Schwelle N Sek. auf weitere Links warten (Debounce)
-INAT_Z2_TIMEOUT      = 600                      # Max. Wartezeit auf Z2-Freigabe (Sekunden)
-```
-
-Über `.env` optional:
-
-```env
-INAT_WEBAPP_URL=https://script.google.com/macros/s/.../exec   # Apps Script Web App URL
-INAT_WEBAPP_SECRET=dein-secret                                  # Muss mit BOT_TRIGGER_SECRET im Script übereinstimmen
-```
-
-Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein (der Bot schreibt in den Rohdaten-Tab und liest den Übersicht-Tab). Die benötigten Scopes (`spreadsheets` und `drive.readonly`) sind in `cogs/inat_tracker.py` hinterlegt.
-
-[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
-
----
+**Test auf dem Server**: `python tools/test_inat.py <iNat-Name> [Beobachtungs-ID]` prüft, ob die API Profil-Bio und Beobachtungsfelder wie erwartet liefert.
 
 ## Erfolge
 
