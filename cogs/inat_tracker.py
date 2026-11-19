@@ -1,122 +1,53 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Jonas Beier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-cogs/inat_tracker.py – iNaturalist-Links aus Discord -> Google Sheets
+cogs/inat_tracker.py – iNaturalist-Statistik im iNat-Kanal (dauerhaft, ohne Wettbewerb).
 
-Schreibt pro erkanntem Link eine Zeile:
-  Spalte A  -- Discord Username (z.B. jonasverzockt)
-  Spalte B  -- Anzeigename auf dem Server (display_name)
-  Spalte C  -- (leer -- wird von der Tabelle selbst befüllt)
-  Spalte D  -- iNaturalist-Link (immer https)
-  Spalte E  -- Datum (Berliner Zeit, DD.MM.YYYY)
-
-Vor dem Eintragen wird geprüft:
-  1. Ist der Link bereits in Spalte D vorhanden? -> ignorieren
-  2. Gehört die Beobachtung zur Überfamilie Formicoidea (taxon_id=1269340)? -> sonst ignorieren
-
-Alle 5 eingetragenen Beobachtungen wird ein Ranking-Bild aus dem "Übersicht"-Tab
-(Spalten A=Rang, B=Name, C=Anzahl Arten) als Treppchen-Grafik (lokal mit
-matplotlib gerendert) im Channel gepostet. Dabei wird gewartet bis Spalte Z2 im
-Übersicht-Tab leer ist (Apps Script setzt Z2 als Sperr-Flag während es rechnet).
+  • Wer einen iNaturalist-Beobachtungslink im Kanal postet, bekommt ihn gemerkt.
+    Gezählt wird er erst, wenn das eigene iNat-Konto per /inat_verknuepfen bestätigt
+    ist und die Beobachtung diesem Konto gehört (fremde Beobachtungen zählen nie).
+  • Reaktionen: ✅ gezählt · 🆕 neue Art für dich · 🌟 neu für die Community ·
+    🔗 Konto noch nicht verknüpft · ❌ fremde Beobachtung · ⏳ iNat gerade nicht erreichbar.
+  • /inat_statistik zeigt die eigenen Zahlen, „Statistik“ im Kanal das Treppchen
+    (Arten im laufenden Jahr). Am 1. jedes Monats postet der Bot das Treppchen selbst.
+  • Bestimmungen werden stündlich (neue) bzw. täglich (letzte 6 Monate) aktualisiert.
+Logik und Speicherung: utils/inat.py. Die frühere Google-Tabelle wird nicht mehr genutzt.
 """
-
-# ──────────────────────────────────────────────────────────────────────────────
-#  KONFIGURATION -- nur hier anpassen
-# ──────────────────────────────────────────────────────────────────────────────
-
-INAT_CHANNEL_ID   = 1166491005814579300
-INAT_SHEET_ID     = "1aPQKNiVBCscjM6VbBGaBtG8MOvLKVoTw_PYKMp17dtQ"
-INAT_WORKSHEET    = "Rohdaten"
-INAT_UEBERSICHT   = "Übersicht"   # Tab mit dem Ranking (Snapshot-Quelle)
-
-# Apps Script Web App (optional) – wenn gesetzt, wird das Script nach jedem
-# 15. Eintrag manuell getriggert bevor der Snapshot gemacht wird.
-# URL aus Apps Script: Bereitstellen → Als Web App → URL kopieren
-# Secret muss mit BOT_TRIGGER_SECRET im Apps Script übereinstimmen.
-import os as _os
-INAT_WEBAPP_URL    = _os.getenv("INAT_WEBAPP_URL", "")    # Web App URL
-INAT_WEBAPP_SECRET = _os.getenv("INAT_WEBAPP_SECRET", "") # Secret Token
-
-# Zeitfenster (Berliner Zeit) -- Format: "YYYY-MM-DD HH:MM"
-INAT_START = "2026-06-05 00:00"
-INAT_END   = "2026-10-30 20:00"
-
-# Nur Beobachtungen die zu dieser Überfamilie gehören werden akzeptiert
-INAT_TAXON_ID = 1269340  # Formicoidea
-
-# Ranking-Snapshot: nach wie vielen neuen Einträgen posten?
-INAT_SNAPSHOT_EVERY = 15
-
-# Debounce: Ist die Schwelle erreicht, wird noch so viele Sekunden auf weitere
-# Links gewartet – jeder neue Link setzt den Timer zurück. Erst nach dieser
-# Ruhezeit ohne neuen Link wird der Snapshot gepostet (der davor zusätzlich prüft,
-# dass gerade kein Validierungs-Job auf der Tabelle läuft).
-INAT_SNAPSHOT_DEBOUNCE = 300  # 5 Minuten
-
-# Wie lange maximal auf Z2-Freigabe warten (Sekunden)?
-INAT_Z2_TIMEOUT = 600  # 10 Minuten
-
-# ──────────────────────────────────────────────────────────────────────────────
-
 import asyncio
 import io
-import re
 import logging
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, time as dtime, timedelta
 
 import discord
-import gspread
-import requests
-from discord.ext import commands
-from google.oauth2.service_account import Credentials
+from discord.ext import commands, tasks
 
-from config import BASE_DIR
-from utils.localization import l10n, get_guild_lang
-from utils.timez import now_berlin
-
-GOOGLE_CREDS_FILE = str(BASE_DIR / "service_account.json")
+from cogs.server_settings import allowed_channel
+from utils import inat as I
+from utils.localization import l10n, get_guild_lang, get_user_lang
+from utils.timez import BERLIN
 
 logger = logging.getLogger(__name__)
 
-BERLIN  = ZoneInfo("Europe/Berlin")
-INAT_RE = re.compile(
-    r"https?://(?:www\.)?inaturalist\.org/observations/(\d+)",
-    re.IGNORECASE,
-)
-_SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.readonly",
-]
+INAT_CHANNEL_ID = 1166491005814579300
+_TRIGGERS = {"statistik", "rangliste", "statistics", "statistiko"}
+_MANUAL_COOLDOWN = 3 * 3600
 
 
-# ── Ranking-Daten + Bild-Rendering ────────────────────────────────────────────
-
-def _parse_ranking(rows: list) -> list:
-    """
-    rows = A1:C inkl. Kopfzeile (A=Rang, B=Name, C=Anzahl Arten).
-    Gibt [(rang, name, anzahl), ...] zurück, sortiert nach Anzahl absteigend.
-    """
-    out = []
-    for r in rows[1:]:                       # Kopfzeile überspringen
-        name = (str(r[1]).strip() if len(r) > 1 else "")
-        if not name:
-            continue
-        try:
-            anzahl = int(str(r[2]).strip()) if len(r) > 2 and str(r[2]).strip() else 0
-        except ValueError:
-            anzahl = 0
-        try:
-            rang = int(str(r[0]).strip()) if len(r) > 0 and str(r[0]).strip() else None
-        except ValueError:
-            rang = None
-        out.append((rang, name, anzahl))
-    out.sort(key=lambda t: t[2], reverse=True)
-    return out
-
-
-def _render_ranking_png(entries: list) -> bytes:
+def _render_ranking_png(entries: list, title: str, col_labels: list, more: str) -> bytes:
     """
     Rendert die Rangliste lokal als PNG: die obersten drei Ränge als farbiges
     Treppchen (Gold/Silber/Bronze), Platz 4+ als Tabelle. Personen mit gleicher
@@ -167,7 +98,7 @@ def _render_ranking_png(entries: list) -> bytes:
         axt = None
 
     ax.set_facecolor(BG)
-    fig.suptitle("Arten-Rangliste", color=FG, fontsize=22, fontweight="bold", y=0.97)
+    fig.suptitle(title, color=FG, fontsize=22, fontweight="bold", y=0.97)
 
     slot_for_step = {0: 1, 1: 0, 2: 2}        # Stufe -> x-Position (2. links, 1. Mitte, 3. rechts)
     step_heights  = {0: 3.0, 1: 2.0, 2: 1.0}  # gleichmäßiges Treppchen; echte Werte stehen als Label
@@ -184,7 +115,7 @@ def _render_ranking_png(entries: list) -> bytes:
                 color=FG, fontsize=14, fontweight="bold")
         shown = [_clip(n, 16) for n in names[:5]]
         if len(names) > 5:
-            shown.append(f"+{len(names) - 5} weitere")
+            shown.append(more.format(n=len(names) - 5))
         ax.text(xpos, -maxh * 0.06, "\n".join(shown), ha="center", va="top",
                 color=col, fontsize=11, fontweight="bold", linespacing=1.35)
 
@@ -197,7 +128,7 @@ def _render_ranking_png(entries: list) -> bytes:
         cell_text = [[str(rg), _clip(nm, 30), str(val)] for (rg, nm, val) in rest_rows]
         tbl = axt.table(
             cellText=cell_text,
-            colLabels=["Platz", "Name", "Arten"],
+            colLabels=col_labels,
             cellLoc="center", loc="center",
             colWidths=[0.18, 0.62, 0.20],
         )
@@ -219,470 +150,267 @@ def _render_ranking_png(entries: list) -> bytes:
     return buf.getvalue()
 
 
+class _CheckView(discord.ui.View):
+    """Button „Jetzt prüfen“ unter der Verknüpfungs-Anleitung."""
+
+    def __init__(self, cog, user_id: int, lang: str):
+        super().__init__(timeout=3600)
+        self.cog, self.user_id, self.lang = cog, user_id, lang
+        self.children[0].label = l10n.get("inat_link_check_btn", lang)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.user_id
+
+    @discord.ui.button(style=discord.ButtonStyle.success, emoji="✅")
+    async def check(self, button, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        msg = await self.cog._verify_text(interaction.user.id, self.lang)
+        await interaction.followup.send(msg, ephemeral=True)
+
+
 class InatTrackerCog(commands.Cog, name="InatTracker"):
-
     def __init__(self, bot: discord.Bot):
-        self.bot              = bot
-        self._ws: gspread.Worksheet | None = None
-        self._ws_ue: gspread.Worksheet | None = None  # Übersicht-Tab
-        self._start = datetime.strptime(INAT_START, "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
-        self._end   = datetime.strptime(INAT_END,   "%Y-%m-%d %H:%M").replace(tzinfo=BERLIN)
-        self._last_manual_snapshot: datetime | None = None  # Cooldown für "Rangliste"-Trigger
-        self._snapshot_task: asyncio.Task | None = None      # Debounce-Task für Auto-Snapshot
-        self._snapshot_running: bool = False                 # True während ein Post läuft (nicht abbrechen)
-        self._snapshot_followup: bool = False                # Link kam während eines laufenden Posts
+        self.bot = bot
+        self._last_manual: datetime | None = None
+        self._hinted: set[int] = set()
+        self.hourly.start()
+        self.daily.start()
 
-    # ── Sheet-Verbindungen (lazy) ─────────────────────────────────────────────
+    def cog_unload(self):
+        self.hourly.cancel()
+        self.daily.cancel()
 
-    def _sheet(self) -> gspread.Worksheet:
-        if self._ws is None:
-            creds    = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=_SCOPES)
-            gc       = gspread.authorize(creds)
-            self._ws = gc.open_by_key(INAT_SHEET_ID).worksheet(INAT_WORKSHEET)
-            logger.info(f"🌿 iNat-Sheet verbunden: '{INAT_WORKSHEET}'")
-        return self._ws
-
-    def _sheet_uebersicht(self) -> gspread.Worksheet:
-        if self._ws_ue is None:
-            creds       = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=_SCOPES)
-            gc          = gspread.authorize(creds)
-            self._ws_ue = gc.open_by_key(INAT_SHEET_ID).worksheet(INAT_UEBERSICHT)
-            logger.info(f"📊 iNat Übersicht-Tab verbunden: '{INAT_UEBERSICHT}'")
-        return self._ws_ue
-
-    # ── Hilfsmethoden ─────────────────────────────────────────────────────────
-
-    def _in_window(self) -> bool:
-        return self._start <= datetime.now(tz=BERLIN) <= self._end
-
-    def _link_exists(self, ws: gspread.Worksheet, url: str) -> bool:
-        """Prüft ob die URL bereits in Spalte D vorhanden ist."""
-        return url in ws.col_values(4)
-
-    def _next_free_row(self, ws: gspread.Worksheet) -> int:
-        """Erste freie Zeile anhand von Spalte A."""
-        return len(ws.col_values(1)) + 1
-
-    async def _is_formicoidea(self, obs_id: str) -> bool | None:
-        """
-        Fragt die iNaturalist API ab und prüft ob die Beobachtung
-        zur Überfamilie Formicoidea (taxon_id=1269340) gehört.
-        Rückgabe:
-          True  -- gehört zu Formicoidea
-          False -- gehört nicht dazu (API hat geantwortet)
-          None  -- API nicht erreichbar (Retry auslösen)
-        """
-        url = f"https://api.inaturalist.org/v1/observations/{obs_id}"
-        try:
-            resp = await asyncio.to_thread(
-                requests.get, url,
-                headers={"Accept": "application/json"},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            data    = resp.json()
-            results = data.get("results", [])
-            if not results:
-                logger.warning(f"⚠️ iNat API: keine Ergebnisse für obs {obs_id}")
-                return False
-            taxon = results[0].get("taxon")
-            if not taxon:
-                logger.warning(f"⚠️ iNat obs {obs_id}: kein Taxon gesetzt (unidentifiziert)")
-                return False
-            ancestor_ids = taxon.get("ancestor_ids", [])
-            taxon_id     = taxon.get("id")
-            return INAT_TAXON_ID in ancestor_ids or taxon_id == INAT_TAXON_ID
-        except Exception as e:
-            logger.error(f"❌ iNat API nicht erreichbar (obs {obs_id}): {e}")
+    # ── Treppchen ─────────────────────────────────────────────────────────────
+    async def _ranking_file(self, guild: discord.Guild, year: int, lang: str):
+        rows = await I.ranking(self.bot, year)
+        entries = []
+        for r in rows:
+            m = guild.get_member(int(r["discord_id"])) if guild else None
+            if m is None or not r["species"]:
+                continue
+            entries.append((None, f"{m.display_name} ({r['obs']})", r["species"]))
+        if not entries:
             return None
+        png = await asyncio.to_thread(
+            _render_ranking_png, entries, l10n.get("inat_png_title", lang, year=year),
+            [l10n.get("inat_png_col_place", lang), l10n.get("inat_png_col_name", lang),
+             l10n.get("inat_png_col_species", lang)], l10n.get("inat_png_more", lang))
+        return discord.File(io.BytesIO(png), filename=f"inat_{year}.png")
 
-    def _write_entry(
-        self,
-        ws: gspread.Worksheet,
-        username: str,
-        display_name: str,
-        inat_url: str,
-    ) -> int:
-        """Schreibt A, B, D, E -- C bleibt unberührt. Gibt Zeilennummer zurück."""
-        row      = self._next_free_row(ws)
-        date_str = datetime.now(tz=BERLIN).strftime("%d.%m.%Y")
-        ws.batch_update(
-            [
-                {"range": f"A{row}", "values": [[username]]},
-                {"range": f"B{row}", "values": [[display_name]]},
-                {"range": f"D{row}", "values": [[inat_url]]},
-                {"range": f"E{row}", "values": [[date_str]]},
-            ],
-            value_input_option="USER_ENTERED",
-        )
-        return row
+    async def _post_ranking(self, channel, year: int, caption_key: str) -> bool:
+        lang = await get_guild_lang(self.bot, channel.guild.id)
+        f = await self._ranking_file(channel.guild, year, lang)
+        if f is None:
+            return False
+        await channel.send(l10n.get(caption_key, lang, year=year), file=f)
+        return True
 
-    # ── Ranking-Snapshot ──────────────────────────────────────────────────────
-
-    def _maybe_arm_snapshot(self, data_count: int) -> None:
-        """
-        Entscheidet nach einem neuen Eintrag über den Debounce-Puffer für den
-        Ranking-Snapshot:
-          • Läuft bereits ein Post → NICHT unterbrechen, nur einen Follow-up merken.
-          • data_count ist ein Vielfaches von INAT_SNAPSHOT_EVERY  → Snapshot fällig.
-          • es läuft bereits ein Puffer und es kam ein weiterer Link → Timer zurücksetzen.
-        Gepostet wird erst nach INAT_SNAPSHOT_DEBOUNCE Sekunden ohne neuen Link.
-        """
-        if self._snapshot_running:
-            # Ein Post läuft bereits – nicht abbrechen. Nach Abschluss wird ein
-            # Follow-up-Snapshot gestartet, damit dieser Link nicht verloren geht.
-            self._snapshot_followup = True
-            logger.info("⏲️ Link während laufendem Post – Follow-up nach Abschluss geplant")
-            return
-        due     = data_count > 0 and data_count % INAT_SNAPSHOT_EVERY == 0
-        pending = self._snapshot_task is not None and not self._snapshot_task.done()
-        if due:
-            logger.info(
-                f"📊 Ranking-Snapshot fällig nach {data_count} Einträgen – "
-                f"warte {INAT_SNAPSHOT_DEBOUNCE}s auf weitere Links (Debounce)"
-            )
-            self._arm_snapshot()
-        elif pending:
-            logger.info("⏲️ Weiterer iNat-Link während Snapshot-Puffer – Timer zurückgesetzt")
-            self._arm_snapshot()
-
-    def _arm_snapshot(self) -> None:
-        """(Re)startet den Debounce-Timer. Betrifft nur die Wartephase – ein
-        bereits laufender Post wird nie abgebrochen (siehe _maybe_arm_snapshot)."""
-        if self._snapshot_task is not None and not self._snapshot_task.done():
-            self._snapshot_task.cancel()
-        self._snapshot_task = asyncio.create_task(self._debounced_snapshot())
-
-    async def _debounced_snapshot(self) -> None:
-        """Wartet die Ruhezeit ab und postet dann. Kommt in der Wartezeit ein
-        weiterer Link, wird dieser Task abgebrochen und neu gestartet."""
-        try:
-            await asyncio.sleep(INAT_SNAPSHOT_DEBOUNCE)
-        except asyncio.CancelledError:
-            return
-        await self._run_snapshot()
-
-    async def _run_snapshot(self) -> None:
-        """Führt den Post aus und schützt ihn vor Unterbrechung: Während er läuft
-        (`_snapshot_running`), brechen neue Links ihn nicht ab, sondern lösen
-        danach einen Follow-up-Snapshot aus."""
-        self._snapshot_running  = True
-        self._snapshot_followup = False
-        try:
-            await self._post_ranking_snapshot()
-        finally:
-            self._snapshot_running = False
-        if self._snapshot_followup:
-            self._snapshot_followup = False
-            logger.info(
-                f"📊 Link während des Posts eingegangen – Follow-up-Snapshot in "
-                f"{INAT_SNAPSHOT_DEBOUNCE}s"
-            )
-            self._snapshot_task = asyncio.create_task(self._debounced_snapshot())
-
-    async def _wait_unlocked(self, ws_ue, settle: int = 2, interval: int = 5) -> bool:
-        """
-        Wartet bis das Sperr-Flag Z2 STABIL leer ist (mehrmals hintereinander
-        leer). Verhindert, dass mitten in einer laufenden Validierung
-        (Apps Script setzt Z2='block') gelesen oder gerendert wird.
-        Gibt True zurück wenn frei, False bei Timeout.
-        """
-        elapsed = 0
-        empty_streak = 0
-        while elapsed < INAT_Z2_TIMEOUT:
-            z2 = await asyncio.to_thread(lambda: ws_ue.acell("Z2").value)
-            if z2:
-                empty_streak = 0
-                logger.info(f"⏳ Z2='{z2}' (Validierung läuft) – warte {interval}s …")
-            else:
-                empty_streak += 1
-                if empty_streak >= settle:
-                    return True
-            await asyncio.sleep(interval)
-            elapsed += interval
-        logger.warning(
-            f"⚠️ Ranking-Snapshot: Z2 nach {INAT_Z2_TIMEOUT}s nicht stabil frei – abgebrochen"
-        )
-        return False
-
-    async def _post_ranking_snapshot(self) -> None:
-        """
-        Triggert optional das Apps Script, wartet bis Z2 im Übersicht-Tab leer ist,
-        liest dann A=Rang/B=Name/C=Anzahl und rendert daraus lokal ein Treppchen-PNG.
-        """
-        try:
-            ws_ue = await asyncio.to_thread(self._sheet_uebersicht)
-
-            # 0. Sicherstellen, dass gerade KEINE Validierung läuft (Z2 stabil leer)
-            if not await self._wait_unlocked(ws_ue):
-                return
-
-            # 1. Apps Script triggern (führt die Validierung aus, setzt/leert Z2 selbst)
-            if INAT_WEBAPP_URL and INAT_WEBAPP_SECRET:
-                try:
-                    logger.info("🔁 Triggere Apps Script via Web App …")
-                    resp_wa = await asyncio.to_thread(
-                        requests.post,
-                        INAT_WEBAPP_URL,
-                        json={"secret": INAT_WEBAPP_SECRET},
-                        timeout=120,
-                    )
-                    logger.info(
-                        f"📡 Apps Script Antwort: {resp_wa.status_code} – {resp_wa.text[:200]}"
-                    )
-                except Exception as e:
-                    logger.warning(f"⚠️ Apps Script Trigger fehlgeschlagen: {e}")
-
-                # Kurz warten, damit das Script Z2 sicher gesetzt hat, dann warten bis
-                # die Validierung KOMPLETT fertig ist (Z2 stabil leer). So wird
-                # garantiert nie während der laufenden Prüfung gerendert.
-                await asyncio.sleep(5)
-                if not await self._wait_unlocked(ws_ue):
-                    return
-
-            # 2. Letzte Zeile mit Inhalt in Spalte A ermitteln
-            col_a    = await asyncio.to_thread(lambda: ws_ue.col_values(1))
-            last_row = len([v for v in col_a if str(v).strip()])
-            if last_row < 2:
-                logger.warning("⚠️ Ranking-Snapshot: Übersicht (A) leer – abgebrochen")
-                return
-
-            # 3. Ranking-Daten lesen (A=Rang, B=Name, C=Anzahl; Zeile 1 = Kopf)
-            data    = await asyncio.to_thread(lambda: ws_ue.get(f"A1:C{last_row}"))
-            # Datenschnitt-Zeit: Links, die NACH diesem Zeitpunkt gepostet werden,
-            # sind in diesem Ranking noch nicht enthalten.
-            snapshot_ts = now_berlin("%d.%m.%Y %H:%M:%S")
-            entries = _parse_ranking(data)
-            if not entries:
-                logger.warning("⚠️ Ranking-Snapshot: keine Einträge – Text-Fallback")
-                await self._post_ranking_text_fallback(ws_ue, last_row)
-                return
-
-            channel = self.bot.get_channel(INAT_CHANNEL_ID)
-            if channel is None:
-                logger.warning("⚠️ Ranking-Snapshot: Channel nicht gefunden")
-                return
-            guild_id = channel.guild.id if hasattr(channel, "guild") and channel.guild else None
-            lang = await get_guild_lang(self.bot, guild_id) if guild_id else "en"
-
-            # 4. PNG lokal rendern (kein flaky Google-Export) und posten
-            try:
-                png = await asyncio.to_thread(_render_ranking_png, entries)
-            except Exception as e:
-                logger.error(f"❌ PNG-Render fehlgeschlagen: {e} – Text-Fallback", exc_info=True)
-                await self._post_ranking_text_fallback(ws_ue, last_row)
-                return
-
-            buf = io.BytesIO(png)
-            buf.seek(0)
-            try:
-                await channel.send(
-                    l10n.get("inat_ranking_caption", lang, time=snapshot_ts),
-                    file=discord.File(buf, filename="ranking.png"),
-                )
-                logger.info(f"📊 Ranking-Snapshot gepostet ({len(entries)} Einträge, lokal gerendert)")
-            except discord.Forbidden:
-                logger.error(
-                    "⚠️ Keine Berechtigung zum Posten im iNat-Kanal – dem Bot fehlt "
-                    "'Nachrichten senden' und/oder 'Dateien anhängen' in diesem Kanal."
-                )
-            except discord.HTTPException as e:
-                logger.error(f"❌ Ranking-Snapshot Sende-Fehler: {e}")
-
-        except Exception as e:
-            logger.error(f"❌ Ranking-Snapshot fehlgeschlagen: {e}", exc_info=True)
-
-    async def _post_ranking_text_fallback(self, ws_ue, last_row: int) -> None:
-        """
-        Fallback wenn das PNG-Rendering scheitert: liest A1:C{last_row} aus dem
-        Übersicht-Tab und postet das Ranking als Text-Tabelle (bzw. als .txt,
-        falls zu lang für eine Discord-Nachricht).
-        """
-        try:
-            values = await asyncio.to_thread(lambda: ws_ue.get(f"A1:C{last_row}"))
-        except Exception as e:
-            logger.error(f"❌ Text-Fallback: Sheet-Lesefehler: {e}")
-            return
-        snapshot_ts = now_berlin("%d.%m.%Y %H:%M:%S")
-
-        channel = self.bot.get_channel(INAT_CHANNEL_ID)
-        if channel is None:
-            logger.warning("⚠️ Text-Fallback: Channel nicht gefunden")
-            return
-        guild_id = channel.guild.id if hasattr(channel, "guild") and channel.guild else None
-        lang = await get_guild_lang(self.bot, guild_id) if guild_id else "en"
-
-        ncols = max((len(r) for r in values), default=0)
-        widths = [0] * ncols
-        for r in values:
-            for i, c in enumerate(r):
-                widths[i] = max(widths[i], len(str(c)))
-
-        def _row(r):
-            cells = [str(r[i]) if i < len(r) else "" for i in range(ncols)]
-            return " | ".join(c.ljust(widths[i]) for i, c in enumerate(cells))
-
-        table   = "\n".join(_row(r) for r in values)
-        caption = l10n.get("inat_ranking_fallback", lang, time=snapshot_ts)
-
-        body = f"{caption}\n```\n{table}\n```"
-        try:
-            if len(body) <= 2000:
-                await channel.send(body)
-            else:
-                buf = io.BytesIO(table.encode("utf-8"))
-                buf.seek(0)
-                await channel.send(caption, file=discord.File(buf, filename="ranking.txt"))
-            logger.info(f"📊 Ranking-Text-Fallback gepostet (Übersicht A1:C{last_row})")
-        except discord.Forbidden:
-            logger.error(
-                "⚠️ Keine Berechtigung zum Posten im iNat-Kanal "
-                "(Nachrichten senden / Dateien anhängen)."
-            )
-        except discord.HTTPException as e:
-            logger.error(f"❌ Text-Fallback Sende-Fehler: {e}")
-
-    # ── Event ─────────────────────────────────────────────────────────────────
-
+    # ── Kanal ─────────────────────────────────────────────────────────────────
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot:
+        if message.author.bot or message.channel.id != INAT_CHANNEL_ID:
             return
-        if message.channel.id != INAT_CHANNEL_ID:
-            return
-        if not self._in_window():
-            return
-
-        obs_ids = INAT_RE.findall(message.content)
-
-        # ── Manueller Ranglisten-Trigger ──────────────────────────────────────
-        if message.content.strip() == "Rangliste":
-            now = datetime.now(tz=BERLIN)
-            if (
-                self._last_manual_snapshot is not None
-                and (now - self._last_manual_snapshot).total_seconds() < 10800
-            ):
+        if message.content.strip().lower() in _TRIGGERS:
+            now = datetime.now(BERLIN)
+            if self._last_manual and (now - self._last_manual).total_seconds() < _MANUAL_COOLDOWN:
                 await message.add_reaction("⏱️")
-            else:
-                self._last_manual_snapshot = now
-                if self._snapshot_running:
-                    # Es läuft bereits ein Post – nicht unterbrechen, keinen zweiten starten
-                    logger.info("📊 Manueller Trigger ignoriert – es läuft bereits ein Post")
-                else:
-                    # Laufenden Debounce-Puffer abbrechen und sofort posten
-                    if self._snapshot_task is not None and not self._snapshot_task.done():
-                        self._snapshot_task.cancel()
-                    self._snapshot_task = asyncio.create_task(self._run_snapshot())
-                await message.add_reaction("📊")
+                return
+            self._last_manual = now
+            ok = await self._post_ranking(message.channel, now.year, "inat_ranking_caption")
+            await message.add_reaction("📊" if ok else "🤷")
             return
-
-        if not obs_ids:
+        ids = [int(x) for x in I.OBS_RE.findall(message.content or "")]
+        if not ids:
             return
-
-        try:
-            ws = await asyncio.to_thread(self._sheet)
-        except Exception as e:
-            logger.error(f"❌ iNat-Sheet Verbindungsfehler: {e}")
+        new = await I.store_posts(self.bot, message.author.id, message.id, ids)
+        if not new:
             return
+        await I.update_obs(self.bot, new)
+        await self._react(message, new)
 
-        username     = message.author.name
-        display_name = message.author.display_name
-        written      = 0
-        last_row     = None
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
+        """Gelöschter Post im iNat-Kanal → zugehörige Beobachtungen zählen nicht mehr."""
+        if payload.channel_id == INAT_CHANNEL_ID:
+            await I.execute_db(self.bot, "DELETE FROM inat_obs WHERE message_id=?",
+                               (str(payload.message_id),), commit=True)
 
-        for obs_id in obs_ids:
-            url = f"https://www.inaturalist.org/observations/{obs_id}"
+    @commands.Cog.listener()
+    async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent):
+        if payload.channel_id == INAT_CHANNEL_ID:
+            for mid in payload.message_ids:
+                await I.execute_db(self.bot, "DELETE FROM inat_obs WHERE message_id=?",
+                                   (str(mid),), commit=True)
 
-            exists = await asyncio.to_thread(self._link_exists, ws, url)
-            if exists:
-                logger.info(
-                    f"ℹ️ iNat obs {obs_id} bereits im Sheet – übersprungen "
-                    f"(user={username}, {display_name})"
-                )
-                continue
-
-            is_ant = await self._is_formicoidea(obs_id)
-            if is_ant is None:
-                await message.add_reaction("⏳")
-                asyncio.create_task(
-                    self._retry_pending(message, obs_id, ws, username, display_name)
-                )
-                continue
-            if not is_ant:
-                logger.info(
-                    f"iNat obs {obs_id} gehört nicht zu Formicoidea "
-                    f"(taxon_id={INAT_TAXON_ID}) – übersprungen "
-                    f"(user={username}, {display_name})"
-                )
-                continue
-
+    async def _react(self, message: discord.Message, obs_ids: list[int]):
+        states = {o: await I.obs_state(self.bot, o, message.author.id) for o in obs_ids}
+        marks: list[str] = []
+        if "counted" in states.values():
+            marks.append("✅")
+            for o, st in states.items():
+                if st == "counted":
+                    mine, community = await I.novelty(self.bot, o, message.author.id)
+                    if community and "🌟" not in marks:
+                        marks.append("🌟")
+                    elif mine and "🆕" not in marks:
+                        marks.append("🆕")
+        if "foreign" in states.values():
+            marks.append("❌")
+        if "unlinked" in states.values():
+            marks.append("🔗")
+        if "pending" in states.values():
+            marks.append("⏳")
+        for m in marks:
             try:
-                row = await asyncio.to_thread(
-                    self._write_entry, ws, username, display_name, url
-                )
-                logger.info(
-                    f"✅ iNat Zeile {row}: user={username} ({display_name})  {url}"
-                )
-                written  += 1
-                last_row  = row
-            except Exception as e:
-                logger.error(f"❌ iNat Schreibfehler (obs {obs_id}): {e}")
-                self._ws = None
-
-        if written:
+                await message.add_reaction(m)
+            except discord.HTTPException:
+                pass
+        if "unlinked" in states.values() and message.author.id not in self._hinted:
+            self._hinted.add(message.author.id)
+            lang = await get_user_lang(self.bot, message.author.id, message.guild.id if message.guild else None)
             try:
-                await message.add_reaction("✅")
-            except discord.HTTPException as e:
-                logger.error(f"❌ Reaktion fehlgeschlagen: {e}")
-
-            # Ranking-Snapshot alle INAT_SNAPSHOT_EVERY Einträge (mit Debounce-Puffer)
-            # last_row - 1 = Daten-Zeilennummer (Zeile 1 = Header)
-            if last_row is not None:
-                self._maybe_arm_snapshot(last_row - 1)
-
-    async def _retry_pending(
-        self,
-        message: discord.Message,
-        obs_id: str,
-        ws: gspread.Worksheet,
-        username: str,
-        display_name: str,
-    ) -> None:
-        """Wiederholt den API-Check alle 5 Minuten bis die API antwortet."""
-        url     = f"https://www.inaturalist.org/observations/{obs_id}"
-        attempt = 0
-        while True:
-            attempt += 1
-            await asyncio.sleep(300)
-            logger.info(f"🔄 iNat Retry #{attempt} für obs {obs_id}")
-            is_ant = await self._is_formicoidea(obs_id)
-            if is_ant is None:
-                logger.warning(
-                    f"⚠️ iNat API noch nicht erreichbar (obs {obs_id}, Versuch {attempt})"
-                )
-                continue
+                await message.reply(l10n.get("inat_hint_link", lang), delete_after=90,
+                                    mention_author=False)
+            except discord.HTTPException:
+                pass
+        if "counted" in states.values():
             try:
-                await message.remove_reaction("⏳", self.bot.user)
+                from utils.achievements import check_and_grant
+                lang = await get_user_lang(self.bot, message.author.id, message.guild.id if message.guild else None)
+                await check_and_grant(self.bot, message.author, lang)
             except Exception:
                 pass
-            if not is_ant:
-                logger.info(
-                    f"🌿 iNat obs {obs_id} gehört nicht zu Formicoidea – übersprungen"
-                )
-                return
-            if await asyncio.to_thread(self._link_exists, ws, url):
-                logger.info(f"ℹ️ iNat obs {obs_id} inzwischen bereits im Sheet")
-                return
-            try:
-                row = await asyncio.to_thread(
-                    self._write_entry, ws, username, display_name, url
-                )
-                logger.info(f"✅ iNat Retry OK: Zeile {row}  {url}")
-                await message.add_reaction("✅")
-                self._maybe_arm_snapshot(row - 1)
-            except Exception as e:
-                logger.error(f"❌ iNat Retry Schreibfehler (obs {obs_id}): {e}")
+
+    # ── Slash-Befehle ─────────────────────────────────────────────────────────
+    async def _verify_text(self, user_id: int, lang: str) -> str:
+        status, u = await I.verify_link(self.bot, user_id)
+        if status == "ok":
+            st = await I.user_stats(self.bot, user_id)
+            return l10n.get("inat_link_ok", lang, login=u["login"], obs=st["obs"], species=st["species"])
+        return l10n.get(f"inat_link_{status}", lang)
+
+    @discord.slash_command(
+        name="inat_verknuepfen",
+        description="Link your iNaturalist account (proof via a code in your iNat profile)",
+        description_localizations={"de": "Dein iNaturalist-Konto verknüpfen (Nachweis per Code im iNat-Profil)"},
+    )
+    async def inat_verknuepfen(
+        self, ctx: discord.ApplicationContext,
+        login: discord.Option(str, "Your iNaturalist username (empty = check pending code)",
+                              description_localizations={"de": "Dein iNaturalist-Benutzername (leer = offenen Code prüfen)"},
+                              required=False, default=None),
+    ):
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        if not login:
+            await ctx.followup.send(await self._verify_text(ctx.author.id, lang), ephemeral=True)
             return
+        login = login.strip().lstrip("@")
+        if not I.LOGIN_RE.match(login):
+            await ctx.followup.send(l10n.get("inat_link_bad_login", lang), ephemeral=True)
+            return
+        code = await I.start_link(self.bot, ctx.author.id, login)
+        await ctx.followup.send(l10n.get("inat_link_howto", lang, login=login, code=code),
+                                view=_CheckView(self, ctx.author.id, lang), ephemeral=True)
+
+    @discord.slash_command(
+        name="inat_trennen",
+        description="Unlink your iNaturalist account (your posts stop counting)",
+        description_localizations={"de": "iNaturalist-Verknüpfung lösen (deine Posts zählen dann nicht mehr)"},
+    )
+    async def inat_trennen(self, ctx: discord.ApplicationContext):
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        ok = await I.unlink(self.bot, ctx.author.id)
+        await ctx.respond(l10n.get("inat_unlink_ok" if ok else "inat_unlink_none", lang), ephemeral=True)
+
+    @discord.slash_command(
+        name="inat_statistik",
+        description="Your iNaturalist ant statistics: observations and species",
+        description_localizations={"de": "Deine iNaturalist-Ameisenstatistik: Beobachtungen und Arten"},
+    )
+    @allowed_channel()
+    async def inat_statistik(
+        self, ctx: discord.ApplicationContext,
+        jahr: discord.Option(int, "Year (default: current year)", required=False, default=None,
+                             min_value=2000, max_value=2100,
+                             description_localizations={"de": "Jahr (Standard: aktuelles Jahr)"}),
+    ):
+        await ctx.defer(ephemeral=True)
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        acc = await I.account_of(self.bot, ctx.author.id)
+        if not acc:
+            await ctx.followup.send(l10n.get("inat_stats_unlinked", lang), ephemeral=True)
+            return
+        year = jahr or datetime.now(BERLIN).year
+        y = await I.user_stats(self.bot, ctx.author.id, year)
+        a = await I.user_stats(self.bot, ctx.author.id)
+        rank = next((i + 1 for i, r in enumerate(await I.ranking(self.bot, year))
+                     if r["discord_id"] == str(ctx.author.id)), None)
+        e = discord.Embed(title=l10n.get("inat_stats_title", lang, login=acc["inat_login"]), color=0x74AC00,
+                          url=f"https://www.inaturalist.org/people/{acc['inat_login']}")
+        e.add_field(name=l10n.get("inat_stats_year_h", lang, year=year), inline=True,
+                    value=l10n.get("inat_stats_line", lang, obs=y["obs"], species=y["species"])
+                    + (f"\n{l10n.get('inat_stats_rank', lang, rank=rank)}" if rank else ""))
+        e.add_field(name=l10n.get("inat_stats_all_h", lang), inline=True,
+                    value=l10n.get("inat_stats_line", lang, obs=a["obs"], species=a["species"]))
+        if y["taxa"]:
+            names = ", ".join(f"*{n}*" for n in y["taxa"][:40])
+            if len(y["taxa"]) > 40:
+                names += " " + l10n.get("dir_more", lang, n=len(y["taxa"]) - 40)
+            e.add_field(name=l10n.get("inat_stats_taxa_h", lang, year=year), value=names[:1024], inline=False)
+        e.set_footer(text=l10n.get("inat_stats_footer", lang))
+        await ctx.followup.send(embed=e, ephemeral=True)
+
+    # ── Hintergrund ───────────────────────────────────────────────────────────
+    @tasks.loop(minutes=60)
+    async def hourly(self):
+        """Noch ungeprüfte Beobachtungen (z. B. API war down) nachholen und Reaktionen setzen."""
+        rows = await I.execute_db(self.bot, "SELECT obs_id, message_id, discord_id FROM inat_obs "
+                                            "WHERE checked_at IS NULL", fetch=True) or []
+        if not rows:
+            return
+        if not await I.update_obs(self.bot, [r["obs_id"] for r in rows]):
+            return
+        ch = self.bot.get_channel(INAT_CHANNEL_ID)
+        by_msg: dict = {}
+        for r in rows:
+            by_msg.setdefault(r["message_id"], []).append(r["obs_id"])
+        for mid, ids in by_msg.items():
+            try:
+                msg = await ch.fetch_message(int(mid))
+                await msg.remove_reaction("⏳", self.bot.user)
+                await self._react(msg, ids)
+            except Exception:
+                pass
+
+    @hourly.before_loop
+    async def _before_hourly(self):
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(time=dtime(hour=4, minute=17, tzinfo=BERLIN))
+    async def daily(self):
+        """Bestimmungen der letzten 6 Monate aktualisieren; am 1. des Monats Treppchen posten."""
+        n = await I.refresh(self.bot, full=True)
+        logger.info("🐜 iNat: %s Beobachtungen aktualisiert", n)
+        now = datetime.now(BERLIN)
+        if now.day != 1:
+            return
+        month = now.strftime("%Y-%m")
+        done = await I.execute_db(self.bot, "SELECT 1 FROM inat_posted_months WHERE month=?", (month,), fetch=True)
+        ch = self.bot.get_channel(INAT_CHANNEL_ID)
+        if done or ch is None:
+            return
+        year = (now - timedelta(days=1)).year          # am 1. Januar: Endstand des Vorjahres
+        key = "inat_ranking_year_end" if now.month == 1 else "inat_ranking_monthly"
+        try:
+            await self._post_ranking(ch, year, key)
+        finally:
+            await I.execute_db(self.bot, "INSERT OR IGNORE INTO inat_posted_months(month) VALUES (?)",
+                               (month,), commit=True)
+
+    @daily.before_loop
+    async def _before_daily(self):
+        await self.bot.wait_until_ready()
 
 
 def setup(bot: discord.Bot):

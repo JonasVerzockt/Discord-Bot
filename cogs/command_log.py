@@ -49,7 +49,7 @@ _SENSITIVE_PARAMS = {"user_id", "user", "text", "code"}
 _HIDDEN = "‹ausgeblendet›"
 
 # Bekannte Text-Trigger (lowercase, exakt) – nur diese werden protokolliert.
-_TEXT_TRIGGERS = {"!help", "!hilfe", "rangliste"}
+_TEXT_TRIGGERS = {"!help", "!hilfe", "rangliste", "statistik"}
 
 _FLUSH_SECONDS = 10          # Sammel-Post-Intervall in den Mod-Kanal
 _MAX_BUFFER    = 1000        # Sicherheitslimit gegen unbegrenztes Wachstum

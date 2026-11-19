@@ -298,6 +298,12 @@ class AdminCog(commands.Cog, name="Admin"):
                 data["events"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM user_events WHERE user_id=?", (uid,), fetch=True)]
 
+                # iNaturalist-Statistik (Verknüpfung + gepostete Beobachtungen)
+                data["inat_account"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM inat_accounts WHERE discord_id=?", (uid,), fetch=True) or []]
+                data["inat_observations"] = [dict(r) for r in await execute_db(
+                    self.bot, "SELECT * FROM inat_obs WHERE discord_id=?", (uid,), fetch=True) or []]
+
                 data["command_log"] = [dict(r) for r in await execute_db(
                     self.bot, "SELECT * FROM command_log WHERE user_id=?", (uid,), fetch=True)]
 
@@ -546,6 +552,7 @@ class AdminCog(commands.Cog, name="Admin"):
             ("command_log", "user_id"),
             ("offer_keywords", "user_id"), ("offer_alert_seen", "user_id"),
             ("map_entries", "user_id"), ("map_event_rsvp", "user_id"),
+            ("inat_accounts", "discord_id"), ("inat_obs", "discord_id"),
         ]
 
         ids: set[int] = set()

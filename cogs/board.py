@@ -1225,6 +1225,7 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
   {% if me.first %}<p style="margin:2px 0">{{ tp('yrp_first', date=me.first) }}</p>{% endif %}
  <h4>{{ tp('yrp_h_ants') }}</h4>
   <p style="margin:2px 0">{{ tp('yrp_notifications', n=me.notifications) }} · {{ tp('yrp_watches', n=me.watches) }} · {{ tp('yrp_tracked', n=me.tracked) }}{% if me.rsvps %} · {{ tp('yrp_rsvps', n=me.rsvps) }}{% endif %}</p>
+  {% if me.inat and me.inat.obs %}<p style="margin:2px 0">{{ tp('yrp_inat', obs=me.inat.obs, species=me.inat.species) }}</p>{% endif %}
  {% if me.ach %}<h4>{{ tp('yrp_h_ach', n=me.ach|length) }}</h4>
   <p style="margin:2px 0">{% for e, n in me.ach %}{{ e }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
  {% endif %}
@@ -2467,7 +2468,8 @@ async def h_rueckblick(req):
         me = await YR.personal(req.app["bot"], uid, year)
         me["name"] = _member_name(req.app, uid) or ""
         me["has"] = bool(me["commands"] or me["achievements"] or me["reviews"]
-                         or me["notifications"] or me["watches"] or me["tracked"])
+                         or me["notifications"] or me["watches"] or me["tracked"]
+                         or me.get("inat", {}).get("obs"))
         try:
             from utils.achievements import ACHIEVEMENTS
             emo = {a.id: a.emoji for a in ACHIEVEMENTS}

@@ -194,7 +194,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_info", "help_info_list",
         ]),
         ("help_grp_personal", [
-            "help_achievements", "help_usersetting",
+            "help_achievements", "help_usersetting", "help_inat",
         ]),
         ("help_grp_map", [
             "help_map_join", "help_map_tags", "help_map_confirm",

@@ -91,7 +91,7 @@ def personal_embed(p: dict, lang: str, user: discord.abc.User) -> discord.Embed:
     t = lambda k, **kw: l10n.get(k, lang, **kw)
     e = discord.Embed(title=t("yrp_title", year=p["year"], name=user.display_name), color=_COLOR)
     if not (p["commands"] or p["achievements"] or p["reviews"]
-            or p["notifications"] or p["watches"] or p["tracked"]):
+            or p["notifications"] or p["watches"] or p["tracked"] or p.get("inat", {}).get("obs")):
         e.description = t("yrp_empty", year=p["year"])
         return e
     if p["reviews"]:
@@ -118,6 +118,8 @@ def personal_embed(p: dict, lang: str, user: discord.abc.User) -> discord.Embed:
              t("yrp_tracked", n=p["tracked"])]
     if p["rsvps"]:
         lines.append(t("yrp_rsvps", n=p["rsvps"]))
+    if p.get("inat", {}).get("obs"):
+        lines.append(t("yrp_inat", obs=p["inat"]["obs"], species=p["inat"]["species"]))
     e.add_field(name=t("yrp_h_ants"), value="\n".join(lines), inline=False)
     if p["achievements"]:
         try:
