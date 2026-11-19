@@ -306,3 +306,26 @@ async def novelty(bot, obs_id: int, discord_id) -> tuple[bool, bool]:
     tid = r[0]["taxon_id"]
     rows = [x for x in await _counted_rows(bot) if x["taxon_id"] == tid and x["obs_id"] != obs_id]
     return (not any(x["discord_id"] == str(discord_id) for x in rows)), (not rows)
+
+
+async def community_year(bot, year: int) -> dict:
+    """Community-Summen eines Jahres für den Jahresrückblick (ohne Namen):
+    Beobachtungen, Arten (gleiche Ausstech-Regel wie je Person), meistbeobachtete Art,
+    erstmals in der Community gefundene Arten und Zahl der Mitmachenden."""
+    allrows = await _counted_rows(bot)
+    rows = [r for r in allrows if (r["day"] or "")[:4] == str(year)]
+    fine = [r for r in rows if r["taxon_id"] and (r["taxon_rank"] or "") not in COARSE]
+    cnt: dict = {}
+    for r in fine:
+        cnt.setdefault(r["taxon_id"], [r["taxon_name"], 0])[1] += 1
+    top = max(cnt.values(), key=lambda x: x[1]) if cnt else None
+    first: dict = {}
+    for r in allrows:
+        if r["taxon_id"] and (r["taxon_rank"] or "") not in COARSE:
+            d = r["day"] or ""
+            if r["taxon_id"] not in first or d < first[r["taxon_id"]]:
+                first[r["taxon_id"]] = d
+    return {"obs": len(rows), "species": len(_taxa(rows)),
+            "top": (top[0], top[1]) if top and top[1] > 1 else None,
+            "new": sum(1 for d in first.values() if d[:4] == str(year)),
+            "people": len({r["discord_id"] for r in rows})}

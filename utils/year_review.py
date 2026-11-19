@@ -147,7 +147,16 @@ async def community(bot, year: int) -> dict:
         "commands": await _one(bot, "SELECT COALESCE(SUM(value),0) FROM usage_monthly "
                                     "WHERE metric='calls' AND substr(month,1,4)=?", (y,)),
         "notifications": await _one(bot, "SELECT COUNT(*) FROM notifications WHERE substr(created_at,1,4)=?", (y,)),
+        "inat": await _inat_community(bot, year),
     }
+
+
+async def _inat_community(bot, year: int) -> dict:
+    try:
+        from utils.inat import community_year
+        return await community_year(bot, year)
+    except Exception:
+        return {"obs": 0, "species": 0, "top": None, "new": 0, "people": 0}
 
 
 async def personal(bot, user_id: str, year: int) -> dict:
