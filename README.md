@@ -1422,6 +1422,8 @@ Eine Seite nur für eingeloggte Mitglieder des AAM-Servers (Login mit Discord wi
 | PN-Verlauf | Vorschau der PNs, die der Bot von sich aus geschickt hat (Hook auf `Messageable.send`, nur PNs an eine Person, keine Antworten in PN-Gesprächen wie dem KI-Chat) |
 | Datenschutz | **alle Daten als JSON** (`/konto/daten.json`, gleicher Umfang wie `/bot export user_id:`), **Löschen je Bereich oder alles**, **überall abmelden** |
 
+**Löschen freischalten:** Alle Lösch-Aktionen (🗑️ bei Benachrichtigungen und Produkten, ✕ bei Beobachtungen, Blacklist und Schlagworten, Termin absagen, Karteneintrag löschen, der ganze Bereich „Daten löschen“) sind ausgeblendet, bis oben der Schalter „Löschen freischalten“ bestätigt wird (Hinweis auf endgültigen Datenverlust). Der Schalter gilt nur bis zum Neuladen der Seite. Der Server prüft das zusätzlich: ohne den Schalter (`unlock=1` im Formular) wird jede Lösch-Aktion abgelehnt.
+
 **Ruhezeit:** In der gewählten Zeit (volle Stunden, deutsche Zeit) werden Verfügbarkeits-, Preis-, Arten- und Angebots-PNs zurückgehalten und danach zugestellt: Verfügbarkeit und Preise beim nächsten regulären Lauf (Vergleichsbasis bleibt unverändert), Angebote über `quiet_offer_queue` (nur wenn noch offen und das Schlagwort noch existiert), die Sammel-PN entfallener Varianten im nächsten stündlichen Lauf. Wochen-Digest (Montag 9 Uhr) und Termin-Erinnerung (18 Uhr) kommen zur festen Zeit.
 
 **Überall abmelden:** Die Board-Cookies sind zustandslos signiert. Gespeichert wird deshalb nur der Zeitpunkt; Sitzungen (Mitglied und Admin), die davor begonnen haben, gelten nicht mehr.
