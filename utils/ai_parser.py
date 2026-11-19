@@ -49,7 +49,9 @@ bewertung→0-10 (X/10=X, X/5=X×2, cap 10), null wenn unklar
 positiv→positive Aspekte semikolon-sep., ""=keine
 negativ→Kritikpunkte semikolon-sep., ""=keine
 lieferzeit_tage→Kalendertage von Bestellung bis Ankunft als ganze Zahl (Wochentage relativ zum Datum
-  auflösen, z.B. "Dienstag bestellt, Freitag da"=3, "am nächsten Tag"=1); null, wenn nicht genannt"""
+  auflösen, z.B. "Dienstag bestellt, Freitag da"=3, "am nächsten Tag"=1); null, wenn nicht genannt.
+  Ebenfalls null, wenn die Dauer nicht am Shop lag: vereinbart späterer Versand, Vorbestellung,
+  Versandpause wegen Hitze/Kälte/Urlaub, Abholung oder Übergabe auf einer Messe"""
 
 # JSON-Schema für Structured Outputs: garantiert valides, vollständiges JSON
 # (alle Felder present, korrekte Typen) -> keine Parse-Fehler/Retries mehr.
@@ -104,6 +106,8 @@ _DELIVERY_PROMPT = """\
 Aus dieser Ameisen-Shop-Bewertung (geschrieben am {date}): Wie viele KALENDERTAGE lagen zwischen
 Bestellung und Ankunft? Wochentage relativ zum Datum auflösen ("Dienstag bestellt, Freitag da"=3,
 "am nächsten Tag"=1). Nur eine ganze Zahl; null, wenn die Bewertung dazu nichts Eindeutiges sagt.
+Ebenfalls null, wenn die Dauer nicht am Shop lag: vereinbart späterer Versand, Vorbestellung,
+Versandpause wegen Hitze/Kälte/Urlaub, Abholung oder Übergabe auf einer Messe.
 {message}"""
 _DELIVERY_SCHEMA = {
     "type": "object",
