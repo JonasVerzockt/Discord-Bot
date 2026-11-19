@@ -314,7 +314,7 @@ def _csrf_ok(req, form) -> bool:
 BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>{{ title }} · AAM-Bot Board</title><link rel="icon" id="favicon" type="image/png" href="/static/favicon.png?v={{ v }}"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ v }}"><script>if(/Firefox\//.test(navigator.userAgent)){var f=document.getElementById("favicon");f.type="image/gif";f.href="/static/favicon.gif?v={{ v }}";}</script><style>
+<title>{{ title }} · AAM-Bot Board</title><link rel="icon" id="favicon" type="image/png" href="/static/favicon.png?v={{ v }}"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ v }}"><script>if(/Firefox\\//.test(navigator.userAgent)){var f=document.getElementById("favicon");f.type="image/gif";f.href="/static/favicon.gif?v={{ v }}";}</script><style>
  :root{color-scheme:only dark} html,body{background:#0d1117}
  body{color:#e6edf3;font:15px/1.5 system-ui,Segoe UI,Arial;margin:0}
  option{background:#0d1117;color:#e6edf3} ::placeholder{color:#6e7681;opacity:1}
