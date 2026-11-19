@@ -116,7 +116,7 @@ async def find_user(login: str) -> dict | None:
     for u in d.get("results") or []:
         if (u.get("login") or "").lower() == login.lower():
             desc = u.get("description")
-            if desc is None:                      # Autocomplete ohne Bio → Einzelabruf
+            if not desc:                          # Autocomplete liefert die Bio oft nicht → Einzelabruf
                 d2 = await _get(f"/users/{u['id']}", {})
                 if d2 and d2.get("results"):
                     desc = d2["results"][0].get("description")
