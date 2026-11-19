@@ -47,7 +47,9 @@ produkte→semikolon-sep.
 geld_ausgegeben→Produktpreis ohne €/Versand als Zahl, null wenn unklar
 bewertung→0-10 (X/10=X, X/5=X×2, cap 10), null wenn unklar
 positiv→positive Aspekte semikolon-sep., ""=keine
-negativ→Kritikpunkte semikolon-sep., ""=keine"""
+negativ→Kritikpunkte semikolon-sep., ""=keine
+lieferzeit_tage→Kalendertage von Bestellung bis Ankunft als ganze Zahl (Wochentage relativ zum Datum
+  auflösen, z.B. "Dienstag bestellt, Freitag da"=3, "am nächsten Tag"=1); null, wenn nicht genannt"""
 
 # JSON-Schema für Structured Outputs: garantiert valides, vollständiges JSON
 # (alle Felder present, korrekte Typen) -> keine Parse-Fehler/Retries mehr.
@@ -63,9 +65,10 @@ _REVIEW_SCHEMA = {
         "bewertung":       {"type": ["number", "null"]},
         "positiv":         {"type": "string"},
         "negativ":         {"type": "string"},
+        "lieferzeit_tage": {"type": ["integer", "null"]},
     },
     "required": ["datum", "benutzername", "shop_name", "shop_typ", "produkte",
-                 "geld_ausgegeben", "bewertung", "positiv", "negativ"],
+                 "geld_ausgegeben", "bewertung", "positiv", "negativ", "lieferzeit_tage"],
     "additionalProperties": False,
 }
 
@@ -95,6 +98,41 @@ def parse_with_ai(content: str, shop: str, date: str) -> dict:
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
     return json.loads(text)
+
+
+_DELIVERY_PROMPT = """\
+Aus dieser Ameisen-Shop-Bewertung (geschrieben am {date}): Wie viele KALENDERTAGE lagen zwischen
+Bestellung und Ankunft? Wochentage relativ zum Datum auflösen ("Dienstag bestellt, Freitag da"=3,
+"am nächsten Tag"=1). Nur eine ganze Zahl; null, wenn die Bewertung dazu nichts Eindeutiges sagt.
+{message}"""
+_DELIVERY_SCHEMA = {
+    "type": "object",
+    "properties": {"lieferzeit_tage": {"type": ["integer", "null"]}},
+    "required": ["lieferzeit_tage"],
+    "additionalProperties": False,
+}
+
+
+def delivery_days(value) -> int | None:
+    """Plausible Lieferzeit (0–60 Kalendertage) oder None."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    return v if 0 <= v <= 60 else None
+
+
+def parse_delivery(content: str, date: str) -> int | None:
+    """Nur die Lieferzeit (für das nachträgliche Auswerten alter Bewertungen)."""
+    resp = _ai.messages.create(
+        model=REVIEW_PARSER_MODEL,
+        max_tokens=max_tokens_for(REVIEW_PARSER_MODEL, 60),
+        **thinking_off(REVIEW_PARSER_MODEL),
+        messages=[{"role": "user", "content": _DELIVERY_PROMPT.format(date=date, message=content)}],
+        output_config={"format": {"type": "json_schema", "schema": _DELIVERY_SCHEMA}},
+    )
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text_of(resp).strip())
+    return delivery_days(json.loads(text).get("lieferzeit_tage"))
 
 
 def build_row(parsed: dict) -> list:

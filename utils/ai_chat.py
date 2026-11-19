@@ -721,6 +721,11 @@ async def chat(
         if shop_data else
         base_prompt
     )
+    tools = None
+    if cfg.AI_CHAT_TOOLS:
+        from utils.ai_tools import TOOLS, SYSTEM_HINT
+        tools = TOOLS
+        system_prompt += "\n\n" + SYSTEM_HINT
 
     # 5. Pre-Budget-Check mit EXAKTER Token-Zählung (count_tokens); Fallback auf
     #    die Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist. Output
@@ -757,14 +762,50 @@ async def chat(
         }]
     else:
         system_param = system_prompt
+    tool_cost = 0.0
+    tool_calls = 0
     try:
         client   = _get_client()
+        call_messages = list(messages)
+        extra = {"tools": tools} if tools else {}
         response = await client.messages.create(
             model=model,
             max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
             system=system_param,
-            messages=messages,
+            messages=call_messages,
+            **extra,
         )
+        # Werkzeug-Runden: Modell fragt Daten an → ausführen → Ergebnis zurückgeben.
+        rounds = 0
+        while tools and response.stop_reason == "tool_use" and rounds <= cfg.AI_CHAT_TOOL_ROUNDS:
+            from utils.ai_tools import run_tool
+            round_cost = calculate_cost(response.usage, model)
+            tool_cost += round_cost
+            rounds += 1
+            results = []
+            for block in response.content:
+                if getattr(block, "type", "") == "tool_use":
+                    tool_calls += 1
+                    out = await run_tool(block.name, dict(block.input or {}))
+                    logger.info(f"[AI-Chat] Werkzeug {block.name}({block.input}) → {len(out)} Zeichen")
+                    results.append({"type": "tool_result", "tool_use_id": block.id, "content": out})
+            call_messages = call_messages + [
+                {"role": "assistant",
+                 "content": [b.model_dump(mode="json", exclude_none=True) for b in response.content]},
+                {"role": "user", "content": results},
+            ]
+            last = rounds >= cfg.AI_CHAT_TOOL_ROUNDS
+            if not last:
+                ok_more, _ = check_budget(user_id, round_cost + tool_cost, user_lang)
+                last = not ok_more
+            response = await client.messages.create(
+                model=model,
+                max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
+                system=system_param,
+                messages=call_messages,
+                tools=tools,
+                **({"tool_choice": {"type": "none"}} if last else {}),
+            )
 
     except anthropic.RateLimitError:
         logger.warning("[AI-Chat] Rate-Limit erreicht")
@@ -794,7 +835,7 @@ async def chat(
     ) or l10n.get("ai_no_answer", user_lang)
 
     # 8. Tatsächliche Kosten tracken (gewaehltes Modell + Haiku-Precheck falls vorhanden)
-    actual_cost = calculate_cost(response.usage, model) + precheck_cost
+    actual_cost = calculate_cost(response.usage, model) + precheck_cost + tool_cost
     add_cost(user_id, actual_cost)
 
     logger.info(
@@ -805,6 +846,7 @@ async def chat(
         f"cache_h={getattr(response.usage, 'cache_read_input_tokens', 0)}t "
         f"cost=${actual_cost:.6f}"
         + (f" (inkl. Haiku-Precheck ${precheck_cost:.6f})" if precheck_cost else "")
+        + (f" · {tool_calls} Werkzeug-Aufrufe (${tool_cost:.6f})" if tool_calls else "")
     )
 
     # 9. Aktualisierte History (wird vom Cog nach bot.reply() gespeichert)

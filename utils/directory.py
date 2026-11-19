@@ -426,3 +426,21 @@ def warnings_of(dom: str) -> list[dict]:
         return get_shop_warnings(url=f"https://{dom}/")
     except Exception:
         return []
+
+
+# ── Lieferzeit je Shop (aus den Bewertungen, cogs/reviews.py) ─────────────────
+DELIVERY_MIN_REVIEWS = 3
+
+
+async def delivery_of(bot, dom: str) -> dict | None:
+    """{avg, median, n} in Kalendertagen – erst ab DELIVERY_MIN_REVIEWS Angaben."""
+    from utils.db import execute_db
+    try:
+        rows = await execute_db(bot, "SELECT days FROM review_delivery WHERE shop=? AND days IS NOT NULL",
+                                (dom,), fetch=True) or []
+    except Exception:
+        return None
+    vals = sorted(r["days"] for r in rows)
+    if len(vals) < DELIVERY_MIN_REVIEWS:
+        return None
+    return {"avg": round(sum(vals) / len(vals), 1), "median": median(vals), "n": len(vals)}

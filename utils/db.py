@@ -394,6 +394,23 @@ CREATE TABLE IF NOT EXISTS user_events (
 CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events (user_id);
 
 -- Befehls-Nutzungsprotokoll (Moderation); Kanal-Posts separat, DB-Retention per Cleanup
+-- Lieferzeit je Bewertung (Kalendertage Bestellung → Ankunft), aus dem Review-Text.
+-- shop = Domain wie in der Bewertungstabelle (clean_shop_name).
+CREATE TABLE IF NOT EXISTS review_delivery (
+    message_id   TEXT PRIMARY KEY,
+    shop         TEXT NOT NULL,
+    days         INTEGER,             -- NULL = keine Angabe (bereits ausgewertet)
+    review_date  TEXT,                -- YYYY-MM-DD
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_review_delivery_shop ON review_delivery (shop);
+
+-- Jahresrückblick: bereits gepostete Jahre (verhindert Doppel-Posts nach Neustart).
+CREATE TABLE IF NOT EXISTS year_review_posted (
+    year       INTEGER PRIMARY KEY,
+    posted_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Öffentliche Nutzungsstatistik: Monatssummen (überdauern die Command-Log-Retention).
 -- metric: 'calls' | 'users' | 'cmd:<befehl>'; nur Befehle für alle (keine Admin-Befehle).
 CREATE TABLE IF NOT EXISTS usage_monthly (
