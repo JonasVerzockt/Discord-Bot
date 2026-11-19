@@ -665,5 +665,6 @@
   "yrp_closed_h": "🐜💤 La jara resumo vintrumas",
   "yrp_closed": "La resumo pri {year} estos havebla de {date} ĝis la fino de januaro. Ĝis tiam, fakto pri formikoj:",
   "yrp_fact_h": "Ĉu vi sciis?",
-  "yrp_bad_year": "Ne ekzistas resumo por {year}. Haveblaj jaroj: {first} ĝis {last}."
+  "yrp_bad_year": "Ne ekzistas resumo por {year}. Haveblaj jaroj: {first} ĝis {last}.",
+  "yrp_closed_past": "Pli fruajn jarojn vi plu povas rigardi, ekz. per /rueckblick jahr:{year}."
 }

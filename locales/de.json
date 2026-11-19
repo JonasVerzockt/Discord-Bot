@@ -665,5 +665,6 @@
   "yrp_closed_h": "🐜💤 Der Jahresrückblick hält Winterruhe",
   "yrp_closed": "Den Rückblick auf {year} gibt es ab dem {date} bis Ende Januar. Bis dahin ein Ameisen-Fakt:",
   "yrp_fact_h": "Schon gewusst?",
-  "yrp_bad_year": "Für {year} gibt es keinen Rückblick. Verfügbar sind die Jahre {first} bis {last}."
+  "yrp_bad_year": "Für {year} gibt es keinen Rückblick. Verfügbar sind die Jahre {first} bis {last}.",
+  "yrp_closed_past": "Frühere Jahre kannst du weiter ansehen, z. B. mit /rueckblick jahr:{year}."
 }

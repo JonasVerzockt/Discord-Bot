@@ -665,5 +665,6 @@
   "yrp_closed_h": "🐜💤 The year in review is hibernating",
   "yrp_closed": "The review of {year} is available from {date} until the end of January. Until then, an ant fact:",
   "yrp_fact_h": "Did you know?",
-  "yrp_bad_year": "There is no review for {year}. Available years: {first} to {last}."
+  "yrp_bad_year": "There is no review for {year}. Available years: {first} to {last}.",
+  "yrp_closed_past": "You can still view earlier years, e.g. with /rueckblick jahr:{year}."
 }
