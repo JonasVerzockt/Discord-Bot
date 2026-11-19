@@ -37,6 +37,15 @@ logger = logging.getLogger(__name__)
 # Google-Service-Account einmalig initialisieren
 _gc = gspread.service_account(filename="service_account.json")
 
+# Letzter erfolgreicher / fehlgeschlagener Sheet-Abgleich (Unix-Zeit) – für das
+# Status-Panel und die Alarm-DM (cogs/board.py). Nur im Speicher.
+import time as _time
+SYNC_STATUS: dict = {"started": _time.time(), "ok": {}, "fail": {}}
+
+
+def _mark_sync(kind: str, ok: bool) -> None:
+    SYNC_STATUS["ok" if ok else "fail"][kind] = _time.time()
+
 
 class SheetCache:
     """
@@ -197,7 +206,9 @@ async def sync_ratings_from_sheet(bot) -> int:
         sheet_ratings = await bot.loop.run_in_executor(None, _read)
     except Exception as e:
         logger.error(f"❌ sync_ratings: Sheet-Lesefehler: {e}")
+        _mark_sync("ratings", False)
         return 0
+    _mark_sync("ratings", True)
 
     if not sheet_ratings:
         logger.warning("⚠️ sync_ratings: Keine Ratings im Sheet gefunden")
@@ -302,7 +313,9 @@ async def sync_warnings_from_sheet(bot) -> int:
         data = await bot.loop.run_in_executor(None, _read)
     except Exception as e:
         logger.error(f"❌ sync_warnings: Sheet-Lesefehler: {e}")
+        _mark_sync("warnings", False)
         return -1
+    _mark_sync("warnings", True)
 
     global _WARNINGS, _WARNINGS_FUZZY
     _WARNINGS = data

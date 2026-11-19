@@ -394,6 +394,15 @@ CREATE TABLE IF NOT EXISTS user_events (
 CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events (user_id);
 
 -- Befehls-Nutzungsprotokoll (Moderation); Kanal-Posts separat, DB-Retention per Cleanup
+-- Öffentliche Nutzungsstatistik: Monatssummen (überdauern die Command-Log-Retention).
+-- metric: 'calls' | 'users' | 'cmd:<befehl>'; nur Befehle für alle (keine Admin-Befehle).
+CREATE TABLE IF NOT EXISTS usage_monthly (
+    month   TEXT    NOT NULL,      -- YYYY-MM
+    metric  TEXT    NOT NULL,
+    value   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (month, metric)
+);
+
 CREATE TABLE IF NOT EXISTS command_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     TEXT,
