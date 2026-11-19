@@ -967,6 +967,15 @@ T.update({
     'intro_reviews_link': {"de": 'Meine Bewertungen', "en": 'My ratings', "eo": 'Miaj taksoj'},
 })
 
+# ── Mein Konto: Löschen freischalten ──
+T.update({
+    'konto_unlock_t': {"de": 'Löschen freischalten', "en": 'Unlock deleting', "eo": 'Malŝlosi forigadon'},
+    'konto_unlock_s': {"de": 'Ich verstehe, dass Löschen hier endgültig ist und zu Datenverlust führt, und ich will hier wirklich etwas löschen. Gilt nur bis zum Neuladen der Seite.', "en": 'I understand that deleting here is final and causes data loss, and I really want to delete something here. Only applies until the page is reloaded.', "eo": 'Mi komprenas, ke forigo ĉi tie estas definitiva kaj kaŭzas perdon de datumoj, kaj mi vere volas forigi ion ĉi tie. Validas nur ĝis la paĝo estas reŝargita.'},
+    'konto_delete_locked': {"de": 'Löschen ist gesperrt.', "en": 'Deleting is locked.', "eo": 'Forigado estas ŝlosita.'},
+    'konto_delete_locked_link': {"de": 'Oben freischalten', "en": 'Unlock at the top', "eo": 'Malŝlosi supre'},
+    'konto_m_locked': {"de": 'Löschen ist gesperrt. Bitte oben „Löschen freischalten“ bestätigen.', "en": 'Deleting is locked. Please confirm “Unlock deleting” at the top.', "eo": 'Forigado estas ŝlosita. Bonvolu konfirmi „Malŝlosi forigadon“ supre.'},
+})
+
 def translate(lang: str, key: str, **kw) -> str:
     """Übersetzt *key* in *lang* (Fallback: Deutsch, dann der Key selbst).
     Platzhalter werden via str.format eingesetzt."""
