@@ -580,6 +580,7 @@ T.update({
     'yr_wait_text': {"de": 'Der Rückblick auf {y} öffnet am {d} und bleibt bis Ende Januar offen. Bis dahin: ein paar Ameisen-Fakten.', "en": 'The review of {y} opens on {d} and stays open until the end of January. Until then: some ant facts.', "eo": 'La resumo pri {y} malfermiĝos je {d} kaj restos malfermita ĝis la fino de januaro. Ĝis tiam: kelkaj faktoj pri formikoj.'},
     'yr_wait_fact_h': {"de": 'Schon gewusst?', "en": 'Did you know?', "eo": 'Ĉu vi sciis?'},
     'yr_wait_src': {"de": 'Quelle', "en": 'Source', "eo": 'Fonto'},
+    'yr_wait_past_h': {"de": 'Frühere Rückblicke', "en": 'Earlier reviews', "eo": 'Pli fruaj resumoj'},
     'yr_wait_more': {"de": 'Noch ein Fakt', "en": 'Another fact', "eo": 'Plia fakto'},
     'yr_community_h': {"de": 'Die Community', "en": 'The community', "eo": 'La komunumo'},
     'dir_days': {"de": 'Tage', "en": 'days', "eo": 'tagoj'},
