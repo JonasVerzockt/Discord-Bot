@@ -90,7 +90,10 @@ class TasksCog(commands.Cog, name="Tasks"):
                 logger.warning("⚠️ NotificationsCog nicht geladen – Verfügbarkeitsprüfung übersprungen")
                 return
 
+            from utils.account import is_quiet
             for row in rows:
+                if is_quiet(row["user_id"]):
+                    continue        # persönliche Ruhezeit: nach dem Ende beim nächsten Lauf
                 try:
                     excluded = set()
                     if row["excluded_species"]:

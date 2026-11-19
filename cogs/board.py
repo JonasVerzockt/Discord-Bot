@@ -60,6 +60,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     DISCORD_INVITE_URL, BOARD_AI_CHAT, BOARD_AI_CHAT_PER_MIN,
                     BOARD_AI_CHAT_PER_HOUR)
 from utils import geo, map_tags
+from utils import account as ACC
 from datetime import datetime, timezone, timedelta
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
@@ -67,6 +68,7 @@ from utils.timez import BERLIN, now_berlin, berlin_from_utc_naive
 from urllib.parse import urlencode
 from utils.board_i18n import (LANGS, FLAGS, FLAG_TITLE, pick_lang, translate,
                               type_label, flash_text, country_name)
+from utils.board_i18n import T as _BI18N_T
 from utils.currency import ensure_rates
 from utils import shop_stats
 
@@ -203,6 +205,7 @@ _STATIC_FILES = {
     "chart.umd.js": "application/javascript",
     "chartjs-chart-treemap.min.js": "application/javascript",
     "stats.js": "application/javascript",
+    "intro.js": "application/javascript",     # Anlass-Intros (utils/intro.py)
     "map_stats.js": "application/javascript",
     # Halter-Karte: Leaflet self-hosted + Kartenlogik + GeoJSON-Layer.
     # Große Dateien stellt der Bot via utils/map_geodata.py bereit (fehlen -> 404, Seite
@@ -291,6 +294,8 @@ def _admin_session(req) -> tuple[str, int] | None:
     except ValueError:
         return None
     if exp < int(time.time()) or not hmac.compare_digest(sig, _admin_sign(uid, exp)):
+        return None
+    if not ACC.session_ok(uid, exp - _ADMIN_TTL):        # „überall abmelden“ in Mein Konto
         return None
     return (uid, exp) if uid in _admin_ids() else None
 
@@ -407,6 +412,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/shops{{ qs() }}">{{ t('nav_shops') }}</a><a href="/art{{ qs() }}">{{ t('nav_species') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
  <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
+ {% if nav_member %}<a href="/konto{{ qs() }}">{{ t('nav_konto') }}</a>{% endif %}
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
 <div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
@@ -421,8 +427,11 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   · <a href="/partner?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_partner') }}</a>
   · <a href="/gewinnspiel?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_giveaway') }}</a>
   · <a href="/rueckblick?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_yearreview') }}</a>
+  · <a href="/inat?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_inat') }}</a>
+  · <a href="/konto?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_konto') }}</a>
 </footer>
 {% if chat_ok %}{% include "chatwidget" %}{% endif %}
+<script src="/static/intro.js?v={{ intro_v }}" defer></script>
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
@@ -1116,6 +1125,7 @@ ART = """{% extends "base" %}{% block body %}
  options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e"},grid:{color:"#21262d"}},y:{ticks:{color:"#8b949e",callback:function(v){return v+" €"}},grid:{color:"#21262d"}}}}});})();
 </script>
 {% endif %}
+<p style="margin:12px 0 0"><a class=btn href="/art/{{ sp.name|replace(' ','_')|urlencode }}/karte.png{{ qs() }}" download>📤 {{ t('dir_card_btn') }}</a> <span class=muted style="font-size:12px">{{ t('dir_card_hint') }}</span></p>
 <div class=chartbox><h4>{{ t('dir_offers_h') }}</h4>
 <table><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_price') }}</th><th>{{ t('dir_col_stock') }}</th><th></th></tr>
 {% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ price(o) }}{% set sg = sig.get(o.pid) if o.in_stock else none %}{% if sg %} <span title="{{ sig_txt[sg] }}">{{ sig_emoji[sg] }}</span>{% endif %}</td>
@@ -1247,7 +1257,7 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
  {% if d.inat and d.inat.obs %}<div class=kpi><div class=v>{{ d.inat.obs }}</div><div class=l>🔬 {{ t('yr_k_inat_obs') }}</div></div>
  <div class=kpi><div class=v>{{ d.inat.species }}</div><div class=l>🔬 {{ t('yr_k_inat_species') }}</div></div>{% endif %}
 </div>
-{% if d.inat and d.inat.obs %}<div class=chartbox><h4>🔬 {{ t('yr_inat_h') }}</h4>
+{% if d.inat and d.inat.obs %}<div class=chartbox><h4>🔬 {{ t('yr_inat_h') }} <a href="/inat{{ qs() }}" style="font-size:12px;font-weight:400">{{ t('inat_all_link') }}</a></h4>
  <p style="margin:2px 0">👥 {{ m(d.inat.people) }} {{ t('yr_inat_people') }}</p>
  {% if d.inat.new %}<p style="margin:2px 0">🌟 {{ d.inat.new }} {{ t('yr_inat_new') }}</p>{% endif %}
  {% if d.inat.top %}<p style="margin:2px 0">🏆 {{ t('yr_inat_top') }}: <a href="/art/{{ d.inat.top[0]|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ d.inat.top[0] }}</i></a> ({{ d.inat.top[1] }}×)</p>{% endif %}
@@ -1332,6 +1342,23 @@ CHATWIDGET = r"""<style>
   .catch(function(){w.textContent=L.err}).finally(function(){send.disabled=false;inp.focus()})};
 })();</script>"""
 
+INAT_LIST = """{% extends "base" %}{% block body %}
+{% macro m(n) %}{% if 0 < n < 3 %}&lt; 3{% else %}{{ n }}{% endif %}{% endmacro %}
+<h2 style="margin-bottom:6px">🔬 {{ t('inat_page_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('inat_page_intro') }}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{{ d.taxa|length }}</div><div class=l>{{ t('inat_k_species') }}</div></div>
+ <div class=kpi><div class=v>{{ d.obs }}</div><div class=l>{{ t('inat_k_obs') }}</div></div>
+ <div class=kpi><div class=v>{{ m(d.people) }}</div><div class=l>{{ t('inat_k_people') }}</div></div>
+ {% if d.years %}<div class=kpi><div class=v>{{ d.years[0] }}</div><div class=l>{{ t('inat_k_since') }}</div></div>{% endif %}
+</div>
+{% if d.taxa %}
+<form onsubmit="return false" style="max-width:420px;margin-top:14px"><input id=inatfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off></form>
+{% from "genmac" import genlist with context %}{{ genlist("inatgen", groups, d.taxa|length, "inatfilter") }}
+{% else %}<div class=flash style="margin-top:12px">{{ t('inat_page_empty') }}</div>{% endif %}
+<p class=muted>{{ t('inat_page_note') }}</p>
+{% endblock %}"""
+
 RUECKBLICK_WAIT = """{% extends "base" %}{% block body %}
 <div style="max-width:680px;margin:30px auto;text-align:center">
 <div style="font-size:54px">🐜💤</div>
@@ -1393,7 +1420,7 @@ ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUB
                                      "stats": STATS, "legal": LEGAL, "map": MAP,
                                      "art_index": ART_INDEX, "art": ART, "art_missing": ART_MISSING,
                                      "shops": SHOPS, "shop": SHOP, "genmac": GENMAC,
-                                     "rueckblick": RUECKBLICK, "rueckblick_wait": RUECKBLICK_WAIT,
+                                     "rueckblick": RUECKBLICK, "rueckblick_wait": RUECKBLICK_WAIT, "inat_list": INAT_LIST,
                                      "chatwidget": CHATWIDGET}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
@@ -1425,6 +1452,8 @@ def _render(req, name, title="Board", flash="", **ctx):
                 # Partner-Leiste über dem Footer – nur wenn Partner eingetragen sind und nicht
                 # auf der Karte (dort steht der Partner-Kasten in der rechten Spalte).
                 partner_strip=(_load_partners() if name != "map" else []))
+    i18n["nav_member"] = bool(_is_member(req))
+    i18n["intro_v"] = _intro_asset_v()
     chat_uid = _chat_uid(req) if name != "map" else None
     i18n.update(chat_ok=bool(chat_uid), chat_csrf=_member_csrf(chat_uid) if chat_uid else "",
                 chat_ttl=_chat_ttl())
@@ -1775,6 +1804,18 @@ async def _ai_cost_tile(bot) -> dict:
     return dict(name=name, state=state, detail=detail)
 
 
+def _inat_tile() -> dict:
+    """iNaturalist-API: letzter Erfolg / Fehler aus utils.inat.API_STATUS."""
+    from utils import inat as I
+    ok, err = I.API_STATUS.get("ok_at"), I.API_STATUS.get("err_at")
+    if not ok and not err:
+        return dict(name="iNaturalist-API", state="off", detail="seit dem Start noch nicht abgefragt")
+    if err and (not ok or err > ok):
+        return dict(name="iNaturalist-API", state="warn",
+                    detail=f"letzter Abruf fehlgeschlagen ({I.API_STATUS.get('err')}) · {err} UTC")
+    return dict(name="iNaturalist-API", state="ok", detail=f"letzter erfolgreicher Abruf {ok} UTC")
+
+
 async def _collect_health(app, lang: str = "de"):
     """Sammelt alle Health-Checks in Sektionen (Kern · In-Bot-Jobs · externe Cronjobs).
     Jeder Check ist gekapselt (ein Fehler bricht die Seite nicht ab). state ∈ ok|warn|down|off;
@@ -1810,8 +1851,12 @@ async def _collect_health(app, lang: str = "de"):
         core.append(dict(name="Board-Datenbank", state="ok", detail="erreichbar"))
     except Exception as e:
         core.append(dict(name="Board-Datenbank", state="down", detail=str(e)[:80]))
-    core.append(dict(name="KI-Chat (öffentlich)", state="ok" if AI_CHAT_PUBLIC else "off",
+    core.append(dict(name="KI-Chat (Discord-Kanal)", state="ok" if AI_CHAT_PUBLIC else "off",
                      detail="aktiv" if AI_CHAT_PUBLIC else "deaktiviert"))
+    chat_cog = bot is not None and "AiChatCog" in getattr(bot, "cogs", {})
+    core.append(dict(name="KI-Chat (Board)", state="ok" if (BOARD_AI_CHAT and chat_cog) else "off",
+                     detail="aktiv für eingeloggte Mitglieder" if (BOARD_AI_CHAT and chat_cog) else "deaktiviert"))
+    core.append(_inat_tile())
     core.append(_sheet_tile())
     core.append(await _ai_cost_tile(bot))
 
@@ -2310,6 +2355,41 @@ async def h_art_index(req):
     return _render(req, "art_index", title=translate(lang, "dir_art_index_h"), items=items, q=q,
                    groups=sorted(groups.items(), key=lambda g: g[0].lower()),
                    total=len(idx["species"]))
+
+
+async def h_inat(req):
+    """Öffentliche Artenliste der iNat-Statistik (nur Summen, keine Namen)."""
+    from utils import inat as I
+    lang = pick_lang(req)
+    d = await I.community_species(req.app["bot"])
+    groups: dict = {}
+    for x in d["taxa"]:
+        note = translate(lang, "inat_row_note", n=x["obs"], y=x["first"]) if x["first"] else ""
+        groups.setdefault(x["name"].split()[0], []).append({"name": x["name"], "note": note, "instock": False})
+    return _render(req, "inat_list", title=translate(lang, "inat_page_h"), d=d,
+                   groups=sorted(groups.items(), key=lambda g: g[0].lower()))
+
+
+async def h_art_card(req):
+    """Teilbare Artenkarte als PNG (Download-Button auf der Artseite)."""
+    from utils import directory as dirx, species_card, season as SEA
+    lang = pick_lang(req)
+    name = dirx.unslug(req.match_info.get("name", ""))[:120]
+    if not _rate("card:" + _hmac("card", _ip(req)), 20, 60):
+        raise web.HTTPTooManyRequests()
+    await ensure_rates()
+    sp = await asyncio.to_thread(dirx.find_species, name)
+    if not sp:
+        raise web.HTTPNotFound()
+    trend = await asyncio.to_thread(dirx.price_trend, sp, 12)
+    prof = await SEA.profile(req.app["bot"], sp["key"])
+    url = (BOARD_PUBLIC_URL.split("://", 1)[-1] + f"/art/{dirx.slug(sp['name'])}") if BOARD_PUBLIC_URL else ""
+    png = await asyncio.to_thread(species_card.render, sp, trend, lang, prof,
+                                  SEA.MONTHS_SHORT.get(lang, SEA.MONTHS_SHORT["de"]), url)
+    fn = dirx.slug(sp["name"]) + ".png"
+    return web.Response(body=png, content_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600",
+                                 "Content-Disposition": f'inline; filename="{fn}"'})
 
 
 async def h_art(req):
@@ -3039,11 +3119,11 @@ def _map_rate_ok(req) -> bool:
 
 
 _LOGIN_NEXT_COOKIE = "board_login_next"
-_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop|admin|rueckblick)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
+_LOGIN_NEXT_RE = re.compile(r"^/(?:art|shops|shop|admin|rueckblick|konto)(?:/[A-Za-z0-9_.%\-]{1,120})?$")
 
 
 def _login_next(path: str) -> str:
-    """Rücksprung nach dem Discord-Login – nur auf Art-/Händler-/Rückblickseiten (Whitelist)."""
+    """Rücksprung nach dem Discord-Login – nur auf Art-/Händler-/Rückblick-/Kontoseiten (Whitelist)."""
     p = (path or "").strip()
     return p if _LOGIN_NEXT_RE.match(p) else ""
 
@@ -3067,6 +3147,8 @@ def _is_member(req) -> str | None:
     if exp < int(time.time()):
         return None
     if not hmac.compare_digest(sig, _member_sign(uid, exp)):
+        return None
+    if not ACC.session_ok(uid, exp - _MEMBER_TTL):       # „überall abmelden“ in Mein Konto
         return None
     return uid
 
@@ -3817,7 +3899,7 @@ def _ics_calendar_url(req) -> str:
     return f"{base}/map/events.ics"
 
 
-def _ics_build(req, rows, feed: bool = True) -> bytes:
+def _ics_build(req, rows, feed: bool = True, name: str | None = None, source: str | None = None) -> bytes:
     """iCalendar (RFC 5545) für die übergebenen Event-Zeilen.
     feed=True: abonnierbarer Feed (Name, Abruf-Intervall, Quelle); False: Einzeltermin-Download.
 
@@ -3831,11 +3913,12 @@ def _ics_build(req, rows, feed: bool = True) -> bytes:
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AAM-Bot//Map//DE",
              "CALSCALE:GREGORIAN", "METHOD:PUBLISH"]
     if feed:
-        lines += ["NAME:AAM – Termine", "X-WR-CALNAME:AAM – Termine",
+        cal = name or "AAM – Termine"
+        lines += [f"NAME:{_ics_escape(cal)}", f"X-WR-CALNAME:{_ics_escape(cal)}",
                   f"X-WR-TIMEZONE:{_ICS_TZID}",
                   f"REFRESH-INTERVAL;VALUE=DURATION:{_ICS_REFRESH}",
                   f"X-PUBLISHED-TTL:{_ICS_REFRESH}",
-                  f"SOURCE;VALUE=URI:{_ics_calendar_url(req)}"]
+                  f"SOURCE;VALUE=URI:{source or _ics_calendar_url(req)}"]
     lines += _ICS_VTIMEZONE
     dfmt, tfmt = "%Y%m%d", "%Y%m%dT%H%M%S"
     for r in rows:
@@ -3921,6 +4004,869 @@ async def h_map_event_ics(req):
                                  "Cache-Control": "public, max-age=3600"})
 
 
+# ══ Anlass-Intros (/intro.json, Darstellung in static/intro.js) ════════════════
+_INTRO_COOKIE = "board_intro"
+_INTRO_TTL = 365 * 86400
+
+
+def _intro_asset_v() -> str:
+    try:
+        return f"{VERSION}.{int((STATIC_DIR / 'intro.js').stat().st_mtime)}"
+    except OSError:
+        return VERSION
+
+
+def _member_joined(app, uid):
+    """Beitrittsdatum zum AAM-Server (live von Discord, nicht gespeichert)."""
+    try:
+        g = app["bot"].get_guild(MAP_GUILD_ID) if MAP_GUILD_ID else None
+        m = g.get_member(int(uid)) if g else None
+        ja = getattr(m, "joined_at", None)
+        return ja.astimezone(BERLIN).date() if ja else None
+    except Exception:
+        return None
+
+
+def _intro_payload(lang: str, c: dict) -> dict:
+    p = c.get("p") or {}
+    sc = c["scene"]
+    link = c.get("link") or ""
+    if link:
+        path, _, frag = link.partition("#")
+        link = f"{path}?lang={lang}" + (f"#{frag}" if frag else "")
+    key_s = f"intro_{sc}_s1" if sc in ("botbday", "aam", "join") and p.get("n") == 1 else f"intro_{sc}_s"
+    title_k = f"intro_{sc}_t1" if sc in ("botbday", "aam", "join") and p.get("n") == 1 else f"intro_{sc}_t"
+    if sc == "ach" and p.get("n", 1) > 1:
+        key_s = "intro_ach_s_more"
+    return {"show": True, "scene": sc,
+            "title": translate(lang, title_k, **p), "sub": translate(lang, key_s, **p),
+            "link": link, "link_label": translate(lang, f"intro_{sc}_link") if link else "",
+            "skip": translate(lang, "intro_skip"), "p": p}
+
+
+async def h_intro(req):
+    """Welches Intro (wenn überhaupt) gerade dran ist. Höchstens eins pro Tag, jeder Anlass
+    einmal je Jahr (Cookie board_intro). Admins können mit ?intro=<szene> jede Szene testen."""
+    from utils import intro as IN
+    lang = pick_lang(req)
+    hdr = {"Cache-Control": "private, no-store"}
+    none = web.json_response({"show": False}, headers=hdr)
+    today = datetime.now(BERLIN).date()
+    forced = (req.query.get("intro") or "")[:20]
+    if forced and _is_admin(req):
+        c = IN.demo(forced, today)
+        return web.json_response(_intro_payload(lang, c) if c else {"show": False}, headers=hdr)
+    if not _rate("intro:" + _hmac("intro", _ip(req)), 60, 60):
+        return none
+    uid = _aam_member(req)
+    prefs = ACC.prefs(uid) if uid else None
+    if prefs and not prefs["intros"]:
+        return none
+    tday = today.strftime("%Y%m%d")
+    day, seen = IN.parse_cookie(req.cookies.get(_INTRO_COOKIE, ""))
+    if day == tday:
+        return none                                  # heute schon ein Intro gesehen
+    bot = req.app["bot"]
+    cands: list[dict] = []
+    if uid:
+        try:
+            pers = await IN.personal(bot, uid, today, _member_joined(req.app, uid), prefs, lang)
+        except Exception as e:
+            logger.debug("intro personal: %s", e)
+            pers = []
+        for c in pers:
+            if c.get("silent"):
+                await ACC.set_prefs(bot, uid, **c["commit"])   # erster Besuch: Ist-Stand merken
+        cands += [c for c in pers if not c.get("silent")]
+    cands += IN.seasonal(today)
+    pick = next((c for c in cands if c["key"] not in seen), None)
+    if not pick:
+        return none
+    if uid and pick.get("commit"):
+        await ACC.set_prefs(bot, uid, **pick["commit"])
+    resp = web.json_response(_intro_payload(lang, pick), headers=hdr)
+    resp.set_cookie(_INTRO_COOKIE, IN.build_cookie(tday, seen, pick["key"]), max_age=_INTRO_TTL,
+                    httponly=True, samesite="Lax", secure=req.secure)
+    return resp
+
+
+# ── Template „Mein Konto“ ──
+KONTO = """{% extends "base" %}{% block body %}
+<style>
+ .kt td,.kt th{font-size:14px} .kt th{color:#8b949e;font-weight:600;font-size:12px}
+ .kform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
+ .kform label{margin:0 0 3px} .kform>div{min-width:150px;flex:1}
+ .kform .chk{display:flex;gap:6px;align-items:center;flex:0 0 auto;min-width:0;color:#c9d1d9;font-size:14px;margin:0}
+ .kform .chk input,.kchk input{width:auto}
+ .kchk{display:inline-flex;gap:6px;align-items:center;margin:2px 14px 2px 0;color:#c9d1d9;font-size:14px}
+ .inl{display:inline} .inl button{margin:1px 0}
+ .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;border:1px solid #30363d}
+ .p-active{color:#3fb950;border-color:#3fb95066} .p-paused{color:#d29922;border-color:#d2992266} .p-done{color:#8b949e}
+ .bar{height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:4px} .bar i{display:block;height:100%;background:#238636}
+ .achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+ .ach{background:#0f141a;border:1px solid #21262d;border-radius:8px;padding:8px 10px} .ach.on{border-color:#3fb95066}
+ .ach .n{font-weight:600} .ach .d{color:#8b949e;font-size:12px}
+ .hist div{padding:5px 0;border-bottom:1px solid #161b22;font-size:14px} .hist .w{color:#8b949e;font-size:12px;margin-right:8px;white-space:nowrap}
+ .codebox{font:600 20px ui-monospace,monospace;background:#0d1117;border:1px dashed #58a6ff;border-radius:8px;padding:8px 14px;display:inline-block;letter-spacing:1px}
+ .danger{border-color:#8b2b2b !important}
+ .kt input,.kt select{padding:4px 6px}
+ @media(max-width:700px){.kt .hm{display:none}}
+</style>
+{% if not uid %}
+<div style="max-width:620px;margin:30px auto;text-align:center"><div style="font-size:50px">👤</div>
+<h2 style="margin:6px 0">{{ t('konto_h') }}</h2><p class=muted>{{ t('konto_login_text') }}</p>
+{% if login_url %}<p><a class=btn href="{{ login_url }}">{{ t('dir_login_btn') }}</a></p>{% else %}<div class=flash>{{ t('konto_login_off') }}</div>{% endif %}
+</div>
+{% else %}
+{% macro cs() %}<input type=hidden name=csrf value="{{ csrf }}">{% endmacro %}
+{% macro act(a) %}/konto/{{ a }}{{ qs() }}{% endmacro %}
+<h2 style="margin-bottom:4px">👤 {{ t('konto_h') }}{% if member_name %} · {{ member_name }}{% endif %}</h2>
+<p class=muted style="margin-top:0">🔒 {{ t('konto_intro') }}</p>
+<nav class=secnav>
+ <a href="#uebersicht">{{ t('konto_s_overview') }}</a><a href="#benachrichtigungen">{{ t('konto_s_notif') }}</a><a href="#preise">{{ t('konto_s_prices') }}</a><a href="#einstellungen">{{ t('konto_s_settings') }}</a><a href="#termine">{{ t('konto_s_events') }}</a><a href="#karte">{{ t('konto_s_map') }}</a><a href="#inat">{{ t('konto_s_inat') }}</a><a href="#erfolge">{{ t('konto_s_ach') }}</a><a href="#bewertungen">{{ t('konto_s_reviews') }}</a><a href="#verlauf">{{ t('konto_s_history') }}</a><a href="#daten">{{ t('konto_s_data') }}</a>
+</nav>
+
+<section class=statsec id=uebersicht><h3>📋 {{ t('konto_s_overview') }}</h3>
+<div class=kpigrid>
+ <a class=kpi href="#benachrichtigungen" style="text-decoration:none"><div class=v>{{ n_active }}</div><div class=l>🔔 {{ t('konto_k_notif') }}</div></a>
+ <a class=kpi href="#preise" style="text-decoration:none"><div class=v>{{ d.tracked|length }}</div><div class=l>📈 {{ t('konto_k_tracked') }}</div></a>
+ <a class=kpi href="#preise" style="text-decoration:none"><div class=v>{{ d.watches|length }}</div><div class=l>🔭 {{ t('konto_k_watches') }}</div></a>
+ <a class=kpi href="#einstellungen" style="text-decoration:none"><div class=v>{{ d.keywords|length }}</div><div class=l>🛒 {{ t('konto_k_keywords') }}</div></a>
+ <a class=kpi href="#termine" style="text-decoration:none"><div class=v>{{ d.rsvps|length }}</div><div class=l>📅 {{ t('konto_k_events') }}</div></a>
+ {% if d.rank %}<a class=kpi href="#erfolge" style="text-decoration:none"><div class=v>{{ d.rank.emoji }} {{ d.rank.n }}/{{ d.rank.total }}</div><div class=l>🏅 {{ d.rank.name }}</div></a>{% endif %}
+ <a class=kpi href="#inat" style="text-decoration:none"><div class=v>{{ d.inat_year.species }}</div><div class=l>🔬 {{ t('konto_k_inat', y=year) }}</div></a>
+ <a class=kpi href="#bewertungen" style="text-decoration:none"><div class=v>{{ n_reviews_year }}</div><div class=l>⭐ {{ t('konto_k_reviews', y=year) }}</div></a>
+</div>
+{% if d.ai %}<div class=chartbox><h4>🤖 {{ t('konto_ai_h') }}</h4>
+ <p style="margin:2px 0">{{ t('konto_ai_text', p=d.ai.pct) }}</p>
+ <div class=bar style="max-width:420px"><i style="width:{{ d.ai.pct }}%;{% if d.ai.pct >= 90 %}background:#d29922{% endif %}"></i></div>
+ <p class=muted style="margin:6px 0 0">{{ t('konto_ai_reset', r=d.ai.reset) }}{% if d.ai.global_pct >= 90 %} · {{ t('konto_ai_global', p=d.ai.global_pct) }}{% endif %}</p>
+</div>{% endif %}
+{% if quiet_now %}<div class=flash style="margin-top:12px">🌙 {{ t('konto_quiet_now', s=d.prefs.quiet_start, e=d.prefs.quiet_end) }}</div>{% endif %}
+</section>
+
+<section class=statsec id=benachrichtigungen><h3>🔔 {{ t('konto_s_notif') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_notif_intro') }}</p>
+{% if d.notifications %}<table class=kt><tr><th>{{ t('konto_col_species') }}</th><th>{{ t('konto_col_regions') }}</th><th>{{ t('konto_col_status') }}</th><th class=hm>{{ t('konto_col_since') }}</th><th></th></tr>
+{% for n in d.notifications %}<tr>
+ <td><i>{{ n.species }}</i>{% if n.excluded_species %}<div class=muted>{{ t('konto_excl') }}: {{ n.excluded_species }}</div>{% endif %}</td>
+ <td>{{ n.regions|replace(',', ', ')|upper }}</td>
+ <td><span class="pill {{ 'p-active' if n.status == 'active' else ('p-paused' if n.status == 'paused' else 'p-done') }}">{{ t('konto_st_' ~ (n.status if n.status in sts else 'other')) }}</span>{% if n.notified_at %}<div class=muted>{{ t('konto_notified') }} {{ n.notified_at|dmy }}</div>{% endif %}</td>
+ <td class=hm>{{ n.created_at|dmy }}</td>
+ <td style="white-space:nowrap">
+  <form class=inl method=post action="{{ act('benachrichtigung') }}">{{ cs() }}<input type=hidden name=id value="{{ n.id }}">
+  {% if n.status == 'active' %}<button class="btn grey small" name=do value=pause>⏸️ {{ t('konto_pause') }}</button>
+  {% else %}<button class="btn small" name=do value=resume>▶️ {{ t('konto_resume') }}</button>{% endif %}
+  <button class="btn red small" name=do value=delete onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form>
+ </td></tr>{% endfor %}</table>
+{% else %}<p>{{ t('konto_notif_none') }}</p>{% endif %}
+<details class=chartbox {% if open_form == 'notif' %}open{% endif %}><summary style="cursor:pointer;font-weight:600">➕ {{ t('konto_notif_new') }}</summary>
+<form method=post action="{{ act('benachrichtigung/neu') }}">{{ cs() }}
+ <div class=kform>
+  <div style="flex:0 0 auto;min-width:0"><label>{{ t('konto_kind') }}</label>
+   <span class=kchk><input type=radio name=kind value=species {% if form.kind != 'genus' %}checked{% endif %}> {{ t('konto_kind_species') }}</span>
+   <span class=kchk><input type=radio name=kind value=genus {% if form.kind == 'genus' %}checked{% endif %}> {{ t('konto_kind_genus') }}</span></div>
+  <div style="flex:2"><label>{{ t('konto_name') }}</label><input name=name list=kspecies required maxlength=80 value="{{ form.name or '' }}" placeholder="Messor barbarus"></div>
+  <div style="flex:2"><label>{{ t('konto_exclude') }}</label><input name=exclude maxlength=300 value="{{ form.exclude or '' }}" placeholder="Messor structor, …"></div>
+ </div>
+ <label>{{ t('konto_regions') }}</label>
+ <div>{% for code, label in regions %}<span class=kchk><input type=checkbox name=region value="{{ code }}" {% if code in form.regions %}checked{% endif %}> {{ label }}</span>{% endfor %}</div>
+ <div class=kform>
+  <span class=chk><input type=checkbox name=swiss value=1 {% if form.swiss %}checked{% endif %}> 🇨🇭 {{ t('konto_swiss') }}</span>
+  <span class=chk><input type=checkbox name=force value=1> {{ t('konto_force') }}</span>
+  <button class=btn>{{ t('konto_create') }}</button>
+ </div>
+ <p class=muted style="margin:0">{{ t('konto_notif_hint') }}</p>
+</form></details>
+</section>
+
+<section class=statsec id=preise><h3>📈 {{ t('konto_s_prices') }}</h3>
+<h4 style="margin:4px 0 6px">{{ t('konto_tracked_h') }}</h4>
+{% if d.tracked %}<table class=kt><tr><th>{{ t('konto_col_product') }}</th><th class=hm>{{ t('konto_col_shop') }}</th><th>{{ t('konto_col_price') }}</th><th>{{ t('konto_col_target') }}</th><th></th></tr>
+{% for p in d.tracked %}<tr>
+ <td>{% if p.product_url %}<a href="{{ p.product_url }}" target=_blank rel="noopener noreferrer">{{ p.product_title or p.species }}</a>{% else %}{{ p.product_title or p.species }}{% endif %}{% if p.variant_title %}<div class=muted>{{ p.variant_title }}</div>{% endif %}</td>
+ <td class=hm>{{ p.shop_name }}</td>
+ <td style="white-space:nowrap">{% if p.last_notified_min is not none %}{{ '%.2f'|format(p.last_notified_min) }}{% if p.last_notified_max and p.last_notified_max != p.last_notified_min %}–{{ '%.2f'|format(p.last_notified_max) }}{% endif %} {{ p.currency_iso }}{% else %}–{% endif %}</td>
+ <td><form class=inl method=post action="{{ act('zielpreis') }}">{{ cs() }}<input type=hidden name=pid value="{{ p.product_id }}"><input type=hidden name=vid value="{{ p.variant_id }}">
+  <input name=price inputmode=decimal style="width:80px" value="{{ ('%.2f'|format(p.target_price)) if p.target_price is not none else '' }}" placeholder="{{ p.currency_iso }}">
+  <select name=mode style="width:auto"><option value=additional {% if p.target_mode != 'replace' %}selected{% endif %}>{{ t('konto_mode_add') }}</option><option value=replace {% if p.target_mode == 'replace' %}selected{% endif %}>{{ t('konto_mode_replace') }}</option></select>
+  <button class="btn grey small">🎯</button></form></td>
+ <td><form class=inl method=post action="{{ act('preis/entfernen') }}">{{ cs() }}<input type=hidden name=pid value="{{ p.product_id }}"><input type=hidden name=vid value="{{ p.variant_id }}"><button class="btn red small" onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form></td>
+</tr>{% endfor %}</table>
+<p class=muted>{{ t('konto_target_hint') }}</p>
+{% else %}<p>{{ t('konto_tracked_none') }}</p>{% endif %}
+
+<div class=chartbox id=produktsuche><h4>➕ {{ t('konto_track_new') }}</h4>
+<form method=get action="/konto#produktsuche" class=kform><input type=hidden name=lang value="{{ lang }}">
+ <div style="flex:3"><label>{{ t('konto_name') }}</label><input name=ps list=kspecies required maxlength=80 value="{{ ps or '' }}" placeholder="Lasius niger"></div>
+ <button class="btn grey">🔎 {{ t('konto_search') }}</button></form>
+{% if ps %}{% if ps_results %}
+<form method=post action="{{ act('preis/neu') }}">{{ cs() }}<input type=hidden name=species value="{{ ps }}">
+<table class=kt><tr><th></th><th>{{ t('konto_col_product') }}</th><th class=hm>{{ t('konto_col_shop') }}</th><th>{{ t('konto_col_price') }}</th></tr>
+{% for r in ps_results %}<tr><td><input type=checkbox name=sel value="{{ r.key }}" style="width:auto" {% if r.tracked %}checked disabled{% endif %}></td>
+ <td>{{ r.title }}{% if r.tracked %} <span class=muted>({{ t('konto_already') }})</span>{% endif %}</td><td class=hm>{{ r.shop }}</td>
+ <td style="white-space:nowrap">{{ r.price }} {% if r.stock %}✅{% else %}❌{% endif %}</td></tr>{% endfor %}</table>
+{% if ps_more %}<p class=muted>{{ t('konto_ps_more', n=ps_more) }}</p>{% endif %}
+<p><button class=btn>{{ t('konto_track_btn') }}</button> <span class=muted>{{ t('konto_track_variants') }}</span></p></form>
+{% else %}<p>{{ t('konto_ps_none', q=ps) }}</p>{% endif %}{% endif %}
+</div>
+
+<h4 style="margin:16px 0 6px">{{ t('konto_watches_h') }}</h4>
+<p class=muted style="margin-top:0">{{ t('konto_watches_intro') }}</p>
+{% if d.watches %}<div>{% for w in d.watches %}<form class=inl method=post action="{{ act('beobachtung/entfernen') }}">{{ cs() }}<input type=hidden name=species value="{{ w.species }}"><span class=tag style="font-size:13px;padding:3px 8px"><i>{{ w.species|capitalize }}</i>{% if w.is_genus %} ({{ t('konto_kind_genus') }}){% endif %} <button class="btn red small" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>
+{% else %}<p>{{ t('konto_watches_none') }}</p>{% endif %}
+<form method=post action="{{ act('beobachtung/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>{{ t('konto_watch_new') }}</label><input name=species list=kspecies required maxlength=80 placeholder="Camponotus"></div>
+ <button class="btn grey">🔭 {{ t('konto_watch_btn') }}</button></form>
+</section>
+
+<section class=statsec id=einstellungen><h3>⚙️ {{ t('konto_s_settings') }}</h3>
+<form method=post action="{{ act('einstellungen') }}">{{ cs() }}
+ <div class=kform>
+  <div style="flex:0 0 220px"><label>{{ t('konto_lang') }}</label><select name=language>
+   <option value="" {% if not d.language %}selected{% endif %}>{{ t('konto_lang_server') }}</option>
+   {% for c, n in [('de','Deutsch'),('en','English'),('eo','Esperanto')] %}<option value="{{ c }}" {% if d.language == c %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+ </div>
+ <div><span class=kchk><input type=checkbox name=digest value=1 {% if d.digest %}checked{% endif %}> 📰 {{ t('konto_digest') }}</span></div>
+ <div><span class=kchk><input type=checkbox name=rsvp value=1 {% if d.prefs.rsvp_reminder %}checked{% endif %}> 📅 {{ t('konto_rsvp') }}</span></div>
+ <div><span class=kchk><input type=checkbox name=intros value=1 {% if d.prefs.intros %}checked{% endif %}> 🎬 {{ t('konto_intros') }}</span></div>
+ <div class=kform>
+  <span class=chk><input type=checkbox name=quiet value=1 {% if d.prefs.quiet_start is not none %}checked{% endif %}> 🌙 {{ t('konto_quiet') }}</span>
+  <div style="flex:0 0 110px"><label>{{ t('konto_quiet_from') }}</label><select name=qs>{% for h in range(24) %}<option value="{{ h }}" {% if h == (d.prefs.quiet_start if d.prefs.quiet_start is not none else 22) %}selected{% endif %}>{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
+  <div style="flex:0 0 110px"><label>{{ t('konto_quiet_to') }}</label><select name=qe>{% for h in range(24) %}<option value="{{ h }}" {% if h == (d.prefs.quiet_end if d.prefs.quiet_end is not none else 7) %}selected{% endif %}>{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
+ </div>
+ <p class=muted style="margin:0 0 8px">{{ t('konto_quiet_hint') }}</p>
+ <button class=btn>{{ t('konto_save') }}</button>
+</form>
+
+<h4 style="margin:18px 0 6px">🚫 {{ t('konto_bl_h') }}</h4>
+<p class=muted style="margin-top:0">{{ t('konto_bl_intro') }}</p>
+{% if blacklist %}<div>{% for sid, sname in blacklist %}<form class=inl method=post action="{{ act('blacklist/entfernen') }}">{{ cs() }}<input type=hidden name=shop value="{{ sid }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ sname }} <button class="btn red small" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_bl_none') }}</p>{% endif %}
+<form method=post action="{{ act('blacklist/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>{{ t('konto_bl_add') }}</label><select name=shop required><option value="">…</option>{% for sid, sname in shops %}<option value="{{ sid }}">{{ sname }}</option>{% endfor %}</select></div>
+ <button class="btn grey">{{ t('konto_add') }}</button></form>
+
+<h4 style="margin:18px 0 6px">🛒 {{ t('konto_kw_h') }}</h4>
+<p class=muted style="margin-top:0">{{ t('konto_kw_intro', n=kw_max) }}</p>
+{% if d.keywords %}<div>{% for k in d.keywords %}<form class=inl method=post action="{{ act('schlagwort/entfernen') }}">{{ cs() }}<input type=hidden name=kw value="{{ k.keyword }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ k.keyword_raw or k.keyword }} <button class="btn red small" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_kw_none') }}</p>{% endif %}
+{% if kw_enabled %}<form method=post action="{{ act('schlagwort/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>{{ t('konto_kw_add') }}</label><input name=kw required maxlength=400 placeholder="Lasius niger, Formicarium"></div>
+ <button class="btn grey">{{ t('konto_add') }}</button></form>{% endif %}
+</section>
+
+<section class=statsec id=termine><h3>📅 {{ t('konto_s_events') }}</h3>
+{% if d.rsvps %}<table class=kt><tr><th>{{ t('konto_col_date') }}</th><th>{{ t('konto_col_event') }}</th><th class=hm>{{ t('konto_col_place') }}</th><th></th></tr>
+{% for r in d.rsvps %}<tr><td style="white-space:nowrap">{{ r.occ_date|dmy }}{% if not r.all_day and r.start_at %}<div class=muted>{{ r.start_at[11:16] }}</div>{% endif %}</td>
+ <td>{{ r.title }}{% if r.url %} <a href="{{ r.url }}" target=_blank rel="noopener noreferrer">🔗</a>{% endif %}</td>
+ <td class=hm>{{ r.venue or '' }}{% if r.country %} ({{ r.country|upper }}){% endif %}</td>
+ <td style="white-space:nowrap"><a class="btn grey small" href="/map/events/{{ r.event_id }}.ics">📥</a>
+  <form class=inl method=post action="{{ act('termin/absagen') }}">{{ cs() }}<input type=hidden name=eid value="{{ r.event_id }}"><input type=hidden name=occ value="{{ r.occ_date }}"><button class="btn red small">{{ t('konto_cancel') }}</button></form></td></tr>{% endfor %}</table>
+{% else %}<p>{{ t('konto_events_none') }} <a href="/map{{ qs() }}">{{ t('nav_map') }}</a></p>{% endif %}
+<div class=chartbox><h4>🗓️ {{ t('konto_ics_h') }}</h4>
+ <p class=muted style="margin-top:0">{{ t('konto_ics_intro') }}</p>
+ {% if ics_url %}<input readonly value="{{ ics_url }}" onclick="this.select()" style="margin-bottom:8px">
+ <a class="btn grey small" href="{{ webcal_url }}">{{ t('konto_ics_subscribe') }}</a>{% endif %}
+ <form class=inl method=post action="{{ act('kalender/neu') }}">{{ cs() }}<button class="btn grey small">{{ t('konto_ics_new' if ics_url else 'konto_ics_create') }}</button></form>
+</div>
+</section>
+
+<section class=statsec id=karte><h3>🗺️ {{ t('konto_s_map') }}</h3>
+{% if d.map %}
+ <p style="margin:2px 0">{{ t('konto_map_where') }}: <b>{{ map_country }}</b>{% if d.map.region_name %} · {{ d.map.region_name }}{% endif %}{% if d.map.plz_prefix %} · PLZ {{ d.map.plz_prefix }}…{% endif %}</p>
+ <p class=muted style="margin:2px 0">{{ t('konto_map_vis_' ~ ('pin' if d.map.show_entry else 'count')) }} · {{ t('konto_map_name_' ~ ('on' if d.map.show_name else 'off')) }} · {{ t('konto_map_contact_' ~ ('on' if d.map.contact_ok else 'off')) }}{% if d.map.last_confirmed_at %} · {{ t('konto_map_confirmed') }} {{ d.map.last_confirmed_at|dmy }}{% endif %}</p>
+ <form method=post action="{{ act('karte/tags') }}">{{ cs() }}
+ {% for g in tag_groups %}<label>{{ g.label }}</label><div>{% for c, l in g.tags %}<span class=kchk><input type=checkbox name=tag value="{{ c }}" {% if c in d.map_tags %}checked{% endif %}> {{ l }}</span>{% endfor %}</div>{% endfor %}
+ <p><button class="btn grey">{{ t('konto_map_tags_save') }}</button></p></form>
+ <p class=muted>{{ t('konto_map_change') }}</p>
+ <form method=post action="{{ act('karte/loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_map')|tojson }})">{{ cs() }}<button class="btn red">🗑️ {{ t('konto_map_delete') }}</button></form>
+{% else %}<p>{{ t('konto_map_none') }}</p>{% endif %}
+</section>
+
+<section class=statsec id=inat><h3>🔬 {{ t('konto_s_inat') }}</h3>
+{% if d.inat %}
+ <p>{{ t('konto_inat_linked') }} <a href="https://www.inaturalist.org/people/{{ d.inat.inat_login|urlencode }}" target=_blank rel="noopener noreferrer"><b>{{ d.inat.inat_login }}</b></a></p>
+ <div class=kpigrid>
+  <div class=kpi><div class=v>{{ d.inat_year.species }}</div><div class=l>{{ t('konto_inat_species_y', y=year) }}</div></div>
+  <div class=kpi><div class=v>{{ d.inat_year.obs }}</div><div class=l>{{ t('konto_inat_obs_y', y=year) }}</div></div>
+  <div class=kpi><div class=v>{{ d.inat_all.species }}</div><div class=l>{{ t('konto_inat_species_all') }}</div></div>
+ </div>
+ {% if d.inat_all.taxa %}<details style="margin-top:10px"><summary style="cursor:pointer">{{ t('konto_inat_taxa', n=d.inat_all.taxa|length) }}</summary><p>{% for x in d.inat_all.taxa %}<a href="/art/{{ x|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ x }}</i></a>{% if not loop.last %}, {% endif %}{% endfor %}</p></details>{% endif %}
+ <form method=post action="{{ act('inat/trennen') }}" style="margin-top:10px" onsubmit="return confirm({{ t('konto_confirm_inat')|tojson }})">{{ cs() }}<button class="btn red small">{{ t('konto_inat_unlink') }}</button></form>
+{% elif d.inat_pending %}
+ <p>{{ t('konto_inat_pending', login=d.inat_pending.inat_login) }}</p>
+ <ol><li>{{ t('konto_inat_step1') }} <a href="https://www.inaturalist.org/users/edit" target=_blank rel="noopener noreferrer">inaturalist.org/users/edit</a></li>
+ <li>{{ t('konto_inat_step2') }}<br><span class=codebox>{{ d.inat_pending.code }}</span></li><li>{{ t('konto_inat_step3') }}</li></ol>
+ <form method=post action="{{ act('inat/pruefen') }}" class=inl>{{ cs() }}<button class=btn>{{ t('konto_inat_check') }}</button></form>
+ <form method=post action="{{ act('inat/start') }}" class=kform>{{ cs() }}<div><label>{{ t('konto_inat_other') }}</label><input name=login maxlength=40 required></div><button class="btn grey">{{ t('konto_inat_start') }}</button></form>
+{% else %}
+ <p>{{ t('konto_inat_intro') }}</p>
+ <form method=post action="{{ act('inat/start') }}" class=kform>{{ cs() }}<div><label>{{ t('konto_inat_login') }}</label><input name=login maxlength=40 required placeholder="mein_inat_name"></div><button class=btn>{{ t('konto_inat_start') }}</button></form>
+{% endif %}
+</section>
+
+<section class=statsec id=erfolge><h3>🏅 {{ t('konto_s_ach') }}</h3>
+{% if d.rank %}<p>{{ d.rank.emoji }} <b>{{ d.rank.name }}</b> · {{ t('konto_ach_n', n=d.rank.n, total=d.rank.total) }}{% if d.rank.next %} · {{ t('konto_ach_next', n=d.rank.next - d.rank.n) }}{% endif %}</p>{% endif %}
+{% for cat, label in ach_cats %}{% set items = d.ach|selectattr('cat', 'equalto', cat)|list %}{% if items %}
+<h4 style="margin:12px 0 6px">{{ label }}</h4><div class=achgrid>
+{% for a in items %}{% if a.hidden and not a.unlocked %}<div class=ach><div class=n>🔒 ???</div><div class=d>{{ t('konto_ach_hidden') }}</div></div>
+{% else %}<div class="ach {{ 'on' if a.unlocked }}"><div class=n>{{ a.emoji }} {{ a.title }}{% if a.unlocked %} ✅{% endif %}</div><div class=d>{{ a.desc }}</div>
+ {% if a.unlocked %}{% if a.date %}<div class=d>{{ t('konto_ach_since') }} {{ a.date|dmy }}</div>{% endif %}{% else %}<div class=bar><i style="width:{{ (100 * a.cur / a.tgt)|round|int if a.tgt else 0 }}%"></i></div><div class=d>{{ a.cur }}/{{ a.tgt }}</div>{% endif %}</div>{% endif %}
+{% endfor %}</div>{% endif %}{% endfor %}
+</section>
+
+<section class=statsec id=bewertungen><h3>⭐ {{ t('konto_s_reviews') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_reviews_intro') }}</p>
+{% if d.reviews %}<table class=kt><tr><th>{{ t('konto_col_date') }}</th><th>{{ t('konto_col_shop') }}</th><th>{{ t('konto_col_rating') }}</th><th></th></tr>
+{% for r in d.reviews %}<tr><td>{{ r.review_date|dmy }}</td><td>{% if r.shop %}<a href="/shop/{{ r.shop|urlencode }}{{ qs() }}">{{ shop_names.get(r.shop, r.shop) }}</a>{% endif %}</td>
+ <td>{% if r.rating is not none %}⭐ {{ ('%g'|format(r.rating)) }}{% else %}–{% endif %}</td>
+ <td>{% if d.review_link %}<a href="{{ d.review_link }}{{ r.message_id }}" target=_blank rel="noopener noreferrer">{{ t('konto_to_msg') }}</a>{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p>{{ t('konto_reviews_none') }}</p>{% endif %}
+</section>
+
+<section class=statsec id=verlauf><h3>📨 {{ t('konto_s_history') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_history_intro', d=dm_days, n=dm_max) }}</p>
+{% if d.history %}<div class=hist>{% for h in d.history %}<div><span class=w>{{ h.sent_at|berlin }}</span>{{ h.preview }}</div>{% endfor %}</div>
+{% else %}<p>{{ t('konto_history_none') }}</p>{% endif %}
+</section>
+
+<section class=statsec id=daten><h3>🛡️ {{ t('konto_s_data') }}</h3>
+<div class=chartbox><h4>📥 {{ t('konto_export_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_export_intro') }}</p>
+ <a class=btn href="/konto/daten.json{{ qs() }}">{{ t('konto_export_btn') }}</a></div>
+<div class=chartbox><h4>🔑 {{ t('konto_sessions_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_sessions_intro') }}</p>
+ <form method=post action="{{ act('abmelden') }}" onsubmit="return confirm({{ t('konto_confirm_logout')|tojson }})">{{ cs() }}<button class="btn grey">{{ t('konto_logout_all') }}</button></form></div>
+<div class="chartbox danger"><h4>🗑️ {{ t('konto_delete_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_delete_intro') }}</p>
+ <table class=kt>{% for a in areas %}<tr><td><b>{{ t('konto_area_' ~ a) }}</b><div class=muted>{{ t('konto_area_' ~ a ~ '_d') }}</div></td>
+  <td style="white-space:nowrap;text-align:right"><form class=inl method=post action="{{ act('loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_area')|tojson }})">{{ cs() }}<input type=hidden name=area value="{{ a }}"><button class="btn red small">{{ t('konto_delete_btn') }}</button></form></td></tr>{% endfor %}</table>
+ <form method=post action="{{ act('loeschen') }}" style="margin-top:14px" onsubmit="return confirm({{ t('konto_confirm_all')|tojson }})">{{ cs() }}<input type=hidden name=area value=all>
+  <span class=kchk><input type=checkbox name=sure value=1 required> {{ t('konto_delete_all_sure') }}</span>
+  <button class="btn red">{{ t('konto_delete_all') }}</button></form>
+ <p class=muted style="margin-bottom:0">{{ t('konto_delete_note', d=log_days) }}</p>
+</div>
+</section>
+<datalist id=kspecies>{% for s in species_names %}<option value="{{ s }}">{% endfor %}</datalist>
+{% endif %}
+{% endblock %}"""
+
+
+# ══ Mein Konto (/konto, nur eingeloggte AAM-Mitglieder) ════════════════════════
+ENV.loader.mapping["konto"] = KONTO
+
+
+def _f_dmy(v) -> str:
+    s = str(v or "")[:10]
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").strftime("%d.%m.%Y")
+    except ValueError:
+        return s
+
+
+def _f_berlin(v) -> str:
+    try:
+        return berlin_from_utc_naive(str(v), "%Y-%m-%d %H:%M:%S", "%d.%m.%Y %H:%M")
+    except Exception:
+        return str(v or "")
+
+
+ENV.filters["dmy"] = _f_dmy
+ENV.filters["berlin"] = _f_berlin
+
+_KONTO_STATUSES = ("active", "paused", "completed", "pending_feedback", "expired", "failed")
+_KONTO_SPECIES_CACHE: dict = {"at": 0.0, "names": []}
+_MD_STRIP = re.compile(r"(\*\*|__|`+)")
+
+
+def _konto_species_names() -> list[str]:
+    """Vorschläge für die Eingabefelder: alle angebotenen Arten + ihre Gattungen (10 min Cache)."""
+    if time.time() - _KONTO_SPECIES_CACHE["at"] < 600 and _KONTO_SPECIES_CACHE["names"]:
+        return _KONTO_SPECIES_CACHE["names"]
+    try:
+        from utils import directory as dirx
+        names = {v["name"] for v in dirx.index()["species"].values() if v.get("name")}
+    except Exception:
+        names = set()
+    genera = {n.split()[0] for n in names if " " in n}
+    out = sorted(genera) + sorted(names)
+    _KONTO_SPECIES_CACHE.update(at=time.time(), names=out[:4000])
+    return _KONTO_SPECIES_CACHE["names"]
+
+
+def _ics_personal_url(uid: str, salt: str) -> str:
+    base = BOARD_PUBLIC_URL or ""
+    return f"{base}/konto/kalender/{uid}/{salt}.ics"
+
+
+async def _konto_page(req, uid, flash: str = "", form: dict | None = None, open_form: str = "",
+                      status: int = 200):
+    from utils.availability import load_shop_data, strip_html
+    from utils.localization import l10n
+    lang = pick_lang(req)
+    bot = req.app["bot"]
+    d = await ACC.collect(bot, uid, lang)
+    shop_data = await load_shop_data(bot)
+    shops = sorted(((sid, sd.get("name") or sid) for sid, sd in shop_data.items()), key=lambda x: x[1].lower())
+    names = dict(shops)
+    countries = sorted({(sd.get("country") or "").lower() for sd in shop_data.values() if sd.get("country")})
+    regions = [("eu", "🇪🇺 " + translate(lang, "konto_region_eu"))] + \
+              [(c, f"{country_name(lang, c)} ({c.upper()})") for c in countries]
+    year = datetime.now(BERLIN).year
+    # Produktsuche (GET ?ps=…)
+    ps = (req.query.get("ps") or "").strip()[:80]
+    ps_results, ps_more = [], 0
+    if ps:
+        from cogs.price_tracking import _find_products_for_tracking
+        have = {(int(p["product_id"]), int(p["variant_id"] or 0)) for p in d["tracked"]}
+        found = await _find_products_for_tracking(bot, ps)
+        for sid, blk in found.items():
+            for p in blk["products"]:
+                try:
+                    lo, hi = float(p.get("min_price") or 0), float(p.get("max_price") or 0)
+                except (TypeError, ValueError):
+                    lo = hi = 0.0
+                price = "?" if p.get("_no_price") else (f"{lo:.2f}" + (f"–{hi:.2f}" if hi and hi != lo else "")
+                                                        + f" {p.get('currency_iso') or ''}")
+                ps_results.append({"key": f"{sid}|{p.get('id')}", "shop": blk["shop_info"].get("name", sid),
+                                   "title": strip_html(p.get("title") or p.get("species") or "")[:140],
+                                   "price": price, "stock": bool(p.get("in_stock")),
+                                   "tracked": (int(p.get("id") or 0), 0) in have})
+        ps_results.sort(key=lambda r: (not r["stock"], r["shop"].lower(), r["title"].lower()))
+        if len(ps_results) > 80:
+            ps_more = len(ps_results) - 80
+            ps_results = ps_results[:80]
+    salt = ACC.prefs(uid)["ics_salt"]
+    ics_url = _ics_personal_url(uid, salt) if salt else ""
+    tag_groups = [{"label": (g["label"].get(lang) or g["label"].get("de")),
+                   "tags": [(c, (l.get(lang) or l.get("de") or c)) for c, l in g["tags"]]}
+                  for g in map_tags.TAG_GROUPS]
+    try:
+        from cogs.offer_alerts import MAX_KEYWORDS
+        from config import OFFER_CHANNEL_ID
+    except Exception:
+        MAX_KEYWORDS, OFFER_CHANNEL_ID = 25, 0
+    from config import COMMAND_LOG_RETENTION_DAYS
+    ach_cats = [(c, _MD_STRIP.sub("", l10n.get("ach_cat_" + c, lang))) for c in
+                ("avail", "price", "community", "usage", "hidden")]
+    form = form or {}
+    form.setdefault("regions", [])
+    resp = _render(req, "konto", title=translate(lang, "konto_h"), flash=flash, uid=uid, d=d,
+                   member_name=_member_name(req.app, uid) or "", csrf=_member_csrf(uid),
+                   year=year, sts=_KONTO_STATUSES,
+                   n_active=sum(1 for n in d["notifications"] if n["status"] == "active"),
+                   n_reviews_year=sum(1 for r in d["reviews"] if str(r["review_date"]).startswith(str(year))),
+                   quiet_now=ACC.is_quiet(uid), regions=regions, form=form, open_form=open_form,
+                   shops=[s for s in shops if s[0] not in set(d["blacklist"])],
+                   blacklist=[(sid, names.get(sid, sid)) for sid in d["blacklist"]],
+                   shop_names={dom: sh["name"] for dom, sh in (await asyncio.to_thread(_all_shops_safe)).items()},
+                   kw_max=MAX_KEYWORDS, kw_enabled=bool(OFFER_CHANNEL_ID),
+                   ps=ps, ps_results=ps_results, ps_more=ps_more,
+                   ics_url=ics_url, webcal_url=("webcal://" + ics_url.split("://", 1)[-1]) if ics_url else "",
+                   map_country=(country_name(lang, d["map"]["country"]) if d["map"] and d["map"].get("country") else ""),
+                   tag_groups=tag_groups, ach_cats=ach_cats,
+                   dm_days=ACC.DM_LOG_DAYS, dm_max=ACC.DM_LOG_MAX,
+                   areas=list(ACC.AREAS), log_days=COMMAND_LOG_RETENTION_DAYS,
+                   species_names=_konto_species_names(),
+                   login_url="")
+    resp.headers["Cache-Control"] = "private, no-store"
+    resp.set_status(status)
+    return resp
+
+
+def _all_shops_safe() -> dict:
+    try:
+        from utils import directory as dirx
+        return dirx.all_shops()
+    except Exception:
+        return {}
+
+
+async def h_konto(req):
+    lang = pick_lang(req)
+    uid = _aam_member(req)
+    if not uid:
+        resp = _render(req, "konto", title=translate(lang, "konto_h"), uid=None,
+                       login_url=_login_url(req))
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    m = req.query.get("m", "")
+    flash = translate(lang, "konto_m_" + m, n=req.query.get("n", "")) if m and ("konto_m_" + m) in _BI18N_T else ""
+    return await _konto_page(req, uid, flash=flash)
+
+
+def _konto_back(req, code: str, anchor: str = "", n="") -> web.HTTPSeeOther:
+    lang = pick_lang(req)
+    q = {"lang": lang, "m": code}
+    if n != "":
+        q["n"] = str(n)
+    return web.HTTPSeeOther(f"/konto?{urlencode(q)}" + (f"#{anchor}" if anchor else ""))
+
+
+def _num(v, cast=int):
+    try:
+        return cast(str(v).replace(",", ".").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+async def h_konto_post(req):
+    """Alle Änderungen aus „Mein Konto“ (Formular-POST, CSRF + Rate-Limit, nur eigene Daten)."""
+    lang = pick_lang(req)
+    uid = _aam_member(req)
+    if not uid:
+        raise web.HTTPSeeOther(f"/konto?lang={lang}")
+    form = await req.post()
+    if not hmac.compare_digest(str(form.get("csrf", "")), _member_csrf(uid)):
+        raise web.HTTPForbidden(text="bad csrf")
+    if not _rate("konto:" + _hmac("konto", uid), 40, 300):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    bot = req.app["bot"]
+    act = req.match_info["action"]
+    T = lambda key, **kw: translate(lang, key, **kw)
+
+    # ── Benachrichtigungen ────────────────────────────────────────────────────
+    if act == "benachrichtigung":
+        nid, do = _num(form.get("id")), form.get("do")
+        if nid is None:
+            raise _konto_back(req, "error", "benachrichtigungen")
+        if do == "delete":
+            await execute_db(bot, "DELETE FROM notifications WHERE id=? AND user_id=?", (nid, uid), commit=True)
+            raise _konto_back(req, "deleted", "benachrichtigungen")
+        if do == "pause":
+            await execute_db(bot, "UPDATE notifications SET status='paused' WHERE id=? AND user_id=? "
+                                  "AND status='active'", (nid, uid), commit=True)
+            raise _konto_back(req, "paused", "benachrichtigungen")
+        if do == "resume":
+            rows = await execute_db(bot, "SELECT species, regions, excluded_species FROM notifications "
+                                         "WHERE id=? AND user_id=?", (nid, uid), fetch=True)
+            if rows:
+                await execute_db(bot, "UPDATE notifications SET status='active', created_at=CURRENT_TIMESTAMP, "
+                                      "pending_feedback_until=NULL WHERE id=? AND user_id=?", (nid, uid), commit=True)
+                r = rows[0]
+                _konto_check_now(bot, uid, r["species"], r["regions"], r["excluded_species"])
+            raise _konto_back(req, "resumed", "benachrichtigungen")
+        raise _konto_back(req, "error", "benachrichtigungen")
+
+    if act == "benachrichtigung/neu":
+        return await _konto_notif_add(req, uid, form)
+
+    # ── Preise ────────────────────────────────────────────────────────────────
+    if act == "preis/entfernen":
+        pid, vid = _num(form.get("pid")), _num(form.get("vid")) or 0
+        await execute_db(bot, "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=? AND variant_id=?",
+                         (uid, pid, vid), commit=True)
+        raise _konto_back(req, "deleted", "preise")
+
+    if act == "zielpreis":
+        pid, vid = _num(form.get("pid")), _num(form.get("vid")) or 0
+        raw = (form.get("price") or "").strip()
+        mode = form.get("mode") if form.get("mode") in ("additional", "replace") else "additional"
+        if not raw:
+            await execute_db(bot, "UPDATE user_price_tracking SET target_price=NULL, target_mode=NULL "
+                                  "WHERE user_id=? AND product_id=? AND variant_id=?", (uid, pid, vid), commit=True)
+            raise _konto_back(req, "target_off", "preise")
+        price = _num(raw, float)
+        if price is None or price <= 0 or price > 100000:
+            raise _konto_back(req, "bad_price", "preise")
+        await execute_db(bot, "UPDATE user_price_tracking SET target_price=?, target_mode=? "
+                              "WHERE user_id=? AND product_id=? AND variant_id=?",
+                         (round(price, 2), mode, uid, pid, vid), commit=True)
+        raise _konto_back(req, "target_set", "preise")
+
+    if act == "preis/neu":
+        from cogs.price_tracking import _find_products_for_tracking, save_tracking
+        species = (form.get("species") or "").strip()[:80]
+        sel = {str(x) for x in form.getall("sel", [])}
+        if not species or not sel:
+            raise _konto_back(req, "nothing", "preise")
+        found = await _find_products_for_tracking(bot, species)
+        saved = 0
+        for sid, blk in found.items():
+            for p in blk["products"]:
+                if f"{sid}|{p.get('id')}" in sel and p.get("id") is not None:
+                    if await save_tracking(bot, uid, sid, blk["shop_info"].get("name", sid), p):
+                        saved += 1
+        raise _konto_back(req, "track_added", "preise", n=saved)
+
+    if act == "beobachtung/neu":
+        from utils.availability import normalize_species_name
+        from utils import species_catalog
+        from cogs.price_tracking import init_species_watch_seen
+        raw = (form.get("species") or "").strip()[:80]
+        if len(raw) < 3:
+            raise _konto_back(req, "nothing", "preise")
+        canon = species_catalog.canonical(raw)
+        norm = normalize_species_name(canon or raw)
+        is_genus = 0 if " " in norm.strip() else 1
+        rc = await execute_db(bot, "INSERT INTO user_species_watch (user_id, species, is_genus) VALUES (?,?,?) "
+                                   "ON CONFLICT(user_id, species) DO NOTHING", (uid, norm, is_genus), commit=True)
+        if rc:
+            await init_species_watch_seen(bot, uid, norm, is_genus)
+        raise _konto_back(req, "watch_added" if rc else "exists", "preise")
+
+    if act == "beobachtung/entfernen":
+        sp = (form.get("species") or "").strip()
+        for sql in ("DELETE FROM user_species_watch WHERE user_id=? AND species=?",
+                    "DELETE FROM user_species_watch_seen WHERE user_id=? AND watched_species=?",
+                    "DELETE FROM user_species_watch_variant_seen WHERE user_id=? AND watched_species=?",
+                    "DELETE FROM pending_variant_removed WHERE user_id=? AND watched_species=?"):
+            await execute_db(bot, sql, (uid, sp), commit=True)
+        raise _konto_back(req, "deleted", "preise")
+
+    # ── Einstellungen ─────────────────────────────────────────────────────────
+    if act == "einstellungen":
+        lng = form.get("language") or ""
+        if lng in ("de", "en", "eo"):
+            await execute_db(bot, "DELETE FROM user_settings WHERE user_id=?", (uid,), commit=True)
+            await execute_db(bot, "INSERT INTO user_settings (user_id, language) VALUES (?, ?) "
+                                  "ON CONFLICT(user_id) DO UPDATE SET language=excluded.language",
+                             (int(uid), lng), commit=True)
+        elif lng == "":
+            for v in (int(uid), uid):
+                await execute_db(bot, "DELETE FROM user_settings WHERE user_id=?", (v,), commit=True)
+        if form.get("digest"):
+            await execute_db(bot, "INSERT OR IGNORE INTO digest_subscribers (user_id) VALUES (?)", (uid,), commit=True)
+        else:
+            await execute_db(bot, "DELETE FROM digest_subscribers WHERE user_id=?", (uid,), commit=True)
+        qs_, qe_ = _num(form.get("qs")), _num(form.get("qe"))
+        quiet = bool(form.get("quiet")) and qs_ is not None and qe_ is not None \
+            and 0 <= qs_ < 24 and 0 <= qe_ < 24 and qs_ != qe_
+        await ACC.set_prefs(bot, uid, rsvp_reminder=1 if form.get("rsvp") else 0,
+                            intros=1 if form.get("intros") else 0,
+                            quiet_start=qs_ if quiet else None, quiet_end=qe_ if quiet else None)
+        raise _konto_back(req, "saved", "einstellungen")
+
+    if act == "blacklist/neu":
+        from utils.availability import load_shop_data
+        sid = str(form.get("shop") or "")
+        if sid in await load_shop_data(bot):
+            await execute_db(bot, "INSERT OR IGNORE INTO user_shop_blacklist (user_id, shop_id) VALUES (?, ?)",
+                             (uid, sid), commit=True)
+        raise _konto_back(req, "saved", "einstellungen")
+
+    if act == "blacklist/entfernen":
+        await execute_db(bot, "DELETE FROM user_shop_blacklist WHERE user_id=? AND shop_id=?",
+                         (uid, str(form.get("shop") or "")), commit=True)
+        raise _konto_back(req, "deleted", "einstellungen")
+
+    if act == "schlagwort/neu":
+        from cogs.offer_alerts import _plain, MAX_KEYWORDS
+        cnt = await execute_db(bot, "SELECT COUNT(*) AS n FROM offer_keywords WHERE user_id=?", (uid,), fetch=True)
+        have = cnt[0]["n"] if cnt else 0
+        added = []
+        for part in re.split(r"[;,]", form.get("kw") or ""):
+            raw = part.strip()
+            kw = _plain(raw)
+            if not (2 <= len(kw) <= 80) or have >= MAX_KEYWORDS:
+                continue
+            rc = await execute_db(bot, "INSERT OR IGNORE INTO offer_keywords (user_id, keyword, keyword_raw) "
+                                       "VALUES (?,?,?)", (uid, kw, raw), commit=True)
+            if rc:
+                have += 1
+                added.append((kw, raw))
+        cog = bot.cogs.get("OfferAlerts") if hasattr(bot, "cogs") else None
+        if cog and added:
+            async def _bf():
+                try:
+                    user = bot.get_user(int(uid)) or await bot.fetch_user(int(uid))
+                    for kw, raw in added:
+                        await cog._backfill(user, uid, kw, raw)
+                except Exception as e:
+                    logger.info("👤 Konto: Rückblick für Schlagworte fehlgeschlagen: %s", e)
+            asyncio.create_task(_bf())
+        raise _konto_back(req, "kw_added", "einstellungen", n=len(added))
+
+    if act == "schlagwort/entfernen":
+        await execute_db(bot, "DELETE FROM offer_keywords WHERE user_id=? AND keyword=?",
+                         (uid, str(form.get("kw") or "")), commit=True)
+        await execute_db(bot, "DELETE FROM quiet_offer_queue WHERE user_id=? AND keyword=?",
+                         (uid, str(form.get("kw") or "")), commit=True)
+        raise _konto_back(req, "deleted", "einstellungen")
+
+    # ── Termine & Kalender ────────────────────────────────────────────────────
+    if act == "termin/absagen":
+        await execute_db(bot, "DELETE FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
+                         (_num(form.get("eid")), str(form.get("occ") or "")[:10], uid), commit=True)
+        raise _konto_back(req, "rsvp_removed", "termine")
+
+    if act == "kalender/neu":
+        await ACC.ics_salt(bot, uid, rotate=True)
+        raise _konto_back(req, "ics_new", "termine")
+
+    # ── Karte ─────────────────────────────────────────────────────────────────
+    if act == "karte/tags":
+        have = await execute_db(bot, "SELECT 1 FROM map_entries WHERE user_id=?", (uid,), fetch=True)
+        if have:
+            tags = [c for c in form.getall("tag", []) if map_tags.is_valid(c)]
+            await execute_db(bot, "DELETE FROM map_entry_tags WHERE user_id=?", (uid,), commit=True)
+            for c in dict.fromkeys(tags):
+                await execute_db(bot, "INSERT OR IGNORE INTO map_entry_tags (user_id, tag_code) VALUES (?,?)",
+                                 (uid, c), commit=True)
+        raise _konto_back(req, "saved", "karte")
+
+    if act == "karte/loeschen":
+        for sql in ("DELETE FROM map_entry_tags WHERE user_id=?", "DELETE FROM map_entry_regions WHERE user_id=?",
+                    "DELETE FROM map_entries WHERE user_id=?"):
+            await execute_db(bot, sql, (uid,), commit=True)
+        raise _konto_back(req, "map_deleted", "karte")
+
+    # ── iNaturalist ───────────────────────────────────────────────────────────
+    if act in ("inat/start", "inat/pruefen", "inat/trennen"):
+        from utils import inat as I
+        from utils.localization import l10n
+        if act == "inat/trennen":
+            await I.unlink(bot, uid)
+            raise _konto_back(req, "inat_unlinked", "inat")
+        if act == "inat/start":
+            login = (form.get("login") or "").strip().lstrip("@")
+            if not I.LOGIN_RE.match(login):
+                return await _konto_page(req, uid, flash=_MD_STRIP.sub("", l10n.get("inat_link_bad_login", lang)))
+            await I.start_link(bot, uid, login)
+            raise _konto_back(req, "inat_code", "inat")
+        status, u = await I.verify_link(bot, uid)
+        if status == "ok":
+            st = await I.user_stats(bot, uid)
+            msg = l10n.get("inat_link_ok", lang, login=u["login"], obs=st["obs"], species=st["species"])
+        else:
+            msg = l10n.get(f"inat_link_{status}", lang)
+        return await _konto_page(req, uid, flash=_MD_STRIP.sub("", msg))
+
+    # ── Sitzungen & Datenschutz ───────────────────────────────────────────────
+    if act == "abmelden":
+        await ACC.set_prefs(bot, uid, logout_before=ACC.now_epoch())
+        resp = web.HTTPSeeOther(f"/konto?lang={lang}&m=logout")
+        resp.del_cookie(_MEMBER_COOKIE)
+        resp.del_cookie(_ADMIN_COOKIE)
+        logger.info("👤 Konto: überall abgemeldet (%s)", uid)
+        raise resp
+
+    if act == "loeschen":
+        area = str(form.get("area") or "")
+        if area == "all" and not form.get("sure"):
+            raise _konto_back(req, "error", "daten")
+        if area != "all" and area not in ACC.AREAS:
+            raise _konto_back(req, "error", "daten")
+        await ACC.delete_area(bot, uid, area)
+        raise _konto_back(req, "area_deleted", "daten")
+
+    raise web.HTTPNotFound()
+
+
+def _konto_check_now(bot, uid, species, regions, excluded) -> None:
+    """Sofort-Prüfung nach Anlegen/Fortsetzen (wie /notification), außer in der Ruhezeit."""
+    cog = bot.cogs.get("Notifications") if hasattr(bot, "cogs") else None
+    if not cog or ACC.is_quiet(uid):
+        return
+    ex = {s.strip().lower() for s in (excluded or "").split(",") if s.strip()}
+    asyncio.create_task(cog.trigger_availability_check(uid, species, regions,
+                                                       ch_mode=(regions == "ch"), excluded_species_list=ex))
+
+
+async def _konto_notif_add(req, uid, form):
+    """Neue Verfügbarkeits-Benachrichtigung, gleiche Regeln wie /notification."""
+    from utils.availability import load_shop_data, expand_regions, species_exists
+    from utils import species_catalog
+    lang = pick_lang(req)
+    bot = req.app["bot"]
+    T = lambda key, **kw: translate(lang, key, **kw)
+    kind = "genus" if form.get("kind") == "genus" else "species"
+    name = " ".join((form.get("name") or "").split())[:80]
+    exclude = (form.get("exclude") or "").strip()[:300]
+    regs = [r for r in form.getall("region", []) if re.fullmatch(r"[a-z]{2}", r)]
+    swiss = bool(form.get("swiss"))
+    force = bool(form.get("force"))
+    keep = {"kind": kind, "name": name, "exclude": exclude, "regions": regs, "swiss": swiss}
+
+    def fail(msg):
+        return _konto_page(req, uid, flash=_MD_STRIP.sub("", msg), form=keep, open_form="notif")
+
+    if not name:
+        return await fail(T("konto_err_name"))
+    if kind == "species" and " " not in name:
+        return await fail(T("konto_err_species_format"))
+    if kind == "genus" and " " in name:
+        name = name.split()[0]
+    if not force:
+        msg = species_catalog.validation_message(species_catalog.check(name), lang)
+        if msg:
+            return await fail(msg.replace("`force`", T("konto_force")))
+    term = species_catalog.canonical(name) or name
+    shop_data = await load_shop_data(bot)
+    avail = {(sd.get("country") or "").lower() for sd in shop_data.values() if sd.get("country")}
+    if swiss:
+        valid = ["ch"]
+    else:
+        valid = sorted(r for r in await expand_regions(bot, regs) if r in avail)
+        if not valid:
+            return await fail(T("konto_err_regions"))
+    if not force and not await species_exists(bot, term):
+        return await fail(T("konto_err_unknown", term=term))
+    excluded = exclude.lower() if (kind == "genus" and exclude) else None
+    regions_str = ",".join(valid)
+    await execute_db(bot,
+        """INSERT INTO notifications (user_id, species, regions, status, excluded_species, server_id)
+           VALUES (?, ?, ?, 'active', ?, ?)
+           ON CONFLICT(user_id, species, regions)
+           DO UPDATE SET created_at=CURRENT_TIMESTAMP, status='active',
+               excluded_species=excluded.excluded_species, server_id=excluded.server_id""",
+        (uid, term, regions_str, excluded, MAP_GUILD_ID or None), commit=True)
+    if MAP_GUILD_ID:
+        await execute_db(bot, "INSERT OR IGNORE INTO server_user_mappings (user_id, server_id) VALUES (?, ?)",
+                         (uid, MAP_GUILD_ID), commit=True)
+    _konto_check_now(bot, uid, term, regions_str, excluded)
+    raise _konto_back(req, "notif_added", "benachrichtigungen")
+
+
+async def h_konto_export(req):
+    """Alle eigenen Daten als JSON (Art. 15/20 DSGVO)."""
+    uid = _aam_member(req)
+    if not uid:
+        raise web.HTTPSeeOther(f"/konto?lang={pick_lang(req)}")
+    if not _rate("kontoexp:" + _hmac("kontoexp", uid), 5, 300):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    data = await ACC.export_user(req.app["bot"], uid)
+    body = json.dumps(data, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    return web.Response(body=body, headers={
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": f"attachment; filename=aam-meine-daten-{uid}.json",
+        "Cache-Control": "private, no-store"})
+
+
+async def h_konto_ics(req):
+    """Persönlicher Kalender: nur die eigenen Zusagen. Geheimer Link (neu erzeugen = alter ungültig)."""
+    uid, salt = req.match_info["uid"], req.match_info["salt"]
+    if not _map_rate_ok(req):
+        raise web.HTTPTooManyRequests(text="rate limited")
+    cur = ACC.prefs(uid)["ics_salt"] or ""
+    if not (uid.isdigit() and cur and hmac.compare_digest(cur, salt)):
+        raise web.HTTPNotFound()
+    since = (datetime.now(BERLIN) - timedelta(days=30)).strftime("%Y-%m-%d")
+    rows = await execute_db(req.app["bot"],
+        "SELECT r.occ_date, e.* FROM map_event_rsvp r JOIN map_events e ON e.id=r.event_id "
+        "WHERE r.user_id=? AND r.occ_date>=? AND e.status='approved' ORDER BY r.occ_date",
+        (uid, since), fetch=True) or []
+    occ_rows = []
+    for r in rows:
+        r = dict(r)
+        st = _naive(r["start_at"])
+        if st is None:
+            continue
+        try:
+            day = datetime.strptime(r["occ_date"], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        nst = datetime.combine(day, st.time())
+        en = _naive(r["end_at"])
+        r["start_at"] = nst.isoformat()
+        r["end_at"] = (nst + (en - st)).isoformat() if en and en > st else None
+        r["rrule"], r["exdates"] = None, None
+        r["id"] = f"{r['id']}-{r['occ_date'].replace('-', '')}"
+        occ_rows.append(r)
+    lang = pick_lang(req)
+    body = _ics_build(req, occ_rows, feed=True, name=translate(lang, "konto_ics_name"),
+                      source=_ics_personal_url(uid, salt))
+    return web.Response(body=body, headers={"Content-Type": "text/calendar; charset=utf-8",
+                                            "Content-Disposition": "inline; filename=aam-meine-termine.ics",
+                                            "Cache-Control": "private, max-age=900"})
+
+
 def build_app(bot) -> web.Application:
     app = web.Application(client_max_size=1024*1024)
     app["bot"] = bot
@@ -3928,6 +4874,8 @@ def build_app(bot) -> web.Application:
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
         web.get("/art", h_art_index), web.get(r"/art/{name}", h_art),
+        web.get(r"/art/{name}/karte.png", h_art_card),
+        web.get("/inat", h_inat),
         web.get("/shops", h_shops), web.get(r"/shop/{domain}", h_shop),
         web.get("/chat/models", h_chat_models), web.post("/chat/send", h_chat_send),
         web.get("/rueckblick", h_rueckblick), web.get(r"/rueckblick/{year:\d{4}}", h_rueckblick),
@@ -3960,6 +4908,12 @@ def build_app(bot) -> web.Application:
         web.get("/map/events.ics", h_map_events_ics),
         web.get(r"/map/events/{eid:\d+}.ics", h_map_event_ics),
         web.post(r"/map/events/{eid:\d+}/rsvp", h_map_event_rsvp),
+        # ── Mein Konto ────────────────────────────────────────────────────────
+        web.get("/intro.json", h_intro),
+        web.get("/konto", h_konto),
+        web.get("/konto/daten.json", h_konto_export),
+        web.get(r"/konto/kalender/{uid:\d+}/{salt:[0-9a-f]{16}}.ics", h_konto_ics),
+        web.post(r"/konto/{action:[a-z]+(?:/[a-z]+)?}", h_konto_post),
     ])
     return app
 

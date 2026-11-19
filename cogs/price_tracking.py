@@ -49,6 +49,7 @@ from utils.embeds import send_embeds, send_embeds_to
 from utils.currency import ensure_rates, format_price
 from utils.achievements import log_event, check_and_grant
 from utils import species_catalog
+from utils.account import is_quiet
 
 logger = logging.getLogger(__name__)
 
@@ -456,6 +457,51 @@ class ShopSelectView(_BaseView):
 
 # ── Arten-Beobachtung (alle Shops) ────────────────────────────────────────────
 
+async def init_species_watch_seen(bot, user_id: str, normalized: str, is_genus: int):
+    """Lädt alle aktuellen Produkte und speichert sie als Baseline (auch vom Board genutzt)."""
+    try:
+        # normalized ist bereits der akzeptierte Name; zusätzlich Roh+canonical
+        # der Produkte prüfen (gleiche Logik wie im Check-Loop).
+        shop_data = await load_shop_data(bot)
+        for shop_id, shop_info in shop_data.items():
+            for product in shop_info.get("products", []):
+                if is_merch_product(product):     # Merch (auch Poster o.Ä. im Titel) ignorieren
+                    continue
+                species = (product.get("species") or "").strip()
+                cand_names = [normalize_species_name(species)]
+                _cs = (product.get("canonical_species") or "").strip()
+                if _cs:
+                    cand_names.append(normalize_species_name(_cs))
+                if is_genus:
+                    match = any(c.startswith(normalized + " ") for c in cand_names)
+                else:
+                    match = normalized in cand_names
+                if not match:
+                    continue
+                pid = product.get("id")
+                if pid is None:
+                    continue
+                try:
+                    min_p = float(product.get("min_price") or 0)
+                    max_p = float(product.get("max_price") or 0)
+                except (ValueError, TypeError):
+                    min_p = max_p = 0.0
+                await execute_db(
+                    bot,
+                    """INSERT OR IGNORE INTO user_species_watch_seen
+                       (user_id, watched_species, product_id, last_min, last_max, currency)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        str(user_id), normalized, int(pid),
+                        min_p or None, max_p or None,
+                        product.get("currency_iso") or "EUR",
+                    ),
+                    commit=True,
+                )
+    except Exception as e:
+        logger.error("❌ _init_seen_products error: %s", e)
+
+
 class SpeciesWatchConfirmView(_BaseView):
     """Bestätigung für Arten-weite Beobachtung (alle Shops)."""
 
@@ -514,48 +560,7 @@ class SpeciesWatchConfirmView(_BaseView):
         self.stop()
 
     async def _init_seen_products(self, normalized: str, is_genus: int):
-        """Lädt alle aktuellen Produkte und speichert sie als Baseline."""
-        try:
-            # normalized ist bereits der akzeptierte Name; zusätzlich Roh+canonical
-            # der Produkte prüfen (gleiche Logik wie im Check-Loop).
-            shop_data = await load_shop_data(self.bot)
-            for shop_id, shop_info in shop_data.items():
-                for product in shop_info.get("products", []):
-                    if is_merch_product(product):     # Merch (auch Poster o.Ä. im Titel) ignorieren
-                        continue
-                    species = (product.get("species") or "").strip()
-                    cand_names = [normalize_species_name(species)]
-                    _cs = (product.get("canonical_species") or "").strip()
-                    if _cs:
-                        cand_names.append(normalize_species_name(_cs))
-                    if is_genus:
-                        match = any(c.startswith(normalized + " ") for c in cand_names)
-                    else:
-                        match = normalized in cand_names
-                    if not match:
-                        continue
-                    pid = product.get("id")
-                    if pid is None:
-                        continue
-                    try:
-                        min_p = float(product.get("min_price") or 0)
-                        max_p = float(product.get("max_price") or 0)
-                    except (ValueError, TypeError):
-                        min_p = max_p = 0.0
-                    await execute_db(
-                        self.bot,
-                        """INSERT OR IGNORE INTO user_species_watch_seen
-                           (user_id, watched_species, product_id, last_min, last_max, currency)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        (
-                            str(self.owner_id), normalized, int(pid),
-                            min_p or None, max_p or None,
-                            product.get("currency_iso") or "EUR",
-                        ),
-                        commit=True,
-                    )
-        except Exception as e:
-            logger.error("❌ _init_seen_products error: %s", e)
+        await init_species_watch_seen(self.bot, str(self.owner_id), normalized, is_genus)
 
     @discord.ui.button(label="❌ Abbrechen", style=discord.ButtonStyle.danger, custom_id="sw_cancel")
     async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
@@ -792,6 +797,63 @@ class VariantSelectView(_BaseView):
 
 # ── Bestätigung ───────────────────────────────────────────────────────────────
 
+async def save_tracking(bot, user_id: str, shop_id: str, shop_name: str, p: dict) -> bool:
+    """Legt EIN Preis-Tracking an (Produkt oder Variante); False = gab es schon.
+    Baseline = letzter bekannter Preis aus der Historie (sonst aktueller Shop-Preis).
+    Wird von der Discord-Auswahl und vom Board (/konto) genutzt."""
+    pid = p.get("id")
+    vid    = int(p.get("_variant_id", 0) or 0)
+    vtitle = p.get("_variant_title", "") or ""
+    try:
+        min_p = float(p.get("min_price") or 0)
+        max_p = float(p.get("max_price") or 0)
+    except (ValueError, TypeError):
+        min_p = max_p = 0.0
+
+    if vid > 0:
+        hist = await asyncio.to_thread(_get_latest_variant_price_sync, vid)
+        if hist:
+            baseline_min = baseline_max = hist[0]
+            currency = hist[1]
+        else:
+            try:
+                vp = float(p.get("_variant_price") or 0)
+            except (ValueError, TypeError):
+                vp = 0.0
+            baseline_min = baseline_max = vp
+            currency = p.get("_variant_currency") or p.get("currency_iso") or "EUR"
+    else:
+        current = await asyncio.to_thread(_get_latest_price_sync, int(pid))
+        if current:
+            baseline_min, baseline_max, currency = current
+        else:
+            baseline_min = min_p
+            baseline_max = max_p
+            currency = p.get("currency_iso") or "EUR"
+
+    rc = await execute_db(
+        bot,
+        """INSERT INTO user_price_tracking
+           (user_id, product_id, variant_id, variant_title, species,
+            product_title, product_url, shop_name, shop_id, currency_iso,
+            last_notified_min, last_notified_max)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, product_id, variant_id) DO NOTHING""",
+        (
+            user_id, pid, vid, vtitle,
+            p.get("species") or "",
+            strip_html(p.get("title") or p.get("species") or ""),
+            p.get("antcheck_url") or "",
+            shop_name, shop_id,
+            currency,
+            baseline_min if (baseline_min or baseline_max) else None,
+            baseline_max if (baseline_min or baseline_max) else None,
+        ),
+        commit=True,
+    )
+    return bool(rc)
+
+
 class ConfirmView(_BaseView):
     def __init__(
         self,
@@ -825,59 +887,9 @@ class ConfirmView(_BaseView):
         already    = 0
 
         for p in self.selected:
-            pid = p.get("id")
-            if pid is None:
+            if p.get("id") is None:
                 continue
-            vid    = int(p.get("_variant_id", 0) or 0)
-            vtitle = p.get("_variant_title", "") or ""
-            try:
-                min_p = float(p.get("min_price") or 0)
-                max_p = float(p.get("max_price") or 0)
-            except (ValueError, TypeError):
-                min_p = max_p = 0.0
-
-            if vid > 0:
-                hist = await asyncio.to_thread(_get_latest_variant_price_sync, vid)
-                if hist:
-                    baseline_min = baseline_max = hist[0]
-                    currency = hist[1]
-                else:
-                    try:
-                        vp = float(p.get("_variant_price") or 0)
-                    except (ValueError, TypeError):
-                        vp = 0.0
-                    baseline_min = baseline_max = vp
-                    currency = p.get("_variant_currency") or p.get("currency_iso") or "EUR"
-            else:
-                current = await asyncio.to_thread(_get_latest_price_sync, int(pid))
-                if current:
-                    baseline_min, baseline_max, currency = current
-                else:
-                    baseline_min = min_p
-                    baseline_max = max_p
-                    currency = p.get("currency_iso") or "EUR"
-
-            rc = await execute_db(
-                self.bot,
-                """INSERT INTO user_price_tracking
-                   (user_id, product_id, variant_id, variant_title, species,
-                    product_title, product_url, shop_name, shop_id, currency_iso,
-                    last_notified_min, last_notified_max)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(user_id, product_id, variant_id) DO NOTHING""",
-                (
-                    user_id, pid, vid, vtitle,
-                    p.get("species") or "",
-                    strip_html(p.get("title") or p.get("species") or ""),
-                    p.get("antcheck_url") or "",
-                    shop_name, self.shop_id,
-                    currency,
-                    baseline_min if (baseline_min or baseline_max) else None,
-                    baseline_max if (baseline_min or baseline_max) else None,
-                ),
-                commit=True,
-            )
-            if rc:
+            if await save_tracking(self.bot, user_id, self.shop_id, shop_name, p):
                 saved += 1
             else:
                 already += 1
@@ -1271,6 +1283,10 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             await ensure_rates()
 
             for row in rows:
+                if is_quiet(row["user_id"]):
+                    # Ruhezeit: Vergleichsbasis NICHT anfassen, die Änderung wird nach dem
+                    # Ende der Ruhezeit beim nächsten stündlichen Lauf gemeldet.
+                    continue
                 pid = row["product_id"]
                 vid = row["variant_id"] or 0
                 if vid > 0:
@@ -1350,6 +1366,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
             await ensure_rates()
 
             for watch in watches:
+                if is_quiet(watch["user_id"]):
+                    continue        # Ruhezeit: Baseline bleibt, Meldung kommt danach
                 try:
                     await self._process_species_watch(watch, shop_data)
                 except Exception as e:
@@ -1357,6 +1375,8 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                         "❌ species watch error user=%s species=%s: %s",
                         watch["user_id"], watch["species"], e,
                     )
+            # Sammel-PN nachholen, die wegen Ruhezeit um 10 Uhr ausgefallen ist
+            await self._flush_removed(overdue_only=True)
 
         except Exception as e:
             logger.error("❌ check_species_watches error: %s", e, exc_info=True)
@@ -1629,21 +1649,34 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
     @tasks.loop(time=_REMOVED_DIGEST_TIME)
     async def flush_removed_variants(self):
         """Verschickt einmal täglich (feste Zeit) die gesammelten entfallenen Varianten."""
+        await self._flush_removed()
+
+    async def _flush_removed(self, overdue_only: bool = False):
+        """Sammel-PN je Person. Wer gerade Ruhezeit hat, wird übersprungen; das holt der
+        stündliche Lauf nach (overdue_only=True: nur Einträge von vor der letzten 10-Uhr-Runde)."""
         try:
-            rows = await execute_db(
-                self.bot,
-                "SELECT user_id, watched_species, product_id, variant_id, variant_title, "
-                "       last_price, currency, product_title, shop_name, antcheck_url "
-                "FROM pending_variant_removed "
-                "ORDER BY user_id, shop_name, product_title, variant_title",
-                fetch=True,
-            )
+            sql = ("SELECT user_id, watched_species, product_id, variant_id, variant_title, "
+                   "       last_price, currency, product_title, shop_name, antcheck_url "
+                   "FROM pending_variant_removed ")
+            params: tuple = ()
+            if overdue_only:
+                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+                now = _dt.now(BERLIN)
+                last = now.replace(hour=_REMOVED_DIGEST_TIME.hour, minute=_REMOVED_DIGEST_TIME.minute,
+                                   second=0, microsecond=0)
+                if last > now:
+                    last -= _td(days=1)
+                sql += "WHERE detected_at < ? "
+                params = (last.astimezone(_tz.utc).strftime("%Y-%m-%d %H:%M:%S"),)
+            rows = await execute_db(self.bot, sql + "ORDER BY user_id, shop_name, product_title, variant_title",
+                                    params, fetch=True)
             if not rows:
                 return
             await ensure_rates()
             by_user: dict[str, list] = defaultdict(list)
             for r in rows:
-                by_user[r["user_id"]].append(r)
+                if not is_quiet(r["user_id"]):
+                    by_user[r["user_id"]].append(r)
 
             for uid, items in by_user.items():
                 try:
@@ -1658,8 +1691,10 @@ class PriceTrackingCog(commands.Cog, name="PriceTracking"):
                     [(r["user_id"], r["watched_species"], r["product_id"], r["variant_id"])
                      for r in items],
                 )
-            logger.info("🗓️ Entfallene-Varianten-Digest: %d User, %d Einträge",
-                        len(by_user), len(rows))
+            if by_user:
+                logger.info("🗓️ Entfallene-Varianten-Digest%s: %d User, %d Einträge",
+                            " (nachgeholt)" if overdue_only else "",
+                            len(by_user), sum(len(v) for v in by_user.values()))
         except Exception as e:
             logger.error("❌ flush_removed_variants error: %s", e, exc_info=True)
 

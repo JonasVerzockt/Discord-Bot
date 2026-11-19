@@ -61,17 +61,49 @@ class AdminCog(commands.Cog, name="Admin"):
     async def cmd_status(self, ctx: discord.ApplicationContext):
         """Zeigt Bewertungsanzahl, verarbeitete und ausstehende Nachrichten."""
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        await ctx.defer(ephemeral=True)
         try:
             rows  = sheet.row_count - 1
             pend  = await pending_count(self.bot)
             track = await tracking_count(self.bot)
-            await ctx.respond(
-                l10n.get("review_status", lang, rows=rows, tracked=track, pending=pend),
-                ephemeral=True,
-            )
+            text = l10n.get("review_status", lang, rows=rows, tracked=track, pending=pend)
+            await ctx.followup.send(text, embed=await self._health_embed(lang), ephemeral=True)
         except Exception as e:
             logger.error(f"❌ status error: {e}")
-            await ctx.respond(l10n.get("admin_error", lang, error=e), ephemeral=True)
+            await ctx.followup.send(l10n.get("admin_error", lang, error=e), ephemeral=True)
+
+    async def _health_embed(self, lang: str) -> discord.Embed:
+        """Gesundheits-Übersicht (dieselben Checks wie die Status-Seite des Boards)
+        plus Größe der Datenbanken."""
+        import os
+        from config import DB_FILE, BOARD_DB_FILE, DATA_DIRECTORY, BOARD_PUBLIC_URL
+        icon = {"ok": "🟢", "warn": "🟡", "down": "🔴", "off": "⚪"}
+        e = discord.Embed(title=l10n.get("health_title", lang), color=ADMIN_COLOR)
+        try:
+            from cogs.board import _collect_health
+            overall, sections = await _collect_health({"bot": self.bot}, lang)
+            e.description = f"{icon.get(overall[0], '❔')} **{overall[1]}**"
+            for sec in sections:
+                checks = sec["checks"]
+                bad = [c for c in checks if c["state"] in ("warn", "down")]
+                n_ok = sum(1 for c in checks if c["state"] == "ok")
+                lines = [f"{icon[c['state']]} **{c['name']}**: {str(c.get('detail', ''))[:90]}" for c in bad]
+                lines.append(l10n.get("health_ok_count", lang, ok=n_ok, total=len(checks)))
+                e.add_field(name=sec["title"], value="\n".join(lines)[:1020], inline=False)
+        except Exception as ex:
+            e.description = l10n.get("health_unavailable", lang, error=str(ex)[:150])
+        sizes = []
+        for label, path in (("Bot", DB_FILE), ("Board", BOARD_DB_FILE),
+                            ("Preise", os.path.join(DATA_DIRECTORY, "price_history.db"))):
+            try:
+                sizes.append(f"{label}: {os.path.getsize(path) / 1_048_576:.1f} MB")
+            except OSError:
+                pass
+        if sizes:
+            e.add_field(name=l10n.get("health_db_h", lang), value=" · ".join(sizes), inline=False)
+        if BOARD_PUBLIC_URL:
+            e.set_footer(text=l10n.get("health_footer", lang, url=BOARD_PUBLIC_URL))
+        return e
 
     # Reihenfolge = sinnvolle Ausführungsreihenfolge. (label, Cog-Name, Loop-Attribut)
     # Bewusst NICHT dabei: weekly_digest (würde ggf. den Wochen-Digest an alle Abonnenten
@@ -223,135 +255,9 @@ class AdminCog(commands.Cog, name="Admin"):
                 await ctx.followup.send(l10n.get("invalid_ids", lang), ephemeral=True)
                 return
             try:
-                from utils.db import execute_db
-                data: dict = {"user_id": uid, "exported_at": datetime.utcnow().isoformat() + "Z"}
-
-                data["settings"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_settings WHERE user_id=?", (uid,), fetch=True)]
-
-                data["notifications"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM notifications WHERE user_id=?", (uid,), fetch=True)]
-
-                data["seen_products"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_seen_products WHERE user_id=?", (uid,), fetch=True)]
-
-                data["shop_blacklist"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_shop_blacklist WHERE user_id=?", (uid,), fetch=True)]
-
-                data["price_tracking"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_price_tracking WHERE user_id=?", (uid,), fetch=True)]
-
-                data["server_mappings"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM server_user_mappings WHERE user_id=?", (uid,), fetch=True)]
-
-                data["ch_delivery_added"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM ch_delivery_shops WHERE added_by=?", (uid,), fetch=True)]
-
-                try:
-                    ai_rows = await execute_db(
-                        self.bot,
-                        "SELECT date, cost_usd FROM ai_chat_budget WHERE user_id=? ORDER BY date DESC LIMIT 30",
-                        (int(uid),), fetch=True,
-                    )
-                    data["ai_budget_last30"] = [dict(r) for r in ai_rows]
-                except Exception:
-                    data["ai_budget_last30"] = []
-
-                # KI-Ausgaben-Ledger (Tag/Woche/Monat/Jahr) – vollstaendig
-                try:
-                    data["ai_spend_ledger"] = [dict(r) for r in await execute_db(
-                        self.bot,
-                        "SELECT * FROM ai_chat_user_spend WHERE user_id=? "
-                        "ORDER BY period_type, period_key DESC",
-                        (int(uid),), fetch=True,
-                    )]
-                except Exception:
-                    data["ai_spend_ledger"] = []
-
-                # Zuletzt gewaehltes KI-Modell (Vorauswahl)
-                try:
-                    data["ai_model_preference"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM ai_chat_user_model WHERE user_id=?",
-                        (int(uid),), fetch=True,
-                    )]
-                except Exception:
-                    data["ai_model_preference"] = []
-
-                data["species_watch"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_species_watch WHERE user_id=?", (uid,), fetch=True)]
-
-                data["species_watch_seen"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_species_watch_seen WHERE user_id=?", (uid,), fetch=True)]
-
-                data["species_watch_variant_seen"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_species_watch_variant_seen WHERE user_id=?", (uid,), fetch=True)]
-
-                data["pending_variant_removed"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM pending_variant_removed WHERE user_id=?", (uid,), fetch=True)]
-
-                data["digest_subscription"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM digest_subscribers WHERE user_id=?", (uid,), fetch=True)]
-
-                data["achievements"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM achievements WHERE user_id=?", (uid,), fetch=True)]
-
-                data["events"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM user_events WHERE user_id=?", (uid,), fetch=True)]
-
-                # iNaturalist-Statistik (Verknüpfung + gepostete Beobachtungen)
-                data["inat_account"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM inat_accounts WHERE discord_id=?", (uid,), fetch=True) or []]
-                data["inat_observations"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM inat_obs WHERE discord_id=?", (uid,), fetch=True) or []]
-
-                data["command_log"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM command_log WHERE user_id=?", (uid,), fetch=True)]
-
-                data["offer_keywords"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM offer_keywords WHERE user_id=?", (uid,), fetch=True)]
-                data["offer_alert_seen"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM offer_alert_seen WHERE user_id=?", (uid,), fetch=True)]
-                data["offer_alert_msgs"] = [dict(r) for r in await execute_db(
-                    self.bot, "SELECT * FROM offer_alert_msgs WHERE user_id=?", (uid,), fetch=True)]
-
-                try:
-                    ai_hist = await execute_db(
-                        self.bot,
-                        "SELECT message_id, channel_id, created_at, expires_at, history_json "
-                        "FROM ai_chat_history WHERE user_id=?",
-                        (int(uid),), fetch=True,
-                    )
-                    data["ai_chat_history"] = [dict(r) for r in ai_hist]
-                except Exception:
-                    data["ai_chat_history"] = []
-
-                # Geposteten Rabattcodes (nach aktuellem Discord-Username des Users)
-                try:
-                    _u     = await self.bot.fetch_user(int(uid))
-                    _uname = getattr(_u, "name", None)
-                    data["discount_codes_posted"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM discount_codes WHERE author=?", (_uname,), fetch=True)] if _uname else []
-                except Exception:
-                    data["discount_codes_posted"] = []
-
-                # Halter-Karte (DSGVO-Auskunft): eigener Eintrag, Tags und eingereichte Events
-                try:
-                    data["map_entry"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM map_entries WHERE user_id=?", (uid,), fetch=True)]
-                    data["map_entry_tags"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM map_entry_tags WHERE user_id=?", (uid,), fetch=True)]
-                    data["map_entry_regions"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM map_entry_regions WHERE user_id=?", (uid,), fetch=True)]
-                    data["map_events_submitted"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM map_events WHERE submitted_by=?", (uid,), fetch=True)]
-                    data["map_event_rsvp"] = [dict(r) for r in await execute_db(
-                        self.bot, "SELECT * FROM map_event_rsvp WHERE user_id=?", (uid,), fetch=True)]
-                except Exception:
-                    data.setdefault("map_entry", [])
-                    data.setdefault("map_entry_tags", [])
-                    data.setdefault("map_entry_regions", [])
-                    data.setdefault("map_events_submitted", [])
-                    data.setdefault("map_event_rsvp", [])
+                from utils.account import export_user
+                # Gleicher Umfang wie der Selbst-Download in „Mein Konto“ (Board /konto).
+                data = await export_user(self.bot, uid)
 
                 payload = json.dumps(data, ensure_ascii=False, indent=2, default=str)
                 buf = io.BytesIO(payload.encode("utf-8"))
@@ -407,6 +313,13 @@ class AdminCog(commands.Cog, name="Admin"):
                 "map_entry_regions",
                 "map_events",
                 "map_event_rsvp",
+                "map_rsvp_reminded",
+                "review_authors",
+                "inat_accounts",
+                "inat_obs",
+                "user_prefs",
+                "dm_log",
+                "quiet_offer_queue",
             ]
             export: dict = {"exported_at": datetime.utcnow().isoformat() + "Z", "tables": {}}
             for table in tables:

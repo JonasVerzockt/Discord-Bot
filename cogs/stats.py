@@ -181,7 +181,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_offer_alert",
         ]),
         ("help_grp_offers", [
-            "help_sells", "help_offers",
+            "help_sells", "help_offers", "help_art", "help_shop",
         ]),
         ("help_grp_pricetracking", [
             "help_track_price", "help_my_price_tracking", "help_untrack_price",
@@ -191,10 +191,10 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_codes",
         ]),
         ("help_grp_info", [
-            "help_info", "help_info_list",
+            "help_help", "help_info", "help_info_list",
         ]),
         ("help_grp_personal", [
-            "help_achievements", "help_usersetting", "help_inat",
+            "help_konto", "help_rueckblick", "help_achievements", "help_usersetting", "help_inat",
         ]),
         ("help_grp_map", [
             "help_map_join", "help_map_tags", "help_map_confirm",
@@ -224,6 +224,7 @@ class StatsCog(commands.Cog, name="Stats"):
         ("help_grp_sysmod", [
             "help_stats", "help_system", "help_export", "help_export_chat",
             "help_command_log", "help_known_users", "help_run_jobs", "help_offer_alert_check",
+            "help_rueckblick_post",
         ]),
     ]
     _HELP_AI_KEYS = [

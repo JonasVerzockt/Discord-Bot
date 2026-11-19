@@ -59,6 +59,7 @@ from config import (OFFER_CHANNEL_ID, OFFER_ALERT_DELAY_MIN, OFFER_BACKFILL_DAYS
 from utils.db import execute_db, execute_many
 from utils.embeds import EMBED_COLOR, ADMIN_COLOR
 from utils.timez import berlin_from_dt, align_delay_seconds, BERLIN
+from utils.account import is_quiet
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -629,6 +630,7 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         if new_cursor != int(cursor):
             await self._set_cursor(new_cursor)
         await self._release_deferred(ch, by_kw, distinct)
+        await self._release_quiet(ch)
 
     async def _process_hits(self, m: discord.Message, by_kw: dict, distinct):
         """Offene Treffer der Nachricht gegen alle Abos ermitteln und melden."""
@@ -656,6 +658,32 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
                 await self._process_hits(m, by_kw, distinct)
             await self._del_deferred(mid)
 
+    async def _release_quiet(self, ch):
+        """Angebote aus der persönlichen Ruhezeit nachliefern, sobald sie vorbei ist,
+        aber nur, wenn das Angebot noch offen ist und das Schlagwort noch besteht."""
+        rows = await execute_db(self.bot,
+            "SELECT q.user_id, q.message_id, q.keyword, q.keyword_raw FROM quiet_offer_queue q "
+            "JOIN offer_keywords k ON k.user_id=q.user_id AND k.keyword=q.keyword", fetch=True) or []
+        await execute_db(self.bot, "DELETE FROM quiet_offer_queue WHERE NOT EXISTS (SELECT 1 FROM offer_keywords k "
+                         "WHERE k.user_id=quiet_offer_queue.user_id AND k.keyword=quiet_offer_queue.keyword)", commit=True)
+        for r in rows:
+            if is_quiet(r["user_id"]):
+                continue
+            try:
+                m = await ch.fetch_message(int(r["message_id"]))
+            except discord.NotFound:
+                m = None
+            except Exception:
+                continue                       # transient -> später erneut
+            await execute_db(self.bot, "DELETE FROM quiet_offer_queue WHERE user_id=? AND message_id=? AND keyword=?",
+                             (r["user_id"], r["message_id"], r["keyword"]), commit=True)
+            if m is None:
+                continue
+            hits = _open_hits(m.content, await self._sold_reaction_valid(m), {r["keyword"]}, m.author.id)
+            if r["keyword"] in hits:
+                await self._forward_alert(r["user_id"], r["keyword"], r["keyword_raw"] or r["keyword"],
+                                          m, hits[r["keyword"]])
+
     @scan_offers.before_loop
     async def _before_scan(self):
         await self.bot.wait_until_ready()
@@ -665,6 +693,11 @@ class OfferAlertsCog(commands.Cog, name="OfferAlerts"):
         seen = await execute_db(self.bot, "SELECT 1 FROM offer_alert_seen WHERE user_id=? AND message_id=? AND keyword=?",
                                 (uid, str(m.id), kw), fetch=True)
         if seen:
+            return
+        if is_quiet(uid):
+            # Persönliche Ruhezeit (Mein Konto): merken und danach zustellen.
+            await execute_db(self.bot, "INSERT OR IGNORE INTO quiet_offer_queue (user_id, message_id, keyword, keyword_raw) "
+                             "VALUES (?,?,?,?)", (uid, str(m.id), kw, raw), commit=True)
             return
         await execute_db(self.bot, "INSERT OR IGNORE INTO offer_alert_seen (user_id, message_id, keyword) VALUES (?,?,?)",
                          (uid, str(m.id), kw), commit=True)

@@ -25,13 +25,14 @@ cogs/map_tasks.py – Hintergrund-Tasks der Halter-Karte.
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 
 import discord
 from discord.ext import commands, tasks
 
 from config import (MAP_ENABLED, MAP_GUILD_ID, MAP_REMIND_MONTHS, MAP_DELETE_MONTHS,
-                    MAP_GEODATA_AUTO, MAP_GEODATA_REFRESH_DAYS)
+                    MAP_GEODATA_AUTO, MAP_GEODATA_REFRESH_DAYS, BOARD_PUBLIC_URL)
+from utils.timez import BERLIN
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils import geo, map_geodata
@@ -56,6 +57,7 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
         self.bot = bot
         self.daily_maintenance.start()
         self.event_cleanup.start()
+        self.rsvp_reminder.start()
         if MAP_GEODATA_AUTO:
             # Intervall in Stunden (Standard 30 Tage). Erste Ausführung läuft beim Start.
             self.geodata_refresh.change_interval(hours=max(1, 24 * MAP_GEODATA_REFRESH_DAYS))
@@ -64,6 +66,7 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
     def cog_unload(self):
         self.daily_maintenance.cancel()
         self.event_cleanup.cancel()
+        self.rsvp_reminder.cancel()
         if MAP_GEODATA_AUTO:
             self.geodata_refresh.cancel()
 
@@ -156,6 +159,47 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
 
     @event_cleanup.before_loop
     async def _before_cleanup(self):
+        await self.bot.wait_until_ready()
+
+    # ── Termin-Erinnerung: am Vortag um 18 Uhr eine PN an alle mit „Ich gehe hin“ ─────
+    @tasks.loop(time=dtime(hour=18, minute=0, tzinfo=BERLIN))
+    async def rsvp_reminder(self):
+        tomorrow = (datetime.now(BERLIN) + timedelta(days=1)).strftime("%Y-%m-%d")
+        rows = await execute_db(self.bot,
+            "SELECT r.event_id, r.occ_date, r.user_id, e.title, e.start_at, e.all_day, e.venue, e.url "
+            "FROM map_event_rsvp r JOIN map_events e ON e.id=r.event_id "
+            "WHERE r.occ_date=? AND e.status='approved' AND NOT EXISTS (SELECT 1 FROM map_rsvp_reminded m "
+            "WHERE m.event_id=r.event_id AND m.occ_date=r.occ_date AND m.user_id=r.user_id)",
+            (tomorrow,), fetch=True) or []
+        sent = 0
+        from utils.account import rsvp_reminder_on
+        for r in rows:
+            if not rsvp_reminder_on(r["user_id"]):
+                continue            # in „Mein Konto“ abgeschaltet
+            try:
+                user = self.bot.get_user(int(r["user_id"])) or await self.bot.fetch_user(int(r["user_id"]))
+                lang = await get_user_lang(self.bot, user.id, MAP_GUILD_ID)
+                when = "" if r["all_day"] else (r["start_at"] or "")[11:16]
+                text = l10n.get("rsvp_reminder_dm", lang, title=r["title"],
+                                date=datetime.strptime(r["occ_date"], "%Y-%m-%d").strftime("%d.%m.%Y"),
+                                time=(f" {when}" if when else ""), venue=r["venue"] or "")
+                if r["url"]:
+                    text += "\n" + l10n.get("rsvp_reminder_link", lang, url=r["url"])
+                if BOARD_PUBLIC_URL:
+                    text += "\n" + l10n.get("rsvp_reminder_map", lang, url=f"{BOARD_PUBLIC_URL}/map")
+                await user.send(text)
+                sent += 1
+            except Exception as e:
+                logger.info("📅 Termin-Erinnerung an %s nicht zustellbar: %s", r["user_id"], e)
+            await execute_db(self.bot, "INSERT OR IGNORE INTO map_rsvp_reminded(event_id, occ_date, user_id) "
+                                       "VALUES (?,?,?)", (r["event_id"], r["occ_date"], r["user_id"]), commit=True)
+        if rows:
+            logger.info("📅 Termin-Erinnerungen: %d von %d verschickt", sent, len(rows))
+        await execute_db(self.bot, "DELETE FROM map_rsvp_reminded WHERE occ_date < ?",
+                         ((datetime.now(BERLIN) - timedelta(days=30)).strftime("%Y-%m-%d"),), commit=True)
+
+    @rsvp_reminder.before_loop
+    async def _before_rsvp_reminder(self):
         await self.bot.wait_until_ready()
 
     # ── Geodaten selbst bereitstellen & aktuell halten ────────────────────────

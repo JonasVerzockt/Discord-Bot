@@ -60,6 +60,38 @@ async def _ac_shop(ctx: discord.AutocompleteContext):
     return [discord.OptionChoice(name=f"{n} ({d})"[:100] if n != d else d, value=d) for n, d in items]
 
 
+class _CardView(discord.ui.View):
+    """Button unter /art: postet die teilbare Artenkarte als Bild (einmal pro Antwort)."""
+
+    def __init__(self, bot, species: str, lang: str):
+        super().__init__(timeout=600)
+        self.bot, self.species, self.lang = bot, species, lang
+        self.children[0].label = l10n.get("dir_card_btn", lang)
+
+    @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="📤")
+    async def post_card(self, button: discord.ui.Button, interaction: discord.Interaction):
+        import io
+        from utils import species_card, season as SEA
+        await interaction.response.defer()
+        sp = await asyncio.to_thread(D.find_species, self.species)
+        if not sp:
+            return
+        trend = await asyncio.to_thread(D.price_trend, sp, 12)
+        prof = await SEA.profile(self.bot, sp["key"])
+        url = (BOARD_PUBLIC_URL.split("://", 1)[-1] + f"/art/{D.slug(sp['name'])}") if BOARD_PUBLIC_URL else ""
+        png = await asyncio.to_thread(species_card.render, sp, trend, self.lang, prof,
+                                      SEA.MONTHS_SHORT.get(self.lang, SEA.MONTHS_SHORT["de"]), url)
+        button.disabled = True
+        try:
+            await interaction.edit_original_response(view=self)
+        except discord.HTTPException:
+            pass
+        await interaction.followup.send(
+            l10n.get("dir_card_posted", self.lang, user=interaction.user.mention),
+            file=discord.File(io.BytesIO(png), filename=f"{D.slug(sp['name'])}.png"),
+            allowed_mentions=discord.AllowedMentions.none())
+
+
 class DirectoryCog(commands.Cog, name="Directory"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
@@ -117,7 +149,7 @@ class DirectoryCog(commands.Cog, name="Directory"):
         if seas:
             e.add_field(name=l10n.get("season_h", lang), value=seas, inline=False)
         e.set_footer(text=l10n.get("dir_art_footer", lang, name=sp["name"]))
-        await ctx.followup.send(embed=e)
+        await ctx.followup.send(embed=e, view=_CardView(self.bot, sp["name"], lang))
 
     # ── /shop ─────────────────────────────────────────────────────────────────
     @discord.slash_command(
