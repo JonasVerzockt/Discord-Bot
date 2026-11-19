@@ -1149,6 +1149,7 @@ SHOP = """{% extends "base" %}{% block body %}
  <div class=kpi><div class=v>{% if rv and rv.avg is not none %}⭐ {{ '%.2f'|format(rv.avg) }}{% else %}–{% endif %}</div><div class=l>{{ t('dir_kpi_rating') }}</div></div>
  <div class=kpi><div class=v>{{ rv.count if rv else 0 }}</div><div class=l>{{ t('dir_kpi_reviews') }}</div></div>
  <div class=kpi><div class=v>{{ rv.last if rv else '–' }}</div><div class=l>{{ t('dir_kpi_last') }}</div></div>
+ {% if delivery %}<div class=kpi><div class=v>{{ ('%.1f'|format(delivery.avg)).replace('.', ',') if lang=='de' else '%.1f'|format(delivery.avg) }} {{ t('dir_days') }}</div><div class=l>{{ t('dir_kpi_delivery', n=delivery.n) }} <span class=info title="{{ t('dir_delivery_exp', m=delivery.median) }}">ⓘ</span></div></div>{% endif %}
  <div class=kpi><div class=v>{{ sh.species_count }}</div><div class=l>{{ t('dir_kpi_species') }}</div></div>
  <div class=kpi><div class=v>{{ sh.instock_count }} / {{ sh.offers_count }}</div><div class=l>{{ t('dir_kpi_instock_of') }}</div></div>
  <div class=kpi><div class=v>{{ sh.exclusive|length }}</div><div class=l>{{ t('dir_kpi_exclusive') }}</div></div>
@@ -1191,6 +1192,33 @@ SHOP = """{% extends "base" %}{% block body %}
 <p class=muted>{{ t('dir_shop_note') }}</p>
 {% endblock %}"""
 
+RUECKBLICK = """{% extends "base" %}{% block body %}
+{% macro m(n) %}{% if 0 < n < 3 %}&lt; 3{% else %}{{ n }}{% endif %}{% endmacro %}
+<h2 style="margin-bottom:6px">🎆 {{ t('yr_page_h', y=d.year) }}</h2>
+<p class=muted style="margin-top:0">{{ t('yr_page_intro', y=d.year, n=d.year + 1) }}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{{ d.reviews.count }}</div><div class=l>{{ t('yr_k_reviews') }}</div></div>
+ {% if d.reviews.avg is not none %}<div class=kpi><div class=v>⭐ {{ '%.2f'|format(d.reviews.avg) }}</div><div class=l>{{ t('yr_k_avg') }}</div></div>{% endif %}
+ <div class=kpi><div class=v>{{ d.new_species }}</div><div class=l>{{ t('yr_k_species') }}</div></div>
+ <div class=kpi><div class=v>{{ d.new_shops|length }}</div><div class=l>{{ t('yr_k_shops') }}</div></div>
+ <div class=kpi><div class=v>{{ d.codes }}</div><div class=l>{{ t('yr_k_codes') }}</div></div>
+ <div class=kpi><div class=v>{{ m(d.keepers) }}</div><div class=l>{{ t('yr_k_keepers') }}</div></div>
+ <div class=kpi><div class=v>{{ d.events }}</div><div class=l>{{ t('yr_k_events') }}</div></div>
+ <div class=kpi><div class=v>{{ m(d.achievements) }}</div><div class=l>{{ t('yr_k_ach') }}</div></div>
+ <div class=kpi><div class=v>{{ m(d.commands) }}</div><div class=l>{{ t('yr_k_cmds') }}</div></div>
+</div>
+{% if d.reviews.most or d.reviews.best or d.fastest %}<div class=chartbox><h4>⭐ {{ t('yr_k_reviews') }}</h4>
+ {% if d.reviews.most %}<p>{{ t('yr_most_l') }}: {% for s, n in d.reviews.most %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+ {% if d.reviews.best %}<p>{{ t('yr_best_l') }}: {% for s, a, n in d.reviews.best %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> (⭐ {{ '%.2f'|format(a) }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+ {% if d.fastest %}<p>🚚 {{ t('yr_fast_l') }}: <a href="/shop/{{ d.fastest[0]|urlencode }}{{ qs() }}">{{ names.get(d.fastest[0], d.fastest[0]) }}</a> (Ø {{ d.fastest[1] }} {{ t('dir_days') }})</p>{% endif %}
+</div>{% endif %}
+{% if d.drops %}<div class=chartbox><h4>📉 {{ t('yr_drops_h') }}</h4>
+ {% for sp, shop, a, b, p in d.drops %}<div><a href="/art/{{ sp|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ sp }}</i></a> · {{ shop }}: {{ '%.2f'|format(a) }} € → {{ '%.2f'|format(b) }} € (−{{ p }} %)</div>{% endfor %}
+</div>{% endif %}
+{% if d.new_shops %}<div class=chartbox><h4>🏪 {{ t('yr_k_shops') }}</h4><p style="margin:0">{{ d.new_shops|join(', ') }}</p></div>{% endif %}
+<p class=muted>{{ t('yr_page_note') }}</p>
+{% endblock %}"""
+
 GENMAC = """{% macro genlist(gid, groups, total, filter_id, q='') %}
 <p style="margin:10px 0 4px"><a href="#" data-gall="{{ gid }}" data-open=1>{{ t('dir_expand_all') }}</a> · <a href="#" data-gall="{{ gid }}" data-open=0>{{ t('dir_collapse_all') }}</a> <span id="{{ gid }}-cnt" class=muted style="font-size:12px;margin-left:8px"></span></p>
 <div id="{{ gid }}" data-genlist data-filter="{{ filter_id }}" data-total="{{ total }}">{% for genus, rows in groups %}
@@ -1228,7 +1256,8 @@ ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUB
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
                                      "stats": STATS, "legal": LEGAL, "map": MAP,
                                      "art_index": ART_INDEX, "art": ART, "art_missing": ART_MISSING,
-                                     "shops": SHOPS, "shop": SHOP, "genmac": GENMAC}),
+                                     "shops": SHOPS, "shop": SHOP, "genmac": GENMAC,
+                                     "rueckblick": RUECKBLICK}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -2193,6 +2222,7 @@ async def h_shop(req):
     rv = reviews.get(dom)
     member = _aam_member(req)
     ctx = dict(sh=sh, rv=rv, member=bool(member), partner=dirx.partner_of(dom),
+               delivery=await dirx.delivery_of(req.app["bot"], dom),
                codes=await dirx.active_codes(req.app["bot"], dom),
                country=country_name(lang, sh["country"]) if sh.get("country") else "",
                login_url="" if member else _login_url(req), filter_js=_FILTER_JS,
@@ -2216,6 +2246,28 @@ async def h_shop(req):
     if member:
         resp.headers["Cache-Control"] = "private, no-store"
     return resp
+
+
+_YR_CACHE: dict = {}
+
+
+async def h_rueckblick(req):
+    """Öffentlicher Jahresrückblick (nur Summen). 30-min-Cache je Jahr."""
+    from utils import year_review as YR
+    from utils import directory as dirx
+    lang = pick_lang(req)
+    now_y = datetime.now(BERLIN).year
+    year = int(req.match_info.get("year") or now_y)
+    if year < 2020 or year > now_y:
+        raise web.HTTPFound(f"/rueckblick/{now_y}?lang={lang}")
+    hit = _YR_CACHE.get(year)
+    if hit and time.time() - hit[0] < 1800:
+        d = hit[1]
+    else:
+        d = await YR.community(req.app["bot"], year)
+        _YR_CACHE[year] = (time.time(), d)
+    names = {dom: sh["name"] for dom, sh in (await asyncio.to_thread(dirx.all_shops)).items()}
+    return _render(req, "rueckblick", title=translate(lang, "yr_page_h", y=year), d=d, names=names)
 
 
 async def h_static(req):
@@ -3550,6 +3602,7 @@ def build_app(bot) -> web.Application:
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
         web.get("/art", h_art_index), web.get(r"/art/{name}", h_art),
         web.get("/shops", h_shops), web.get(r"/shop/{domain}", h_shop),
+        web.get("/rueckblick", h_rueckblick), web.get(r"/rueckblick/{year:\d{4}}", h_rueckblick),
         web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
         web.get("/partner", h_partner_page), web.get("/gewinnspiel", h_gewinnspiel),
         web.post("/impressum/contact", h_impressum_contact),

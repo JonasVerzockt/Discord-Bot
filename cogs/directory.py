@@ -140,10 +140,14 @@ class DirectoryCog(commands.Cog, name="Directory"):
         e = discord.Embed(title=f"🏪 {sh['name']}" + (" 🤝" if partner else ""), color=_COLOR,
                           url=_board(f"/shop/{quote(dom)}") or None)
         e.description = f"<{sh['url']}>"
+        delivery = await D.delivery_of(self.bot, dom)
         if rv and rv["avg"] is not None:
-            e.add_field(name=l10n.get("dir_shop_rating_h", lang), inline=False, value=l10n.get(
-                "dir_shop_rating", lang, avg=f"{rv['avg']:.2f}".replace(".", ","),
-                n=rv["count"], last=rv["last"]))
+            val = l10n.get("dir_shop_rating", lang, avg=f"{rv['avg']:.2f}".replace(".", ","),
+                           n=rv["count"], last=rv["last"])
+            if delivery:
+                val += "\n" + l10n.get("dir_shop_delivery", lang,
+                                        d=f"{delivery['avg']:.1f}".replace(".", ","), n=delivery["n"])
+            e.add_field(name=l10n.get("dir_shop_rating_h", lang), inline=False, value=val)
         else:
             e.add_field(name=l10n.get("dir_shop_rating_h", lang),
                         value=l10n.get("dir_shop_no_reviews", lang), inline=False)
