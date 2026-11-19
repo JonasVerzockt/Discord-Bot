@@ -68,6 +68,8 @@ Diese Regeln gelten für die optionale Halter-Karte und die Termin-/Event-Ebene,
 - Erlaubt sind nur **öffentliche** Veranstaltungen mit **öffentlichem Veranstaltungsort** – **keine privaten Wohnadressen**. Keine rechtswidrigen, irreführenden oder werblichen Fremdinhalte.
 - Der Betreiber darf Vorschläge **ohne Angabe von Gründen ablehnen, bearbeiten oder löschen**; ein Anspruch auf Veröffentlichung besteht nicht.
 
+- **Termin-Erinnerung:** Hast du bei einem Termin „Ich gehe hin“ gewählt, schickt dir der Bot am Vortag um 18 Uhr eine Erinnerung per Direktnachricht. Gespeichert wird nur, dass die Erinnerung verschickt wurde (Termin, Datum, Discord-ID; nach 30 Tagen gelöscht). Ziehst du die Zusage zurück, kommt keine Erinnerung.
+
 ### Haftung
 
 Der Bot wird ohne Gewähr betrieben. Für die Richtigkeit der eingetragenen Bewertungen, der angezeigten Verfügbarkeitsdaten oder der angezeigten Preise übernimmt der Betreiber keine Haftung. Preisangaben (inkl. EUR-Umrechnung via Frankfurter API bzw. offenem fawazahmed0-Fallback) sind unverbindlich und können von tatsächlichen Preisen abweichen. Technische Ausfälle oder Fehler bei der Datenerfassung begründen keine Ansprüche.
@@ -154,7 +156,7 @@ Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Da
 | Gepostete Beobachtungs-ID mit Discord-ID, Nachrichten-ID und Postzeitpunkt | Zählung und Doppel-Erkennung | Lokale SQLite-Datenbank auf dem Server |
 | Von iNaturalist abgerufen: Beobachtungsdatum, Besitzer (iNat-Nutzer-ID), Bestimmung (Taxon, Rang) | Zählung von Beobachtungen und Arten | Lokale SQLite-Datenbank auf dem Server |
 
-Abgerufen werden nur öffentlich einsehbare Daten über die iNaturalist-API; Fundorte werden nicht gespeichert. Löschst du deinen Post im Kanal, werden die zugehörigen Beobachtungen entfernt. Die Verknüpfung löst du jederzeit per `/inat_trennen`. Im öffentlichen Treppchen erscheinen nur dein Anzeigename auf dem Server und deine Zahlen.
+Abgerufen werden nur öffentlich einsehbare Daten über die iNaturalist-API; Fundorte werden nicht gespeichert. Löschst du deinen Post im Kanal, werden die zugehörigen Beobachtungen entfernt. Die Verknüpfung löst du jederzeit per `/inat_trennen`. Im öffentlichen Treppchen erscheinen nur dein Anzeigename auf dem Server und deine Zahlen. Die öffentliche Artenliste im Board (`/inat`) zeigt nur Summen je Art (Anzahl Beobachtungen, Erstfund-Jahr), keine Namen.
 
 #### Rabattcode-Tracker
 
@@ -212,6 +214,16 @@ Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar
 Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/bot export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/bot protokoll` (nach User-ID, optional Zeitfenster) abfragen.
 
 **Channel-Export (`/export_chat`, nur Admin):** Zur Moderation/Archivierung können Administrator:innen einen Kanalverlauf (optional in einem Datumsbereich) als JSON exportieren. Dabei werden ausschließlich **ohnehin von Discord gespeicherte** Nachrichtendaten (Autor, Zeit, Inhalt, Anhänge/Links, Reaktionen usw.) einmalig ausgelesen und dem/der aufrufenden Admin als **ephemere Datei** bereitgestellt – es entsteht **keine** dauerhafte zusätzliche Speicherung im Bot. Die Funktion ist Admins vorbehalten und auf den gebundenen Server beschränkt.
+
+#### Mein Konto (Board `/konto`) und PN-Verlauf
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID + Einstellungen aus „Mein Konto“ (Termin-Erinnerung an/aus, Ruhezeit, Zeitpunkt „überall abmelden“, zufälliger Schlüssel für den persönlichen Kalender-Link, Intros an/aus, bis wann Erfolge und Meilensteine per Intro gefeiert wurden) | Deine Einstellungen umsetzen | Lokale SQLite-Datenbank auf dem Server |
+| Discord User-ID + Zeitpunkt und **kurze Vorschau** (max. 160 Zeichen) jeder PN, die der Bot von sich aus an dich schickt | PN-Verlauf in „Mein Konto“ | Lokale SQLite-Datenbank, **30 Tage**, höchstens die letzten 50 |
+| Angebots-Treffer während deiner Ruhezeit (Nachrichten-ID, Schlagwort) | Nach der Ruhezeit zustellen | Lokale SQLite-Datenbank, bis zur Zustellung |
+
+Antworten in einem PN-Gespräch (z. B. KI-Chat) werden nicht in den Verlauf aufgenommen. In „Mein Konto“ kannst du alle Daten als JSON herunterladen und je Bereich oder vollständig löschen.
 
 #### Feedback-Board (optional)
 
@@ -289,6 +301,7 @@ Du hast jederzeit das Recht auf **Auskunft, Berichtigung oder Löschung** deiner
 - Eine Übersicht deiner aktiven Benachrichtigungen und Preis-Tracking-Einträge erhältst du per `/history`.
 - Preis-Tracking-Einträge kannst du selbst per `/untrack_price` entfernen.
 - Eine von dir abgegebene Bewertung kannst du selbst entfernen, indem du deine Bewertungs-Nachricht im Review-Kanal löschst – der Bot leert dann automatisch die zugehörige Zeile in der Bewertungsübersicht.
+- In **„Mein Konto“** im Board (`/konto`, in Discord per `/konto` verlinkt) siehst und änderst du alle deine Daten, lädst sie als JSON herunter und löschst sie je Bereich oder vollständig.
 - Für alle weiteren Anfragen (Auskunft, manuelle Löschung) wende dich an:  
   📧 webmaster@jonasants.de
 

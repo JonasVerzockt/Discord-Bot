@@ -122,6 +122,7 @@ INITIAL_COGS = [
     "cogs.custom_commands",   # /info – benutzerdefinierte Text-Befehle (Info-Einträge)
     "cogs.offer_alerts",      # /offer_alert – Schlagwort-Alerts für den Angebote-Kanal
     "cogs.chat_export",       # /export_chat – Channel als JSON exportieren (Admin)
+    "cogs.account",           # /konto + PN-Verlauf + Konto-Einstellungen (Ruhezeiten, Sitzungen)
     "cogs.board",             # Öffentliches Feedback-Board (aiohttp, eigene DB) – nur wenn BOARD_ENABLED
     "cogs.map",               # Halter-Karte: /map_join /map_remove /map_tags /event_add – nur wenn MAP_ENABLED
     "cogs.map_tasks",         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup – nur wenn MAP_ENABLED
