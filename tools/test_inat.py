@@ -47,6 +47,20 @@ async def main():
         print(f"✅ Benutzer: id={u['id']} login={u['login']}")
         print(f"   Bio ({len(bio)} Zeichen): {bio[:200]!r}")
         print("   → Bio wird geliefert" if bio else "   ⚠️ Bio leer (oder Feld fehlt) – Code-Prüfung würde scheitern")
+    # Rohdaten beider Endpunkte (zur Fehlersuche, falls die Bio fehlt)
+    for path, params in (("/users/autocomplete", {"q": login, "per_page": "10"}),
+                         (f"/users/{u['id']}" if u else None, {})):
+        if not path:
+            continue
+        d = await I._get(path, params)
+        r = next((x for x in (d or {}).get("results") or []
+                  if (x.get("login") or "").lower() == login.lower()), None)
+        if r is None:
+            print(f"   {path}: kein Treffer")
+            continue
+        desc = r.get("description")
+        print(f"   {path}: Feld 'description' {'fehlt' if desc is None else f'vorhanden ({len(desc)} Zeichen)'}; "
+              f"Felder: {', '.join(sorted(r.keys()))[:300]}")
     if len(sys.argv) > 2:
         oid = int(sys.argv[2])
         d = await I.fetch_observations([oid])
