@@ -417,6 +417,17 @@ CREATE TABLE IF NOT EXISTS review_authors (
 );
 CREATE INDEX IF NOT EXISTS idx_review_authors_user ON review_authors (user_id, review_date);
 
+-- Saison-Verfügbarkeit: je Tag und Art die Zahl der Shops mit lagerndem Angebot
+-- (Maximum über die stündlichen Läufe des Tages). species_key '*' markiert, dass der
+-- Tag erfasst wurde (fehlende Art an so einem Tag = 0 Shops).
+CREATE TABLE IF NOT EXISTS species_stock_daily (
+    day          TEXT NOT NULL,       -- YYYY-MM-DD (Berlin)
+    species_key  TEXT NOT NULL,       -- kanonischer Artname, klein
+    shops        INTEGER NOT NULL,
+    PRIMARY KEY (day, species_key)
+);
+CREATE INDEX IF NOT EXISTS idx_species_stock_key ON species_stock_daily (species_key, day);
+
 -- Jahresrückblick: bereits gepostete Jahre (verhindert Doppel-Posts nach Neustart).
 CREATE TABLE IF NOT EXISTS year_review_posted (
     year       INTEGER PRIMARY KEY,
