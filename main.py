@@ -117,6 +117,7 @@ INITIAL_COGS = [
     "cogs.achievements",      # /achievements + Erfolge-Freischaltung/DM-Ping
     "cogs.sells",             # /sells – Preisvergleich einer Art/Gattung über alle Shops
     "cogs.offers",            # /offers – alle lagernden Angebote eines Shops
+    "cogs.directory",         # /art (Artensteckbrief) /shop (Händlerseite)
     "cogs.custom_commands",   # /info – benutzerdefinierte Text-Befehle (Info-Einträge)
     "cogs.offer_alerts",      # /offer_alert – Schlagwort-Alerts für den Angebote-Kanal
     "cogs.chat_export",       # /export_chat – Channel als JSON exportieren (Admin)
