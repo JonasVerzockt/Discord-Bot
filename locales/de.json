@@ -709,5 +709,10 @@
   "inat_stats_taxa_h": "Gefundene Arten {year}",
   "inat_stats_footer": "Es zählen eigene Ameisen-Beobachtungen, die im iNat-Kanal gepostet wurden. Gattungen zählen nur, wenn du darin noch keine genauere Art hast.",
   "yrp_inat": "🔬 {obs} iNat-Beobachtungen, {species} Arten gefunden",
-  "help_inat": "🔬 `/inat_verknuepfen` · `/inat_statistik` · `/inat_trennen`: iNaturalist-Statistik: eigene Beobachtungen und gefundene Arten aus dem iNat-Kanal"
+  "help_inat": "🔬 `/inat_verknuepfen` · `/inat_statistik` · `/inat_trennen`: iNaturalist-Statistik: eigene Beobachtungen und gefundene Arten aus dem iNat-Kanal",
+  "yr_h_inat": "🔬 iNaturalist",
+  "yr_inat_line": "{obs} Ameisen-Beobachtungen, {species} Arten gefunden",
+  "yr_inat_people": "👥 {n} Mitglieder haben mitgezählt",
+  "yr_inat_new": "🌟 {n} Arten zum ersten Mal in der Community gefunden",
+  "yr_inat_top": "🏆 Am häufigsten beobachtet: *{name}* ({n}×)"
 }

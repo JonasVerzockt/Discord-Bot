@@ -709,5 +709,10 @@
   "inat_stats_taxa_h": "Trovitaj specioj {year}",
   "inat_stats_footer": "Kalkuliĝas propraj formik-observoj afiŝitaj en la iNat-kanalo. Genroj kalkuliĝas nur se vi ankoraŭ ne havas pli precizan specion en ili.",
   "yrp_inat": "🔬 {obs} iNat-observoj, {species} specioj trovitaj",
-  "help_inat": "🔬 `/inat_verknuepfen` · `/inat_statistik` · `/inat_trennen`: iNaturalist-statistiko: propraj observoj kaj trovitaj specioj el la iNat-kanalo"
+  "help_inat": "🔬 `/inat_verknuepfen` · `/inat_statistik` · `/inat_trennen`: iNaturalist-statistiko: propraj observoj kaj trovitaj specioj el la iNat-kanalo",
+  "yr_h_inat": "🔬 iNaturalist",
+  "yr_inat_line": "{obs} formik-observoj, {species} specioj trovitaj",
+  "yr_inat_people": "👥 {n} membroj partoprenis",
+  "yr_inat_new": "🌟 {n} specioj trovitaj unuafoje en la komunumo",
+  "yr_inat_top": "🏆 Plej ofte observita: *{name}* ({n}×)"
 }
