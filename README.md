@@ -189,8 +189,8 @@ DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inakt
 # BOARD_BIND=127.0.0.1                     # nur lokal binden (Caddy/nginx macht HTTPS)
 # BOARD_PORT=8080
 # BOARD_PUBLIC_URL=                        # öffentliche URL (für Links/DM) – darf leer bleiben
-# BOARD_ADMIN_TOKEN=                       # Owner-Login-Token (Pflicht wenn aktiv)
-# BOARD_OWNER_ID=                          # Discord-User-ID für die Einreichungs-DM (leer/0 = übersprungen)
+# BOARD_OWNER_ID=                          # Discord-User-ID: Owner-DMs + Admin-Login per Discord
+# BOARD_ADMIN_IDS=                         # optional weitere Admin-IDs, kommagetrennt
 # BOARD_DB_FILE=/opt/discord-bot/board.db  # eigene DB-Datei (getrennt von der Haupt-DB)
 # BOARD_HASH_SALT=ein-langes-zufaelliges-salt   # IP-Hashing (keine Roh-IP gespeichert)
 
@@ -1242,7 +1242,7 @@ Der Status-Bereich **aktualisiert sich alle 5 Sekunden von selbst** (JSON-Poll a
 
 ### Moderation (Owner)
 
-Der Owner meldet sich unter `/admin/login` mit dem `BOARD_ADMIN_TOKEN` an und kann dann:
+Der Owner meldet sich unter `/admin/login` per **„Login mit Discord“** an (OAuth2, Scope `identify`, Mitgliedschaft auf `MAP_GUILD_ID` wird geprüft). Admin ist, wessen Discord-ID `BOARD_OWNER_ID` oder in `BOARD_ADMIN_IDS` steht; die Admin-Sitzung gilt 7 Tage. Danach kann er:
 
 - **Queue abarbeiten:** Einreichungen **freigeben** (→ öffentlich), **ablehnen** oder **löschen**.
 - In der Übersicht je Eintrag schnell **Status / Priorität / Komponente / Version** setzen.
@@ -1262,8 +1262,8 @@ Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam
 | `BOARD_BIND` | Bind-Adresse | `127.0.0.1` (nur lokal; Reverse-Proxy davor) |
 | `BOARD_PORT` | interner Port | `8080` |
 | `BOARD_PUBLIC_URL` | öffentliche URL (für Links/DM) | darf zunächst **leer** bleiben |
-| `BOARD_ADMIN_TOKEN` | Owner-Login-Token | **Pflicht wenn aktiv** – sicheres Secret wählen |
-| `BOARD_OWNER_ID` | Discord-User-ID für die Einreichungs-DM | leer/0 = DM wird übersprungen (nur Log) |
+| `BOARD_OWNER_ID` | Discord-User-ID: Owner-DMs (Einreichungen, Alarme) und Admin-Login per Discord | **Pflicht für den Admin-Bereich**; zusätzlich `BOARD_OAUTH_*` und `MAP_GUILD_ID` |
+| `BOARD_ADMIN_IDS` | weitere Discord-IDs mit Admin-Rechten | optional, kommagetrennt |
 | `BOARD_DB_FILE` | eigene DB-Datei | Standard `board.db` im Projektordner |
 | `BOARD_HASH_SALT` | Salt fürs IP-Hashing | in Produktion setzen (keine Roh-IP gespeichert) |
 
@@ -1274,7 +1274,6 @@ Das Board läuft **im bestehenden `aam-bot`-Dienst** mit – kein zweiter Prozes
 ```bash
 # 1. In der .env setzen (Beispiel):
 #    BOARD_ENABLED=true
-#    BOARD_ADMIN_TOKEN=<langes-zufälliges-secret>
 #    BOARD_HASH_SALT=<langes-zufälliges-salt>
 #    BOARD_OWNER_ID=<deine-discord-user-id>      # optional, für die DM
 #    BOARD_PUBLIC_URL=https://board.example.com  # optional

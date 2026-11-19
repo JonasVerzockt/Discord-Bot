@@ -80,7 +80,7 @@ Der Bot ist **AGPL-3.0** – jede/r darf ihn forken und selbst betreiben (dann m
 **eigenem** Bot-Token und **eigener** Instanz). Wer selbst hostet, sollte:
 
 - **Eigene, starke Zufalls-Secrets** setzen und **nie committen**: `DISCORD_TOKEN`,
-  `ANTHROPIC_API_KEY`, `ANTCHECK_API_KEY`, `BOARD_ADMIN_TOKEN`, `BOARD_HASH_SALT`
+  `ANTHROPIC_API_KEY`, `ANTCHECK_API_KEY`, `BOARD_OAUTH_CLIENT_SECRET`, `BOARD_HASH_SALT`
   (z. B. `openssl rand -hex 32` bzw. `python3 -c "import secrets;print(secrets.token_hex(32))"`).
 - **Dateirechte** eng setzen: `.env` und `service_account.json` auf `600`
   (`-rw-------`).

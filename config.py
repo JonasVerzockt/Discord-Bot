@@ -181,10 +181,12 @@ BOARD_PUBLIC_URL  = os.getenv("BOARD_PUBLIC_URL", "").strip().rstrip("/")
 # Optionaler Discord-Einladungslink (https://discord.gg/…) für den Kasten „Mitmachen“
 # auf der Karte. Leer = Button wird nicht angezeigt.
 DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL", "").strip()
-# Owner-Login-Token (Pflicht wenn aktiviert) + Discord-User-ID für die Owner-DM
-# (darf zunächst leer/0 sein -> dann nur Log-Hinweis statt DM).
-BOARD_ADMIN_TOKEN = os.getenv("BOARD_ADMIN_TOKEN", "")
+# Discord-User-ID des Owners: Owner-DMs (Einreichungen, Alarme) UND Admin-Login im
+# Board (über „Login mit Discord“, kein Token mehr). Optional weitere Admin-IDs,
+# kommagetrennt. BOARD_ADMIN_TOKEN wird nicht mehr verwendet.
 BOARD_OWNER_ID    = int(os.getenv("BOARD_OWNER_ID", "0") or "0")
+BOARD_ADMIN_IDS: list[int] = [int(x) for x in os.getenv("BOARD_ADMIN_IDS", "").replace(" ", "").split(",")
+                              if x.isdigit()]
 # Eigene, separate DB-Datei (nicht die Haupt-Bot-DB).
 BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(DATA_DIR / "board.db"))
 # Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
