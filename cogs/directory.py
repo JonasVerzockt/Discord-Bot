@@ -49,10 +49,12 @@ def _board(path: str) -> str:
 
 
 async def _ac_species(ctx: discord.AutocompleteContext):
+    await ensure_rates()
     return await asyncio.to_thread(D.search_species, ctx.value or "", 25)
 
 
 async def _ac_shop(ctx: discord.AutocompleteContext):
+    await ensure_rates()
     reviews = await asyncio.to_thread(D.loaded_reviews)
     items = await asyncio.to_thread(D.search_shops, ctx.value or "", reviews, 25)
     return [discord.OptionChoice(name=f"{n} ({d})"[:100] if n != d else d, value=d) for n, d in items]
@@ -98,7 +100,7 @@ class DirectoryCog(commands.Cog, name="Directory"):
 
         lines = []
         for o in instock[:_MAX_OFFERS]:
-            lines.append(f"[{o['shop']}](<{o['url']}>) · {_eur(o['price'])}")
+            lines.append(f"[{o['shop']}](<{o['url']}>) · {D.fmt_price(o)}")
         if len(instock) > _MAX_OFFERS:
             lines.append(l10n.get("dir_more", lang, n=len(instock) - _MAX_OFFERS))
         e.add_field(name=l10n.get("dir_art_instock_h", lang),

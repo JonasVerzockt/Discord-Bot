@@ -291,7 +291,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 20px;display:flex;gap:16px;align-items:center}
  header h1{font-size:18px;margin:0} header>a{white-space:nowrap} .grow{flex:1}
  /* Handy: Kopfzeile umbrechen statt die Seite zu verbreitern */
- @media(max-width:820px){header{flex-wrap:wrap;gap:8px 14px;padding:10px 14px} header h1{flex-basis:100%} header>.grow{display:none}}
+ @media(max-width:1180px){header{flex-wrap:wrap;gap:8px 14px;padding:10px 14px} header h1{flex-basis:100%} header>.grow{display:none}}
  .wrap{max-width:1100px;margin:0 auto;padding:20px}
  .btn{background:#238636;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px}
  .btn.grey{background:#30363d} .btn.red{background:#8b2b2b} .btn.small{padding:3px 8px;font-size:13px}
@@ -1011,8 +1011,7 @@ ART_INDEX = """{% extends "base" %}{% block body %}
  <input id=dirfilter name=q type=search value="{{ q }}" placeholder="{{ t('dir_art_search') }}" autocomplete=off>
 </form>
 {% if q and not items %}<div class=flash style="margin-top:12px">{{ t('dir_art_nohit', q=q) }}</div>{% endif %}
-<div class=raritygrid id=dirlist style="font-style:normal">{% for name, n, inst in items %}<div data-q="{{ name|lower }}"><a href="/art/{{ name|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ name }}</i></a> <span class=rshop>· {{ t('dir_shops_n', n=n) }}{% if inst %} · {{ t('dir_instock_n', n=inst) }}{% endif %}</span></div>{% endfor %}</div>
-{{ filter_js|safe }}
+{% from "genmac" import genlist with context %}{{ genlist("artgen", groups, total, "dirfilter", q) }}
 {% endblock %}"""
 
 ART = """{% extends "base" %}{% block body %}
@@ -1046,7 +1045,7 @@ ART = """{% extends "base" %}{% block body %}
 {% endif %}
 <div class=chartbox><h4>{{ t('dir_offers_h') }}</h4>
 <table><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_price') }}</th><th>{{ t('dir_col_stock') }}</th><th></th></tr>
-{% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ eur(o.price) }}</td>
+{% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ price(o) }}</td>
 <td>{% if o.in_stock %}<span style="color:#3fb950">● {{ t('dir_instock') }}</span>{% else %}<span class=muted>○ {{ t('dir_soldout') }}</span>{% endif %}</td>
 <td><a href="{{ o.url }}" target=_blank rel="noopener noreferrer">{{ t('dir_to_offer') }} ↗</a></td></tr>{% endfor %}
 </table></div>
@@ -1117,11 +1116,36 @@ SHOP = """{% extends "base" %}{% block body %}
 {% if sh.exclusive %}<div class=chartbox><h4>💎 {{ t('dir_excl_h') }}</h4>
 <div class=raritygrid>{% for n in sh.exclusive %}<div><a href="/art/{{ n|replace(' ','_')|urlencode }}{{ qs() }}">{{ n }}</a></div>{% endfor %}</div></div>{% endif %}
 {% if sh.species %}<div class=chartbox><h4>{{ t('dir_species_h', n=sh.species|length) }}</h4>
-<input id=dirfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off style="max-width:360px">
-<div class=raritygrid id=dirlist>{% for n in sh.species %}<div data-q="{{ n|lower }}"><a href="/art/{{ n|replace(' ','_')|urlencode }}{{ qs() }}">{{ n }}</a></div>{% endfor %}</div></div>
-{{ filter_js|safe }}{% endif %}
+<input id=shopfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off style="max-width:360px">
+{% from "genmac" import genlist with context %}{{ genlist("shopgen", groups, sh.species|length, "shopfilter") }}</div>{% endif %}
 <p class=muted>{{ t('dir_shop_note') }}</p>
 {% endblock %}"""
+
+GENMAC = """{% macro genlist(gid, groups, total, filter_id, q='') %}
+<p style="margin:10px 0 4px"><a href="#" data-gall="{{ gid }}" data-open=1>{{ t('dir_expand_all') }}</a> · <a href="#" data-gall="{{ gid }}" data-open=0>{{ t('dir_collapse_all') }}</a> <span id="{{ gid }}-cnt" class=muted style="font-size:12px;margin-left:8px"></span></p>
+<div id="{{ gid }}" data-genlist data-filter="{{ filter_id }}" data-total="{{ total }}">{% for genus, rows in groups %}
+<details class=gen style="border-bottom:1px solid #21262d;padding:4px 0"{% if q %} open{% endif %}>
+ <summary style="cursor:pointer"><i>{{ genus }}</i> <span class=muted style="font-size:12px">· {{ t('dir_species_count', n=rows|length) }}{% set gi = rows|selectattr('instock')|list|length %}{% if gi %} · {{ t('dir_instock_species', n=gi) }}{% endif %}</span></summary>
+ <div class=raritygrid style="font-style:normal;margin:4px 0 6px 14px">{% for r in rows %}<div data-q="{{ r.name|lower }}"><a href="/art/{{ r.name|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ r.name }}</i></a>{% if r.note %} <span class=rshop>· {{ r.note }}</span>{% endif %}</div>{% endfor %}</div>
+</details>{% endfor %}</div>
+<script>(function(){
+ var box=document.getElementById("{{ gid }}"); if(!box) return;
+ var inp=document.getElementById(box.getAttribute("data-filter")), cnt=document.getElementById("{{ gid }}-cnt"),
+     gens=box.querySelectorAll("details.gen"), total=box.getAttribute("data-total");
+ function apply(){
+  var q=(inp?inp.value:"").trim().toLowerCase(), shown=0;
+  gens.forEach(function(d){
+   var hit=0; d.querySelectorAll("[data-q]").forEach(function(r){
+    var ok=!q||r.getAttribute("data-q").indexOf(q)>=0; r.style.display=ok?"":"none"; if(ok) hit++;});
+   d.style.display=hit?"":"none"; if(q) d.open=hit>0; shown+=hit;});
+  if(cnt) cnt.textContent=q?shown+" / "+total:"";
+ }
+ document.querySelectorAll('[data-gall="{{ gid }}"]').forEach(function(a){a.addEventListener("click",function(e){
+  e.preventDefault(); var o=a.getAttribute("data-open")==="1";
+  gens.forEach(function(d){if(d.style.display!=="none") d.open=o;});});});
+ if(inp){inp.addEventListener("input",apply); apply();}
+})();</script>
+{% endmacro %}"""
 
 _FILTER_JS = """<script>(function(){var inp=document.getElementById("dirfilter"),
  rows=document.querySelectorAll("#dirlist [data-q]"); if(!inp) return;
@@ -1134,7 +1158,7 @@ ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUB
                                      "edit": EDIT, "statusdetail": STATUSDETAIL,
                                      "stats": STATS, "legal": LEGAL, "map": MAP,
                                      "art_index": ART_INDEX, "art": ART, "art_missing": ART_MISSING,
-                                     "shops": SHOPS, "shop": SHOP}),
+                                     "shops": SHOPS, "shop": SHOP, "genmac": GENMAC}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -1853,6 +1877,7 @@ async def h_art_index(req):
     from utils import directory as dirx
     lang = pick_lang(req)
     q = (req.query.get("q") or "").strip()[:80]
+    await ensure_rates()
     try:
         idx = await asyncio.to_thread(dirx.index)
     except Exception as e:
@@ -1866,8 +1891,14 @@ async def h_art_index(req):
     items = sorted(((sp["name"], len(sp["shops"]), sum(1 for o in sp["offers"] if o["in_stock"]))
                     for sp in idx["species"].values() if not ql or ql in sp["key"]),
                    key=lambda x: x[0].lower())
+    groups: dict = {}
+    for name, n, inst in items:                            # nach Gattung gruppiert (eingeklappt)
+        note = translate(lang, "dir_shops_n", n=n) + (
+            " · " + translate(lang, "dir_instock_n", n=inst) if inst else "")
+        groups.setdefault(name.split()[0], []).append({"name": name, "note": note, "instock": inst > 0})
     return _render(req, "art_index", title=translate(lang, "dir_art_index_h"), items=items, q=q,
-                   filter_js=_FILTER_JS)
+                   groups=sorted(groups.items(), key=lambda g: g[0].lower()),
+                   total=len(idx["species"]))
 
 
 async def h_art(req):
@@ -1899,7 +1930,8 @@ async def h_art(req):
     gbif_top = [country_name(lang, c) for c, _ in (gb.get("countries") or [])[:5] if c]
     gbif_count = f"{gb.get('count', 0):,}".replace(",", ".") if lang == "de" else f"{gb.get('count', 0):,}"
     return _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock,
-                   trend=trend, rare=len(sp["shops"]) == 1, eur=_eur_fmt, fetched=fetched,
+                   trend=trend, rare=len(sp["shops"]) == 1, eur=_eur_fmt, price=dirx.fmt_price,
+                   fetched=fetched,
                    prof=prof, ext=species_profile.links(sp["name"]),
                    gbif_top=gbif_top, gbif_count=gbif_count)
 
@@ -1907,6 +1939,7 @@ async def h_art(req):
 async def h_shops(req):
     from utils import directory as dirx
     lang = pick_lang(req)
+    await ensure_rates()
     reviews = await asyncio.to_thread(dirx.loaded_reviews)
     shops = await asyncio.to_thread(dirx.all_shops, reviews)
     partners = {dirx.domain_of(p["url"]) for p in _load_partners()}
@@ -1950,6 +1983,13 @@ async def h_shop(req):
             ctx["years_n"] = [n for n, _ in rv["years"].values()]
             ctx["dist_labels"] = [str(k) for k in range(1, 11)]
             ctx["dist_n"] = [rv["dist"].get(k, 0) for k in range(1, 11)]
+    instock_sp = {o["species"].lower() for o in sh["offers"] if o["in_stock"]}
+    gmap: dict = {}
+    for n in sh["species"]:
+        st = n.lower() in instock_sp
+        gmap.setdefault(n.split()[0], []).append(
+            {"name": n, "instock": st, "note": translate(lang, "dir_instock") if st else ""})
+    ctx["groups"] = sorted(gmap.items(), key=lambda g: g[0].lower())
     resp = _render(req, "shop", title=sh["name"], **ctx)
     if member:
         resp.headers["Cache-Control"] = "private, no-store"
