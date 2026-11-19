@@ -57,7 +57,8 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     VERSION,
                     MAP_ENABLED, MAP_GUILD_ID, MAP_JITTER_METERS, MAP_MAX_ZOOM,
                     BOARD_OAUTH_CLIENT_ID, BOARD_OAUTH_CLIENT_SECRET, BOARD_OAUTH_REDIRECT_URI,
-                    DISCORD_INVITE_URL)
+                    DISCORD_INVITE_URL, BOARD_AI_CHAT, BOARD_AI_CHAT_PER_MIN,
+                    BOARD_AI_CHAT_PER_HOUR)
 from utils import geo, map_tags
 from datetime import datetime, timezone, timedelta
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
@@ -421,6 +422,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   · <a href="/gewinnspiel?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_giveaway') }}</a>
   · <a href="/rueckblick?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_yearreview') }}</a>
 </footer>
+{% if chat_ok %}{% include "chatwidget" %}{% endif %}
 </body></html>"""
 
 BOARD = """{% extends "base" %}{% block body %}
@@ -1116,10 +1118,13 @@ ART = """{% extends "base" %}{% block body %}
 {% endif %}
 <div class=chartbox><h4>{{ t('dir_offers_h') }}</h4>
 <table><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_price') }}</th><th>{{ t('dir_col_stock') }}</th><th></th></tr>
-{% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ price(o) }}</td>
+{% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ price(o) }}{% set sg = sig.get(o.pid) if o.in_stock else none %}{% if sg %} <span title="{{ sig_txt[sg] }}">{{ sig_emoji[sg] }}</span>{% endif %}</td>
 <td>{% if o.in_stock %}<span style="color:#3fb950">● {{ t('dir_instock') }}</span>{% else %}<span class=muted>○ {{ t('dir_soldout') }}</span>{% endif %}</td>
 <td><a href="{{ o.url }}" target=_blank rel="noopener noreferrer">{{ t('dir_to_offer') }} ↗</a></td></tr>{% endfor %}
-</table></div>
+</table>{% if sig_any %}<p class=muted style="font-size:12px;margin:8px 0 0">{{ sig_legend }}</p>{% endif %}</div>
+{% if season %}<div class=chartbox><h4>{{ season.h }}</h4><p style="margin:0 0 10px">{{ season.text }}</p>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end;height:70px">{% for m in season.months %}<div title="{{ season.names[loop.index0] }}{% if m is not none %}: {{ (m * 100)|round|int }} %{% endif %}" style="background:{% if m is none %}#21262d{% elif m >= 0.5 %}#3fb950{% else %}#3fb95055{% endif %};height:{{ 6 if m is none else (6 + m * 64)|int }}px;border-radius:3px"></div>{% endfor %}</div>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;font-size:11px;text-align:center" class=muted>{% for n in season.short %}<div>{{ n }}</div>{% endfor %}</div></div>{% endif %}
 <p class=muted>{{ t('dir_art_note', d=fetched) }}</p>
 {% endblock %}"""
 
@@ -1189,7 +1194,7 @@ SHOP = """{% extends "base" %}{% block body %}
 <div class=raritygrid>{% for n in sh.exclusive %}<div><a href="/art/{{ n|replace(' ','_')|urlencode }}{{ qs() }}">{{ n }}</a></div>{% endfor %}</div></div>{% endif %}
 {% if sh.species %}<div class=chartbox><h4>{{ t('dir_species_h', n=sh.species|length) }}</h4>
 <input id=shopfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off style="max-width:360px">
-{% from "genmac" import genlist with context %}{{ genlist("shopgen", groups, sh.species|length, "shopfilter") }}</div>{% endif %}
+{% from "genmac" import genlist with context %}{{ genlist("shopgen", groups, sh.species|length, "shopfilter") }}{% if sig_legend %}<p class=muted style="font-size:12px;margin:8px 0 0">{{ sig_legend }}</p>{% endif %}</div>{% endif %}
 <p class=muted>{{ t('dir_shop_note') }}</p>
 {% endblock %}"""
 
@@ -1248,6 +1253,71 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
 {% if d.new_shops %}<div class=chartbox><h4>🏪 {{ t('yr_k_shops') }}</h4><p style="margin:0">{{ d.new_shops|join(', ') }}</p></div>{% endif %}
 <p class=muted>{{ t('yr_page_note') }}</p>
 {% endblock %}"""
+
+CHATWIDGET = r"""<style>
+#aic-btn{position:fixed;right:18px;bottom:18px;z-index:50;width:56px;height:56px;border-radius:50%;border:1px solid #30363d;background:#238636;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 4px 14px #0008}
+#aic-box{position:fixed;right:18px;bottom:84px;z-index:50;width:min(400px,calc(100vw - 36px));height:min(560px,calc(100vh - 110px));display:none;flex-direction:column;background:#0d1117;border:1px solid #30363d;border-radius:12px;box-shadow:0 8px 30px #000a;overflow:hidden}
+#aic-box.open{display:flex}
+#aic-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #21262d;background:#161b22}
+#aic-head b{flex:1}
+#aic-head a,#aic-head button{color:#8b949e;font-size:13px;background:none;border:0;cursor:pointer}
+#aic-model{width:100%;margin:0;padding:6px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:13px}
+#aic-msgs{flex:1;overflow-y:auto;padding:10px 12px;font-size:14px;line-height:1.45}
+.aic-m{margin:0 0 10px;padding:8px 10px;border-radius:10px;max-width:90%;word-wrap:break-word;white-space:pre-wrap}
+.aic-u{background:#1f6feb33;margin-left:auto}
+.aic-a{background:#161b22;border:1px solid #21262d}
+.aic-a code{background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:0 4px}
+.aic-f{display:block;color:#8b949e;font-size:11px;margin-top:6px;white-space:normal}
+#aic-form{display:flex;gap:6px;padding:8px;border-top:1px solid #21262d}
+#aic-in{flex:1;resize:none;height:54px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:8px;padding:6px 8px;font:inherit;font-size:14px}
+#aic-send{background:#238636;color:#fff;border:0;border-radius:8px;padding:0 14px;cursor:pointer}
+#aic-send:disabled{opacity:.5;cursor:default}
+#aic-note{font-size:11px;color:#8b949e;padding:0 10px 8px}
+</style>
+<button id=aic-btn type=button title="{{ t('chat_title') }}" aria-label="{{ t('chat_title') }}">💬</button>
+<div id=aic-box role=dialog aria-label="{{ t('chat_title') }}">
+ <div id=aic-head><b>🤖 {{ t('chat_title') }}</b><button type=button id=aic-new>{{ t('chat_new') }}</button><button type=button id=aic-close aria-label="close">✕</button></div>
+ <div style="padding:8px 12px 0"><select id=aic-model aria-label="{{ t('chat_model') }}"></select></div>
+ <div id=aic-msgs><div class="aic-m aic-a">{{ t('chat_hello') }}</div></div>
+ <form id=aic-form><textarea id=aic-in maxlength=1500 placeholder="{{ t('chat_placeholder') }}"></textarea><button id=aic-send type=submit>➤</button></form>
+ <div id=aic-note>{{ t('chat_note', h=chat_ttl) }}</div>
+</div>
+<script>(function(){
+ var CSRF={{ chat_csrf|tojson }}, LANG={{ lang|tojson }}, L={think:{{ t('chat_thinking')|tojson }},err:{{ t('chat_error')|tojson }}};
+ var box=document.getElementById("aic-box"),msgs=document.getElementById("aic-msgs"),inp=document.getElementById("aic-in"),
+     send=document.getElementById("aic-send"),sel=document.getElementById("aic-model"),conv=null,loaded=false;
+ try{conv=sessionStorage.getItem("aic-conv")}catch(e){}
+ function esc(t){return t.replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+ function md(t){t=esc(t);
+  t=t.replace(/```([\s\S]*?)```/g,function(_,c){return "<code>"+c+"</code>"});
+  t=t.replace(/`([^`\n]+)`/g,"<code>$1</code>");
+  t=t.replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g,"$1<i>$2</i>");
+  t=t.replace(/\[([^\]\n]+)\]\(&lt;?(https?:\/\/[^\s)&]+(?:&amp;[^\s)&]+)*)&gt;?\)/g,'<a href="$2" target=_blank rel="noopener noreferrer">$1</a>');
+  t=t.replace(/^#{1,3} (.+)$/gm,"<b>$1</b>");
+  return t}
+ var hist=[];try{hist=JSON.parse(sessionStorage.getItem("aic-hist")||"[]")}catch(e){}
+ function keep(){try{sessionStorage.setItem("aic-hist",JSON.stringify(hist.slice(-30)))}catch(e){}}
+ function add(cls,html){var d=document.createElement("div");d.className="aic-m "+cls;d.innerHTML=html;msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;return d}
+ hist.forEach(function(h){add(h[0],h[1])});
+ function loadModels(){if(loaded)return;loaded=true;
+  fetch("/chat/models?lang="+LANG,{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(j){
+   (j.models||[]).forEach(function(m){var o=document.createElement("option");o.value=m.id;o.textContent=m.emoji+" "+m.label+" · "+m.tier+(m.rec?" · 👍":"");o.title=m.desc;if(m.id===j.preselect)o.selected=true;sel.appendChild(o)})})}
+ document.getElementById("aic-btn").onclick=function(){box.classList.toggle("open");if(box.classList.contains("open")){loadModels();inp.focus()}};
+ document.getElementById("aic-close").onclick=function(){box.classList.remove("open")};
+ document.getElementById("aic-new").onclick=function(){conv=null;try{sessionStorage.removeItem("aic-conv")}catch(e){}
+  hist=[];keep();msgs.innerHTML="";add("aic-a",esc({{ t('chat_hello')|tojson }}))};
+ inp.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();document.getElementById("aic-form").requestSubmit()}});
+ document.getElementById("aic-form").onsubmit=function(e){e.preventDefault();var q=inp.value.trim();if(!q||send.disabled)return;
+  add("aic-u",esc(q));hist.push(["aic-u",esc(q)]);keep();inp.value="";send.disabled=true;var w=add("aic-a","<i>"+esc(L.think)+"</i>");
+  fetch("/chat/send?lang="+LANG,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF":CSRF},
+   body:JSON.stringify({msg:q,conv:conv,model:sel.value||null})})
+  .then(function(r){return r.json().catch(function(){return {answer:L.err}})})
+  .then(function(j){w.innerHTML=md(j.answer||L.err)+(j.footer?'<span class=aic-f>'+esc(j.footer)+'</span>':"");
+   hist.push(["aic-a",w.innerHTML]);keep();
+   if(j.conv){conv=String(j.conv);try{sessionStorage.setItem("aic-conv",conv)}catch(e){}}
+   msgs.scrollTop=msgs.scrollHeight})
+  .catch(function(){w.textContent=L.err}).finally(function(){send.disabled=false;inp.focus()})};
+})();</script>"""
 
 RUECKBLICK_WAIT = """{% extends "base" %}{% block body %}
 <div style="max-width:680px;margin:30px auto;text-align:center">
@@ -1310,7 +1380,8 @@ ENV = Environment(loader=DictLoader({"base": BASE, "board": BOARD, "submit": SUB
                                      "stats": STATS, "legal": LEGAL, "map": MAP,
                                      "art_index": ART_INDEX, "art": ART, "art_missing": ART_MISSING,
                                      "shops": SHOPS, "shop": SHOP, "genmac": GENMAC,
-                                     "rueckblick": RUECKBLICK, "rueckblick_wait": RUECKBLICK_WAIT}),
+                                     "rueckblick": RUECKBLICK, "rueckblick_wait": RUECKBLICK_WAIT,
+                                     "chatwidget": CHATWIDGET}),
                   autoescape=select_autoescape(["html", "xml"], default=True))
 
 _ROWQ = ("SELECT s.*, "
@@ -1341,9 +1412,32 @@ def _render(req, name, title="Board", flash="", **ctx):
                 # Partner-Leiste über dem Footer – nur wenn Partner eingetragen sind und nicht
                 # auf der Karte (dort steht der Partner-Kasten in der rechten Spalte).
                 partner_strip=(_load_partners() if name != "map" else []))
+    chat_uid = _chat_uid(req) if name != "map" else None
+    i18n.update(chat_ok=bool(chat_uid), chat_csrf=_member_csrf(chat_uid) if chat_uid else "",
+                chat_ttl=_chat_ttl())
     i18n.update(ctx)   # template-spezifischer Kontext (items, cols, …) ergänzt/gewinnt
     html = ENV.get_template(name).render(title=title, flash=flash, admin=_is_admin(req), **i18n)
-    return web.Response(text=html, content_type="text/html")
+    resp = web.Response(text=html, content_type="text/html")
+    if chat_uid:
+        resp.headers["Cache-Control"] = "private, no-store"   # Seite enthält Mitglieder-Token
+    return resp
+
+
+def _chat_ttl() -> int:
+    import config as cfg
+    return cfg.AI_CHAT_CONVERSATION_TTL_HOURS
+
+
+def _chat_uid(req) -> str | None:
+    """Discord-ID, wenn der Web-KI-Chat für diese Anfrage angeboten wird."""
+    if not BOARD_AI_CHAT:
+        return None
+    try:
+        if "AiChatCog" not in req.app["bot"].cogs:
+            return None
+    except Exception:
+        return None
+    return _aam_member(req)
 
 
 def _ver_key(v: str) -> tuple:
@@ -2233,9 +2327,21 @@ async def h_art(req):
     gb = prof.get("gbif") or {}
     gbif_top = [country_name(lang, c) for c, _ in (gb.get("countries") or [])[:5] if c]
     gbif_count = f"{gb.get('count', 0):,}".replace(",", ".") if lang == "de" else f"{gb.get('count', 0):,}"
+    from utils import price_signal as PS, season as SEA
+    from utils.localization import l10n
+    sig = await asyncio.to_thread(PS.signals, [o["pid"] for o in instock])
+    seas = None
+    sprof = await SEA.profile(req.app["bot"], sp["key"])
+    if sprof:
+        seas = {"h": l10n.get("season_h", lang), "text": SEA.describe(sprof, lang),
+                "months": sprof["months"], "names": SEA.MONTHS.get(lang, SEA.MONTHS["de"]),
+                "short": SEA.MONTHS_SHORT.get(lang, SEA.MONTHS_SHORT["de"])}
     return _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock,
                    trend=trend, rare=len(sp["shops"]) == 1, eur=_eur_fmt, price=dirx.fmt_price,
-                   fetched=fetched,
+                   fetched=fetched, season=seas,
+                   sig=sig, sig_any=any(sig.get(o["pid"]) for o in instock), sig_emoji=PS.EMOJI,
+                   sig_txt={k: l10n.get(f"price_sig_{k}", lang) for k in PS.EMOJI},
+                   sig_legend=l10n.get("price_sig_legend", lang),
                    prof=prof, ext=species_profile.links(sp["name"]),
                    gbif_top=gbif_top, gbif_count=gbif_count)
 
@@ -2289,11 +2395,26 @@ async def h_shop(req):
             ctx["dist_labels"] = [str(k) for k in range(1, 11)]
             ctx["dist_n"] = [rv["dist"].get(k, 0) for k in range(1, 11)]
     instock_sp = {o["species"].lower() for o in sh["offers"] if o["in_stock"]}
+    # Preis-Ampel je Art: günstigstes lagerndes Angebot dieses Shops gegen seine eigene Historie
+    from utils import price_signal as PS
+    from utils.localization import l10n
+    sig = await asyncio.to_thread(PS.signals, [o["pid"] for o in sh["offers"] if o["in_stock"]])
+    best: dict = {}
+    for o in sh["offers"]:
+        if o["in_stock"] and o["price"] is not None:
+            k = o["species"].lower()
+            if k not in best or o["price"] < best[k]["price"]:
+                best[k] = o
     gmap: dict = {}
+    any_sig = False
     for n in sh["species"]:
         st = n.lower() in instock_sp
+        mark = PS.EMOJI.get(sig.get(best[n.lower()]["pid"]), "") if n.lower() in best else ""
+        any_sig = any_sig or bool(mark)
         gmap.setdefault(n.split()[0], []).append(
-            {"name": n, "instock": st, "note": translate(lang, "dir_instock") if st else ""})
+            {"name": n, "instock": st,
+             "note": (translate(lang, "dir_instock") + (" " + mark if mark else "")) if st else ""})
+    ctx["sig_legend"] = l10n.get("price_sig_legend", lang) if any_sig else ""
     ctx["groups"] = sorted(gmap.items(), key=lambda g: g[0].lower())
     resp = _render(req, "shop", title=sh["name"], **ctx)
     if member:
@@ -2362,6 +2483,104 @@ async def h_rueckblick(req):
     if uid:
         resp.headers["Cache-Control"] = "private, no-store"   # persönliche Daten nie zwischenspeichern
     return resp
+
+
+# ── KI-Chat im Board (schwebendes Fenster, nur eingeloggte AAM-Mitglieder) ──────
+_WEB_CHAT_CHANNEL = -1          # Kennung für Web-Verläufe in ai_chat_history
+
+
+def _chat_models(bot, uid: str, lang: str) -> tuple[list, str]:
+    import config as cfg
+    from cogs.ai_chat import AI_MODELS, _resolve_model_meta
+    from utils.ai_chat import get_user_model
+    from utils.localization import l10n
+    cog = bot.cogs.get("AiChatCog")
+    avail = getattr(cog, "_available_models", None)
+    shown = [m for m in AI_MODELS if not avail or m["id"] in avail] or AI_MODELS
+    pre = get_user_model(int(uid)) or cfg.AI_CHAT_MODEL
+    pre = _resolve_model_meta(pre)["id"]
+    if pre not in {m["id"] for m in shown}:
+        pre = shown[0]["id"]
+    out = [{"id": m["id"], "label": m["label"], "emoji": m["emoji"],
+            "tier": l10n.get(m["tier_key"], lang), "desc": l10n.get(m["desc_key"], lang),
+            "rec": m["id"] == cfg.AI_CHAT_RECOMMENDED_MODEL} for m in shown]
+    return out, pre
+
+
+async def h_chat_models(req):
+    uid = _chat_uid(req)
+    if not uid:
+        return web.json_response({"error": "login"}, status=403)
+    models, pre = await asyncio.to_thread(_chat_models, req.app["bot"], uid, pick_lang(req))
+    return web.json_response({"models": models, "preselect": pre},
+                             headers={"Cache-Control": "private, no-store"})
+
+
+def _owned_conv(uid: str, conv) -> int | None:
+    """Nur eigene, nicht abgelaufene Web-Verläufe fortsetzen."""
+    from utils.ai_chat import _db
+    try:
+        cid = int(conv)
+    except (TypeError, ValueError):
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    with _db() as con:
+        row = con.execute("SELECT 1 FROM ai_chat_history WHERE message_id=? AND user_id=? "
+                          "AND channel_id=? AND expires_at > ?",
+                          (cid, int(uid), _WEB_CHAT_CHANNEL, now)).fetchone()
+    return cid if row else None
+
+
+async def h_chat_send(req):
+    import config as cfg
+    from utils.ai_chat import chat, save_conversation, set_user_model
+    from utils.localization import l10n
+    lang = pick_lang(req)
+    uid = _chat_uid(req)
+    if not uid:
+        return web.json_response({"answer": translate(lang, "chat_login")}, status=403)
+    if not hmac.compare_digest(req.headers.get("X-CSRF", ""), _member_csrf(uid)):
+        return web.json_response({"answer": translate(lang, "chat_error")}, status=403)
+    if not (_rate("aichat-m:" + uid, BOARD_AI_CHAT_PER_MIN, 60)
+            and _rate("aichat-h:" + uid, BOARD_AI_CHAT_PER_HOUR, 3600)):
+        return web.json_response({"answer": translate(lang, "chat_rate")}, status=429)
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"answer": translate(lang, "chat_error")}, status=400)
+    msg = str(body.get("msg") or "").strip()
+    if not msg:
+        return web.json_response({"answer": l10n.get("ai_err_empty", lang)})
+    if len(msg) > cfg.AI_CHAT_MAX_INPUT_CHARS:
+        return web.json_response({"answer": l10n.get(
+            "ai_msg_too_long", lang, length=f"{len(msg):,}", max=f"{cfg.AI_CHAT_MAX_INPUT_CHARS:,}")})
+    models, pre = await asyncio.to_thread(_chat_models, req.app["bot"], uid, lang)
+    prev = await asyncio.to_thread(_owned_conv, uid, body.get("conv"))
+    model = body.get("model") if body.get("model") in {m["id"] for m in models} else pre
+    if prev:                                       # Fortsetzung: Modell des Verlaufs
+        from utils.ai_chat import load_conversation_model
+        model = load_conversation_model(prev) or model
+    try:
+        set_user_model(int(uid), model)
+    except Exception:
+        pass
+    result = await chat(user_id=int(uid), user_message=msg, prev_bot_message_id=prev,
+                        channel_id=_WEB_CHAT_CHANNEL, user_lang=lang, model=model)
+    used = result.get("model") or model
+    out = {"answer": result.get("answer") or translate(lang, "chat_error"), "conv": None}
+    if result.get("budget_exceeded"):
+        from cogs.ai_chat import _model_price_overview
+        out["answer"] += "\n\n" + _model_price_overview(lang) + "\n\n" + l10n.get("ai_budget_retry_hint", lang)
+    else:
+        from cogs.ai_chat import _model_footer
+        out["footer"] = _model_footer(used, lang) + (f" · 💰 ${result['cost']:.5f}" if result.get("cost") else "")
+    if result.get("ok") and result.get("history"):
+        new_id = -secrets.randbits(52) - 1        # negativ: kollidiert nie mit Discord-IDs
+        await asyncio.to_thread(save_conversation, new_id, int(uid), _WEB_CHAT_CHANNEL,
+                                result["history"], used)
+        out["conv"] = str(new_id)
+    logger.info("🤖 Web-KI-Chat: Nutzer %s, Modell %s, $%.5f", uid, used, result.get("cost") or 0)
+    return web.json_response(out, headers={"Cache-Control": "private, no-store"})
 
 
 async def h_static(req):
@@ -3696,6 +3915,7 @@ def build_app(bot) -> web.Application:
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),
         web.get("/art", h_art_index), web.get(r"/art/{name}", h_art),
         web.get("/shops", h_shops), web.get(r"/shop/{domain}", h_shop),
+        web.get("/chat/models", h_chat_models), web.post("/chat/send", h_chat_send),
         web.get("/rueckblick", h_rueckblick), web.get(r"/rueckblick/{year:\d{4}}", h_rueckblick),
         web.get("/impressum", h_impressum), web.get("/datenschutz", h_datenschutz),
         web.get("/partner", h_partner_page), web.get("/gewinnspiel", h_gewinnspiel),

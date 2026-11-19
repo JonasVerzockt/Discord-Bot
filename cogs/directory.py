@@ -87,6 +87,9 @@ class DirectoryCog(commands.Cog, name="Directory"):
             await ctx.followup.send(l10n.get(key, lang, name=canon or name))
             return
         trend = await asyncio.to_thread(D.price_trend, sp, 12)
+        from utils import price_signal as PS, season as SEA
+        sig = await asyncio.to_thread(PS.signals, [o["pid"] for o in sp["offers"] if o["in_stock"]])
+        seas = SEA.describe(await SEA.profile(self.bot, sp["key"]), lang)
 
         offers = sorted(sp["offers"], key=lambda o: (not o["in_stock"], o["price"] is None, o["price"] or 0))
         instock = [o for o in offers if o["in_stock"]]
@@ -100,14 +103,19 @@ class DirectoryCog(commands.Cog, name="Directory"):
 
         lines = []
         for o in instock[:_MAX_OFFERS]:
-            lines.append(f"[{o['shop']}](<{o['url']}>) · {D.fmt_price(o)}")
+            mark = PS.EMOJI.get(sig.get(o["pid"]), "")
+            lines.append(f"{mark + ' ' if mark else ''}[{o['shop']}](<{o['url']}>) · {D.fmt_price(o)}")
         if len(instock) > _MAX_OFFERS:
             lines.append(l10n.get("dir_more", lang, n=len(instock) - _MAX_OFFERS))
+        if any(sig.get(o["pid"]) for o in instock[:_MAX_OFFERS]):
+            lines.append(f"-# {l10n.get('price_sig_legend', lang)}")
         e.add_field(name=l10n.get("dir_art_instock_h", lang),
                     value="\n".join(lines) or l10n.get("dir_art_none_instock", lang), inline=False)
 
         e.add_field(name=l10n.get("dir_art_trend_h", lang), inline=False, value=l10n.get(
             "dir_art_trend", lang, now=_eur(trend["now"]), m3=_eur(trend["m3"]), m12=_eur(trend["m12"])))
+        if seas:
+            e.add_field(name=l10n.get("season_h", lang), value=seas, inline=False)
         e.set_footer(text=l10n.get("dir_art_footer", lang, name=sp["name"]))
         await ctx.followup.send(embed=e)
 
