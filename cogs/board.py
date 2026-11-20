@@ -1841,8 +1841,10 @@ def _inat_tile() -> dict:
         return dict(name="iNaturalist-API", state="off", detail="seit dem Start noch nicht abgefragt")
     if err and (not ok or err > ok):
         return dict(name="iNaturalist-API", state="warn",
-                    detail=f"letzter Abruf fehlgeschlagen ({I.API_STATUS.get('err')}) · {err} UTC")
-    return dict(name="iNaturalist-API", state="ok", detail=f"letzter erfolgreicher Abruf {ok} UTC")
+                    detail=f"letzter Abruf fehlgeschlagen ({I.API_STATUS.get('err')}) · "
+                           f"{berlin_from_utc_naive(err, '%Y-%m-%d %H:%M:%S')}")
+    return dict(name="iNaturalist-API", state="ok",
+                detail=f"letzter erfolgreicher Abruf {berlin_from_utc_naive(ok, '%Y-%m-%d %H:%M:%S')}")
 
 
 async def _collect_health(app, lang: str = "de"):
