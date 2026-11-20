@@ -86,6 +86,21 @@ async def _get(path: str, params: dict, base: str = API) -> dict | None:
         return None
 
 
+async def ping() -> bool:
+    """Kleiner Erreichbarkeits-Test (eine Ameisen-Beobachtung, nur die ID), damit die
+    Health-Kachel auch dann einen echten Stand zeigt, wenn es nichts zu zählen gibt."""
+    return await _get("/observations", {"taxon_id": FORMICOIDEA, "per_page": 1, "only_id": "true"}) is not None
+
+
+def last_ok_age_hours() -> float | None:
+    """Stunden seit dem letzten erfolgreichen Abruf (None = noch keiner)."""
+    ok = API_STATUS.get("ok_at")
+    if not ok:
+        return None
+    dt = datetime.strptime(ok, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+
+
 async def fetch_observations(ids: list[int]) -> dict | None:
     """{obs_id: info} für die angefragten IDs. Fehlende IDs = gelöscht/nicht vorhanden.
     None = API nicht erreichbar."""
