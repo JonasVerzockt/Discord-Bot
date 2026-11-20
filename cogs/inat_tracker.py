@@ -366,7 +366,12 @@ class InatTrackerCog(commands.Cog, name="InatTracker"):
     # ── Hintergrund ───────────────────────────────────────────────────────────
     @tasks.loop(minutes=60)
     async def hourly(self):
-        """Noch ungeprüfte Beobachtungen (z. B. API war down) nachholen und Reaktionen setzen."""
+        """Noch ungeprüfte Beobachtungen (z. B. API war down) nachholen und Reaktionen setzen.
+        Läuft auch direkt nach dem Start. Gab es seit über 23 Stunden keinen erfolgreichen
+        Abruf (oder noch nie), wird die Erreichbarkeit kurz geprüft (Health-Kachel)."""
+        age = I.last_ok_age_hours()
+        if age is None or age > 23:
+            await I.ping()
         rows = await I.execute_db(self.bot, "SELECT obs_id, message_id, discord_id FROM inat_obs "
                                             "WHERE checked_at IS NULL", fetch=True) or []
         if not rows:
