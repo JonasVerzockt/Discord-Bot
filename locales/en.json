@@ -757,5 +757,6 @@
   "rv_channel_fallback": "the review channel",
   "rv_too_long": "⚠️ The text is too long with {n} characters (at most {max}). Please shorten it a bit.",
   "rv_cancelled": "Cancelled, nothing was saved.",
-  "help_bewerten": "📝 `/bewerten shop:<shop>`: Fill in a review using the template in two forms and copy the finished text to post"
+  "help_bewerten": "📝 `/bewerten shop:<shop>`: Fill in a review using the template in two forms and copy the finished text to post",
+  "help_grp_ai": "**🤖 AI features**"
 }

@@ -757,5 +757,6 @@
   "rv_channel_fallback": "den Bewertungskanal",
   "rv_too_long": "⚠️ Der Text ist mit {n} Zeichen zu lang (höchstens {max}). Bitte etwas kürzen.",
   "rv_cancelled": "Abgebrochen, es wurde nichts gespeichert.",
-  "help_bewerten": "📝 `/bewerten shop:<Shop>`: Bewertung nach Vorlage in zwei Formularen ausfüllen und fertigen Text zum Posten kopieren"
+  "help_bewerten": "📝 `/bewerten shop:<Shop>`: Bewertung nach Vorlage in zwei Formularen ausfüllen und fertigen Text zum Posten kopieren",
+  "help_grp_ai": "**🤖 KI-Funktionen**"
 }

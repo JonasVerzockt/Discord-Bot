@@ -757,5 +757,6 @@
   "rv_channel_fallback": "la taksokanalo",
   "rv_too_long": "⚠️ La teksto estas tro longa kun {n} signoj (maksimume {max}). Bonvolu iom mallongigi.",
   "rv_cancelled": "Nuligita, nenio estis konservita.",
-  "help_bewerten": "📝 `/bewerten shop:<butiko>`: Plenigi takson laŭ la ŝablono en du formularoj kaj kopii la pretan tekston por afiŝi"
+  "help_bewerten": "📝 `/bewerten shop:<butiko>`: Plenigi takson laŭ la ŝablono en du formularoj kaj kopii la pretan tekston por afiŝi",
+  "help_grp_ai": "**🤖 AI-funkcioj**"
 }
