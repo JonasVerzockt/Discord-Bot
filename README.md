@@ -1402,7 +1402,18 @@ Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` s
 
 - Bindet nur an `127.0.0.1` – **HTTPS und öffentliche Domain macht der Reverse-Proxy** (Caddy/nginx); der aiohttp-Server wird nie direkt exponiert.
 - **Moderations-Queue** (nichts öffentlich ohne Freigabe), **Honeypot** und **Rate-Limits** gegen Spam, **CSRF-Schutz** auf Admin-Aktionen, **Jinja2-Autoescape** gegen XSS, Frontend **dark-mode-only**.
+- **Mitglieder-Login:** „Login mit Discord“ prüft beim Anmelden, ob die Person auf dem AAM-Server ist. Alle Mitglieder-Bereiche (Karte mit Pins, Liste, Namen und Statistiken, Termin-Zusagen, Mein Konto, KI-Chat, persönlicher Rückblick, Bewertungsdetails, Stern) prüfen das zusätzlich **bei jedem Aufruf** live; wer den Server verlässt, sieht sofort nur noch die öffentliche Ansicht, auch wenn die Sitzung (30 Tage) noch läuft.
 - **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-SHA3-512-Hash** (mit geheimem `BOARD_HASH_SALT` als Schlüssel) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
+
+### Arten-Finder, Stern und Hilfeseite
+
+**Arten-Finder** (auf `/art`, aufklappbar über der Artenliste): filtert nach Gattung, Preisbereich in EUR (günstigstes passendes Angebot, Fremdwährungen umgerechnet), Shop-Land oder „liefert in die Schweiz“ (Shops aus CH plus `/ch_delivery`-Liste) und „nur lagernd“. Die Filter stehen in der URL (`/art?g=Lasius&pmax=30&land=de&stock=1`), Links lassen sich also teilen. Je Treffer: 🔔 öffnet „Mein Konto“ mit vorausgefülltem Benachrichtigungs-Formular (`/konto?nf=<Art>&nr=<Land>` bzw. `ns=1` für Schweiz), ☆ legt eine Arten-Beobachtung an (nur eingeloggt).
+
+**Stern ☆ = Arten-Beobachtung:** Auf jeder Artenseite (und im Finder) legt ☆ sofort eine Arten-Beobachtung an (wie `/track_price` → „alle Shops beobachten“), wahlweise für die Art oder die ganze Gattung; danach steht dort „★ Wird beobachtet“ mit Link zu Mein Konto. Entfernen geht nur in Mein Konto (dort hinter „Löschen freischalten“). Ohne Login führt der Stern zum Discord-Login.
+
+**Hilfeseite `/hilfe`:** alle User-Befehle aus denselben Texten wie `/help` (bleibt automatisch gleich) mit Beispielen, die Board-Funktionen als Kacheln und häufige Fragen, alles durchsuchbar und in de/en/eo. Eingeloggte Admins sehen zusätzlich die Admin-Befehle. Verlinkt im Header und im Footer.
+
+**Reverse-Proxy:** `hilfe` in die Allowlist aufnehmen.
 
 ### Mein Konto (`/konto`)
 
@@ -1422,6 +1433,8 @@ Eine Seite nur für eingeloggte Mitglieder des AAM-Servers (Login mit Discord wi
 | PN-Verlauf | Vorschau der PNs, die der Bot von sich aus geschickt hat (Hook auf `Messageable.send`, nur PNs an eine Person, keine Antworten in PN-Gesprächen wie dem KI-Chat) |
 | Datenschutz | **alle Daten als JSON** (`/konto/daten.json`, gleicher Umfang wie `/bot export user_id:`), **Löschen je Bereich oder alles**, **überall abmelden** |
 
+**Nicht mehr auf dem Server:** Wer noch eine gültige Sitzung hat, aber den AAM-Server verlassen hat, sieht auf `/konto` nur noch zwei Möglichkeiten: **wieder beitreten** (Button mit `DISCORD_INVITE_URL`, falls gesetzt) oder **alle Daten löschen** (mit Bestätigungs-Haken; danach wird abgemeldet). Alle anderen Aktionen lehnt der Server ab.
+
 **Löschen freischalten:** Alle Lösch-Aktionen (🗑️ bei Benachrichtigungen und Produkten, ✕ bei Beobachtungen, Blacklist und Schlagworten, Termin absagen, Karteneintrag löschen, der ganze Bereich „Daten löschen“) sind ausgeblendet, bis oben der Schalter „Löschen freischalten“ bestätigt wird (Hinweis auf endgültigen Datenverlust). Der Schalter gilt nur bis zum Neuladen der Seite. Der Server prüft das zusätzlich: ohne den Schalter (`unlock=1` im Formular) wird jede Lösch-Aktion abgelehnt.
 
 **Ruhezeit:** In der gewählten Zeit (volle Stunden, deutsche Zeit) werden Verfügbarkeits-, Preis-, Arten- und Angebots-PNs zurückgehalten und danach zugestellt: Verfügbarkeit und Preise beim nächsten regulären Lauf (Vergleichsbasis bleibt unverändert), Angebote über `quiet_offer_queue` (nur wenn noch offen und das Schlagwort noch existiert), die Sammel-PN entfallener Varianten im nächsten stündlichen Lauf. Wochen-Digest (Montag 9 Uhr) und Termin-Erinnerung (18 Uhr) kommen zur festen Zeit.
@@ -1432,7 +1445,7 @@ Eine Seite nur für eingeloggte Mitglieder des AAM-Servers (Login mit Discord wi
 
 **Schutz:** nur eigene Daten (Discord-ID aus der Sitzung), CSRF-Token in jedem Formular, Rate-Limit (40 Aktionen / 5 min, Export 5 / 5 min), `Cache-Control: private, no-store`.
 
-**Reverse-Proxy:** `konto` in die Allowlist aufnehmen (deckt `/konto`, `/konto/<aktion>`, `/konto/daten.json` und `/konto/kalender/…` ab), z. B. `…|rueckblick|inat|konto|intro\.json|chat/|map(/|$)`.
+**Reverse-Proxy:** `konto` in die Allowlist aufnehmen (deckt `/konto`, `/konto/<aktion>`, `/konto/daten.json` und `/konto/kalender/…` ab), z. B. `…|rueckblick|inat|konto|intro\.json|hilfe|chat/|map(/|$)`.
 
 ### Anlass-Intros
 
