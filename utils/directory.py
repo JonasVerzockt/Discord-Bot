@@ -117,7 +117,7 @@ def _build(d: dict) -> dict:
         if not dom:
             continue
         sh = shops.setdefault(dom, {
-            "domain": dom, "name": (s.get("name") or dom).strip(),
+            "domain": dom, "id": str(s.get("id") or ""), "name": (s.get("name") or dom).strip(),
             "url": s.get("url") or f"https://{dom}/", "country": (s.get("country") or "").lower(),
             "offers": [], "species": set(),
         })
