@@ -412,6 +412,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
 <header><h1>🐜 {{ t('brand') }}</h1>
  <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/shops{{ qs() }}">{{ t('nav_shops') }}</a><a href="/art{{ qs() }}">{{ t('nav_species') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
  <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
+ <a href="/hilfe{{ qs() }}">{{ t('nav_help') }}</a>
  {% if nav_member %}<a href="/konto{{ qs() }}">{{ t('nav_konto') }}</a>{% endif %}
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
@@ -429,6 +430,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   · <a href="/rueckblick?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_yearreview') }}</a>
   · <a href="/inat?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_inat') }}</a>
   · <a href="/konto?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_konto') }}</a>
+  · <a href="/hilfe?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_help') }}</a>
 </footer>
 {% if chat_ok %}{% include "chatwidget" %}{% endif %}
 <script src="/static/intro.js?v={{ intro_v }}" defer></script>
@@ -1092,13 +1094,40 @@ ART_INDEX = """{% extends "base" %}{% block body %}
  <input type=hidden name=lang value="{{ lang }}">
  <input id=dirfilter name=q type=search value="{{ q }}" placeholder="{{ t('dir_art_search') }}" autocomplete=off>
 </form>
+<details class=chartbox {% if fnd.active %}open{% endif %} style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">🔎 {{ t('fnd_h') }}</summary>
+<form method=get action="/art" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:8px">
+ <input type=hidden name=lang value="{{ lang }}">
+ <div style="flex:1 1 180px"><label>{{ t('fnd_genus') }}</label><select name=g><option value="">{{ t('fnd_all') }}</option>{% for gname in fnd.genera %}<option value="{{ gname }}" {% if gname == fnd.g %}selected{% endif %}>{{ gname }}</option>{% endfor %}</select></div>
+ <div style="flex:0 1 110px"><label>{{ t('fnd_pmin') }}</label><input name=pmin inputmode=decimal value="{{ fnd.pmin_raw }}" placeholder="0"></div>
+ <div style="flex:0 1 110px"><label>{{ t('fnd_pmax') }}</label><input name=pmax inputmode=decimal value="{{ fnd.pmax_raw }}" placeholder="100"></div>
+ <div style="flex:1 1 200px"><label>{{ t('fnd_land') }}</label><select name=land><option value="">{{ t('fnd_all') }}</option><option value="chd" {% if fnd.land == 'chd' %}selected{% endif %}>🇨🇭 {{ t('fnd_chd') }}</option>{% for c, n in fnd.countries %}<option value="{{ c }}" {% if c == fnd.land %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+ <label style="display:flex;gap:6px;align-items:center;margin:0 0 8px;color:#c9d1d9;font-size:14px"><input type=checkbox name=stock value=1 style="width:auto" {% if fnd.stock %}checked{% endif %}> {{ t('fnd_stock') }}</label>
+ <div style="margin-bottom:2px"><button class=btn>{{ t('fnd_go') }}</button>{% if fnd.active %} <a class="btn grey" href="/art{{ qs() }}">{{ t('fnd_reset') }}</a>{% endif %}</div>
+</form>
+<p class=muted style="margin:6px 0 0;font-size:12px">{{ t('fnd_note') }}</p>
+</details>
+{% if fnd.active %}
+<h3 style="margin:16px 0 6px">{{ t('fnd_results', n=fnd.rows|length) }}</h3>
+{% if fnd.rows %}<table><tr><th>{{ t('fnd_col_species') }}</th><th>{{ t('fnd_col_shops') }}</th><th>{{ t('fnd_col_from') }}</th><th></th></tr>
+{% for r in fnd.rows %}<tr><td><a href="/art/{{ r.name|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ r.name }}</i></a>{% if r.instock %} <span style="color:#3fb950;font-size:12px">● {{ t('dir_instock_n', n=r.instock) }}</span>{% endif %}</td>
+ <td>{{ r.shops }}</td><td style="white-space:nowrap">{{ r.price }}</td>
+ <td style="white-space:nowrap">{% if fnd.uid %}{% if r.watched %}<span class=muted title="{{ t('star_watched') }}">★</span>{% else %}<form method=post action="/konto/beobachtung/neu{{ qs() }}" style="display:inline"><input type=hidden name=csrf value="{{ fnd.csrf }}"><input type=hidden name=species value="{{ r.name }}"><input type=hidden name=back value="{{ fnd.back }}"><button class="btn grey small" title="{{ t('star_add') }}">☆</button></form>{% endif %}{% endif %}
+ <a class="btn grey small" href="/konto?{{ r.nq }}#benachrichtigungen" title="{{ t('fnd_notify') }}">🔔</a></td></tr>{% endfor %}</table>
+{% if fnd.more %}<p class=muted>{{ t('fnd_more', n=fnd.more) }}</p>{% endif %}
+{% else %}<div class=flash>{{ t('fnd_none') }}</div>{% endif %}
+{% else %}
 {% if q and not items %}<div class=flash style="margin-top:12px">{{ t('dir_art_nohit', q=q) }}</div>{% endif %}
 {% from "genmac" import genlist with context %}{{ genlist("artgen", groups, total, "dirfilter", q) }}
+{% endif %}
 {% endblock %}"""
 
 ART = """{% extends "base" %}{% block body %}
 <p class=muted style="margin:0"><a href="/art{{ qs() }}">← {{ t('dir_art_index_h') }}</a></p>
-<h2 style="margin:6px 0"><i>{{ sp.name }}</i></h2>
+<h2 style="margin:6px 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><i>{{ sp.name }}</i>
+{% if star.uid %}{% if star.watched %}<a class="btn grey small" href="/konto{{ qs() }}#preise" title="{{ t('star_manage') }}">★ {{ t('star_watched') }}</a>
+{% else %}<form method=post action="/konto/beobachtung/neu{{ qs() }}" style="display:inline"><input type=hidden name=csrf value="{{ star.csrf }}"><input type=hidden name=species value="{{ sp.name }}"><input type=hidden name=back value="{{ star.back }}"><button class="btn small" title="{{ t('star_hint') }}">☆ {{ t('star_add') }}</button></form>{% endif %}
+{% if not star.genus_watched %}<form method=post action="/konto/beobachtung/neu{{ qs() }}" style="display:inline"><input type=hidden name=csrf value="{{ star.csrf }}"><input type=hidden name=species value="{{ sp.genus }}"><input type=hidden name=back value="{{ star.back }}"><button class="btn grey small" title="{{ t('star_hint') }}">☆ {{ t('star_genus', g=sp.genus) }}</button></form>{% endif %}
+{% elif star.login %}<a class="btn grey small" href="{{ star.login }}" title="{{ t('star_login') }}">☆ {{ t('star_add') }}</a>{% endif %}</h2>
 <p class=muted style="margin-top:0">{{ t('dir_genus') }}: <i>{{ sp.genus }}</i>{% if rare %} · 💎 {{ t('dir_rare') }}{% endif %}</p>
 {% if prof.wiki %}<div class=chartbox style="margin-top:0;margin-bottom:12px"><h4>📖 {{ t('dir_about_h') }}{% if prof.wiki.lang != lang %} <span class=muted style="font-weight:400">({{ prof.wiki.lang|upper }})</span>{% endif %}</h4>
  <p style="margin:0 0 8px" lang="{{ prof.wiki.lang }}">{{ prof.wiki.text }}</p>
@@ -1452,7 +1481,7 @@ def _render(req, name, title="Board", flash="", **ctx):
                 # Partner-Leiste über dem Footer – nur wenn Partner eingetragen sind und nicht
                 # auf der Karte (dort steht der Partner-Kasten in der rechten Spalte).
                 partner_strip=(_load_partners() if name != "map" else []))
-    i18n["nav_member"] = bool(_is_member(req))
+    i18n["nav_member"] = bool(_aam_member(req))
     i18n["intro_v"] = _intro_asset_v()
     chat_uid = _chat_uid(req) if name != "map" else None
     i18n.update(chat_ok=bool(chat_uid), chat_csrf=_member_csrf(chat_uid) if chat_uid else "",
@@ -2352,9 +2381,112 @@ async def h_art_index(req):
         note = translate(lang, "dir_shops_n", n=n) + (
             " · " + translate(lang, "dir_instock_n", n=inst) if inst else "")
         groups.setdefault(name.split()[0], []).append({"name": name, "note": note, "instock": inst > 0})
-    return _render(req, "art_index", title=translate(lang, "dir_art_index_h"), items=items, q=q,
+    fnd = await _finder(req, idx, lang)
+    resp = _render(req, "art_index", title=translate(lang, "dir_art_index_h"), items=items, q=q,
                    groups=sorted(groups.items(), key=lambda g: g[0].lower()),
-                   total=len(idx["species"]))
+                   total=len(idx["species"]), fnd=fnd, flash=_konto_flash(req))
+    if fnd["uid"]:
+        resp.headers["Cache-Control"] = "private, no-store"
+    return resp
+
+
+# ── Arten-Finder (/art?g=…&pmin=…&pmax=…&land=…&stock=1) & Stern (= Arten-Beobachtung) ──
+_BACK_RE = re.compile(r"^/art(?:/[A-Za-z0-9_.%\-]{1,120})?(?:\?[A-Za-z0-9_.%&=+\-]{0,300})?$")
+
+
+def _konto_flash(req) -> str:
+    m = req.query.get("m", "")
+    return translate(pick_lang(req), "konto_m_" + m, n=req.query.get("n", "")) \
+        if m and ("konto_m_" + m) in _BI18N_T else ""
+
+
+async def _my_watches(bot, uid) -> set[str]:
+    rows = await execute_db(bot, "SELECT species FROM user_species_watch WHERE user_id=?", (str(uid),), fetch=True) or []
+    return {str(r["species"]).lower() for r in rows}
+
+
+async def _star_ctx(req, name: str) -> dict:
+    from utils.availability import normalize_species_name
+    uid = _aam_member(req)
+    back = req.path
+    if not uid:
+        return {"uid": None, "login": _login_url(req), "back": back}
+    w = await _my_watches(req.app["bot"], uid)
+    genus = name.split()[0]
+    return {"uid": uid, "csrf": _member_csrf(uid), "back": back,
+            "watched": normalize_species_name(name).lower() in w,
+            "genus_watched": normalize_species_name(genus).lower() in w}
+
+
+def _fnum(raw):
+    try:
+        v = float(str(raw).replace(",", ".").strip())
+        return v if 0 <= v < 100000 else None
+    except (TypeError, ValueError):
+        return None
+
+
+async def _finder(req, idx: dict, lang: str) -> dict:
+    """Filtert den Arten-Index nach Gattung, Preis (EUR), Shop-Land/CH-Lieferung und Lagerstand."""
+    from utils import directory as dirx
+    from utils.availability import normalize_species_name
+    q = req.query
+    g = (q.get("g") or "").strip()[:60]
+    land = (q.get("land") or "").strip().lower()[:3]
+    stock = q.get("stock") == "1"
+    pmin_raw, pmax_raw = (q.get("pmin") or "").strip()[:10], (q.get("pmax") or "").strip()[:10]
+    pmin, pmax = _fnum(pmin_raw), _fnum(pmax_raw)
+    shops = idx.get("shops", {})
+    genera = sorted({sp["genus"] for sp in idx["species"].values()}, key=str.lower)
+    countries = sorted({sh.get("country") for sh in shops.values() if sh.get("country")})
+    out = {"active": bool(g or land or stock or pmin is not None or pmax is not None),
+           "g": g, "land": land, "stock": stock, "pmin_raw": pmin_raw, "pmax_raw": pmax_raw,
+           "genera": genera, "countries": [(c, f"{country_name(lang, c)} ({c.upper()})") for c in countries],
+           "rows": [], "more": 0, "uid": None}
+    uid = _aam_member(req)
+    if uid:
+        out.update(uid=uid, csrf=_member_csrf(uid), back=req.path_qs if _BACK_RE.match(req.path_qs) else "/art")
+    if not out["active"]:
+        return out
+    ch_ids = set()
+    if land == "chd":
+        ch_ids = {str(r["shop_id"]) for r in await execute_db(req.app["bot"],
+                  "SELECT shop_id FROM ch_delivery_shops", fetch=True) or []}
+    watched = await _my_watches(req.app["bot"], uid) if uid else set()
+
+    def shop_ok(dom):
+        if not land:
+            return True
+        sh = shops.get(dom) or {}
+        if land == "chd":
+            return sh.get("country") == "ch" or sh.get("id") in ch_ids
+        return sh.get("country") == land
+
+    rows = []
+    for sp in idx["species"].values():
+        if g and sp["genus"].lower() != g.lower():
+            continue
+        offs = [o for o in sp["offers"] if (not stock or o["in_stock"]) and shop_ok(o["domain"])
+                and (pmin is None or (o["price"] is not None and o["price"] >= pmin))
+                and (pmax is None or (o["price"] is not None and o["price"] <= pmax))]
+        if not offs:
+            continue
+        prices = [o["price"] for o in offs if o["price"] is not None]
+        nq = {"lang": lang, "nf": sp["name"]}
+        if land == "chd":
+            nq["ns"] = "1"
+        elif land:
+            nq["nr"] = land
+        rows.append({"name": sp["name"], "shops": len({o["domain"] for o in offs}),
+                     "instock": sum(1 for o in offs if o["in_stock"]),
+                     "min": min(prices) if prices else None,
+                     "price": (translate(lang, "fnd_from") + " " + _eur_fmt(min(prices))) if prices else "–",
+                     "watched": normalize_species_name(sp["name"]).lower() in watched,
+                     "nq": urlencode(nq)})
+    rows.sort(key=lambda r: (r["min"] is None, r["min"] or 0, r["name"].lower()))
+    out["more"] = max(0, len(rows) - 300)
+    out["rows"] = rows[:300]
+    return out
 
 
 async def h_inat(req):
@@ -2429,7 +2561,9 @@ async def h_art(req):
         seas = {"h": l10n.get("season_h", lang), "text": SEA.describe(sprof, lang),
                 "months": sprof["months"], "names": SEA.MONTHS.get(lang, SEA.MONTHS["de"]),
                 "short": SEA.MONTHS_SHORT.get(lang, SEA.MONTHS_SHORT["de"])}
-    return _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock,
+    star = await _star_ctx(req, sp["name"])
+    resp = _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock, star=star,
+                   flash=_konto_flash(req),
                    trend=trend, rare=len(sp["shops"]) == 1, eur=_eur_fmt, price=dirx.fmt_price,
                    fetched=fetched, season=seas,
                    sig=sig, sig_any=any(sig.get(o["pid"]) for o in instock), sig_emoji=PS.EMOJI,
@@ -2437,6 +2571,9 @@ async def h_art(req):
                    sig_legend=l10n.get("price_sig_legend", lang),
                    prof=prof, ext=species_profile.links(sp["name"]),
                    gbif_top=gbif_top, gbif_count=gbif_count)
+    if star["uid"]:
+        resp.headers["Cache-Control"] = "private, no-store"
+    return resp
 
 
 async def h_shops(req):
@@ -3204,12 +3341,12 @@ async def h_map(req):
                    "tags": [(c, (l.get(lang) or l.get("de") or c)) for c, l in g["tags"]]}
                   for g in map_tags.TAG_GROUPS]
     return _render(req, "map", title=translate(lang, "map_h"),
-                   v=_map_asset_v(), member=bool(_is_member(req)), max_zoom=MAP_MAX_ZOOM,
+                   v=_map_asset_v(), member=bool(_aam_member(req)), max_zoom=MAP_MAX_ZOOM,
                    ics_url=ics_url, webcal_url=webcal_url, tag_groups=tag_groups,
                    st_labels={k: translate(lang, k) for k in _MAP_ST_KEYS},
                    partners=_load_partners(),
                    invite_url=(DISCORD_INVITE_URL if DISCORD_INVITE_URL.startswith("https://") else ""),
-                   member_csrf=(_member_csrf(_is_member(req)) if _is_member(req) else ""))
+                   member_csrf=(_member_csrf(_aam_member(req)) if _aam_member(req) else ""))
 
 
 async def h_map_login(req):
@@ -3385,7 +3522,7 @@ async def h_map_regions(req):
         if ll:
             e["lat"], e["lon"] = ll
             plz_out.append(e)
-    member = bool(_is_member(req))
+    member = bool(_aam_member(req))
     if member:
         # „Auch aktiv in“ (nur Mitglieder): zusätzlich aktive Halter je Region. Zählt NICHT
         # in count/Färbung (Wohnort bleibt maßgeblich, keine Doppelzählung).
@@ -3414,7 +3551,7 @@ async def h_map_pins(req):
     """NUR eingeloggte Mitglieder: gefuzzte DACH-Pins (kleine Menge)."""
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
-    if not _is_member(req):
+    if not _aam_member(req):
         raise web.HTTPForbidden(text="login required")
     bot = req.app["bot"]
     rows = await execute_db(bot,
@@ -3455,7 +3592,7 @@ async def h_map_list(req):
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
     bot = req.app["bot"]
-    member = bool(_is_member(req))
+    member = bool(_aam_member(req))
     if not member:
         # Öffentlich: nur Länder-Zahlen (alle Opt-in-Einträge inkl. U18 anonym).
         rows = await execute_db(bot,
@@ -3609,7 +3746,7 @@ async def h_map_events(req):
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
     evs = await _approved_events(req.app)
-    me = _is_member(req)
+    me = _aam_member(req)
     rsvp = await _rsvp_info(req.app, [(r["id"], _occ_date(n)) for n, r in evs], me)
     data = []
     for nxt, r in evs:
@@ -3654,7 +3791,7 @@ async def h_map_stats(req):
         raise web.HTTPTooManyRequests(text="rate limited")
     bot = req.app["bot"]
     lang = pick_lang(req)
-    me = _is_member(req)
+    me = _aam_member(req)
     member = bool(me)
     rows = await execute_db(bot,
         "SELECT user_id, country, region_code, region_name, lat_fuzzed, lon_fuzzed, "
@@ -3814,7 +3951,7 @@ async def h_map_stats(req):
 
 async def h_map_event_rsvp(req):
     """Mitglieder: Teilnahme am NÄCHSTEN Vorkommen eines Events an/aus (Toggle)."""
-    uid = _is_member(req)
+    uid = _aam_member(req)
     if not uid:
         raise web.HTTPForbidden(text="login required")
     if not hmac.compare_digest(req.headers.get("X-Map-CSRF", ""), _member_csrf(uid)):
@@ -4004,6 +4141,112 @@ async def h_map_event_ics(req):
                                  "Cache-Control": "public, max-age=3600"})
 
 
+# ══ Hilfeseite (/hilfe) ═══════════════════════════════════════════════════════
+HILFE = """{% extends "base" %}{% block body %}
+<style>.hp-cmd{padding:7px 0;border-bottom:1px solid #161b22} .hp-ex{color:#8b949e;font-size:13px;margin-top:2px}
+.hp-ex code,.hp-cmd code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:0 5px}
+.hp-card{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px 14px}
+.hp-card h4{margin:0 0 6px} .hp-card p{margin:0 0 6px;font-size:14px}
+.hp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+details.hp-faq{border-bottom:1px solid #21262d;padding:8px 0} details.hp-faq summary{cursor:pointer;font-weight:600}</style>
+<h2 style="margin-bottom:6px">❓ {{ t('hp_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('hp_intro') }}</p>
+<input id=hpq type=search placeholder="{{ t('hp_search') }}" autocomplete=off style="max-width:420px">
+<nav class=secnav style="margin-top:10px"><a href="#befehle">{{ t('hp_s_cmds') }}</a><a href="#board">{{ t('hp_s_board') }}</a><a href="#faq">{{ t('hp_s_faq') }}</a>{% if admin_groups %}<a href="#admin">{{ t('hp_s_admin') }}</a>{% endif %}</nav>
+<section class=statsec id=befehle><h3>💬 {{ t('hp_s_cmds') }}</h3>
+<p class=muted style="margin-top:0">{{ t('hp_cmds_note') }}</p>
+{% for head, items in groups %}<div class=hp-grp><h4 style="margin:14px 0 4px">{{ head }}</h4>
+{% for it in items %}<div class=hp-cmd data-q="{{ it.q }}">{{ it.html }}{% if it.ex %}<div class=hp-ex>{{ t('hp_example') }}: <code>{{ it.ex }}</code></div>{% endif %}</div>{% endfor %}</div>{% endfor %}
+</section>
+<section class=statsec id=board><h3>🌐 {{ t('hp_s_board') }}</h3><div class=hp-grid>
+{% for k, link in board %}<div class=hp-card data-q="{{ (t('hp_b_' ~ k ~ '_t') ~ ' ' ~ t('hp_b_' ~ k ~ '_d'))|lower }}"><h4>{{ t('hp_b_' ~ k ~ '_t') }}</h4><p>{{ t('hp_b_' ~ k ~ '_d') }}</p>{% if link %}<a href="{{ link }}{{ qs() }}">{{ t('hp_open') }} →</a>{% endif %}</div>{% endfor %}
+</div></section>
+<section class=statsec id=faq><h3>🙋 {{ t('hp_s_faq') }}</h3>
+{% for k in faq %}<details class=hp-faq data-q="{{ (t('hp_f_' ~ k ~ '_q') ~ ' ' ~ t('hp_f_' ~ k ~ '_a'))|lower }}"><summary>{{ t('hp_f_' ~ k ~ '_q') }}</summary><p style="margin:6px 0 0">{{ t('hp_f_' ~ k ~ '_a') }}</p></details>{% endfor %}
+</section>
+{% if admin_groups %}<section class=statsec id=admin><h3>🔒 {{ t('hp_s_admin') }}</h3>
+{% for head, items in admin_groups %}<div class=hp-grp><h4 style="margin:14px 0 4px">{{ head }}</h4>{% for it in items %}<div class=hp-cmd data-q="{{ it.q }}">{{ it.html }}</div>{% endfor %}</div>{% endfor %}
+</section>{% endif %}
+<script>(function(){var q=document.getElementById("hpq");if(!q)return;
+function f(){var v=q.value.trim().toLowerCase();document.querySelectorAll("[data-q]").forEach(function(e){
+ var ok=!v||e.getAttribute("data-q").indexOf(v)>=0;e.style.display=ok?"":"none";if(ok&&v&&e.tagName==="DETAILS")e.open=true;});
+ document.querySelectorAll(".hp-grp").forEach(function(g){var any=[].some.call(g.querySelectorAll("[data-q]"),function(e){return e.style.display!=="none";});g.style.display=any?"":"none";});}
+q.addEventListener("input",f);})();</script>
+{% endblock %}"""
+ENV.loader.mapping["hilfe"] = HILFE
+
+_HP_EXAMPLES = {
+    "help_notification": "/notification species:Messor barbarus regions:de,at",
+    "help_delete": "/delete_notifications ids:12,15",
+    "help_offer_alert": "/offer_alert add schlagwort:Lasius niger, Formicarium",
+    "help_digest": "/digest action:aktivieren",
+    "help_sells": "/sells species:Lasius niger country:de",
+    "help_offers": "/offers shop:antstore.net",
+    "help_art": "/art name:Camponotus nicobarensis",
+    "help_shop": "/shop name:antstore.net",
+    "help_bewerten": "/bewerten shop:antstore.net",
+    "help_track_price": "/track_price species:Lasius niger",
+    "help_set_target": "/set_target mode:zusätzlich target_price:24.90",
+    "help_codes": "/codes show_expired:True",
+    "help_inat": "/inat_verknuepfen login:mein_inat_name",
+    "help_rueckblick": "/rueckblick jahr:2026",
+    "help_usersetting": "/usersetting language language:de",
+}
+_HP_BOARD = [("finder", "/art"), ("star", "/art"), ("card", "/art"), ("shops", "/shops"),
+             ("konto", "/konto"), ("map", "/map"), ("yearreview", "/rueckblick"), ("inat", "/inat"),
+             ("stats", "/stats"), ("chat", ""), ("intros", ""), ("board", "/")]
+_HP_FAQ = ["nodm", "channel", "data", "ampel", "source", "review", "quiet", "intro"]
+_MD_B = re.compile(r"\*\*(.+?)\*\*")
+_MD_C = re.compile(r"`([^`]+)`")
+_MD_I = re.compile(r"(?<![\w*])\*([^*]+)\*(?![\w*])")
+
+
+def _md_html(text: str):
+    """Discord-Markdown der Hilfetexte (fett, kursiv, Code) → sicheres HTML."""
+    from markupsafe import Markup, escape
+    h = str(escape(text))
+    h = _MD_C.sub(r"<code>\1</code>", h)
+    h = _MD_B.sub(r"<b>\1</b>", h)
+    h = _MD_I.sub(r"<i>\1</i>", h)
+    return Markup(h)
+
+
+def _hp_groups(groups, lang, examples=True):
+    from utils.localization import l10n
+    out = []
+    for head_key, keys in groups:
+        head = re.sub(r"\*\*", "", l10n.get(head_key, lang))
+        items = []
+        for k in keys:
+            txt = l10n.get(k, lang)
+            if txt == k:
+                continue
+            items.append({"html": _md_html(txt), "q": re.sub(r"[*`_]", "", txt).lower(),
+                          "ex": _HP_EXAMPLES.get(k, "") if examples else ""})
+        if items:
+            out.append((head, items))
+    return out
+
+
+async def h_hilfe(req):
+    lang = pick_lang(req)
+    try:
+        from cogs.stats import StatsCog
+        from config import AI_CHAT_PUBLIC
+        groups = _hp_groups(StatsCog._HELP_USER_GROUPS, lang)
+        if AI_CHAT_PUBLIC:
+            groups += _hp_groups([("help_grp_ai", StatsCog._HELP_AI_KEYS)], lang)
+        admin_groups = _hp_groups(StatsCog._HELP_ADMIN_GROUPS, lang, examples=False) if _is_admin(req) else []
+    except Exception as e:
+        logger.warning("❓ Hilfe: Befehle nicht geladen: %s", e)
+        groups, admin_groups = [], []
+    resp = _render(req, "hilfe", title=translate(lang, "hp_h"), groups=groups, admin_groups=admin_groups,
+                   board=_HP_BOARD, faq=_HP_FAQ)
+    if admin_groups:
+        resp.headers["Cache-Control"] = "private, no-store"
+    return resp
+
+
 # ══ Anlass-Intros (/intro.json, Darstellung in static/intro.js) ════════════════
 _INTRO_COOKIE = "board_intro"
 _INTRO_TTL = 365 * 86400
@@ -4116,7 +4359,19 @@ KONTO = """{% extends "base" %}{% block body %}
  .kt input,.kt select{padding:4px 6px}
  @media(max-width:700px){.kt .hm{display:none}}
 </style>
-{% if not uid %}
+{% if former %}
+<div style="max-width:640px;margin:30px auto;text-align:center"><div style="font-size:50px">👋</div>
+<h2 style="margin:6px 0">{{ t('konto_left_h') }}</h2><p class=muted>{{ t('konto_left_text') }}</p>
+{% if invite_url %}<div class=chartbox style="text-align:left"><h4>🐜 {{ t('konto_left_join_h') }}</h4><p style="margin:0 0 10px">{{ t('konto_left_join_text') }}</p>
+ <a class=btn href="{{ invite_url }}" target=_blank rel="noopener noreferrer">{{ t('konto_left_join_btn') }}</a></div>{% endif %}
+<div class="chartbox danger" style="text-align:left"><h4>🗑️ {{ t('konto_left_del_h') }}</h4><p style="margin:0 0 10px">{{ t('konto_left_del_text') }}</p>
+ <form method=post action="/konto/loeschen{{ qs() }}" onsubmit="return confirm({{ t('konto_confirm_all')|tojson }})"><input type=hidden name=csrf value="{{ csrf }}"><input type=hidden name=area value=all>
+  <span class=kchk><input type=checkbox name=sure value=1 required> {{ t('konto_delete_all_sure') }}</span>
+  <p style="margin:10px 0 0"><button class="btn red">{{ t('konto_delete_all') }}</button></p></form>
+ <p class=muted style="margin:10px 0 0">{{ t('konto_delete_note', d=log_days) }}</p></div>
+<p class=muted><a href="/map/logout{{ qs() }}">{{ t('konto_left_logout') }}</a></p>
+</div>
+{% elif not uid %}
 <div style="max-width:620px;margin:30px auto;text-align:center"><div style="font-size:50px">👤</div>
 <h2 style="margin:6px 0">{{ t('konto_h') }}</h2><p class=muted>{{ t('konto_login_text') }}</p>
 {% if login_url %}<p><a class=btn href="{{ login_url }}">{{ t('dir_login_btn') }}</a></p>{% else %}<div class=flash>{{ t('konto_login_off') }}</div>{% endif %}
@@ -4491,13 +4746,25 @@ def _all_shops_safe() -> dict:
 async def h_konto(req):
     lang = pick_lang(req)
     uid = _aam_member(req)
-    if not uid:
-        resp = _render(req, "konto", title=translate(lang, "konto_h"), uid=None,
-                       login_url=_login_url(req))
-        resp.headers["Cache-Control"] = "no-store"
-        return resp
     m = req.query.get("m", "")
     flash = translate(lang, "konto_m_" + m, n=req.query.get("n", "")) if m and ("konto_m_" + m) in _BI18N_T else ""
+    if not uid:
+        former = _is_member(req)                    # gültige Sitzung, aber nicht mehr auf dem Server
+        from config import COMMAND_LOG_RETENTION_DAYS
+        resp = _render(req, "konto", title=translate(lang, "konto_h"), flash=flash, uid=None,
+                       former=former, csrf=_member_csrf(former) if former else "",
+                       invite_url=(DISCORD_INVITE_URL if DISCORD_INVITE_URL.startswith("https://") else ""),
+                       log_days=COMMAND_LOG_RETENTION_DAYS,
+                       login_url="" if former else _login_url(req))
+        resp.headers["Cache-Control"] = "private, no-store"
+        return resp
+    nf = (req.query.get("nf") or "").strip()[:80]
+    if nf:                                            # aus dem Arten-Finder: Formular vorbefüllen
+        nr = (req.query.get("nr") or "").strip().lower()
+        pre = {"kind": "species" if " " in nf else "genus", "name": nf,
+               "regions": [nr] if re.fullmatch(r"[a-z]{2}", nr) else [],
+               "swiss": req.query.get("ns") == "1"}
+        return await _konto_page(req, uid, flash=flash, form=pre, open_form="notif")
     return await _konto_page(req, uid, flash=flash)
 
 
@@ -4521,6 +4788,19 @@ async def h_konto_post(req):
     lang = pick_lang(req)
     uid = _aam_member(req)
     if not uid:
+        # Nicht mehr auf dem Server: nur noch „alles löschen“ (danach abmelden).
+        former = _is_member(req)
+        if former and req.match_info["action"] == "loeschen":
+            form = await req.post()
+            if hmac.compare_digest(str(form.get("csrf", "")), _member_csrf(former)) \
+                    and form.get("area") == "all" and form.get("sure") \
+                    and _rate("konto:" + _hmac("konto", former), 40, 300):
+                await ACC.delete_area(req.app["bot"], former, "all")
+                resp = web.HTTPSeeOther(f"/konto?lang={lang}&m=left_deleted")
+                resp.del_cookie(_MEMBER_COOKIE)
+                resp.del_cookie(_ADMIN_COOKIE)
+                logger.info("👤 Konto: Daten nach Server-Austritt gelöscht (%s)", former)
+                raise resp
         raise web.HTTPSeeOther(f"/konto?lang={lang}")
     form = await req.post()
     if not hmac.compare_digest(str(form.get("csrf", "")), _member_csrf(uid)):
@@ -4613,6 +4893,15 @@ async def h_konto_post(req):
                                    "ON CONFLICT(user_id, species) DO NOTHING", (uid, norm, is_genus), commit=True)
         if rc:
             await init_species_watch_seen(bot, uid, norm, is_genus)
+        back = str(form.get("back") or "")
+        if _BACK_RE.match(back):                         # Stern auf /art: zurück zur Seite
+            path, _, qs_ = back.partition("?")
+            qd = dict(p.split("=", 1) for p in qs_.split("&") if "=" in p) if qs_ else {}
+            qd = {k: v for k, v in qd.items() if k not in ("m", "n", "lang")}
+            from urllib.parse import unquote_plus
+            qd = {k: unquote_plus(v) for k, v in qd.items()}
+            qd.update(lang=lang, m="watch_added" if rc else "exists")
+            raise web.HTTPSeeOther(path + "?" + urlencode(qd))
         raise _konto_back(req, "watch_added" if rc else "exists", "preise")
 
     if act == "beobachtung/entfernen":
@@ -4924,6 +5213,7 @@ def build_app(bot) -> web.Application:
         web.post(r"/map/events/{eid:\d+}/rsvp", h_map_event_rsvp),
         # ── Mein Konto ────────────────────────────────────────────────────────
         web.get("/intro.json", h_intro),
+        web.get("/hilfe", h_hilfe),
         web.get("/konto", h_konto),
         web.get("/konto/daten.json", h_konto_export),
         web.get(r"/konto/kalender/{uid:\d+}/{salt:[0-9a-f]{16}}.ics", h_konto_ics),
