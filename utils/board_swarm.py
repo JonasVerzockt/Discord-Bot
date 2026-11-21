@@ -171,6 +171,23 @@ TEMPLATE = """{% extends "base" %}{% block body %}
 
 {% if data.yrs.series %}<div class=chartbox><h4>📅 {{ t('sw_years_h') }} <span class=info title="{{ t('sw_years_exp') }}">ⓘ</span></h4><div class=chartwrap style="height:260px"><canvas id=chYears></canvas></div></div>{% endif %}
 
+{% if cmp %}<div class=chartbox id=vergleich><h4>⚖️ {{ t('sw_cmp_h') }} <span class=info title="{{ t('sw_cmp_exp') }}">ⓘ</span></h4>
+<form method=get action="/schwarmflug#vergleich" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 8px"><input type=hidden name=z value="{{ z }}"><input type=hidden name=g value="{{ g }}"><input type=hidden name=lang value="{{ lang }}">
+ <select name=ya class=gsel onchange="this.form.submit()">{% for y in cmp.years %}<option {{ 'selected' if y == cmp.ya }}>{{ y }}</option>{% endfor %}</select>
+ <span class=muted>{{ t('sw_cmp_vs') }}</span>
+ <select name=yb class=gsel onchange="this.form.submit()">{% for y in cmp.years %}<option {{ 'selected' if y == cmp.yb }}>{{ y }}</option>{% endfor %}</select>
+ <select name=yt class=gsel onchange="this.form.submit()"><option value="">{{ t('sw_cmp_all') }}</option>{% for o in cmp.opts %}<option value="{{ o.v }}" {{ 'selected' if o.v == cmp.tx }}>{{ o.l }}</option>{% endfor %}</select>
+ <noscript><button class="btn small">OK</button></noscript></form>
+<p style="margin:0 0 8px"><b>{{ cmp.say }}</b></p>
+<div class=chartwrap style="height:240px"><canvas id=chCmp></canvas></div>
+<div style="overflow-x:auto;margin-top:8px"><table class=swt><tr><th></th>{% for c in cmp.cols %}<th>{{ c.year }}</th>{% endfor %}</tr>
+<tr><td>{{ t('sw_kpi_reports') }}</td>{% for c in cmp.cols %}<td>{{ c.n }}</td>{% endfor %}</tr>
+<tr><td>{{ t('sw_cmp_first') }}</td>{% for c in cmp.cols %}<td>{{ c.first }}</td>{% endfor %}</tr>
+<tr><td>{{ t('sw_cmp_peak') }}</td>{% for c in cmp.cols %}<td>{{ c.peak }}</td>{% endfor %}</tr>
+<tr><td>{{ t('sw_cmp_last') }}</td>{% for c in cmp.cols %}<td>{{ c.last }}</td>{% endfor %}</tr>
+<tr><td>{{ t('sw_cmp_temp') }}</td>{% for c in cmp.cols %}<td>{{ c.temp }}{% if c.temp_n %} <span class=muted style="font-size:11px">({{ c.temp_n }})</span>{% endif %}</td>{% endfor %}</tr></table></div>
+<p class=muted style="font-size:12px;margin:6px 0 0">{{ t('sw_cmp_note') }}</p></div>{% endif %}
+
 <p class=muted style="font-size:12px">ℹ️ {{ t('sw_note') }} · {{ t('sw_attrib') }} <a href="https://www.geoboundaries.org" target=_blank rel=noopener>geoBoundaries</a> (CC BY 4.0){% if osm %} · {{ t('sw_osm') }} <a href="https://www.openstreetmap.org/copyright" target=_blank rel=noopener>© OpenStreetMap-Mitwirkende</a> (ODbL){% endif %}</p>
 <script src="/static/leaflet.js?v={{ v }}"></script>
 <script src="/static/chart.umd.js?v={{ v }}"></script>
@@ -252,6 +269,12 @@ TEMPLATE = """{% extends "base" %}{% block body %}
  function bars(id,lbl,vals,c){new Chart(document.getElementById(id),{type:"bar",data:{labels:lbl,datasets:[{data:vals,backgroundColor:c,borderRadius:3}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});}
  bars("chHour",D.hours.labels,D.hours.data,"#56B4E9");
  bars("chTemp",D.temps.labels,D.temps.data,"#E69F00");
+ var cc=document.getElementById("chCmp");
+ if(cc&&D.cmp){
+  new Chart(cc,{type:"line",data:{labels:D.cmp.weeks,datasets:D.cmp.sets.map(function(s){return {label:s.label,data:s.data,borderColor:s.color,backgroundColor:s.color,borderDash:s.dash?[6,4]:[],tension:.25,pointRadius:2,borderWidth:2};})},
+   options:{maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{boxWidth:12}},tooltip:{callbacks:{title:function(it){return D.weekTitles[it[0].dataIndex];},label:function(c){return c.dataset.label+": "+c.parsed.y.toLocaleString(D.lang)+" %";}}}},
+    scales:{x:{ticks:{autoSkip:false,callback:function(v,i){return D.weekTicks[i];}},grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:D.cmp.t.axis}}}}});
+ }
  var cy=document.getElementById("chYears");
  if(cy&&D.yrs.series.length){
   function dd(v){var d=new Date(Date.UTC(2025,0,1)+(v-1)*864e5);return ("0"+d.getUTCDate()).slice(-2)+"."+("0"+(d.getUTCMonth()+1)).slice(-2)+".";}
@@ -385,6 +408,71 @@ def years_chart(rows: list[dict]) -> dict:
         series.append({"label": name, "color": PALETTE[i % len(PALETTE)],
                        "data": [round(_med(good[y])) if y in good else None for y in years]})
     return {"years": years, "series": series}
+
+
+CMP_MIN = 5                                # so viele Meldungen braucht jedes Jahr für eine Aussage
+
+
+def compare_years(rows: list[dict], years: list[str], q: dict, lang: str, t) -> dict:
+    """Zwei Jahre nebeneinander: Saisonkurve als Anteil der Jahresmeldungen je Woche (die Community
+    ist gewachsen, absolute Zahlen wären nicht vergleichbar) und Kennzahlen."""
+    if len(years) < 2:
+        return {}
+    cnt: dict = {}
+    for r in rows:
+        cnt[_taxon_key(r)] = cnt.get(_taxon_key(r), 0) + 1
+        cnt[r["genus"] + " *"] = cnt.get(r["genus"] + " *", 0) + 1
+    opts = [k for k, n in sorted(cnt.items(), key=lambda x: -x[1]) if n >= 2 * CMP_MIN and " " in k][:60]
+    tx = (q.get("yt") or "").strip()[:60]
+    if tx not in opts:
+        tx = ""
+    ya = q.get("ya") if q.get("ya") in years else years[0]
+    yb = q.get("yb") if q.get("yb") in years else next((y for y in years if y != ya), years[-1])
+
+    def match(r):
+        if not tx:
+            return True
+        if tx.endswith(" *"):
+            return r["genus"] == tx[:-2]
+        return _taxon_key(r) == tx
+    weeks = list(range(14, 45))
+    out = {"ya": ya, "yb": yb, "tx": tx, "opts": [{"v": k, "l": (k[:-2] + " (" + t("sw_cmp_genus") + ")")
+                                                   if k.endswith(" *") else k} for k in opts],
+           "years": years, "cols": [], "data": {"weeks": [f"KW {w}" for w in weeks]}}
+    name = (tx[:-2] if tx.endswith(" *") else tx) if tx else ""
+    meds = {}
+    for y, dash in ((ya, False), (yb, True)):
+        lst = [r for r in rows if r["flight_date"][:4] == y and match(r)]
+        n = len(lst)
+        per = [0] * len(weeks)
+        for r in lst:
+            w = _week(r["flight_date"])
+            if w in weeks:
+                per[weeks.index(w)] += 1
+        share = [round(100 * c / n, 1) for c in per] if n else [0] * len(weeks)
+        ds = sorted(r["flight_date"] for r in lst)
+        temps = [v for v in (S.temp_of(r) for r in lst) if v is not None]
+        peak = weeks[per.index(max(per))] if n and max(per) else None
+        col = {"year": y, "n": n,
+               "first": date.fromisoformat(ds[0]).strftime("%d.%m.") if ds else "?",
+               "last": date.fromisoformat(ds[-1]).strftime("%d.%m.") if ds else "?",
+               "peak": S.week_label(peak, lang) if peak else "?",
+               "temp": f"≈ {sum(temps) / len(temps):.0f} °C" if temps else "?",
+               "temp_n": len(temps)}
+        out["cols"].append(col)
+        out["data"].setdefault("sets", []).append({"label": y, "data": share, "dash": dash,
+                                                   "color": PALETTE[0] if not dash else PALETTE[1]})
+        meds[y] = (_med([_doy(d) for d in ds]), n)
+    (ma, na), (mb, nb) = meds[ya], meds[yb]
+    subj = name or ""
+    if na < CMP_MIN or nb < CMP_MIN:
+        out["say"] = t("sw_cmp_few", a=ya, b=yb, na=na, nb=nb, m=CMP_MIN)
+    else:
+        d = round(mb - ma)                     # > 0: Jahr A früher
+        key = "same" if abs(d) <= 2 else ("earlier" if d > 0 else "later")
+        out["say"] = t(f"sw_cmp_{'tx' if subj else 'all'}_{key}", x=subj, a=ya, b=yb, d=abs(d))
+    out["data"]["t"] = {"axis": t("sw_cmp_axis")}
+    return out
 
 
 def _abroad_ctx(rows: list, g: str, inr, member: bool, link, lang: str) -> dict:
@@ -723,6 +811,9 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
                                   ident["temp"], t)
         for c in ident["cands"]:
             c["art"] = art_slug(c["name"])
+    cmp = compare_years(base, year_list, q, lang, t)
+    if cmp:
+        data["cmp"] = cmp.pop("data")
     wx, wx_n = weather_table(base, t)
     prog = await progress(bot, t)
     fc = await forecast_ctx(bot, member, q, t)
@@ -730,7 +821,7 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
         data["fc"] = fc.pop("data")
     data["t"]["fcNone"] = t("fc_region_none")
     return {"z": z, "g": g, "ranges": RANGES, "genera": genera, "flying": flying, "k": k, "data": data,
-            "ident": ident, "regions_sel": regions_select(t, lang), "wx": wx, "wx_n": wx_n,
+            "ident": ident, "regions_sel": regions_select(t, lang), "wx": wx, "wx_n": wx_n, "cmp": cmp,
             "season": season_info(lang), "fc": fc, "prog": prog,
             **_abroad_ctx(abroad_all, g, inr, member, link, lang), "unclear_n": unclear_n,
             "year_list": year_list, "home_n": len({r["message_id"] for r in sel if r.get("geo_src") == "home"}),

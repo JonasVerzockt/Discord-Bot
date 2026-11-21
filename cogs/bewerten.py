@@ -174,8 +174,11 @@ class ReviewWizard(discord.ui.View):
                 return
             self.stop()
             where = f"<#{REVIEW_CHANNEL_ID}>" if REVIEW_CHANNEL_ID else l10n.get("rv_channel_fallback", self.lang)
-            await i.response.edit_message(
-                content=l10n.get("rv_copy", self.lang, channel=where) + f"\n```\n{text}\n```", view=None)
+            # Hinweis und reine Bewertung getrennt: Am Handy kopiert „Text kopieren“ immer die ganze
+            # Nachricht. Die Bewertung steht deshalb allein, ohne Codeblock und mit echten Emojis.
+            await i.response.edit_message(content=l10n.get("rv_copy", self.lang, channel=where), view=None)
+            await i.followup.send(build(self.data, shortcodes=False)[:2000], ephemeral=True,
+                                  allowed_mentions=discord.AllowedMentions.none())
 
         async def on_stop(i):
             self.stop()

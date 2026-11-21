@@ -947,12 +947,16 @@ class Swarm(commands.Cog):
             temp += " °C"
         data = {"taxa": art.strip(), "protected": geschuetzt, "when": when, "temp": temp, "wind": wind,
                 "place": place, "weather": wetter, "extra": zusatz}
-        text = S.build_template(data).replace("```", "\x27\x27\x27")
+        # Zwei Nachrichten: Hinweis und reine Vorlage. Am Handy kopiert „Text kopieren“ immer die ganze
+        # Nachricht, deshalb steht die Vorlage allein, ohne Codeblock und mit echten Emojis.
+        text = S.build_template(data, shortcodes=False)
         where = f"<#{SWARM_CHANNEL_ID}>" if SWARM_CHANNEL_ID else "#schwarmflug-meldungen"
-        msg = l10n.get("swarm_tpl_copy", lang, channel=where) + f"\n```\n{text}\n```"
+        msg = l10n.get("swarm_tpl_copy", lang, channel=where)
         if role:
             msg += "\n" + l10n.get("swarm_tpl_role", lang)
         await ctx.respond(msg[:2000], ephemeral=True)
+        await ctx.followup.send(text[:2000], ephemeral=True,
+                                allowed_mentions=discord.AllowedMentions.none())
 
     async def _send_alert(self, uid, reps):
         for r in reps:
