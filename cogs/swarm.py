@@ -96,6 +96,7 @@ class Swarm(commands.Cog):
         self._scan_running = False
         if SWARM_CHANNEL_ID:
             self.alert_loop.start()
+            self.geo_loop.start()
             if SWARM_WEATHER:
                 self.weather_loop.start()
             if SWARM_FORECAST:
@@ -114,13 +115,17 @@ class Swarm(commands.Cog):
 
     def cog_unload(self):
         self.alert_loop.cancel()
+        if self.geo_loop.is_running():
+            self.geo_loop.cancel()
         if self.weather_loop.is_running():
             self.weather_loop.cancel()
         if self.forecast_loop.is_running():
             self.forecast_loop.cancel()
 
     # ── Auswertung einer Nachricht ───────────────────────────────────────────
-    async def process(self, m: discord.Message, use_ai: bool = True) -> int:
+    async def process(self, m: discord.Message, use_ai: bool = True, geo: bool = True) -> int:
+        """geo=False (Einlesen des Verlaufs): Ort nicht sofort auflösen; das erledigt geo_loop
+        im Hintergrund (OpenStreetMap erlaubt nur 1 Anfrage/s)."""
         if m.author.bot or m.webhook_id or not (m.content or "").strip():
             return 0
         p = S.parse_message(m.content, _roles(m), m.created_at)
@@ -157,7 +162,7 @@ class Swarm(commands.Cog):
                     return await S.store(self.bot, m.id, m.author.id, m.created_at, p, source,
                                          prev["lat"], prev["lon"], "inherit")
         lat = lon = gsrc = None
-        if p.get("place"):
+        if p.get("place") and geo:
             g = await geocode.locate(self.bot, p["place"], p.get("country") or "", p.get("region") or "")
             if g:
                 lat, lon, gsrc = g["lat"], g["lon"], g["src"]
@@ -262,28 +267,87 @@ class Swarm(commands.Cog):
             await ctx.followup.send("⏳ Das Einlesen läuft bereits.", ephemeral=True)
             return
         self._scan_running = True
+        # Läuft im Hintergrund: Discord erlaubt die Antwort auf einen Befehl nur 15 Minuten lang.
+        self.bot.loop.create_task(self._rescan_job(ctx.author, ch, alle, ki))
+        await ctx.followup.send("⏳ Ich lese den Schwarmflug-Kanal jetzt im Hintergrund ein. Das dauert ein paar "
+                                "Minuten; das Ergebnis schicke ich dir per PN. Die Orte löse ich danach nach und nach "
+                                "auf (OpenStreetMap erlaubt nur eine Anfrage pro Sekunde).", ephemeral=True)
+
+    async def _rescan_job(self, user, ch, alle: bool, ki: bool):
         t0 = time.monotonic()
-        seen = set() if alle else {r["message_id"] for r in await execute_db(
-            self.bot, "SELECT message_id FROM swarm_scanned", fetch=True) or []}
         n_msg = n_rep = n_skip = 0
+        err = ""
         try:
+            seen = set() if alle else {r["message_id"] for r in await execute_db(
+                self.bot, "SELECT message_id FROM swarm_scanned", fetch=True) or []}
             async for m in ch.history(limit=None, oldest_first=True):
                 if str(m.id) in seen:
                     n_skip += 1
                     continue
                 try:
-                    n_rep += await self.process(m, use_ai=ki)
+                    n_rep += await self.process(m, use_ai=ki, geo=False)
                 except Exception as e:
                     logger.warning("🪽 Rescan %s: %s", m.id, e)
                 n_msg += 1
+                if n_msg % 25 == 0:
+                    await asyncio.sleep(0)          # andere Befehle zwischendurch beantworten
+                if n_msg % 500 == 0:
+                    logger.info("🪽 Rescan: %d Nachrichten ausgewertet …", n_msg)
+        except Exception as e:
+            err = str(e)[:300]
+            logger.error("🪽 Rescan abgebrochen: %s", e, exc_info=True)
         finally:
             self._scan_running = False
-        e = discord.Embed(title="🪽 Schwarmflug-Kanal eingelesen", color=ADMIN_COLOR,
+        pending = await execute_db(self.bot, "SELECT COUNT(DISTINCT place || '|' || country || '|' || region) AS n "
+                                             "FROM swarm_reports WHERE place<>'' AND lat IS NULL AND geo_src IS NULL",
+                                   fetch=True)
+        n_geo = pending[0]["n"] if pending else 0
+        logger.info("🪽 Rescan fertig: %d Nachrichten, %d Meldungen, %d übersprungen, %d Orte offen",
+                    n_msg, n_rep, n_skip, n_geo)
+        e = discord.Embed(title="🪽 Schwarmflug-Kanal eingelesen" if not err else "⚠️ Einlesen abgebrochen",
+                          color=ADMIN_COLOR,
                           description=f"Nachrichten ausgewertet: **{n_msg}**\nMeldungen (Art je Nachricht): **{n_rep}**\n"
-                                      f"Übersprungen (schon gelesen): {n_skip}\nDauer: {time.monotonic() - t0:.0f} s")
+                                      f"Übersprungen (schon gelesen): {n_skip}\nDauer: {time.monotonic() - t0:.0f} s\n"
+                                      f"Orte zum Auflösen: {n_geo} (läuft im Hintergrund, etwa {max(1, n_geo // 50)} Min.)"
+                                      + (f"\n\nFehler: {err}" if err else ""))
         if BOARD_PUBLIC_URL:
             e.add_field(name="Radar", value=f"{BOARD_PUBLIC_URL}/schwarmflug", inline=False)
-        await ctx.followup.send(embed=e, ephemeral=True)
+        try:
+            await user.send(embed=e)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+    # ── Orte im Hintergrund auflösen (nach dem Einlesen) ─────────────────────
+    @tasks.loop(minutes=5)
+    async def geo_loop(self):
+        rows = [dict(r) for r in await execute_db(self.bot,
+            "SELECT place, country, region, COUNT(*) AS n FROM swarm_reports WHERE place<>'' AND lat IS NULL "
+            "AND geo_src IS NULL GROUP BY place, country, region ORDER BY n DESC LIMIT 200", fetch=True) or []]
+        for r in rows:
+            try:
+                g = await geocode.locate(self.bot, r["place"], r["country"] or "", r["region"] or "")
+            except Exception as e:
+                logger.info("🗺️ Ortsauflösung: %s", e)
+                return
+            if g:
+                await execute_db(self.bot,
+                    "UPDATE swarm_reports SET lat=?, lon=?, geo_src=?, country=CASE WHEN region='' THEN ? ELSE country END, "
+                    "region=CASE WHEN region='' THEN ? ELSE region END "
+                    "WHERE place=? AND country=? AND region=? AND lat IS NULL",
+                    (g["lat"], g["lon"], g["src"], g["country"] or "", g.get("region") or "",
+                     r["place"], r["country"], r["region"]), commit=True)
+            else:
+                # Nur endgültig „nicht gefunden“ (im Cache vermerkt) abhaken; Netzfehler → später erneut
+                if await geocode._cache_get(self.bot, geocode._norm(f"{r['place']}|{r['country'] or ''}")) is None:
+                    return
+                await execute_db(self.bot, "UPDATE swarm_reports SET geo_src='none' WHERE place=? AND country=? "
+                                           "AND region=? AND lat IS NULL", (r["place"], r["country"], r["region"]),
+                                 commit=True)
+
+    @geo_loop.before_loop
+    async def _before_geo(self):
+        await self.bot.wait_until_ready()
+        await asyncio.sleep(60)
 
     # ── /schwarmflug ─────────────────────────────────────────────────────────
     @discord.slash_command(name="schwarmflug", description="Swarm flight radar: what flew in the last 48 hours",

@@ -244,14 +244,22 @@ async def points(bot, train_only=False) -> list[dict]:
 
 
 # ── Tagesmerkmale aus Stundenwerten ──────────────────────────────────────────
+def _pos(h: dict) -> dict:
+    """Zeitstempel → Index (einmal je Stundenreihe berechnet)."""
+    if "_pos" not in h:
+        h["_pos"] = {t: i for i, t in enumerate(h.get("time") or [])}
+    return h["_pos"]
+
+
 def day_features(h: dict, day: str) -> dict | None:
     """Merkmale eines Tages um 17 Uhr aus einer Open-Meteo-Stundenreihe (Europe/Berlin).
     Fehlende Variablen (z. B. Boden in alten Jahren) bleiben None und werden beim Lernen ersetzt."""
     times = h.get("time") or []
+    pos = _pos(h)
     key = f"{day}T17:00"
-    if key not in times:
+    if key not in pos:
         return None
-    i = times.index(key)
+    i = pos[key]
 
     def arr(*names):
         for n in names:
@@ -285,11 +293,12 @@ def day_features(h: dict, day: str) -> dict | None:
 def hours_of(h: dict, day: str) -> dict:
     """Stundenwerte 10–21 Uhr für Zeitfenster: {stunde: (temp, regen, regenwahrscheinlichkeit)}"""
     times = h.get("time") or []
+    pos = _pos(h)
     out = {}
     for hr in range(10, 22):
         k = f"{day}T{hr:02d}:00"
-        if k in times:
-            i = times.index(k)
+        if k in pos:
+            i = pos[k]
             pp = (h.get("precipitation_probability") or [None] * len(times))
             out[hr] = ((h.get("temperature_2m") or [None])[i], (h.get("precipitation") or [0])[i] or 0,
                        pp[i] if i < len(pp) and pp[i] is not None else 0)
@@ -307,6 +316,17 @@ async def _first_year(bot) -> int:
 
 def _src_for(y: int) -> str:
     return "hf" if y >= HIST_FC_FROM else "ifs"
+
+
+def _train_batch(h: dict, key: str, y: int, end: date, src: str) -> list:
+    out = []
+    d = date(y, 3, 1)
+    while d <= end:
+        f = day_features(h, d.isoformat())
+        if f:
+            out.append((key, d.isoformat(), *[f[c_] for c_ in _TCOLS], src))
+        d += timedelta(days=1)
+    return out
 
 
 async def train_fetch(bot, max_requests: int = 200) -> int:
@@ -348,14 +368,7 @@ async def train_fetch(bot, max_requests: int = 200) -> int:
                 break
             if not js:
                 continue
-            h = js.get("hourly") or {}
-            d = date(y, 3, 1)
-            batch = []
-            while d <= end:
-                f = day_features(h, d.isoformat())
-                if f:
-                    batch.append((p["key"], d.isoformat(), *[f[c_] for c_ in _TCOLS], src))
-                d += timedelta(days=1)
+            batch = await asyncio.to_thread(_train_batch, js.get("hourly") or {}, p["key"], y, end, src)
             await execute_many(bot, f"INSERT OR REPLACE INTO fc_train (key, date, {', '.join(_TCOLS)}, src) "
                                     f"VALUES (?,?,{','.join('?' * len(_TCOLS))},?)", batch)
             if end >= date(y, 10, 31):
@@ -493,6 +506,60 @@ async def _train_rows(bot, pos_keys: set) -> tuple[list[dict], float]:
     return rows, 1000 / per_mille
 
 
+def _near_map(reps: list, pts: dict) -> dict:
+    """(punkt, tag) → Taxa mit Meldung im Umkreis von RADIUS_KM."""
+    near: dict = {}
+    for r in reps:
+        if r["lat"] is None:
+            continue
+        tx = {r["genus"]} | ({f"{r['genus']} {r['species']}"} if r["species"] and not r["qualifier"] else set())
+        for k, p in pts.items():
+            if abs(p["lat"] - r["lat"]) < 0.2 and abs(p["lon"] - r["lon"]) < 0.3 and \
+                    km(p["lat"], p["lon"], r["lat"], r["lon"]) <= RADIUS_KM:
+                near.setdefault((k, r["flight_date"]), set()).update(tx)
+    return near
+
+
+def _learn_one(name, lst, trows, weeks, near, pts, test_years, info) -> dict:
+    """Ein Taxon lernen (läuft im Thread). Rückgabe: kind, params, Kennzahlen."""
+    from utils import swarm as S
+    curve = _season_curve([S._week(r["flight_date"]) for r in lst])
+    regs = sorted({f"{r['country']}-{r['region']}" for r in lst if r["country"] and r["region"]})
+    base = {"curve": curve, "h": [info.get("h_from"), info.get("h_to")],
+            "t": [info.get("t_from"), info.get("t_to"), info.get("temp")], "regions": regs}
+    X, y, w, yrs = [], [], [], []
+    for r, wk in zip(trows, weeks):
+        lab = 1 if name in near.get((r["key"], r["date"]), ()) else 0
+        X.append(_vec(r, curve[wk], pts.get(r["key"], {}).get("n", 0)))
+        y.append(lab)
+        w.append(1.0 if lab else r["_w"])
+        yrs.append(r["date"][:4])
+    npos = sum(y)
+    if npos < MIN_POS or len(X) < 500:
+        return {"kind": "rule", "params": base, "n_pos": npos, "n_obs": len(X)}
+    auc = hit_hi = hit_base = None
+    if test_years:
+        tr = [i for i, yy in enumerate(yrs) if yy not in test_years]
+        te = [i for i, yy in enumerate(yrs) if yy in test_years]
+        if sum(y[i] for i in tr) >= MIN_POS // 2 and sum(y[i] for i in te) >= 5:
+            m0 = _fit([X[i] for i in tr], [y[i] for i in tr], [w[i] for i in tr])
+            sc = [_prob(m0, X[i]) for i in te]
+            lab = [y[i] for i in te]
+            wt = [w[i] for i in te]
+            auc = _auc(sc, lab)
+            cut_ = _wquant(sc, wt, QUANTS[2])
+            hp = sum(wi for s_, l, wi in zip(sc, lab, wt) if s_ >= cut_ and l)
+            ha = sum(wi for s_, l, wi in zip(sc, lab, wt) if s_ >= cut_)
+            hit_hi = hp / ha if ha else None
+            hit_base = sum(wi for l, wi in zip(lab, wt) if l) / (sum(wt) or 1)
+    m = _fit(X, y, w)
+    ins = [(_prob(m, X[i]), w[i]) for i in range(len(X)) if 12 <= weeks[i] <= 42]
+    m["levels"] = [_wquant([a for a, _ in ins], [b for _, b in ins], q) for q in QUANTS] if ins else [0.5, 0.7, 0.9]
+    m.update(base)
+    return {"kind": "model", "params": m, "auc": auc, "hit_hi": hit_hi, "hit_base": hit_base,
+            "n_pos": npos, "n_obs": len(X)}
+
+
 async def train_models(bot) -> dict:
     """Modelle je Gattung/Art aus fc_train + Meldungen; Regeln für den Rest. Verlauf in fc_model_hist."""
     from utils import swarm as S
@@ -503,17 +570,9 @@ async def train_models(bot) -> dict:
         taxa.setdefault(r["genus"], []).append(r)
         if r["species"] and not r["qualifier"]:
             taxa.setdefault(f"{r['genus']} {r['species']}", []).append(r)
-    near: dict = {}                                    # (punkt, tag) → Taxa mit Meldung im Umkreis
-    for r in reps:
-        if r["lat"] is None:
-            continue
-        for k, p in pts.items():
-            if abs(p["lat"] - r["lat"]) < 0.2 and abs(p["lon"] - r["lon"]) < 0.3 and \
-                    km(p["lat"], p["lon"], r["lat"], r["lon"]) <= RADIUS_KM:
-                near.setdefault((k, r["flight_date"]), set()).update(
-                    {r["genus"]} | ({f"{r['genus']} {r['species']}"} if r["species"] and not r["qualifier"] else set()))
+    near = await asyncio.to_thread(_near_map, reps, pts)
     trows, _negw = await _train_rows(bot, set(near))
-    summ = {x["name"]: x for x in S.summarize(reps)["taxa"]}
+    summ = {x["name"]: x for x in (await asyncio.to_thread(S.summarize, reps))["taxa"]}
     out = {"model": 0, "rule": 0}
     years = sorted({r["date"][:4] for r in trows})
     test_years = set(years[-2:]) if len(years) >= 4 else set()
@@ -521,49 +580,20 @@ async def train_models(bot) -> dict:
     for name, lst in sorted(taxa.items(), key=lambda x: -len(x[1])):
         if len(lst) < 10:
             continue
-        curve = _season_curve([S._week(r["flight_date"]) for r in lst])
-        info = summ.get(name) or {}
-        regs = sorted({f"{r['country']}-{r['region']}" for r in lst if r["country"] and r["region"]})
-        base = {"curve": curve, "h": [info.get("h_from"), info.get("h_to")],
-                "t": [info.get("t_from"), info.get("t_to"), info.get("temp")], "regions": regs}
-        X, y, w, yrs = [], [], [], []
-        for r, wk in zip(trows, weeks):
-            lab = 1 if name in near.get((r["key"], r["date"]), ()) else 0
-            X.append(_vec(r, curve[wk], pts.get(r["key"], {}).get("n", 0)))
-            y.append(lab)
-            w.append(1.0 if lab else r["_w"])
-            yrs.append(r["date"][:4])
-        npos = sum(y)
-        if npos < MIN_POS or len(X) < 500:
+        res = await asyncio.to_thread(_learn_one, name, lst, trows, weeks, near, pts, test_years,
+                                      summ.get(name) or {})
+        if res["kind"] == "rule":
             await execute_db(bot, "INSERT OR REPLACE INTO fc_models (taxon, kind, params, n_pos, n_obs, trained_at) "
                                   "VALUES (?,?,?,?,?,datetime('now'))",
-                             (name, "rule", json.dumps(base), npos, len(X)), commit=True)
+                             (name, "rule", json.dumps(res["params"]), res["n_pos"], res["n_obs"]), commit=True)
             out["rule"] += 1
             continue
-        auc = hit_hi = hit_base = None
-        if test_years:
-            tr = [i for i, yy in enumerate(yrs) if yy not in test_years]
-            te = [i for i, yy in enumerate(yrs) if yy in test_years]
-            if sum(y[i] for i in tr) >= MIN_POS // 2 and sum(y[i] for i in te) >= 5:
-                m0 = await asyncio.to_thread(_fit, [X[i] for i in tr], [y[i] for i in tr], [w[i] for i in tr])
-                sc = [_prob(m0, X[i]) for i in te]
-                lab = [y[i] for i in te]
-                wt = [w[i] for i in te]
-                auc = _auc(sc, lab)
-                cut_ = _wquant(sc, wt, QUANTS[2])
-                hp = sum(wi for s_, l, wi in zip(sc, lab, wt) if s_ >= cut_ and l)
-                ha = sum(wi for s_, l, wi in zip(sc, lab, wt) if s_ >= cut_)
-                hit_hi = hp / ha if ha else None
-                hit_base = sum(wi for l, wi in zip(lab, wt) if l) / (sum(wt) or 1)
-        m = await asyncio.to_thread(_fit, X, y, w)
-        ins = [(_prob(m, X[i]), w[i]) for i in range(len(X)) if 12 <= weeks[i] <= 42]
-        m["levels"] = [_wquant([a for a, _ in ins], [b for _, b in ins], q) for q in QUANTS] if ins else [0.5, 0.7, 0.9]
-        m.update(base)
         await execute_db(bot, "INSERT OR REPLACE INTO fc_models (taxon, kind, params, auc, hit_hi, hit_base, n_pos, "
                               "n_obs, trained_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
-                         (name, "model", json.dumps(m), auc, hit_hi, hit_base, npos, len(X)), commit=True)
+                         (name, "model", json.dumps(res["params"]), res["auc"], res["hit_hi"], res["hit_base"],
+                          res["n_pos"], res["n_obs"]), commit=True)
         await execute_db(bot, "INSERT INTO fc_model_hist (taxon, auc, hit_hi, hit_base, n_pos) VALUES (?,?,?,?,?)",
-                         (name, auc, hit_hi, hit_base, npos), commit=True)
+                         (name, res["auc"], res["hit_hi"], res["hit_base"], res["n_pos"]), commit=True)
         out["model"] += 1
     logger.info("🔮 Modelle: %d gelernt, %d Regeln (%d Lernzeilen)", out["model"], out["rule"], len(trows))
     return out
@@ -614,6 +644,32 @@ def window(par: dict, hrs: dict) -> tuple[int | None, int | None]:
     return (min(ok), max(ok)) if ok else (None, None)
 
 
+def _score_chunk(part, res, days, mods, run_at):
+    rows, got = [], set()
+    for p, one in zip(part, res):
+        h = one.get("hourly") or {}
+        pkey = f"{p['country']}-{p['region']}"
+        for d in days:
+            f = day_features(h, d)
+            if not f:
+                continue
+            hrs = hours_of(h, d)
+            wk = date.fromisoformat(d).isocalendar()[1]
+            got.add(p["key"])
+            for name, mod in mods.items():
+                rg = mod["params"].get("regions")
+                if rg is not None and pkey not in rg:
+                    continue
+                pr, lv = score(mod, f, wk, p["n"])
+                if lv < 1:
+                    continue
+                a, b = window(mod["params"], hrs)
+                if a is None:
+                    continue                 # zu kalt oder Regen in der typischen Flugzeit
+                rows.append((p["key"], d, name, round(pr, 4), lv, a, b, f["temp"], run_at))
+    return rows, got
+
+
 async def run_forecast(bot, today: date | None = None) -> dict:
     """Vorhersage für heute und morgen an allen aktiven Punkten (today nur für Tests)."""
     pts = await points(bot)
@@ -646,27 +702,9 @@ async def run_forecast(bot, today: date | None = None) -> dict:
             if not js:
                 continue
             res = js if isinstance(js, list) else [js]
-            for p, one in zip(part, res):
-                h = one.get("hourly") or {}
-                pkey = f"{p['country']}-{p['region']}"
-                for d in days:
-                    f = day_features(h, d)
-                    if not f:
-                        continue
-                    hrs = hours_of(h, d)
-                    wk = date.fromisoformat(d).isocalendar()[1]
-                    got.add(p["key"])
-                    for name, mod in mods.items():
-                        rg = mod["params"].get("regions")
-                        if rg is not None and pkey not in rg:
-                            continue
-                        pr, lv = score(mod, f, wk, p["n"])
-                        if lv < 1:
-                            continue
-                        a, b = window(mod["params"], hrs)
-                        if a is None:
-                            continue                 # zu kalt oder Regen in der typischen Flugzeit
-                        rows.append((p["key"], d, name, round(pr, 4), lv, a, b, f["temp"], run_at))
+            r_, g_ = await asyncio.to_thread(_score_chunk, part, res, days, mods, run_at)
+            rows += r_
+            got |= g_
             if i + CHUNK < len(pts):
                 await asyncio.sleep(12)               # ≤ 600 Aufrufe/Minute
     # Erst ersetzen, wenn der Lauf Daten hat (bei Netzfehlern bleibt die alte Prognose stehen)
