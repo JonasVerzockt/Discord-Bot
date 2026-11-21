@@ -153,7 +153,7 @@ async def backfill(bot, limit: int = WEATHER_PER_RUN) -> int:
             if calls >= limit:
                 break
             from utils import forecast as FC
-            if await FC.budget_left(bot, "weather") < 1:
+            if await FC.budget_left(bot, "weather") < 1 or not await FC.om_wait(1):
                 break
             try:
                 day = date.fromisoformat(d)

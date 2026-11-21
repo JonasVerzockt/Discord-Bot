@@ -434,7 +434,7 @@ async def progress(bot, t) -> dict:
         return {"key": key, "done": d, "total": total, "pct": round(100 * d / total) if total else 100}
     bars = [bar("places", places_t, places_o), bar("clarify", clar_t, clar_o), bar("weather", wx_t, wx_o),
             bar("learn", done + pend, pend)]
-    cool = FC.cooling()
+    cool = FC.cooling() if hasattr(FC, "cooling") else 0
     if cool > 0:
         state = t("sw_prog_pause", m=int(cool // 60) + 1)
     elif any(b["done"] < b["total"] for b in bars):

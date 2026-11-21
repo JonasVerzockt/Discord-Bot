@@ -107,10 +107,50 @@ async def budget_use(bot, purpose: str, n: float) -> None:
                      (_today(), purpose, float(n)), commit=True)
 
 
+# Takt: Open-Meteo zählt gewichtete Aufrufe auch je Minute (600) und Stunde (5.000). Ein Lern-Abruf
+# einer ganzen Saison zählt rund 36 – ohne Takt wäre die Minutengrenze nach ~17 Abrufen erreicht.
+PER_MIN = 480
+PER_HOUR = 4500
+_WIN: list = []                     # (zeitpunkt, kosten) der letzten Stunde, alle Zwecke zusammen
+_COOL_UNTIL = 0.0                   # nach HTTP 429: Pause bis
+_HITS: dict = {}                    # Tag → Anzahl 429
+
+
+def cooling() -> float:
+    """Sekunden, die wegen einer 429-Pause noch zu warten sind (0 = frei)."""
+    import time as _t
+    return max(0.0, _COOL_UNTIL - _t.monotonic())
+
+
+async def om_wait(n: float) -> bool:
+    """Wartet, bis n gewichtete Aufrufe in Minute und Stunde passen. False bei 429-Pause."""
+    import time as _t
+    if cooling() > 0:
+        return False
+    while True:
+        now = _t.monotonic()
+        _WIN[:] = [(t, c) for t, c in _WIN if now - t < 3600]
+        last_min = sum(c for t, c in _WIN if now - t < 60)
+        last_hour = sum(c for _t2, c in _WIN)
+        if last_min + n <= PER_MIN and last_hour + n <= PER_HOUR:
+            _WIN.append((now, n))
+            return True
+        if last_hour + n > PER_HOUR:
+            return False                # Stundengrenze: diesen Lauf beenden, später weiter
+        await asyncio.sleep(5)
+
+
 async def budget_block(bot) -> None:
-    """Nach HTTP 429: für heute nichts mehr abfragen."""
-    from config import SWARM_OM_DAILY
-    await budget_use(bot, "blocked", SWARM_OM_DAILY)
+    """Nach HTTP 429: 15 Minuten Pause; ab der dritten Sperre am Tag ruht alles bis morgen."""
+    import time as _t
+    global _COOL_UNTIL
+    d = _today()
+    _HITS[d] = _HITS.get(d, 0) + 1
+    _COOL_UNTIL = _t.monotonic() + 15 * 60
+    logger.warning("🔮 Open-Meteo meldet Limit (429), Pause 15 Minuten (%d. Mal heute)", _HITS[d])
+    if _HITS[d] >= 3:
+        from config import SWARM_OM_DAILY
+        await budget_use(bot, "blocked", SWARM_OM_DAILY)
 
 
 async def budget_today(bot) -> dict:
@@ -356,7 +396,7 @@ async def train_fetch(bot, max_requests: int = 200) -> int:
             start = date(y, 2, 26)                       # 3 Tage Vorlauf für Regen 72 h
             nv = len((VARS_FC if src == "hf" else VARS_ARCH).split(","))
             c = cost(1, (end - start).days + 1, nv)
-            if await budget_left(bot, "train") < c:
+            if await budget_left(bot, "train") < c or not await om_wait(c):
                 break
             js = await _get(s, HIST_FC if src == "hf" else ARCHIVE,
                             {"latitude": p["lat"], "longitude": p["lon"],
@@ -376,7 +416,6 @@ async def train_fetch(bot, max_requests: int = 200) -> int:
                 await execute_db(bot, "INSERT INTO fc_train_done (key, year, src) VALUES (?,?,?) ON CONFLICT(key, year) "
                                       "DO UPDATE SET src=excluded.src", (p["key"], y, src), commit=True)
             n += 1
-            await asyncio.sleep(1.1)
     if n:
         logger.info("🔮 Lerndaten: %d Punkt-Jahre geladen (%d offen)", n, max(0, len(todo) - n))
     return n
@@ -693,6 +732,8 @@ async def run_forecast(bot, today: date | None = None) -> dict:
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60), headers=_UA) as s:
         for i in range(0, len(pts), CHUNK):
             part = pts[i:i + CHUNK]
+            if not await om_wait(cost(len(part), 5, nvar)):
+                break
             js = await _get(s, FORECAST, {"latitude": ",".join(f"{p['lat']:.2f}" for p in part),
                                           "longitude": ",".join(f"{p['lon']:.2f}" for p in part),
                                           "hourly": FC_VARS, "past_days": 3, "forecast_days": 2,
@@ -707,8 +748,6 @@ async def run_forecast(bot, today: date | None = None) -> dict:
             r_, g_ = await asyncio.to_thread(_score_chunk, part, res, days, mods, run_at)
             rows += r_
             got |= g_
-            if i + CHUNK < len(pts):
-                await asyncio.sleep(12)               # ≤ 600 Aufrufe/Minute
     # Erst ersetzen, wenn der Lauf Daten hat (bei Netzfehlern bleibt die alte Prognose stehen)
     if got:
         await execute_many(bot, "DELETE FROM fc_pred WHERE key=? AND day=?", [(k, d) for k in got for d in days])
