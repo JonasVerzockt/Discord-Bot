@@ -206,7 +206,8 @@ async def build_points(bot) -> dict:
                 lon += step_lon
             lat += step_lat
     rows = await execute_db(bot, "SELECT lat, lon, country, region FROM swarm_reports "
-                                 "WHERE lat IS NOT NULL AND indoor=0", fetch=True) or []
+                                 "WHERE lat IS NOT NULL AND indoor=0 AND country IN ('de','at','ch','li')",
+                            fetch=True) or []
     cells: dict = {}
     for r in rows:
         k = (round(r["lat"], 1), round(r["lon"], 1))
@@ -564,7 +565,8 @@ async def train_models(bot) -> dict:
     """Modelle je Gattung/Art aus fc_train + Meldungen; Regeln für den Rest. Verlauf in fc_model_hist."""
     from utils import swarm as S
     pts = {p["key"]: p for p in await points(bot, train_only=True)}
-    reps = [dict(r) for r in await execute_db(bot, "SELECT * FROM swarm_reports WHERE indoor=0", fetch=True) or []]
+    reps = [dict(r) for r in await execute_db(bot, "SELECT * FROM swarm_reports WHERE indoor=0 AND "
+                                                   "country IN ('de','at','ch','li')", fetch=True) or []]
     taxa: dict = {}
     for r in reps:
         taxa.setdefault(r["genus"], []).append(r)

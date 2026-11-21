@@ -798,5 +798,6 @@
   "fc_post_title": "🔮 Svarmfluga prognozo por morgaŭ, {d}",
   "fc_post_intro": "Mi vidas tre bonajn ŝancojn de svarmflugoj morgaŭ:",
   "fc_post_outro": "Tio estas takso el viaj raportoj ekde 2019 kaj la veterprognozo, ne garantio. Se vi vidas ion, bonvolu raporti ĉi tie, plej facile per /schwarmflug_vorlage.",
-  "fc_post_footer": "Veterdatumoj: Open-Meteo.com"
+  "fc_post_footer": "Veterdatumoj: Open-Meteo.com",
+  "yr_swarm_abroad": "🌍 {n} raportoj el eksterlando ({c} landoj)"
 }

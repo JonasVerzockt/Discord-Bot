@@ -157,12 +157,14 @@ async def swarm_community(bot, year: int) -> dict:
     try:
         from utils import swarm as S
         rows = [dict(r) for r in await execute_db(
-            bot, "SELECT * FROM swarm_reports WHERE indoor=0 AND substr(flight_date,1,4)=?", (str(year),),
-            fetch=True) or []]
+            bot, "SELECT * FROM swarm_reports WHERE indoor=0 AND substr(flight_date,1,4)=? AND country<>''",
+            (str(year),), fetch=True) or []]
+        abroad = [r for r in rows if r["country"] not in S.DACH]
+        rows = [r for r in rows if r["country"] in S.DACH]
     except Exception:
         return {"n": 0}
     if not rows:
-        return {"n": 0}
+        return {"n": 0, "abroad": len({r["message_id"] for r in abroad})}
     top = Counter(r["label"] for r in rows if r["species"]).most_common(1)
     weeks = Counter(S._week(r["flight_date"]) for r in rows)
     peak = weeks.most_common(1)[0][0] if weeks else None
@@ -172,7 +174,9 @@ async def swarm_community(bot, year: int) -> dict:
             "people": len({r["author_id"] for r in rows if r["author_id"]}),
             "top": top[0] if top else None,
             "peak": S.week_label(peak) if peak else None, "peak_w": peak,
-            "start": (start[0]["label"], start[0]["flight_date"]) if start else None}
+            "start": (start[0]["label"], start[0]["flight_date"]) if start else None,
+            "abroad": len({r["message_id"] for r in abroad}),
+            "abroad_countries": len({r["country"] for r in abroad})}
 
 
 async def _inat_community(bot, year: int) -> dict:

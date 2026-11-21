@@ -117,7 +117,7 @@ async def typical_hours(bot) -> dict:
     """Median-Flugstunde je Art und je Gattung (ab 3 Meldungen mit Uhrzeit)."""
     from statistics import median
     rows = await execute_db(bot, "SELECT genus, species, flight_time FROM swarm_reports "
-                                 "WHERE flight_time IS NOT NULL", fetch=True) or []
+                                 "WHERE flight_time IS NOT NULL AND country IN ('de','at','ch','li')", fetch=True) or []
     by: dict = {}
     for r in rows:
         h = int(r["flight_time"][:2])

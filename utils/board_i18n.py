@@ -1224,6 +1224,24 @@ T.update({
     'fc_q_prev': {"de": 'Vorversion', "en": 'Previous', "eo": 'Antaŭa versio'},
 })
 
+T.update({
+    'sw_abroad_h': {"de": 'Aus dem Urlaub', "en": 'From holidays abroad', "eo": 'El ferioj eksterlande'},
+    'sw_abroad_exp': {"de": 'Meldungen aus Ländern außerhalb von Deutschland, Österreich, der Schweiz und Liechtenstein. Sie stehen hier, fließen aber nicht in Karte, Steckbriefe, Saisonverlauf und Prognose ein.', "en": 'Reports from countries outside Germany, Austria, Switzerland and Liechtenstein. They are listed here but not used for the map, profiles, season curve or forecast.', "eo": 'Raportoj el landoj ekster Germanio, Aŭstrio, Svislando kaj Liĥtenŝtejno. Ili aperas ĉi tie, sed ne en mapo, profiloj, sezona kurbo kaj prognozo.'},
+    'sw_abroad_hint': {"de": 'Ausland, nicht in der Auswertung', "en": 'Abroad, not used in the analysis', "eo": 'Eksterlande, ne en la analizo'},
+    'sw_abroad_country': {"de": 'Land', "en": 'Country', "eo": 'Lando'},
+    'sw_abroad_when': {"de": 'Datum', "en": 'Date', "eo": 'Dato'},
+    'sw_abroad_place': {"de": 'Ort', "en": 'Place', "eo": 'Loko'},
+    'sw_abroad_more': {"de": 'und {n} weitere', "en": 'and {n} more', "eo": 'kaj {n} pliaj'},
+    'sw_admin_link': {"de": 'Meldungen mit unklarem Ort ({n})', "en": 'Reports with unclear location ({n})', "eo": 'Raportoj kun neklara loko ({n})'},
+    'sw_unclear_h': {"de": 'Schwarmflug: unklare Orte', "en": 'Nuptial flights: unclear locations', "eo": 'Svarmflugoj: neklaraj lokoj'},
+    'sw_unclear_intro': {"de": 'Meldungen ohne Land und ohne Region. Sie fließen nicht in die Auswertung ein. Mit einer Regionsrolle oder einem eindeutigen Ort in der Nachricht (Bearbeiten genügt) werden sie automatisch übernommen.', "en": 'Reports without country and region. They are not used in the analysis. With a region role or a clear place in the message (editing is enough) they are picked up automatically.', "eo": 'Raportoj sen lando kaj regiono. Ili ne estas uzataj en la analizo. Kun regiona rolo aŭ klara loko en la mesaĝo (redakti sufiĉas) ili estas aŭtomate transprenitaj.'},
+    'sw_unclear_k_dach': {"de": 'Meldungen in DACH (ausgewertet)', "en": 'Reports in DACH (analysed)', "eo": 'Raportoj en DACH (analizitaj)'},
+    'sw_unclear_k_abroad': {"de": 'Meldungen aus dem Ausland', "en": 'Reports from abroad', "eo": 'Raportoj el eksterlando'},
+    'sw_unclear_k_unclear': {"de": 'Meldungen mit unklarem Ort', "en": 'Reports with unclear location', "eo": 'Raportoj kun neklara loko'},
+    'sw_unclear_none': {"de": 'Keine Meldungen mit unklarem Ort.', "en": 'No reports with unclear location.', "eo": 'Neniuj raportoj kun neklara loko.'},
+    'yr_swarm_abroad': {"de": '{n} Meldungen aus dem Ausland ({c} Länder)', "en": '{n} reports from abroad ({c} countries)', "eo": '{n} raportoj el eksterlando ({c} landoj)'},
+})
+
 def translate(lang: str, key: str, **kw) -> str:
     """Übersetzt *key* in *lang* (Fallback: Deutsch, dann der Key selbst).
     Platzhalter werden via str.format eingesetzt."""

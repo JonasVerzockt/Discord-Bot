@@ -110,6 +110,7 @@ class Swarm(commands.Cog):
             await execute_db(self.bot, "INSERT OR IGNORE INTO swarm_meta (key, value) VALUES ('ach_since', ?)",
                              (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),), commit=True)
             await S.load_season(self.bot)
+            await S.reclassify_abroad(self.bot)
         except Exception as e:
             logger.info("🪽 Saisonstart nicht geladen: %s", e)
 
@@ -161,7 +162,15 @@ class Swarm(commands.Cog):
                 if prev.get("lat") is not None:
                     return await S.store(self.bot, m.id, m.author.id, m.created_at, p, source,
                                          prev["lat"], prev["lon"], "inherit")
+        if not p.get("abroad"):
+            # KI-Ergebnis oder übernommener Ort: Land außerhalb DACH?
+            p["abroad"] = S.foreign_country(p.get("place") or "") or \
+                (p["country"] if p.get("country") and p["country"] not in S.DACH else None)
         lat = lon = gsrc = None
+        if p.get("abroad"):
+            # Ausland: Land merken, keine Ortssuche (Nominatim ist auf DACH begrenzt, das ergäbe Fehltreffer)
+            p["country"], p["region"] = p["abroad"], ""
+            return await S.store(self.bot, m.id, m.author.id, m.created_at, p, source, None, None, "abroad")
         if p.get("place") and geo:
             g = await geocode.locate(self.bot, p["place"], p.get("country") or "", p.get("region") or "")
             if g:
@@ -177,6 +186,13 @@ class Swarm(commands.Cog):
             "AND region='' AND place=''", (str(m.author.id), since,
             m.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")), fetch=True) or []
         if not rows:
+            return
+        c = S.foreign_country(p.get("place") or "")
+        if c:
+            for r in rows:
+                await execute_db(self.bot, "UPDATE swarm_reports SET place=?, country=?, region='', lat=NULL, lon=NULL, "
+                                           "geo_src='abroad' WHERE message_id=?", (p["place"], c, r["message_id"]),
+                                 commit=True)
             return
         lat = lon = gsrc = None
         if p.get("place"):
@@ -324,6 +340,11 @@ class Swarm(commands.Cog):
             "SELECT place, country, region, COUNT(*) AS n FROM swarm_reports WHERE place<>'' AND lat IS NULL "
             "AND geo_src IS NULL GROUP BY place, country, region ORDER BY n DESC LIMIT 200", fetch=True) or []]
         for r in rows:
+            c = S.foreign_country(r["place"])
+            if c:
+                await execute_db(self.bot, "UPDATE swarm_reports SET country=?, region='', geo_src='abroad' "
+                                           "WHERE place=? AND lat IS NULL", (c, r["place"]), commit=True)
+                continue
             try:
                 g = await geocode.locate(self.bot, r["place"], r["country"] or "", r["region"] or "")
             except Exception as e:
@@ -375,7 +396,7 @@ class Swarm(commands.Cog):
     async def alert_loop(self):
         since = (datetime.now(timezone.utc) - timedelta(hours=_ALERT_WINDOW_H)).strftime("%Y-%m-%d %H:%M:%S")
         reps = [dict(r) for r in await execute_db(self.bot,
-            "SELECT * FROM swarm_reports WHERE posted_at>=? AND indoor=0", (since,), fetch=True) or []]
+            f"SELECT * FROM swarm_reports WHERE posted_at>=? AND indoor=0 AND {S.DACH_SQL}", (since,), fetch=True) or []]
         await execute_db(self.bot, "DELETE FROM swarm_alert_sent WHERE message_id NOT LIKE 'start-%' AND "
                          "message_id NOT IN (SELECT message_id FROM swarm_reports WHERE posted_at>=?)",
                          (since,), commit=True)

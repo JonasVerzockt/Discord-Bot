@@ -121,6 +121,7 @@ TEMPLATE = """{% extends "base" %}{% block body %}
  </div>
  <div class=chartbox style="margin-top:0"><h4>📜 {{ t('sw_feed_h') }}</h4><div class=feed>
  {% for r in recent %}<div class=it><i>{{ r.label }}</i>{% if r.indoor %} 🏠{% endif %}
+  {% if r.abroad %}<span title="{{ t('sw_abroad_hint') }}"> 🌍</span>{% endif %}
   <div class=w>{{ r.flight_date|dmy }}{% if r.flight_time %} · {{ r.flight_time }}{% endif %}{% if r.temp_c is not none %} · {{ '%g'|format(r.temp_c) }} °C{% elif r.w_temp is not none %} · <span title="{{ t('sw_temp_est') }}">≈ {{ '%.0f'|format(r.w_temp) }} °C</span>{% endif %}{% if r.region_name %} · {{ r.region_name }}{% endif %}
   {% if member %}{% if r.place %}<br>📍 {{ r.place }}{% endif %}{% if r.link %} · <a href="{{ r.link }}" target=_blank rel=noopener>Discord ↗</a>{% endif %}{% endif %}</div></div>
  {% else %}<p class=muted>{{ t('sw_feed_none') }}</p>{% endfor %}</div></div>
@@ -135,6 +136,11 @@ TEMPLATE = """{% extends "base" %}{% block body %}
 {% for x in taxa %}<tr><td>{% if x.art %}<a href="/art/{{ x.art }}{{ qs() }}"><i>{{ x.name }}</i></a>{% else %}<i>{{ x.name }}</i>{% endif %}</td><td>{{ x.n }}</td>
 <td>{{ x.win }}</td><td>{{ x.peak }}</td><td><div class=bars>{% for m in x.months %}<div style="height:{{ (2 + m * 20)|int }}px;opacity:{{ 0.25 if m == 0 else 1 }}" title="{{ month_names[loop.index0] }}"></div>{% endfor %}</div></td>
 <td style="white-space:nowrap">{{ x.hours or '?' }}</td><td style="white-space:nowrap">{{ x.temps or '?' }}</td><td class=muted>{{ x.regions|join(', ') }}</td></tr>{% endfor %}</table></div></div>
+{% if abroad %}<div class=chartbox id=ausland><h4>🌍 {{ t('sw_abroad_h') }} <span class=info title="{{ t('sw_abroad_exp') }}">ⓘ</span></h4>
+<div style="overflow-x:auto"><table class=swt><tr><th>{{ t('sw_col_taxon') }}</th><th>{{ t('sw_abroad_country') }}</th><th>{{ t('sw_abroad_when') }}</th>{% if member %}<th>{{ t('sw_abroad_place') }}</th>{% endif %}</tr>
+{% for r in abroad %}<tr><td><i>{{ r.label }}</i></td><td>{{ r.country_name }}</td><td>{{ r.flight_date|dmy }}</td>{% if member %}<td class=muted>{{ r.place }}{% if r.link %} · <a href="{{ r.link }}" target=_blank rel=noopener>Discord ↗</a>{% endif %}</td>{% endif %}</tr>{% endfor %}</table></div>
+{% if abroad_more %}<p class=muted style="font-size:12px;margin:6px 0 0">{{ t('sw_abroad_more', n=abroad_more) }}</p>{% endif %}</div>{% endif %}
+{% if admin %}<p class=muted style="font-size:13px">🔒 <a href="/admin/schwarmflug{{ qs() }}">{{ t('sw_admin_link', n=unclear_n) }}</a></p>{% endif %}
 <div class=chartbox id=bestimmen><h4>🔎 {{ t('sw_id_h') }} <span class=info title="{{ t('sw_id_exp') }}">ⓘ</span></h4>
 <p class=muted style="margin:0 0 8px">{{ t('sw_id_intro') }}</p>
 <form method=get action="/schwarmflug#bestimmen" class=idf><input type=hidden name=lang value="{{ lang }}"><input type=hidden name=z value="{{ z }}">
@@ -365,6 +371,23 @@ def years_chart(rows: list[dict]) -> dict:
     return {"years": years, "series": series}
 
 
+def _abroad_ctx(rows: list, g: str, since, member: bool, link, lang: str) -> dict:
+    """Kasten „Aus dem Urlaub“: Meldungen aus Ländern außerhalb DACH (nicht in der Auswertung)."""
+    sel = [r for r in rows if (not g or r["genus"] == g) and (not since or r["flight_date"] >= since)]
+    if not sel:
+        sel = [r for r in rows if not g or r["genus"] == g]
+    seen, out = set(), []
+    for r in sel:
+        k = (r["message_id"], r["label"])
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append({"label": r["label"], "country_name": S.country_label(r["country"], lang),
+                    "flight_date": r["flight_date"], "place": r["place"] if member else "",
+                    "link": link(r["message_id"]) if member else ""})
+    return {"abroad": out[:25], "abroad_more": max(0, len(out) - 25)}
+
+
 def season_info(lang: str) -> dict | None:
     r = S.season_now()
     if not r:
@@ -584,11 +607,15 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
                      "regions": [n for n, _ in x["regions"]],
                      "art": art_slug(x["name"]) if " " in x["name"] else None})
 
-    pool = [r for r in all_rows if not g or r["genus"] == g]
+    abroad_all = await S.rows(bot, include_indoor=True, scope="abroad")
+    unclear_n = len({r["message_id"] for r in await S.rows(bot, include_indoor=True, scope="unclear")}) if member else 0
+    pool = sorted([r for r in all_rows + abroad_all if not g or r["genus"] == g],
+                  key=lambda r: (r["flight_date"], r["flight_time"] or ""), reverse=True)
     inside = [r for r in pool if not since or r["flight_date"] >= since]
     recent = []
     for r in (inside[:40] if inside else pool[:15]):
-        recent.append({**r, "region_name": S.region_name(r["country"], r["region"]) if r["region"] else "",
+        recent.append({**r, "abroad": r["country"] not in S.DACH,
+                       "region_name": S.region_name(r["country"], r["region"]) if r["country"] else "",
                        "link": link(r["message_id"]) if member else "", "place": r["place"] if member else ""})
 
     k = {"total": len(sel), "taxa": len({_taxon_key(r) for r in sel if r["species"]}),
@@ -639,6 +666,7 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
     return {"z": z, "g": g, "ranges": RANGES, "genera": genera, "flying": flying, "k": k, "data": data,
             "ident": ident, "regions_sel": regions_select(t, lang), "wx": wx, "wx_n": wx_n,
             "season": season_info(lang), "fc": fc,
+            **_abroad_ctx(abroad_all, g, since, member, link, lang), "unclear_n": unclear_n,
             "recent": recent, "taxa": taxa, "legend": legend, "member": member,
             "first_year": (min(r["flight_date"][:4] for r in all_rows) if all_rows else str(today.year)),
             "last_date": max((r["flight_date"] for r in outdoor), default=""),
@@ -655,7 +683,8 @@ async def art_box(bot, name: str, lang: str = "de") -> dict | None:
     gen, sp = parts[0], parts[1].lower()
     try:
         rs = [dict(r) for r in await execute_db(bot,
-            "SELECT * FROM swarm_reports WHERE genus=? AND indoor=0", (gen,), fetch=True) or []]
+            "SELECT * FROM swarm_reports WHERE genus=? AND indoor=0 AND country IN ('de','at','ch','li')",
+            (gen,), fetch=True) or []]
     except Exception:
         return None
     mine = [r for r in rs if r["species"] == sp]

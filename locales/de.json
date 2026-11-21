@@ -798,5 +798,6 @@
   "fc_post_title": "🔮 Schwarmflug-Prognose für morgen, {d}",
   "fc_post_intro": "Ich sehe für morgen sehr gute Chancen auf Schwarmflüge:",
   "fc_post_outro": "Das ist eine Schätzung aus euren Meldungen seit 2019 und der Wettervorhersage, keine Garantie. Wenn ihr etwas seht, meldet es gern hier, am einfachsten mit /schwarmflug_vorlage.",
-  "fc_post_footer": "Wetterdaten: Open-Meteo.com"
+  "fc_post_footer": "Wetterdaten: Open-Meteo.com",
+  "yr_swarm_abroad": "🌍 {n} Meldungen aus dem Ausland ({c} Länder)"
 }

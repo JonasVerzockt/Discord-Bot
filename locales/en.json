@@ -798,5 +798,6 @@
   "fc_post_title": "🔮 Nuptial flight forecast for tomorrow, {d}",
   "fc_post_intro": "I see very good chances of nuptial flights tomorrow:",
   "fc_post_outro": "This is an estimate from your reports since 2019 and the weather forecast, not a guarantee. If you see something, please report it here, easiest with /schwarmflug_vorlage.",
-  "fc_post_footer": "Weather data: Open-Meteo.com"
+  "fc_post_footer": "Weather data: Open-Meteo.com",
+  "yr_swarm_abroad": "🌍 {n} reports from abroad ({c} countries)"
 }

@@ -1300,6 +1300,7 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
  {% if d.swarm.start %}<p style="margin:2px 0">🎉 {{ t('yr_swarm_start') }}: <i>{{ d.swarm.start[0] }}</i> ({{ d.swarm.start[1]|dmy }})</p>{% endif %}
  {% if d.swarm.top %}<p style="margin:2px 0">🏆 {{ t('yr_swarm_top') }}: <i>{{ d.swarm.top[0] }}</i> ({{ d.swarm.top[1] }}×)</p>{% endif %}
  {% if d.swarm.peak %}<p style="margin:2px 0">📈 {{ t('yr_swarm_peak') }}: {{ d.swarm.peak }}</p>{% endif %}
+ {% if d.swarm.abroad %}<p style="margin:2px 0">🌍 {{ t('yr_swarm_abroad', n=d.swarm.abroad, c=d.swarm.abroad_countries) }}</p>{% endif %}
 </div>{% endif %}
 {% if d.reviews.most or d.reviews.best or d.fastest %}<div class=chartbox><h4>⭐ {{ t('yr_k_reviews') }}</h4>
  {% if d.reviews.most %}<p>{{ t('yr_most_l') }}: {% for s, n in d.reviews.most %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
@@ -4656,6 +4657,50 @@ _SW_MONTHS = {"de": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli
                      "Oktobro", "Novembro", "Decembro"]}
 
 
+SWARM_ADMIN = """{% extends "base" %}{% block body %}
+<h2 style="margin:0 0 4px">🔒 {{ t('sw_unclear_h') }}</h2>
+<p class=muted style="margin:0 0 12px">{{ t('sw_unclear_intro') }} <a href="/schwarmflug{{ qs() }}">← {{ t('sw_h') }}</a></p>
+<div class=kpigrid style="margin-bottom:12px">
+ <div class=kpi><div class=v>{{ n_dach }}</div><div class=l>{{ t('sw_unclear_k_dach') }}</div></div>
+ <div class=kpi><div class=v>{{ n_abroad }}</div><div class=l>{{ t('sw_unclear_k_abroad') }}</div></div>
+ <div class=kpi><div class=v>{{ items|length }}</div><div class=l>{{ t('sw_unclear_k_unclear') }}</div></div>
+</div>
+<div class=chartbox style="overflow-x:auto"><table class=swt style="font-size:13px"><tr><th>{{ t('sw_abroad_when') }}</th><th>{{ t('sw_col_taxon') }}</th><th>{{ t('sw_abroad_place') }}</th><th></th></tr>
+{% for r in items %}<tr><td style="white-space:nowrap">{{ r.flight_date|dmy }}</td><td><i>{{ r.labels }}</i></td><td>{{ r.place or '?' }}</td><td>{% if r.link %}<a href="{{ r.link }}" target=_blank rel=noopener>Discord ↗</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan=4 class=muted>{{ t('sw_unclear_none') }}</td></tr>{% endfor %}</table></div>
+{% endblock %}"""
+ENV.loader.mapping["swarm_admin"] = SWARM_ADMIN
+
+
+async def h_swarm_admin(req):
+    """Admin: Meldungen ohne Land und Region (fließen nicht in die Auswertung ein)."""
+    lang = pick_lang(req)
+    if not _is_admin(req):
+        raise web.HTTPFound(f"/admin/login?lang={lang}")
+    from config import SWARM_CHANNEL_ID
+    bot = req.app["bot"]
+    unclear = await SWB.S.rows(bot, include_indoor=True, scope="unclear")
+    ch = bot.get_channel(SWARM_CHANNEL_ID) if SWARM_CHANNEL_ID else None
+    gid = getattr(getattr(ch, "guild", None), "id", None)
+    by: dict = {}
+    for r in unclear:
+        e = by.setdefault(r["message_id"], {"flight_date": r["flight_date"], "place": r["place"], "labels": [],
+                                            "link": f"https://discord.com/channels/{gid}/{SWARM_CHANNEL_ID}/{r['message_id']}"
+                                            if gid else ""})
+        e["labels"].append(r["label"])
+    items = sorted(by.values(), key=lambda x: x["flight_date"], reverse=True)
+    for e in items:
+        e["labels"] = ", ".join(e["labels"])
+    n_d = await execute_db(bot, "SELECT COUNT(DISTINCT message_id) AS n FROM swarm_reports WHERE "
+                                "country IN ('de','at','ch','li')", fetch=True)
+    n_a = await execute_db(bot, "SELECT COUNT(DISTINCT message_id) AS n FROM swarm_reports WHERE country<>'' AND "
+                                "country NOT IN ('de','at','ch','li')", fetch=True)
+    resp = _render(req, "swarm_admin", title=translate(lang, "sw_unclear_h"), items=items,
+                   n_dach=n_d[0]["n"] if n_d else 0, n_abroad=n_a[0]["n"] if n_a else 0)
+    resp.headers["Cache-Control"] = "private, no-store"
+    return resp
+
+
 async def h_swarm(req):
     lang = pick_lang(req)
     uid = _aam_member(req)
@@ -5349,6 +5394,7 @@ def build_app(bot) -> web.Application:
         web.get("/intro.json", h_intro),
         web.get("/hilfe", h_hilfe),
         web.get("/schwarmflug", h_swarm),
+        web.get("/admin/schwarmflug", h_swarm_admin),
         web.get("/konto", h_konto),
         web.get("/konto/daten.json", h_konto_export),
         web.get(r"/konto/kalender/{uid:\d+}/{salt:[0-9a-f]{16}}.ics", h_konto_ics),

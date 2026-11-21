@@ -198,8 +198,111 @@ def region_name(country: str, code: str) -> str:
     if not country:
         return ""
     if not code:
+        if country not in DACH:
+            return country_label(country)
         return {"ch": "Schweiz", "at": "Österreich", "de": "Deutschland", "li": "Liechtenstein"}.get(country, "")
     return geo.all_regions().get(country, {}).get(code, code)
+
+
+# ── Ausland / unklarer Ort ────────────────────────────────────────────────────
+# Ausgewertet (Karte, Steckbriefe, Prognose …) werden nur Meldungen mit Land in DACH.
+# Ausland (country = ISO-Code außerhalb DACH) erscheint nur in der Liste und im Kasten
+# „Aus dem Urlaub“; unklare Orte (weder Land noch Region) sieht nur der Admin.
+DACH = ("de", "at", "ch", "li")
+DACH_SQL = "country IN ('de','at','ch','li')"
+_FOREIGN: dict | None = None
+_FOREIGN_RE = None
+# Inseln/Regionen, die oft ohne Land genannt werden (Land → Liste)
+_FOREIGN_EXTRA = {
+    "es": ["mallorca", "menorca", "ibiza", "teneriffa", "tenerife", "gran canaria", "fuerteventura", "lanzarote",
+           "kanaren", "kanarische inseln", "costa brava", "costa blanca", "andalusien", "katalonien", "valencia"],
+    "it": ["gardasee", "sardinien", "sizilien", "toskana", "südtirol", "suedtirol", "dolomiten", "lago maggiore",
+           "comer see", "elba", "venetien", "ligurien", "apulien", "kalabrien"],
+    "fr": ["korsika", "provence", "elsass", "bretagne", "normandie", "côte d'azur", "cote d'azur"],
+    "gr": ["kreta", "rhodos", "korfu", "kos", "zakynthos", "kykladen", "chalkidiki", "peloponnes", "santorini"],
+    "hr": ["istrien", "dalmatien", "krk", "pag", "rab", "brač", "hvar", "split", "dubrovnik"],
+    "pt": ["madeira", "azoren", "algarve"],
+    "nl": ["holland"], "gb": ["england", "schottland", "wales", "großbritannien", "grossbritannien"],
+    "us": ["usa", "vereinigte staaten", "amerika"], "th": ["phuket", "koh samui"], "tr": ["antalya"],
+    "id": ["bali", "sumatra", "java", "borneo"],
+}
+
+
+def _foreign_table() -> dict:
+    """Ländername/Alias (klein) → ISO-Code für alle Länder außer DACH (Babel/CLDR de+en+eo)."""
+    global _FOREIGN, _FOREIGN_RE
+    if _FOREIGN is not None:
+        return _FOREIGN
+    t: dict = {}
+    try:
+        from babel import Locale
+        for lg in ("de", "en", "eo"):
+            for code, name in Locale.parse(lg).territories.items():
+                if len(code) == 2 and code.isalpha() and code.lower() not in DACH and len(name) >= 4:
+                    t[name.lower()] = code.lower()
+    except Exception as e:
+        logger.info("🌍 Ländernamen nicht geladen: %s", e)
+    for c, names in _FOREIGN_EXTRA.items():
+        for n in names:
+            t.setdefault(n, c)
+    # Zu kurze bzw. mehrdeutige Treffer in deutschen Ortsnamen vermeiden
+    for bad in ("jersey", "georgia", "georgien", "chad", "jordan", "niger", "guinea", "turkey", "monaco"):
+        t.pop(bad, None)
+    _FOREIGN = t
+    names = sorted(t, key=len, reverse=True)
+    _FOREIGN_RE = re.compile(r"(?<![\wäöüß])(?:süd|sued|nord|ost|west|mittel|zentral)?(" +
+                             "|".join(re.escape(n) for n in names) + r")(?![\wäöüß])", re.I)
+    return t
+
+
+def foreign_country(text: str) -> str | None:
+    """ISO-Code, wenn der Text ein Land (oder eine bekannte Urlaubsregion) außerhalb DACH nennt."""
+    if not text:
+        return None
+    t = _foreign_table()
+    if not t or _FOREIGN_RE is None:
+        return None
+    for m in _FOREIGN_RE.finditer(text):
+        before = text[max(0, m.start() - 25):m.start()].lower()
+        # „nähe Niederlande“, „Grenze zu Tschechien“, „Richtung Polen“: liegt noch in DACH
+        if re.search(r"(nähe|naehe|nahe|grenze|richtung|gegenüber)\W+(\w+\W+){0,2}$", before):
+            continue
+        return t.get(m.group(1).lower())
+    return None
+
+
+def country_label(code: str, lang: str = "de") -> str:
+    try:
+        from utils.countries import country_name
+        return country_name(code, lang)
+    except Exception:
+        return (code or "?").upper()
+
+
+def scope_of(r: dict) -> str:
+    """dach | abroad | unclear"""
+    c = r.get("country") or ""
+    if c in DACH:
+        return "dach"
+    return "abroad" if c else "unclear"
+
+
+async def reclassify_abroad(bot) -> int:
+    """Bestehende Meldungen nachträglich prüfen: Ortstext nennt ein Land außerhalb DACH →
+    als Ausland markieren (Koordinate/Region verwerfen, falls die Ortssuche danebenlag)."""
+    rows = await execute_db(bot, "SELECT DISTINCT place FROM swarm_reports WHERE place<>'' "
+                                 "AND COALESCE(geo_src,'')<>'abroad'", fetch=True) or []
+    n = 0
+    for r in rows:
+        c = foreign_country(r["place"])
+        if not c:
+            continue
+        n += max(0, await execute_db(bot,
+            "UPDATE swarm_reports SET country=?, region='', lat=NULL, lon=NULL, geo_src='abroad', w_state=NULL, "
+            "w_src=NULL WHERE place=? AND COALESCE(geo_src,'')<>'abroad'", (c, r["place"]), commit=True) or 0)
+    if n:
+        logger.info("🌍 %d Schwarmflug-Meldungen als Ausland erkannt", n)
+    return n
 
 
 # ── Felder der Vorlage ────────────────────────────────────────────────────────
@@ -343,6 +446,8 @@ def parse_message(content: str, roles: dict, posted_utc: datetime) -> dict:
         m = re.search(r"\b(?:in|bei|nähe|naehe)\s+((?:\d{4,5}\s+)?[A-ZÄÖÜ][\wäöüß\-]+(?:\s+[A-ZÄÖÜ][\wäöüß\-]+)?)", text)
         if m and not _genus_of(m.group(1).split()[-1]):
             out["place"] = m.group(1)
+    # Ausland: Ortsfeld (bzw. bei Freitext der ganze Text) nennt ein Land außerhalb DACH
+    out["abroad"] = foreign_country(place_raw or out["place"] or ("" if f else text))
     return out
 
 
@@ -468,9 +573,16 @@ async def previous_of(bot, author_id, before_utc: datetime, hours: int = 3) -> d
 
 
 # ── Auswertungen fürs Board ───────────────────────────────────────────────────
-async def rows(bot, since: str | None = None, include_indoor: bool = False) -> list[dict]:
+async def rows(bot, since: str | None = None, include_indoor: bool = False, scope: str = "dach") -> list[dict]:
+    """scope: dach (Auswertung) | abroad | unclear | all"""
     sql = "SELECT * FROM swarm_reports"
     cond, params = [], []
+    if scope == "dach":
+        cond.append(DACH_SQL)
+    elif scope == "abroad":
+        cond.append("country<>'' AND NOT " + DACH_SQL)
+    elif scope == "unclear":
+        cond.append("country=''")
     if since:
         cond.append("flight_date >= ?"); params.append(since)
     if not include_indoor:

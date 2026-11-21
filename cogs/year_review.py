@@ -101,6 +101,8 @@ def community_embed(d: dict, lang: str) -> discord.Embed:
             lines.append(t("yr_swarm_top", name=sw["top"][0], n=sw["top"][1]))
         if sw.get("peak"):
             lines.append(t("yr_swarm_peak", w=sw["peak"]))
+        if sw.get("abroad"):
+            lines.append(t("yr_swarm_abroad", n=sw["abroad"], c=sw.get("abroad_countries", 0)))
         e.add_field(name=t("yr_h_swarm"), value="\n".join(lines), inline=False)
     e.add_field(name=t("yr_h_personal"), value=t("yr_personal_hint", year=y), inline=False)
     e.set_footer(text=t("yr_footer", next=y + 1))
