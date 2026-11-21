@@ -359,16 +359,18 @@ def _fields(text: str) -> dict:
             if m.group(k):
                 if k not in out:
                     out[k] = m.group("val").strip()
+                elif k == "when":
+                    out[k] += " " + m.group("val").strip()      # „Datum: 30.03.“ und „Zeit: 12:00“ getrennt
                 break
     return out
 
 
 def _date(raw: str, ref: date) -> date | None:
     s = (raw or "").lower()
-    m = re.search(r"(?<!\d)(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{2,4})?(?!\d)", s)
+    m = re.search(r"(?<!\d)(\d{1,2})\s*\.\s*(\d{1,2})\s*\.(?:\s*(\d{4})|(\d{2})(?!\d|\s*:))?", s)
     if m:
         d, mo = int(m.group(1)), int(m.group(2))
-        y = m.group(3)
+        y = m.group(3) or m.group(4)
         y = ref.year if not y else (int(y) + 2000 if len(y) == 2 else int(y))
         try:
             return date(y, mo, d)
@@ -386,7 +388,8 @@ def _date(raw: str, ref: date) -> date | None:
 
 
 def _time(raw: str) -> str | None:
-    s = re.sub(r"\d{1,2}\s*\.\s*\d{1,2}\s*\.\s*\d{2,4}", " ", raw or "")    # Datum entfernen
+    # Datum entfernen (Jahr nur, wenn es keine Uhrzeit ist: „30.03. 12:00“)
+    s = re.sub(r"\d{1,2}\s*\.\s*\d{1,2}\s*\.(?:\s*\d{4}|\d{2}(?!\d|\s*:))?", " ", raw or "")
     m = re.search(r"(?<!\d)([01]?\d|2[0-3])\s*:\s*([0-5]\d)(?!\d)", s)
     if not m:
         m = re.search(r"(?<!\d)([01]?\d|2[0-3])\s*[.,]\s*([0-5]\d)\s*(?:uhr|h\b)", s, re.I)
@@ -576,6 +579,47 @@ async def store(bot, message_id, author_id, posted_utc: datetime, p: dict, sourc
                           "ON CONFLICT(message_id) DO UPDATE SET status=excluded.status, scanned_at=datetime('now')",
                      (mid, "ok" if n else "none"), commit=True)
     return n
+
+
+_COUNTRY_WORDS = {"deutschland", "germany", "de", "brd", "österreich", "oesterreich", "austria", "at",
+                  "schweiz", "switzerland", "suisse", "svizzera", "ch", "liechtenstein", "li", "dach"}
+
+
+def is_comment(p: dict, prev: dict | None, free: bool) -> bool:
+    """Kurzer Freitext ohne Vorlagenfelder kurz nach einer eigenen Meldung derselben Gattung und ohne
+    eigenen genaueren Ort: Kommentar zur Meldung davor, keine neue Meldung."""
+    if not free or not prev or p.get("time") or p.get("temp") is not None:
+        return False                                  # eigene Uhrzeit oder Temperatur: eigene Meldung
+    if prev["genus"] not in {t["genus"] for t in p.get("taxa") or []}:
+        return False
+    place = (p.get("place") or "").strip().lower().strip(".!,")
+    if not place and not p.get("region"):
+        return True
+    if place in _COUNTRY_WORDS and not p.get("region"):
+        return True                                   # nur „Deutschland“ o. Ä.
+    if p.get("region") and p.get("region") == prev.get("region") and \
+            (not place or place == (prev.get("place") or "").strip().lower()):
+        return True
+    return False
+
+
+async def previous_report(bot, author_id, before_utc: datetime, exclude_mid, hours: int = 3) -> list[dict]:
+    """Meldungen derselben Person in den Stunden davor (neueste zuerst, ohne die Nachricht selbst)."""
+    if not author_id:
+        return []
+    since = (before_utc - timedelta(hours=hours)).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    until = before_utc.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    return [dict(r) for r in await execute_db(bot,
+        "SELECT * FROM swarm_reports WHERE author_id=? AND posted_at>=? AND posted_at<? AND message_id<>? "
+        "ORDER BY posted_at DESC", (str(author_id), since, until, str(exclude_mid)), fetch=True) or []]
+
+
+def comment_of(p: dict, prevs: list[dict], free: bool) -> dict | None:
+    """Passende frühere Meldung, wenn die Nachricht nur ein Kommentar dazu ist."""
+    for prev in prevs:
+        if is_comment(p, prev, free):
+            return prev
+    return None
 
 
 async def remove(bot, message_id) -> None:

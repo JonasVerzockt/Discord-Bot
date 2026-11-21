@@ -244,7 +244,8 @@ class Swarm(commands.Cog):
                            ("Budget", lambda b: execute_db(b, "DELETE FROM om_budget WHERE purpose='blocked'",
                                                            commit=True)),
                            ("Artenliste", lambda b: self._recanon()),
-                           ("Artenliste v2", lambda b: self._recanon_v2())):
+                           ("Artenliste v2", lambda b: self._recanon_v2()),
+                           ("Nachbesserung", lambda b: self._fix_v1())):
             try:
                 await step(self.bot)
             except Exception as e:
@@ -310,6 +311,49 @@ class Swarm(commands.Cog):
                          commit=True)
         logger.info("🐜 Schwarmflug: Artnamen neu abgeglichen, %d Meldungen geändert", changed)
 
+    async def _fix_v1(self):
+        """Einmalig: alte Daten nachbessern, ein Durchgang durch den Kanalverlauf (100 Nachrichten je Abruf).
+        1. Kommentare, die als eigene Meldung gezählt wurden, entfernen.
+        2. Uhrzeit nachtragen, wenn Datum und Uhrzeit in getrennten Zeilen standen (Wetter dann neu holen).
+        Manuell korrigierte Meldungen bleiben unangetastet."""
+        done = await execute_db(self.bot, "SELECT 1 FROM swarm_meta WHERE key='fix_v1'", fetch=True)
+        ch = self.bot.get_channel(SWARM_CHANNEL_ID)
+        if done or ch is None:
+            return
+        over = {r["message_id"] for r in await execute_db(self.bot, "SELECT message_id FROM swarm_override",
+                                                           fetch=True) or []}
+        no_time = {r["message_id"] for r in await execute_db(self.bot,
+            "SELECT DISTINCT message_id FROM swarm_reports WHERE flight_time IS NULL", fetch=True) or []}
+        n_comment = n_time = 0
+        try:
+            async for m in ch.history(limit=None, oldest_first=True):
+                mid = str(m.id)
+                if m.author.bot or mid in over or not (m.content or "").strip():
+                    continue
+                rows = await execute_db(self.bot, "SELECT * FROM swarm_reports WHERE message_id=?", (mid,), fetch=True)
+                if not rows:
+                    continue
+                clean = S._clean(m.content, _roles(m))
+                fields = S._fields(clean)
+                p = S.parse_message(m.content, _roles(m), m.created_at)
+                if not fields:
+                    p["taxa"] = [{"genus": r["genus"]} for r in rows]
+                    prevs = await S.previous_report(self.bot, m.author.id, m.created_at, m.id)
+                    if S.comment_of(p, prevs, True):
+                        await S.store(self.bot, m.id, m.author.id, m.created_at, {"taxa": []}, rows[0]["source"])
+                        n_comment += 1
+                        continue
+                if mid in no_time and fields.get("when") and p.get("time"):
+                    await execute_db(self.bot, "UPDATE swarm_reports SET flight_time=?, w_state=NULL "
+                                               "WHERE message_id=? AND flight_time IS NULL", (p["time"], mid), commit=True)
+                    n_time += 1
+        except Exception as e:
+            logger.warning("🪽 Nachbesserung abgebrochen, nächster Versuch beim nächsten Start: %s", e)
+            return
+        await execute_db(self.bot, "INSERT OR IGNORE INTO swarm_meta (key, value) VALUES ('fix_v1', datetime('now'))",
+                         commit=True)
+        logger.info("🪽 Nachbesserung: %d Kommentare entfernt, %d Uhrzeiten nachgetragen", n_comment, n_time)
+
     def cog_unload(self):
         self.alert_loop.cancel()
         if self.geo_loop.is_running():
@@ -360,6 +404,15 @@ class Swarm(commands.Cog):
                 await self._fill_location(m, p)
             await S.store(self.bot, m.id, m.author.id, m.created_at, {"taxa": []}, source)
             return 0
+        # Kommentar zur eigenen Meldung kurz davor („Das ist mein erster Messor-Flug“): keine neue Meldung
+        free = not S._fields(S._clean(m.content, _roles(m)))
+        if free:
+            prevs = await S.previous_report(self.bot, m.author.id, m.created_at, m.id)
+            hit = S.comment_of(p, prevs, free)
+            if hit:
+                await S.store(self.bot, m.id, m.author.id, m.created_at, {"taxa": []}, source)
+                logger.info("🪽 Nachricht %s ist ein Kommentar zu %s, keine eigene Meldung", m.id, hit["message_id"])
+                return 0
         # Art mit der Artenliste abgleichen (aktueller Name, Tippfehler)
         p["taxa"] = await asyncio.to_thread(R.canon_taxa, p["taxa"])
         raw_place = (S._fields(S._clean(m.content, _roles(m))).get("place") or "").strip()
