@@ -435,7 +435,7 @@ async def progress(bot, t) -> dict:
     bars = [bar("places", places_t, places_o), bar("clarify", clar_t, clar_o), bar("weather", wx_t, wx_o),
             bar("learn", done + pend, pend)]
     cool = FC.cooling() if hasattr(FC, "cooling") else 0
-    if bud.get("blocked"):
+    if getattr(FC, "_BLOCK_DAY", "") == FC._today():
         state = t("sw_prog_blocked")
     elif cool > 0:
         state = t("sw_prog_pause", m=int(cool // 60) + 1)

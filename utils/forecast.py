@@ -94,7 +94,9 @@ def _today() -> str:
 async def budget_left(bot, purpose: str) -> float:
     from config import SWARM_OM_DAILY
     rows = await execute_db(bot, "SELECT purpose, used FROM om_budget WHERE day=?", (_today(),), fetch=True) or []
-    used = {r["purpose"]: r["used"] for r in rows}
+    used = {r["purpose"]: r["used"] for r in rows if r["purpose"] != "blocked"}   # alte Sperr-Einträge ignorieren
+    if _BLOCK_DAY == _today():
+        return 0.0
     cap = CAPS.get(purpose, 0)
     if purpose == "train" and datetime.now(BERLIN).month not in SEASON:
         cap = TRAIN_CAP_OFFSEASON
@@ -115,6 +117,7 @@ TRAIN_RESERVE = 900                 # je Stunde frei für Wetter-Nachtrag und Pr
 _WIN: list = []                     # (zeitpunkt, kosten) der letzten Stunde, alle Zwecke zusammen
 _COOL_UNTIL = 0.0                   # nach HTTP 429: Pause bis
 _HITS: dict = {}                    # Tag → Anzahl 429
+_BLOCK_DAY = ""                     # Tag, an dem nach drei 429 nichts mehr abgefragt wird
 
 
 def cooling() -> float:
@@ -146,14 +149,13 @@ async def om_wait(n: float, reserve: float = 0) -> bool:
 async def budget_block(bot) -> None:
     """Nach HTTP 429: 15 Minuten Pause; ab der dritten Sperre am Tag ruht alles bis morgen."""
     import time as _t
-    global _COOL_UNTIL
+    global _COOL_UNTIL, _BLOCK_DAY
     d = _today()
     _HITS[d] = _HITS.get(d, 0) + 1
     _COOL_UNTIL = _t.monotonic() + 15 * 60
     logger.warning("🔮 Open-Meteo meldet Limit (429), Pause 15 Minuten (%d. Mal heute)", _HITS[d])
     if _HITS[d] >= 3:
-        from config import SWARM_OM_DAILY
-        await budget_use(bot, "blocked", SWARM_OM_DAILY)
+        _BLOCK_DAY = d
 
 
 async def budget_today(bot) -> dict:
@@ -172,7 +174,7 @@ async def _get(session, url, params):
                 logger.warning("🔮 Open-Meteo 429: %s", body)      # z. B. „Daily/Hourly/Minutely API request limit exceeded“
                 return "limit"
             if r.status != 200:
-                logger.info("🔮 Open-Meteo HTTP %s", r.status)
+                logger.warning("🔮 Open-Meteo HTTP %s: %s", r.status, (await r.text())[:300])
                 return None
             return await r.json()
     except Exception as e:
@@ -404,7 +406,12 @@ async def train_fetch(bot, max_requests: int = 200) -> int:
             start = date(y, 2, 26)                       # 3 Tage Vorlauf für Regen 72 h
             nv = len((VARS_FC if src == "hf" else VARS_ARCH).split(","))
             c = cost(1, (end - start).days + 1, nv)
-            if await budget_left(bot, "train") < c or not await om_wait(c, reserve=TRAIN_RESERVE):
+            left = await budget_left(bot, "train")
+            if left < c:
+                logger.info("🔮 Lerndaten: Tagesbudget erreicht (frei %.0f, nötig %.0f), weiter morgen", left, c)
+                break
+            if not await om_wait(c, reserve=TRAIN_RESERVE):
+                logger.info("🔮 Lerndaten: Stundengrenze bzw. Pause, weiter im nächsten Lauf")
                 break
             js = await _get(s, HIST_FC if src == "hf" else ARCHIVE,
                             {"latitude": p["lat"], "longitude": p["lon"],

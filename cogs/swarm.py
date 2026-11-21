@@ -111,12 +111,17 @@ class Swarm(commands.Cog):
             # Erfolge zählen nur Meldungen ab dem ersten Start mit Schwarmflug-Kanal (keine alten Posts)
             await execute_db(self.bot, "INSERT OR IGNORE INTO swarm_meta (key, value) VALUES ('ach_since', ?)",
                              (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),), commit=True)
-            await S.load_season(self.bot)
-            await S.reclassify_abroad(self.bot)
-            await execute_db(self.bot, "DELETE FROM om_budget WHERE purpose='blocked'", commit=True)
-            await self._recanon()
         except Exception as e:
-            logger.info("🪽 Saisonstart nicht geladen: %s", e)
+            logger.warning("🪽 Start: %s", e)
+        # Jeder Schritt einzeln, damit ein Fehler die anderen nicht verhindert
+        for name, step in (("Saisonstart", S.load_season), ("Ausland", S.reclassify_abroad),
+                           ("Budget", lambda b: execute_db(b, "DELETE FROM om_budget WHERE purpose='blocked'",
+                                                           commit=True)),
+                           ("Artenliste", lambda b: self._recanon())):
+            try:
+                await step(self.bot)
+            except Exception as e:
+                logger.warning("🪽 Start (%s) fehlgeschlagen: %s", name, e, exc_info=True)
 
     async def _recanon(self):
         """Einmalig: gespeicherte Arten mit der Artenliste abgleichen (ohne KI; Unbekanntes
@@ -632,18 +637,19 @@ class Swarm(commands.Cog):
                 pass
 
     # ── Wetter zur Flugzeit (Open-Meteo) ─────────────────────────────────────
-    @tasks.loop(hours=1)
+    @tasks.loop(minutes=20)
     async def weather_loop(self):
         from utils import weather
         try:
-            await weather.backfill(self.bot)
+            n = await weather.backfill(self.bot)
+            logger.info("🌦️ Wetter-Takt: %d nachgetragen", n)
         except Exception as e:
-            logger.warning("🌦️ Wetter-Nachtrag fehlgeschlagen: %s", e)
+            logger.warning("🌦️ Wetter-Nachtrag fehlgeschlagen: %s", e, exc_info=True)
 
     @weather_loop.before_loop
     async def _before_weather(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(align_delay_seconds(60 * 60) + 7 * 60)
+        await asyncio.sleep(align_delay_seconds(20 * 60) + 7 * 60)
 
     # ── Prognose ─────────────────────────────────────────────────────────────
     @tasks.loop(minutes=10)
@@ -652,16 +658,35 @@ class Swarm(commands.Cog):
         now = datetime.now(BERLIN)
         day = now.date().isoformat()
         try:
+            logger.info("🔮 Prognose-Takt %s: frei Lernen %.0f, Wetter %.0f, Pause %.0f s", now.strftime("%H:%M"),
+                        await FC.budget_left(self.bot, "train"), await FC.budget_left(self.bot, "weather"), FC.cooling())
+        except Exception as e:
+            logger.warning("🔮 Budget nicht lesbar: %s", e, exc_info=True)
+        try:
             if not await FC.points(self.bot) or (now.weekday() == 0 and now.hour == 4 and now.minute < 10):
                 await FC.build_points(self.bot)
-            if not await FC.models(self.bot):
-                await FC.train_models(self.bot)                   # zuerst Regeln, Modelle folgen
-            in_season = now.month in FC.SEASON
-            # Lernen: außerhalb der Saison jederzeit, in der Saison nur nachts
-            if not in_season or now.hour < 5 or now.hour >= 22:
+        except Exception as e:
+            logger.warning("🔮 Prognosepunkte fehlgeschlagen: %s", e, exc_info=True)
+        in_season = now.month in FC.SEASON
+        # Lernen zuerst, damit ein Fehler beim Modelltraining das Nachladen nicht blockiert
+        if not in_season or now.hour < 5 or now.hour >= 22:
+            try:
                 got = await FC.train_fetch(self.bot, max_requests=60)
                 if got and await FC.train_pending(self.bot) == 0:
                     await FC.train_models(self.bot)
+            except Exception as e:
+                logger.warning("🔮 Lerndaten fehlgeschlagen: %s", e, exc_info=True)
+        try:
+            # Ohne Modelle höchstens einmal am Tag neu rechnen (sonst läuft das schwere Training alle 10 Minuten)
+            if not await FC.models(self.bot):
+                last = await execute_db(self.bot, "SELECT value FROM swarm_meta WHERE key='models_try'", fetch=True)
+                if not last or last[0]["value"] != day:
+                    await execute_db(self.bot, "INSERT INTO swarm_meta (key, value) VALUES ('models_try', ?) "
+                                               "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (day,), commit=True)
+                    await FC.train_models(self.bot)
+        except Exception as e:
+            logger.warning("🔮 Modelltraining fehlgeschlagen: %s", e, exc_info=True)
+        try:
             if now.weekday() == 0 and now.hour == 3 and now.minute < 10:
                 await FC.train_models(self.bot)                   # wöchentlich mit neuen Meldungen
             if not in_season:

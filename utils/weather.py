@@ -58,7 +58,7 @@ HIST_FC = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 HIST_FC_FROM = date(2023, 1, 1)
 FORECAST = "https://api.open-meteo.com/v1/forecast"
 HOURLY = "temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,cloud_cover,precipitation"
-WEATHER_PER_RUN = 300
+WEATHER_PER_RUN = 100                 # je 20-Minuten-Lauf, Tagesgrenze bleibt 1.500
 _GAP = 1.1
 DEFAULT_HOUR = 17          # ohne Uhrzeit und ohne bekannte Flugzeit der Art
 
@@ -88,7 +88,7 @@ async def _fetch(session, lat: float, lon: float, day: date) -> dict | None:
                     pass
                 return {"limit": True}
             if r.status != 200:
-                logger.info("🌦️ Open-Meteo HTTP %s (%s)", r.status, day)
+                logger.warning("🌦️ Open-Meteo HTTP %s (%s): %s", r.status, day, (await r.text())[:300])
                 return None
             return await r.json()
     except Exception as e:
@@ -157,7 +157,11 @@ async def backfill(bot, limit: int = WEATHER_PER_RUN) -> int:
             if calls >= limit:
                 break
             from utils import forecast as FC
-            if await FC.budget_left(bot, "weather") < 1 or not await FC.om_wait(1):
+            if await FC.budget_left(bot, "weather") < 1:
+                logger.info("🌦️ Wetter: Tagesbudget erreicht")
+                break
+            if not await FC.om_wait(1):
+                logger.info("🌦️ Wetter: Pause bzw. Stundengrenze")
                 break
             try:
                 day = date.fromisoformat(d)
@@ -171,6 +175,7 @@ async def backfill(bot, limit: int = WEATHER_PER_RUN) -> int:
                 await FC.budget_block(bot)
                 break
             if js and js.get("error"):
+                logger.info("🌦️ Wetter: Open-Meteo-Fehler %s", js.get("reason") or js)
                 break                                   # später erneut
             src = src_of(day, today)
             for r in lst:
