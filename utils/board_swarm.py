@@ -672,7 +672,8 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
                      "art": art_slug(x["name"]) if " " in x["name"] else None})
 
     abroad_all = await S.rows(bot, include_indoor=True, scope="abroad")
-    unclear_n = len({r["message_id"] for r in await S.rows(bot, include_indoor=True, scope="unclear")}) if member else 0
+    unclear_n = len({r["message_id"] for r in await S.rows(bot, include_indoor=True, scope="unclear")
+                     if not r["indoor"]}) if member else 0   # wie die Admin-Seite: ohne Zimmerflüge
     pool = sorted([r for r in all_rows + abroad_all if not g or r["genus"] == g],
                   key=lambda r: (r["flight_date"], r["flight_time"] or ""), reverse=True)
     inside = [r for r in pool if inr(r["flight_date"])]
