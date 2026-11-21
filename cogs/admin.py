@@ -121,6 +121,7 @@ class AdminCog(commands.Cog, name="Admin"):
         ("KI-Chat · Verläufe aufräumen",            "AiChatCog",     "cleanup_loop"),
         ("KI-Chat · Shop-Daten-Refresh",            "AiChatCog",     "shop_data_loop"),
         ("iNaturalist · Abgleich (letzte 6 Monate)", "InatTracker",   "daily"),
+        ("Schwarmflug · Wetter nachtragen",         "Swarm",         "weather_loop"),
     ]
 
     @discord.slash_command(name="run_jobs", description="🔒 [Admin] Run all background jobs once now", description_localizations={"de": "🔒 [Admin] Alle Hintergrund-Jobs einmalig sofort ausführen"})

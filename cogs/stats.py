@@ -181,7 +181,7 @@ class StatsCog(commands.Cog, name="Stats"):
             "help_offer_alert",
         ]),
         ("help_grp_offers", [
-            "help_sells", "help_offers", "help_art", "help_shop", "help_bewerten",
+            "help_sells", "help_offers", "help_art", "help_shop", "help_bewerten", "help_schwarmflug", "help_schwarmflug_vorlage",
         ]),
         ("help_grp_pricetracking", [
             "help_track_price", "help_my_price_tracking", "help_untrack_price",

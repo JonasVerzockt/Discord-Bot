@@ -170,6 +170,20 @@ AI_CHAT_TOOL_ROUNDS = int(os.getenv("AI_CHAT_TOOL_ROUNDS", "3"))
 # Jahresrückblick: Kanal für den Post am 31.12. um 23 Uhr (Berliner Zeit). 0 = kein Post.
 YEAR_REVIEW_CHANNEL_ID = int(os.getenv("YEAR_REVIEW_CHANNEL_ID", "0") or "0")
 
+# Schwarmflug-Radar: Kanal mit den Schwarmflug-Meldungen (0 = Funktion aus).
+SWARM_CHANNEL_ID = int(os.getenv("SWARM_CHANNEL_ID", "0") or "0")
+# KI-Modell für Freitext-Meldungen ohne Vorlage (Standard wie der Review-Parser).
+SWARM_PARSER_MODEL = os.getenv("SWARM_PARSER_MODEL", REVIEW_PARSER_MODEL)
+# Ortsauflösung über OpenStreetMap Nominatim (nur der Ortsname wird übertragen).
+SWARM_OSM_GEOCODING = os.getenv("SWARM_OSM_GEOCODING", "true").lower() in ("1", "true", "yes")
+# Wetter zur Flugzeit nachtragen (Open-Meteo, nur gerundete Koordinate und Datum werden übertragen).
+SWARM_WEATHER = os.getenv("SWARM_WEATHER", "true").lower() in ("1", "true", "yes")
+# Schwarmflug-Prognose (Open-Meteo-Vorhersage + gelerntes Modell), Post im Schwarmflug-Kanal
+SWARM_FORECAST = os.getenv("SWARM_FORECAST", "true").lower() in ("1", "true", "yes")
+SWARM_FORECAST_POST = os.getenv("SWARM_FORECAST_POST", "true").lower() in ("1", "true", "yes")
+# Tagesbudget Open-Meteo gesamt (freie API: < 10.000/Tag); Rest bleibt als Puffer frei.
+SWARM_OM_DAILY = int(os.getenv("SWARM_OM_DAILY", "8500") or "8500")
+
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
 AI_CHAT_PUBLIC = os.getenv("AI_CHAT_PUBLIC", "false").lower() == "true"

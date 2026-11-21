@@ -122,6 +122,7 @@ INITIAL_COGS = [
     "cogs.custom_commands",   # /info – benutzerdefinierte Text-Befehle (Info-Einträge)
     "cogs.offer_alerts",      # /offer_alert – Schlagwort-Alerts für den Angebote-Kanal
     "cogs.chat_export",       # /export_chat – Channel als JSON exportieren (Admin)
+    "cogs.swarm",             # Schwarmflug-Radar: liest SWARM_CHANNEL_ID, /schwarmflug, Alarm-PNs
     "cogs.bewerten",          # /bewerten – Bewertung nach Vorlage ausfüllen, Text zum Kopieren
     "cogs.account",           # /konto + PN-Verlauf + Konto-Einstellungen (Ruhezeiten, Sitzungen)
     "cogs.board",             # Öffentliches Feedback-Board (aiohttp, eigene DB) – nur wenn BOARD_ENABLED

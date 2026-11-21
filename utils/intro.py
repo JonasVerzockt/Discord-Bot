@@ -24,6 +24,7 @@ Zeiträume (Berliner Zeit):
   Neujahr 31.12.–1.1. · Weihnachten 1.–26.12. · Ostern Karfreitag–Ostermontag (berechnet)
   31.10.–2.11. Halloween + AAM-Server-Geburtstag (seit 31.10.2017) · 22.–24.6. Bot-Geburtstag (seit 22.06.2026)
   Jahresrückblick 1.11.–31.1. · Schwarmflug 1.7.–31.8. · Frühlingsstart 20.3.–10.4.
+  Saisonstart Schwarmflug: 14 Tage nach der ersten Meldung des Jahres im Schwarmflug-Kanal
 
 Schwarmflug-Zeitraum laut Quellen: Lasius niger „Mating swarms occur from July to late
 August“ (Collingwood 1979, zitiert auf https://www.antwiki.org/wiki/Lasius_niger) und
@@ -65,10 +66,16 @@ def _in(d: date, start: date, end: date) -> bool:
     return start <= d <= end
 
 
-def seasonal(today: date) -> list[dict]:
-    """Feiertage und Saison-Anlässe für heute, nach Vorrang sortiert."""
+def seasonal(today: date, swarm_start: dict | None = None) -> list[dict]:
+    """Feiertage und Saison-Anlässe für heute, nach Vorrang sortiert. swarm_start = Saisonstart
+    aus dem Schwarmflug-Kanal (utils/swarm.py, nur in den 14 Tagen danach gesetzt)."""
     y = today.year
     out: list[dict] = []
+    if swarm_start:
+        fd = str(swarm_start.get("flight_date") or "")
+        out.append({"key": f"swarmstart{y}", "scene": "swarm", "tk": "swarmstart", "link": "/schwarmflug",
+                    "p": {"label": swarm_start.get("label", ""), "where": swarm_start.get("where", ""),
+                          "d": f"{fd[8:10]}.{fd[5:7]}." if len(fd) == 10 else ""}})
     # Neujahr: Schlüssel = das neue Jahr
     if today.month == 12 and today.day == 31:
         out.append({"key": f"newyear{y + 1}", "scene": "newyear", "p": {"y": y + 1}})

@@ -61,6 +61,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL,
                     BOARD_AI_CHAT_PER_HOUR)
 from utils import geo, map_tags
 from utils import account as ACC
+from utils import board_swarm as SWB
 from datetime import datetime, timezone, timedelta
 from utils.board_db import (board_init, board_query, board_one, board_exec, board_execmany)
 from utils.db import execute_db
@@ -328,7 +329,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 20px;display:flex;gap:16px;align-items:center}
  header h1{font-size:18px;margin:0} header>a{white-space:nowrap} .grow{flex:1}
  /* Handy: Kopfzeile umbrechen statt die Seite zu verbreitern */
- @media(max-width:1180px){header{flex-wrap:wrap;gap:8px 14px;padding:10px 14px} header h1{flex-basis:100%} header>.grow{display:none}}
+ @media(max-width:1360px){header{flex-wrap:wrap;gap:8px 14px;padding:10px 14px} header h1{flex-basis:100%} header>.grow{display:none}}
  .wrap{max-width:1100px;margin:0 auto;padding:20px}
  .btn{background:#238636;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:14px}
  .btn.grey{background:#30363d} .btn.red{background:#8b2b2b} .btn.small{padding:3px 8px;font-size:13px}
@@ -410,13 +411,13 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
  .legal{max-width:820px} .legal h3{margin:18px 0 6px;font-size:15px;color:#c9d1d9} .legal p{margin:0 0 8px} .legal code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:1px 5px}
 </style></head><body>
 <header><h1>🐜 {{ t('brand') }}</h1>
- <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/shops{{ qs() }}">{{ t('nav_shops') }}</a><a href="/art{{ qs() }}">{{ t('nav_species') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
+ <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/shops{{ qs() }}">{{ t('nav_shops') }}</a><a href="/art{{ qs() }}">{{ t('nav_species') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/schwarmflug{{ qs() }}">{{ t('nav_swarm') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
  <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
  <a href="/hilfe{{ qs() }}">{{ t('nav_help') }}</a>
  {% if nav_member %}<a href="/konto{{ qs() }}">{{ t('nav_konto') }}</a>{% endif %}
  {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
  {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
-<div class=wrap>{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
+<div class=wrap>{% if swarm_banner %}<div class=flash style="background:#3fb95018;border-color:#3fb95066">🪽 <b>{{ t('sw_season_open', y=swarm_banner.year) }}</b> {{ t('sw_season_first', label=swarm_banner.label, d=swarm_banner.flight_date|dmy, where=swarm_banner.where) }} <a href="/schwarmflug{{ qs() }}">{{ t('sw_art_more') }} →</a></div>{% endif %}{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
 {% if partner_strip %}<div class=pstrip aria-label="{{ t('map_partner_h') }}"><span class=plbl>🤝 <a href="/partner?lang={{ lang }}" style="color:inherit">{{ t('map_partner_h') }}</a></span>
 {% for p in partner_strip %}<a href="{{ p.url }}" target=_blank rel="{{ 'sponsored ' if p.ad }}noopener noreferrer" title="{{ p.text }}{% if p.code %} · {{ t('map_partner_code') }}: {{ p.code }}{% endif %}">{% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}<span>{{ p.name }}</span>{% if p.ad %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
 <footer style="max-width:1100px;margin:28px auto 12px;padding:14px 20px;border-top:1px solid #30363d;color:#8b949e;font-size:13px;text-align:center;line-height:1.6">
@@ -429,6 +430,7 @@ BASE = """<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
   · <a href="/gewinnspiel?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_giveaway') }}</a>
   · <a href="/rueckblick?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_yearreview') }}</a>
   · <a href="/inat?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_inat') }}</a>
+  · <a href="/schwarmflug?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_swarm') }}</a>
   · <a href="/konto?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_konto') }}</a>
   · <a href="/hilfe?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_help') }}</a>
 </footer>
@@ -1161,6 +1163,7 @@ ART = """{% extends "base" %}{% block body %}
 <td>{% if o.in_stock %}<span style="color:#3fb950">● {{ t('dir_instock') }}</span>{% else %}<span class=muted>○ {{ t('dir_soldout') }}</span>{% endif %}</td>
 <td><a href="{{ o.url }}" target=_blank rel="noopener noreferrer">{{ t('dir_to_offer') }} ↗</a></td></tr>{% endfor %}
 </table>{% if sig_any %}<p class=muted style="font-size:12px;margin:8px 0 0">{{ sig_legend }}</p>{% endif %}</div>
+{% include "swarm_box" %}
 {% if season %}<div class=chartbox><h4>{{ season.h }}</h4><p style="margin:0 0 10px">{{ season.text }}</p>
 <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end;height:70px">{% for m in season.months %}<div title="{{ season.names[loop.index0] }}{% if m is not none %}: {{ (m * 100)|round|int }} %{% endif %}" style="background:{% if m is none %}#21262d{% elif m >= 0.5 %}#3fb950{% else %}#3fb95055{% endif %};height:{{ 6 if m is none else (6 + m * 64)|int }}px;border-radius:3px"></div>{% endfor %}</div>
 <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;font-size:11px;text-align:center" class=muted>{% for n in season.short %}<div>{{ n }}</div>{% endfor %}</div></div>{% endif %}
@@ -1263,10 +1266,11 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
   <p style="margin:2px 0">{{ tp('yrp_commands', n=me.commands) }}</p>
   {% if me.top_commands %}<p style="margin:2px 0">{{ tp('yrp_top', list='') }}{% for c, n in me.top_commands %}<code>/{{ c }}</code> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
   {% if me.first %}<p style="margin:2px 0">{{ tp('yrp_first', date=me.first) }}</p>{% endif %}
- {% if me.notifications or me.watches or me.tracked or me.rsvps or (me.inat and me.inat.obs) %}<h4>{{ tp('yrp_h_ants') }}</h4>{% endif %}
+ {% if me.notifications or me.watches or me.tracked or me.rsvps or (me.inat and me.inat.obs) or me.swarm %}<h4>{{ tp('yrp_h_ants') }}</h4>{% endif %}
   {% set ants = [] %}{% if me.notifications %}{% set _ = ants.append(tp('yrp_notifications', n=me.notifications)) %}{% endif %}{% if me.watches %}{% set _ = ants.append(tp('yrp_watches', n=me.watches)) %}{% endif %}{% if me.tracked %}{% set _ = ants.append(tp('yrp_tracked', n=me.tracked)) %}{% endif %}{% if me.rsvps %}{% set _ = ants.append(tp('yrp_rsvps', n=me.rsvps)) %}{% endif %}
   {% if ants %}<p style="margin:2px 0">{{ ants|join(' · ') }}</p>{% endif %}
   {% if me.inat and me.inat.obs %}<p style="margin:2px 0">{{ tp('yrp_inat', obs=me.inat.obs, species=me.inat.species) }}</p>{% endif %}
+  {% if me.swarm %}<p style="margin:2px 0">{{ tp('yrp_swarm', n=me.swarm, taxa=me.swarm_taxa) }}</p>{% endif %}
  {% if me.ach %}<h4>{{ tp('yrp_h_ach', n=me.ach|length) }}</h4>
   <p style="margin:2px 0">{% for e, n in me.ach %}{{ e }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
  {% endif %}
@@ -1290,6 +1294,12 @@ RUECKBLICK = """{% extends "base" %}{% block body %}
  <p style="margin:2px 0">👥 {{ m(d.inat.people) }} {{ t('yr_inat_people') }}</p>
  {% if d.inat.new %}<p style="margin:2px 0">🌟 {{ d.inat.new }} {{ t('yr_inat_new') }}</p>{% endif %}
  {% if d.inat.top %}<p style="margin:2px 0">🏆 {{ t('yr_inat_top') }}: <a href="/art/{{ d.inat.top[0]|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ d.inat.top[0] }}</i></a> ({{ d.inat.top[1] }}×)</p>{% endif %}
+</div>{% endif %}
+{% if d.swarm and d.swarm.n %}<div class=chartbox><h4>🪽 {{ t('yr_swarm_h') }} <a href="/schwarmflug{{ qs() }}" style="font-size:12px;font-weight:400">{{ t('sw_art_more') }} →</a></h4>
+ <p style="margin:2px 0">{{ t('yr_swarm_n', n=d.swarm.n, taxa=d.swarm.taxa) }} · 👥 {{ m(d.swarm.people) }} {{ t('yr_swarm_people') }}</p>
+ {% if d.swarm.start %}<p style="margin:2px 0">🎉 {{ t('yr_swarm_start') }}: <i>{{ d.swarm.start[0] }}</i> ({{ d.swarm.start[1]|dmy }})</p>{% endif %}
+ {% if d.swarm.top %}<p style="margin:2px 0">🏆 {{ t('yr_swarm_top') }}: <i>{{ d.swarm.top[0] }}</i> ({{ d.swarm.top[1] }}×)</p>{% endif %}
+ {% if d.swarm.peak %}<p style="margin:2px 0">📈 {{ t('yr_swarm_peak') }}: {{ d.swarm.peak }}</p>{% endif %}
 </div>{% endif %}
 {% if d.reviews.most or d.reviews.best or d.fastest %}<div class=chartbox><h4>⭐ {{ t('yr_k_reviews') }}</h4>
  {% if d.reviews.most %}<p>{{ t('yr_most_l') }}: {% for s, n in d.reviews.most %}<a href="/shop/{{ s|urlencode }}{{ qs() }}">{{ names.get(s, s) }}</a> ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
@@ -1483,6 +1493,7 @@ def _render(req, name, title="Board", flash="", **ctx):
                 partner_strip=(_load_partners() if name != "map" else []))
     i18n["nav_member"] = bool(_aam_member(req))
     i18n["intro_v"] = _intro_asset_v()
+    i18n["swarm_banner"] = SWB.season_info(lang) if name not in ("schwarmflug", "map") else None
     chat_uid = _chat_uid(req) if name != "map" else None
     i18n.update(chat_ok=bool(chat_uid), chat_csrf=_member_csrf(chat_uid) if chat_uid else "",
                 chat_ttl=_chat_ttl())
@@ -2564,7 +2575,9 @@ async def h_art(req):
                 "months": sprof["months"], "names": SEA.MONTHS.get(lang, SEA.MONTHS["de"]),
                 "short": SEA.MONTHS_SHORT.get(lang, SEA.MONTHS_SHORT["de"])}
     star = await _star_ctx(req, sp["name"])
+    swarm = await SWB.art_box(req.app["bot"], sp["name"], lang)
     resp = _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock, star=star,
+                   swarm=swarm, sw_short=[m[:3] for m in _SW_MONTHS.get(lang, _SW_MONTHS["de"])],
                    flash=_konto_flash(req),
                    trend=trend, rare=len(sp["shops"]) == 1, eur=_eur_fmt, price=dirx.fmt_price,
                    fetched=fetched, season=seas,
@@ -2697,7 +2710,7 @@ async def h_rueckblick(req):
         me["name"] = _member_name(req.app, uid) or ""
         me["has"] = bool(me["commands"] or me["achievements"] or me["reviews"]
                          or me["notifications"] or me["watches"] or me["tracked"]
-                         or me.get("inat", {}).get("obs"))
+                         or me.get("inat", {}).get("obs") or me.get("swarm"))
         try:
             from utils.achievements import ACHIEVEMENTS
             emo = {a.id: a.emoji for a in ACHIEVEMENTS}
@@ -4195,7 +4208,7 @@ _HP_EXAMPLES = {
     "help_usersetting": "/usersetting language language:de",
 }
 _HP_BOARD = [("finder", "/art"), ("star", "/art"), ("card", "/art"), ("shops", "/shops"),
-             ("konto", "/konto"), ("map", "/map"), ("yearreview", "/rueckblick"), ("inat", "/inat"),
+             ("konto", "/konto"), ("map", "/map"), ("swarm", "/schwarmflug"), ("yearreview", "/rueckblick"), ("inat", "/inat"),
              ("stats", "/stats"), ("chat", ""), ("intros", ""), ("board", "/")]
 _HP_FAQ = ["nodm", "channel", "data", "ampel", "source", "review", "quiet", "intro"]
 _MD_B = re.compile(r"\*\*(.+?)\*\*")
@@ -4279,13 +4292,14 @@ def _intro_payload(lang: str, c: dict) -> dict:
     if link:
         path, _, frag = link.partition("#")
         link = f"{path}?lang={lang}" + (f"#{frag}" if frag else "")
-    key_s = f"intro_{sc}_s1" if sc in ("botbday", "aam", "join") and p.get("n") == 1 else f"intro_{sc}_s"
-    title_k = f"intro_{sc}_t1" if sc in ("botbday", "aam", "join") and p.get("n") == 1 else f"intro_{sc}_t"
+    tk = c.get("tk") or sc                      # eigener Text bei gleicher Szene (z. B. Saisonstart)
+    key_s = f"intro_{tk}_s1" if sc in ("botbday", "aam", "join") and p.get("n") == 1 else f"intro_{tk}_s"
+    title_k = f"intro_{tk}_t1" if sc in ("botbday", "aam", "join") and p.get("n") == 1 else f"intro_{tk}_t"
     if sc == "ach" and p.get("n", 1) > 1:
         key_s = "intro_ach_s_more"
     return {"show": True, "scene": sc,
             "title": translate(lang, title_k, **p), "sub": translate(lang, key_s, **p),
-            "link": link, "link_label": translate(lang, f"intro_{sc}_link") if link else "",
+            "link": link, "link_label": translate(lang, f"intro_{tk}_link") if link else "",
             "skip": translate(lang, "intro_skip"), "p": p}
 
 
@@ -4323,7 +4337,7 @@ async def h_intro(req):
             if c.get("silent"):
                 await ACC.set_prefs(bot, uid, **c["commit"])   # erster Besuch: Ist-Stand merken
         cands += [c for c in pers if not c.get("silent")]
-    cands += IN.seasonal(today)
+    cands += IN.seasonal(today, SWB.season_info(lang))
     pick = next((c for c in cands if c["key"] not in seen), None)
     if not pick:
         return none
@@ -4387,7 +4401,7 @@ KONTO = """{% extends "base" %}{% block body %}
 <label class=kunlock for=kunlock><input type=checkbox id=kunlock autocomplete=off><span><b>🗑️ {{ t('konto_unlock_t') }}</b><span class=muted>{{ t('konto_unlock_s') }}</span></span></label>
 <script>(function(){var c=document.getElementById("kunlock");c.checked=false;function u(){document.body.classList.toggle("kunlocked",c.checked);document.querySelectorAll(".kul").forEach(function(i){i.value=c.checked?"1":"";});}c.addEventListener("change",u);window.addEventListener("pageshow",function(){c.checked=false;u();});u();})();</script>
 <nav class=secnav>
- <a href="#uebersicht">{{ t('konto_s_overview') }}</a><a href="#benachrichtigungen">{{ t('konto_s_notif') }}</a><a href="#preise">{{ t('konto_s_prices') }}</a><a href="#einstellungen">{{ t('konto_s_settings') }}</a><a href="#termine">{{ t('konto_s_events') }}</a><a href="#karte">{{ t('konto_s_map') }}</a><a href="#inat">{{ t('konto_s_inat') }}</a><a href="#erfolge">{{ t('konto_s_ach') }}</a><a href="#bewertungen">{{ t('konto_s_reviews') }}</a><a href="#verlauf">{{ t('konto_s_history') }}</a><a href="#daten">{{ t('konto_s_data') }}</a>
+ <a href="#uebersicht">{{ t('konto_s_overview') }}</a><a href="#benachrichtigungen">{{ t('konto_s_notif') }}</a><a href="#preise">{{ t('konto_s_prices') }}</a><a href="#einstellungen">{{ t('konto_s_settings') }}</a><a href="#schwarmflug">{{ t('konto_s_swarm') }}</a><a href="#termine">{{ t('konto_s_events') }}</a><a href="#karte">{{ t('konto_s_map') }}</a><a href="#inat">{{ t('konto_s_inat') }}</a><a href="#erfolge">{{ t('konto_s_ach') }}</a><a href="#bewertungen">{{ t('konto_s_reviews') }}</a><a href="#verlauf">{{ t('konto_s_history') }}</a><a href="#daten">{{ t('konto_s_data') }}</a>
 </nav>
 
 <section class=statsec id=uebersicht><h3>📋 {{ t('konto_s_overview') }}</h3>
@@ -4518,6 +4532,21 @@ KONTO = """{% extends "base" %}{% block body %}
  <button class="btn grey">{{ t('konto_add') }}</button></form>{% endif %}
 </section>
 
+<section class=statsec id=schwarmflug><h3>🪽 {{ t('konto_s_swarm') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_sw_intro') }} <a href="/schwarmflug{{ qs() }}">{{ t('nav_swarm') }} →</a></p>
+{% if d.swarm_alerts %}<div>{% for a in d.swarm_alerts %}<form class=inl method=post action="{{ act('schwarm/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=taxon value="{{ a.taxon }}"><input type=hidden name=country value="{{ a.country }}"><input type=hidden name=region value="{{ a.region }}"><span class=tag style="font-size:13px;padding:3px 8px">{% if a.taxon == '*' %}🎉 {{ t('konto_sw_start') }}{% else %}<i>{{ a.taxon }}</i> · {{ sw_where(a.country, a.region) }}{% endif %} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_sw_none') }}</p>{% endif %}
+{% if sw_enabled and not sw_start_on %}<p style="margin:10px 0 0"><form method=post action="{{ act('schwarm/neu') }}" class=inl>{{ cs() }}<input type=hidden name=taxon value="*"><input type=hidden name=where value=""><button class="btn grey small">🎉 {{ t('konto_sw_start_btn') }}</button></form> <span class=muted style="font-size:13px">{{ t('konto_sw_start_d') }}</span></p>{% endif %}
+{% if sw_enabled and fc_enabled %}<form method=post action="{{ act('schwarm/prognose') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>🔮 {{ t('konto_fc_h') }}</label><select name=level>{% for v in ('off', 'rare', 'normal', 'often') %}<option value="{{ v }}" {{ 'selected' if d.swarm_fc == v }}>{{ t('konto_fc_' ~ v) }}</option>{% endfor %}</select></div>
+ <button class="btn grey">{{ t('konto_fc_save') }}</button></form>{% endif %}
+{% if sw_enabled %}<form method=post action="{{ act('schwarm/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:2"><label>{{ t('konto_sw_taxon') }}</label><input name=taxon required maxlength=60 list=kspecies placeholder="Lasius niger, Camponotus"></div>
+ <div style="flex:2"><label>{{ t('konto_sw_region') }}</label><select name=where>{% for v, lbl in sw_regions %}<option value="{{ v }}" {{ 'selected' if v==sw_default }}>{{ lbl }}</option>{% endfor %}</select></div>
+ <button class="btn grey">{{ t('konto_add') }}</button></form>{% endif %}
+{% if d.swarm_mine %}<details><summary class=muted style="cursor:pointer">{{ t('konto_sw_mine', n=d.swarm_mine|length) }}</summary>
+<table class=kt>{% for r in d.swarm_mine %}<tr><td>{{ r.flight_date|dmy }}</td><td><i>{{ r.label }}</i></td><td>{{ sw_where(r.country, r.region) if r.region else '' }}</td><td class=muted>{{ r.place }}</td></tr>{% endfor %}</table></details>{% endif %}
+</section>
+
 <section class=statsec id=termine><h3>📅 {{ t('konto_s_events') }}</h3>
 {% if d.rsvps %}<table class=kt><tr><th>{{ t('konto_col_date') }}</th><th>{{ t('konto_col_event') }}</th><th class=hm>{{ t('konto_col_place') }}</th><th></th></tr>
 {% for r in d.rsvps %}<tr><td style="white-space:nowrap">{{ r.occ_date|dmy }}{% if not r.all_day and r.start_at %}<div class=muted>{{ r.start_at[11:16] }}</div>{% endif %}</td>
@@ -4616,6 +4645,37 @@ KONTO = """{% extends "base" %}{% block body %}
 # ══ Mein Konto (/konto, nur eingeloggte AAM-Mitglieder) ════════════════════════
 ENV.loader.mapping["konto"] = KONTO
 
+# ══ Schwarmflug-Radar (/schwarmflug) ═══════════════════════════════════════════
+ENV.loader.mapping["schwarmflug"] = SWB.TEMPLATE
+ENV.loader.mapping["swarm_box"] = SWB.ART_BOX
+_SW_MONTHS = {"de": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
+                     "Oktober", "November", "Dezember"],
+              "en": ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                     "October", "November", "December"],
+              "eo": ["Januaro", "Februaro", "Marto", "Aprilo", "Majo", "Junio", "Julio", "Aŭgusto", "Septembro",
+                     "Oktobro", "Novembro", "Decembro"]}
+
+
+async def h_swarm(req):
+    lang = pick_lang(req)
+    uid = _aam_member(req)
+    try:
+        from utils import directory as dirx
+        idx = await asyncio.to_thread(dirx.index)
+        known = {v["name"].lower(): v["name"] for v in idx.get("species", {}).values() if v.get("name")}
+    except Exception:
+        dirx, known = None, {}
+
+    def art_slug(name):
+        hit = known.get(name.lower())
+        return dirx.slug(hit) if hit and dirx else None
+    ctx = await SWB.page(req.app["bot"], req.query.get("z", ""), (req.query.get("g") or "").strip()[:40],
+                         bool(uid), lang, art_slug, _SW_MONTHS.get(lang, _SW_MONTHS["de"]),
+                         lambda key, **kw: translate(lang, key, **kw), q=dict(req.query))
+    resp = _render(req, "schwarmflug", title=translate(lang, "sw_h"), login_url=_login_url(req), **ctx)
+    resp.headers["Cache-Control"] = "private, no-store" if uid else "public, max-age=300"
+    return resp
+
 
 def _f_dmy(v) -> str:
     s = str(v or "")[:10]
@@ -4636,7 +4696,7 @@ ENV.filters["dmy"] = _f_dmy
 ENV.filters["berlin"] = _f_berlin
 
 _KONTO_DANGER = {"preis/entfernen", "beobachtung/entfernen", "blacklist/entfernen", "schlagwort/entfernen",
-                 "termin/absagen", "karte/loeschen", "loeschen"}
+                 "termin/absagen", "karte/loeschen", "loeschen", "schwarm/entfernen"}
 _KONTO_STATUSES = ("active", "paused", "completed", "pending_feedback", "expired", "failed")
 _KONTO_SPECIES_CACHE: dict = {"at": 0.0, "names": []}
 _MD_STRIP = re.compile(r"(\*\*|__|`+)")
@@ -4731,10 +4791,44 @@ async def _konto_page(req, uid, flash: str = "", form: dict | None = None, open_
                    dm_days=ACC.DM_LOG_DAYS, dm_max=ACC.DM_LOG_MAX,
                    areas=list(ACC.AREAS), log_days=COMMAND_LOG_RETENTION_DAYS,
                    species_names=_konto_species_names(),
+                   sw_enabled=bool(_swarm_on()), sw_regions=_sw_regions(lang),
+                   sw_start_on=any(a["taxon"] == "*" for a in d["swarm_alerts"]),
+                   fc_enabled=_fc_on(),
+                   sw_where=lambda c, r: _sw_where(lang, c, r),
+                   sw_default=(f"{d['map']['country']}-{d['map'].get('region_code') or ''}".rstrip("-")
+                               if d["map"] and d["map"].get("country") else ""),
                    login_url="")
     resp.headers["Cache-Control"] = "private, no-store"
     resp.set_status(status)
     return resp
+
+
+def _swarm_on() -> int:
+    from config import SWARM_CHANNEL_ID
+    return SWARM_CHANNEL_ID
+
+
+def _fc_on() -> bool:
+    from config import SWARM_FORECAST
+    return bool(SWARM_FORECAST)
+
+
+def _sw_regions(lang: str) -> list[tuple[str, str]]:
+    """Auswahl für den Schwarmflug-Alarm: überall, ein Land oder eine Region."""
+    out = [("", "🌍 " + translate(lang, "konto_sw_anywhere"))]
+    for c, regs in geo.all_regions().items():
+        out.append((c, f"{country_name(lang, c)} ({translate(lang, 'konto_sw_whole')})"))
+        if c != "li":
+            out += [(f"{c}-{code}", f"  · {name}") for code, name in sorted(regs.items(), key=lambda x: x[1])]
+    return out
+
+
+def _sw_where(lang: str, country: str, region: str) -> str:
+    if not country:
+        return translate(lang, "konto_sw_anywhere")
+    if not region or country == "li":
+        return country_name(lang, country)
+    return SWB.S.region_name(country, region)
 
 
 def _all_shops_safe() -> dict:
@@ -4985,6 +5079,44 @@ async def h_konto_post(req):
                          (uid, str(form.get("kw") or "")), commit=True)
         raise _konto_back(req, "deleted", "einstellungen")
 
+    # ── Schwarmflug-Alarm ─────────────────────────────────────────────────────
+    if act == "schwarm/neu":
+        from utils import swarm as SW
+        if str(form.get("taxon") or "") == "*":            # PN beim Saisonstart
+            await execute_db(bot, "INSERT OR IGNORE INTO swarm_alerts (user_id, taxon, country, region) "
+                                  "VALUES (?,?,?,?)", (uid, "*", "", ""), commit=True)
+            raise _konto_back(req, "sw_added", "schwarmflug")
+        taxa = SW.parse_taxa(str(form.get("taxon") or "")[:60])
+        if not taxa:
+            raw = str(form.get("taxon") or "").strip().split()
+            g = SW._genus_of(raw[0]) if raw else None
+            taxa = [{"genus": g, "species": None}] if g else []
+        where = str(form.get("where") or "")
+        c, _, r = where.partition("-")
+        ok_where = where == "" or (c in geo.all_regions() and (not r or r in geo.all_regions()[c]))
+        cnt = await execute_db(bot, "SELECT COUNT(*) AS n FROM swarm_alerts WHERE user_id=?", (uid,), fetch=True)
+        if not taxa or not ok_where or (cnt and cnt[0]["n"] >= 20):
+            raise _konto_back(req, "sw_bad", "schwarmflug")
+        tx = taxa[0]
+        taxon = tx["genus"] + (" " + tx["species"] if tx.get("species") else "")
+        await execute_db(bot, "INSERT OR IGNORE INTO swarm_alerts (user_id, taxon, country, region) VALUES (?,?,?,?)",
+                         (uid, taxon, c, "" if c == "li" else r), commit=True)
+        raise _konto_back(req, "sw_added", "schwarmflug")
+
+    if act == "schwarm/prognose":
+        lv = str(form.get("level") or "")
+        if lv not in ("off", "rare", "normal", "often"):
+            raise _konto_back(req, "error", "schwarmflug")
+        await execute_db(bot, "INSERT INTO fc_pref (user_id, level) VALUES (?,?) ON CONFLICT(user_id) "
+                              "DO UPDATE SET level=excluded.level", (uid, lv), commit=True)
+        raise _konto_back(req, "fc_saved", "schwarmflug")
+
+    if act == "schwarm/entfernen":
+        await execute_db(bot, "DELETE FROM swarm_alerts WHERE user_id=? AND taxon=? AND country=? AND region=?",
+                         (uid, str(form.get("taxon") or ""), str(form.get("country") or ""),
+                          str(form.get("region") or "")), commit=True)
+        raise _konto_back(req, "deleted", "schwarmflug")
+
     # ── Termine & Kalender ────────────────────────────────────────────────────
     if act == "termin/absagen":
         await execute_db(bot, "DELETE FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
@@ -5216,6 +5348,7 @@ def build_app(bot) -> web.Application:
         # ── Mein Konto ────────────────────────────────────────────────────────
         web.get("/intro.json", h_intro),
         web.get("/hilfe", h_hilfe),
+        web.get("/schwarmflug", h_swarm),
         web.get("/konto", h_konto),
         web.get("/konto/daten.json", h_konto_export),
         web.get(r"/konto/kalender/{uid:\d+}/{salt:[0-9a-f]{16}}.ics", h_konto_ics),

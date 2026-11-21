@@ -219,6 +219,11 @@ _EXPORT: list[tuple[str, str, bool]] = [
     ("map_events_submitted", "SELECT * FROM map_events WHERE submitted_by=?", False),
     ("map_event_rsvp", "SELECT * FROM map_event_rsvp WHERE user_id=?", False),
     ("map_rsvp_reminded", "SELECT * FROM map_rsvp_reminded WHERE user_id=?", False),
+    ("swarm_reports", "SELECT * FROM swarm_reports WHERE author_id=?", False),
+    ("swarm_alerts", "SELECT * FROM swarm_alerts WHERE user_id=?", False),
+    ("swarm_alert_sent", "SELECT * FROM swarm_alert_sent WHERE user_id=?", False),
+    ("swarm_forecast_pref", "SELECT * FROM fc_pref WHERE user_id=?", False),
+    ("swarm_forecast_sent", "SELECT * FROM fc_sent WHERE user_id=?", False),
 ]
 
 
@@ -297,6 +302,15 @@ AREAS: dict[str, list[tuple[str, bool]]] = {
     ],
     "history": [
         ("DELETE FROM dm_log WHERE user_id=?", False),
+    ],
+    # Schwarmflug: Alarme löschen; ausgewertete Meldungen bleiben als anonyme Statistik
+    # (die Nachricht selbst liegt in Discord und wird dort gelöscht).
+    "swarm": [
+        ("DELETE FROM swarm_alerts WHERE user_id=?", False),
+        ("DELETE FROM swarm_alert_sent WHERE user_id=?", False),
+        ("DELETE FROM fc_pref WHERE user_id=?", False),
+        ("DELETE FROM fc_sent WHERE user_id=?", False),
+        ("UPDATE swarm_reports SET author_id=NULL, place='', lat=NULL, lon=NULL WHERE author_id=?", False),
     ],
 }
 
@@ -413,6 +427,15 @@ async def collect(bot, uid, lang: str) -> dict:
             d["review_link"] = f"https://discord.com/channels/{gid}/{REVIEW_CHANNEL_ID}/"
     except Exception:
         pass
+
+    # Schwarmflug-Radar
+    d["swarm_alerts"] = await _rows(bot,
+        "SELECT taxon, country, region, created_at FROM swarm_alerts WHERE user_id=? ORDER BY taxon", (uid,))
+    fp = await _rows(bot, "SELECT level FROM fc_pref WHERE user_id=?", (uid,))
+    d["swarm_fc"] = fp[0]["level"] if fp else "rare"
+    d["swarm_mine"] = await _rows(bot,
+        "SELECT flight_date, label, country, region, place FROM swarm_reports WHERE author_id=? "
+        "ORDER BY flight_date DESC LIMIT 100", (uid,))
 
     # PN-Verlauf
     d["history"] = await _rows(bot,

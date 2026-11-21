@@ -91,6 +91,17 @@ def community_embed(d: dict, lang: str) -> discord.Embed:
         if i.get("top"):
             lines.append(t("yr_inat_top", name=i["top"][0], n=i["top"][1]))
         e.add_field(name=t("yr_h_inat"), value="\n".join(lines), inline=False)
+    sw = d.get("swarm") or {}
+    if sw.get("n"):
+        lines = [t("yr_swarm_line", n=sw["n"], taxa=sw["taxa"]), t("yr_swarm_people", n=YR.mask(sw["people"]))]
+        if sw.get("start"):
+            lines.append(t("yr_swarm_start", name=sw["start"][0],
+                           date=datetime.strptime(sw["start"][1], "%Y-%m-%d").strftime("%d.%m.")))
+        if sw.get("top"):
+            lines.append(t("yr_swarm_top", name=sw["top"][0], n=sw["top"][1]))
+        if sw.get("peak"):
+            lines.append(t("yr_swarm_peak", w=sw["peak"]))
+        e.add_field(name=t("yr_h_swarm"), value="\n".join(lines), inline=False)
     e.add_field(name=t("yr_h_personal"), value=t("yr_personal_hint", year=y), inline=False)
     e.set_footer(text=t("yr_footer", next=y + 1))
     return e
@@ -100,7 +111,8 @@ def personal_embed(p: dict, lang: str, user: discord.abc.User) -> discord.Embed:
     t = lambda k, **kw: l10n.get(k, lang, **kw)
     e = discord.Embed(title=t("yrp_title", year=p["year"], name=user.display_name), color=_COLOR)
     if not (p["commands"] or p["achievements"] or p["reviews"]
-            or p["notifications"] or p["watches"] or p["tracked"] or p.get("inat", {}).get("obs")):
+            or p["notifications"] or p["watches"] or p["tracked"] or p.get("inat", {}).get("obs")
+            or p.get("swarm")):
         e.description = t("yrp_empty", year=p["year"])
         return e
     if p["reviews"]:
@@ -129,6 +141,8 @@ def personal_embed(p: dict, lang: str, user: discord.abc.User) -> discord.Embed:
         lines.append(t("yrp_rsvps", n=p["rsvps"]))
     if p.get("inat", {}).get("obs"):
         lines.append(t("yrp_inat", obs=p["inat"]["obs"], species=p["inat"]["species"]))
+    if p.get("swarm"):
+        lines.append(t("yrp_swarm", n=p["swarm"], taxa=p.get("swarm_taxa", 0)))
     if lines:                                    # Nullwerte ausgeblendet
         e.add_field(name=t("yrp_h_ants"), value="\n".join(lines), inline=False)
     if p["achievements"]:

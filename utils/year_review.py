@@ -148,7 +148,31 @@ async def community(bot, year: int) -> dict:
                                     "WHERE metric='calls' AND substr(month,1,4)=?", (y,)),
         "notifications": await _one(bot, "SELECT COUNT(*) FROM notifications WHERE substr(created_at,1,4)=?", (y,)),
         "inat": await _inat_community(bot, year),
+        "swarm": await swarm_community(bot, year),
     }
+
+
+async def swarm_community(bot, year: int) -> dict:
+    """Schwarmflug-Kanal im Jahr: Meldungen, Arten, häufigste Art, Saisonstart, Höhepunkt."""
+    try:
+        from utils import swarm as S
+        rows = [dict(r) for r in await execute_db(
+            bot, "SELECT * FROM swarm_reports WHERE indoor=0 AND substr(flight_date,1,4)=?", (str(year),),
+            fetch=True) or []]
+    except Exception:
+        return {"n": 0}
+    if not rows:
+        return {"n": 0}
+    top = Counter(r["label"] for r in rows if r["species"]).most_common(1)
+    weeks = Counter(S._week(r["flight_date"]) for r in rows)
+    peak = weeks.most_common(1)[0][0] if weeks else None
+    start = await execute_db(bot, "SELECT label, flight_date FROM swarm_season WHERE year=?", (year,), fetch=True)
+    return {"n": len({r["message_id"] for r in rows}),
+            "taxa": len({(r["genus"], r["species"]) for r in rows if r["species"]}),
+            "people": len({r["author_id"] for r in rows if r["author_id"]}),
+            "top": top[0] if top else None,
+            "peak": S.week_label(peak) if peak else None, "peak_w": peak,
+            "start": (start[0]["label"], start[0]["flight_date"]) if start else None}
 
 
 async def _inat_community(bot, year: int) -> dict:
@@ -192,6 +216,11 @@ async def personal(bot, user_id: str, year: int) -> dict:
         "rsvps": await _one(bot, "SELECT COUNT(*) FROM map_event_rsvp WHERE user_id=? "
                                  "AND substr(occ_date,1,4)=?", (uid, y)),
         "inat": await _inat(bot, uid, year),
+        "swarm": await _one(bot, "SELECT COUNT(DISTINCT message_id) FROM swarm_reports WHERE author_id=? "
+                                 "AND indoor=0 AND substr(flight_date,1,4)=?", (uid, y)),
+        "swarm_taxa": await _one(bot, "SELECT COUNT(DISTINCT genus || ' ' || species) FROM swarm_reports "
+                                      "WHERE author_id=? AND species IS NOT NULL AND indoor=0 "
+                                      "AND substr(flight_date,1,4)=?", (uid, y)),
     }
 
 

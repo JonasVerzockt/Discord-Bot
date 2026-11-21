@@ -196,6 +196,20 @@ Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest ac
 
 Die Nutzung ist freiwillig (`/offer_alert add`) und jederzeit widerrufbar (`/offer_alert remove` bzw. ✅ auf einer Alert-PN). Der Bot liest dafür den Angebote-Kanal (ohnehin von Discord gespeicherte Nachrichten); dauerhaft gespeichert werden nur die Schlagworte und Nachrichten-IDs (Dedup), keine fremden Nachrichtsinhalte.
 
+#### Schwarmflug-Radar
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Aus Nachrichten im Schwarmflug-Kanal: Nachrichten-ID, Discord User-ID, Zeitpunkt, Art/Gattung, Flugdatum und -uhrzeit, Temperatur, Wind, Wetter, Region, Ortstext und daraus ermittelte Koordinate | Karte, Saisonverlauf und Steckbriefe auf `/schwarmflug` | Lokale SQLite-Datenbank auf dem Server |
+| Ortstext (ohne Name/ID), nur wenn er nicht in der lokalen PLZ-Liste steht | Koordinate ermitteln (OpenStreetMap Nominatim, Ergebnis wird gespeichert) | OpenStreetMap Foundation (UK) |
+| Text von Meldungen ohne Vorlage | Auswertung per KI | Anthropic API (USA) |
+| Schwarmflug-Alarm: Art/Gattung + Region, bereits gemeldete Nachrichten-IDs (12 h); optional PN zum Saisonstart (je Jahr vermerkt) | PN, wenn die Art in der Region fliegt bzw. die Saison beginnt | Lokale SQLite-Datenbank auf dem Server |
+| Auf ca. 10 km gerundete Koordinate + Datum (ohne Name/ID/Ortstext) | Wetter zur Flugzeit nachtragen | Open-Meteo (OpenMeteo GmbH, Schweiz), Ergebnis lokal gespeichert |
+| Feste Rasterpunkte und Gebietsmitten (ohne Personenbezug) | Wettervorhersage und vergangenes Wetter für die Schwarmflug-Prognose | Open-Meteo (OpenMeteo GmbH, Schweiz) |
+| Stufe der Prognose-PN, Tage mit verschickter Prognose-PN | Vorwarnung am Vorabend | Lokale SQLite-Datenbank auf dem Server |
+
+Öffentlich sind nur Zahlen je Region, Steckbriefe und die letzten Meldungen ohne Ort und ohne Namen. Genaue Orte und Links zur Nachricht sehen nur eingeloggte Server-Mitglieder. Bearbeiten oder Löschen der Nachricht in Discord passt die Auswertung an bzw. löscht sie. In „Mein Konto“ (Bereich „Schwarmflug“) werden Alarme gelöscht und eigene Meldungen ohne ID und Ort anonymisiert.
+
 #### Erfolge (Achievements)
 
 | Daten | Zweck | Speicherort |

@@ -665,6 +665,179 @@ CREATE TABLE IF NOT EXISTS quiet_offer_queue (
     PRIMARY KEY (user_id, message_id, keyword)
 );
 
+-- ── Schwarmflug-Radar (Meldungen aus dem Schwarmflug-Kanal, utils/swarm.py) ──
+-- Je Meldung und Taxon eine Zeile. Öffentlich nur Taxon, Datum und Region; place/lat/lon
+-- und author_id nur für eingeloggte Mitglieder bzw. Datenauskunft.
+CREATE TABLE IF NOT EXISTS swarm_reports (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id   TEXT NOT NULL,
+    author_id    TEXT,
+    posted_at    TEXT NOT NULL,          -- UTC
+    flight_date  TEXT NOT NULL,          -- YYYY-MM-DD (Berlin)
+    flight_time  TEXT,                   -- HH:MM oder NULL
+    genus        TEXT NOT NULL,
+    species      TEXT,
+    qualifier    TEXT NOT NULL DEFAULT '',
+    label        TEXT NOT NULL,
+    country      TEXT NOT NULL DEFAULT '',
+    region       TEXT NOT NULL DEFAULT '',
+    place        TEXT NOT NULL DEFAULT '',
+    lat          REAL,
+    lon          REAL,
+    geo_src      TEXT,                   -- plz | osm | NULL
+    temp_c       REAL,
+    wind         TEXT,
+    weather      TEXT,
+    indoor       INTEGER NOT NULL DEFAULT 0,
+    protected    TEXT,
+    source       TEXT NOT NULL DEFAULT 'rule',   -- rule | ai | follow
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Wetter zur Flugzeit (Open-Meteo, utils/weather.py); w_state: NULL offen, 1 ok, -1 nicht möglich
+    w_temp       REAL,
+    w_hum        REAL,                   -- relative Luftfeuchte %
+    w_press      REAL,                   -- Luftdruck auf Meereshöhe hPa
+    w_wind       REAL,                   -- Wind 10 m km/h
+    w_cloud      REAL,                   -- Bewölkung %
+    w_rain24     REAL,                   -- Niederschlag in den 24 h davor, mm
+    w_state      INTEGER,
+    w_src        TEXT,                   -- ifs | hf | fc (Quelle des nachgetragenen Wetters)
+    UNIQUE (message_id, label)
+);
+CREATE INDEX IF NOT EXISTS idx_swarm_date ON swarm_reports (flight_date);
+CREATE INDEX IF NOT EXISTS idx_swarm_genus ON swarm_reports (genus, species);
+CREATE TABLE IF NOT EXISTS swarm_scanned (
+    message_id TEXT PRIMARY KEY,
+    status     TEXT NOT NULL,             -- ok | none
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Schwarmflug-Alarm (Mein Konto): Gattung oder Art, optional nur eine Region.
+CREATE TABLE IF NOT EXISTS swarm_alerts (
+    user_id    TEXT NOT NULL,
+    taxon      TEXT NOT NULL,             -- "Lasius" oder "Lasius niger"
+    country    TEXT NOT NULL DEFAULT '',
+    region     TEXT NOT NULL DEFAULT '',  -- '' = überall
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, taxon, country, region)
+);
+CREATE TABLE IF NOT EXISTS swarm_alert_sent (
+    user_id    TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    sent_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, message_id)
+);
+-- Einstellungen des Schwarmflug-Radars (z. B. ach_since: ab wann Meldungen für Erfolge zählen).
+CREATE TABLE IF NOT EXISTS swarm_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+-- Saisonstart je Jahr (erste Meldung im Freien), für Intro, Banner, PN und Erfolg.
+CREATE TABLE IF NOT EXISTS swarm_season (
+    year        INTEGER PRIMARY KEY,
+    message_id  TEXT NOT NULL,
+    author_id   TEXT,
+    label       TEXT NOT NULL,
+    country     TEXT NOT NULL DEFAULT '',
+    region      TEXT NOT NULL DEFAULT '',
+    flight_date TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- ── Schwarmflug-Prognose (utils/forecast.py, Wetter von Open-Meteo) ──────────
+-- Tagesbudget je Zweck (forecast | weather | train), Einheit = Open-Meteo-Aufrufe (gewichtet).
+CREATE TABLE IF NOT EXISTS om_budget (
+    day     TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    used    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, purpose)
+);
+-- Prognosepunkte: 35-km-Gitter über DACH + Fundort-Hotspots (0,1°-Zellen mit ≥ 3 Meldungen).
+CREATE TABLE IF NOT EXISTS fc_points (
+    key      TEXT PRIMARY KEY,           -- "lat,lon" auf 2 Nachkommastellen
+    lat      REAL NOT NULL,
+    lon      REAL NOT NULL,
+    country  TEXT NOT NULL DEFAULT '',
+    region   TEXT NOT NULL DEFAULT '',
+    kind     TEXT NOT NULL,              -- grid | hot
+    n        INTEGER NOT NULL DEFAULT 0, -- Meldungen in der Zelle (nur hot)
+    train    INTEGER NOT NULL DEFAULT 0, -- 1 = Lernpunkt (Wetter ganzer Saisons)
+    active   INTEGER NOT NULL DEFAULT 1
+);
+-- Lerndaten: Tageswerte je Lernpunkt (Wetter um 17 Uhr + Tageshöchstwert), alle Saisontage.
+CREATE TABLE IF NOT EXISTS fc_train (
+    key    TEXT NOT NULL,
+    date   TEXT NOT NULL,
+    temp REAL, hum REAL, dew REAL, rain24 REAL, rain48 REAL, rain72 REAL, dp12 REAL, wind REAL,
+    cloud REAL, rad REAL, tmax REAL, soil_t REAL, soil_m REAL,
+    src    TEXT NOT NULL DEFAULT 'ifs',   -- ifs (Historical Weather) | hf (Historical Forecast, feiner)
+    PRIMARY KEY (key, date)
+);
+CREATE TABLE IF NOT EXISTS fc_train_done (
+    key  TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    src  TEXT NOT NULL DEFAULT 'ifs',
+    PRIMARY KEY (key, year)
+);
+-- Verlauf der Trefferquote je Lernlauf (Vergleich mit dem Vorjahr auf dem Board)
+CREATE TABLE IF NOT EXISTS fc_model_hist (
+    taxon      TEXT NOT NULL,
+    trained_at TEXT NOT NULL DEFAULT (datetime('now')),
+    auc REAL, hit_hi REAL, hit_base REAL, n_pos INTEGER
+);
+-- Gelernte Modelle je Gattung/Art (oder Regel, solange zu wenig Daten).
+CREATE TABLE IF NOT EXISTS fc_models (
+    taxon      TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,            -- model | rule
+    params     TEXT NOT NULL,            -- JSON
+    auc        REAL,
+    hit_hi     REAL,                     -- Anteil Tage mit Meldung bei hoher Chance (Test-Jahre)
+    hit_base   REAL,                     -- Anteil Tage mit Meldung insgesamt (Test-Jahre)
+    n_pos      INTEGER,
+    n_obs      INTEGER,
+    trained_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Vorhersage je Punkt, Tag und Taxon (nur Stufe ≥ 1). level: 1 möglich, 2 gut, 3 sehr gut.
+CREATE TABLE IF NOT EXISTS fc_pred (
+    key    TEXT NOT NULL,
+    day    TEXT NOT NULL,
+    taxon  TEXT NOT NULL,
+    p      REAL NOT NULL,
+    level  INTEGER NOT NULL,
+    h_from INTEGER, h_to INTEGER,
+    temp   REAL,
+    run_at TEXT NOT NULL,
+    PRIMARY KEY (key, day, taxon)
+);
+CREATE INDEX IF NOT EXISTS idx_fc_pred_day ON fc_pred (day, taxon);
+CREATE TABLE IF NOT EXISTS fc_runs (
+    day  TEXT NOT NULL,
+    slot INTEGER NOT NULL,
+    at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (day, slot)
+);
+-- Prognose-PN (Mein Konto): off | rare | normal | often (ohne Eintrag: rare)
+CREATE TABLE IF NOT EXISTS fc_pref (
+    user_id TEXT PRIMARY KEY,
+    level   TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fc_sent (
+    user_id TEXT NOT NULL,
+    day     TEXT NOT NULL,
+    PRIMARY KEY (user_id, day)
+);
+CREATE TABLE IF NOT EXISTS fc_posts (
+    day        TEXT PRIMARY KEY,
+    message_id TEXT
+);
+-- Ortsauflösung (eigene PLZ-Daten bzw. OpenStreetMap Nominatim), auch Fehlschläge.
+CREATE TABLE IF NOT EXISTS geocode_cache (
+    query      TEXT PRIMARY KEY,
+    lat        REAL,
+    lon        REAL,
+    country    TEXT,
+    region     TEXT,
+    src        TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_map_entries_country    ON map_entries (country);

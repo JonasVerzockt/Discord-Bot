@@ -85,6 +85,9 @@ MAINTENANCE: dict[str, tuple[str, str, str]] = {
     "karte":    ("map_refresh",  "Map",                  "Karte"),
     "abgleich": ("rescan",       "Re-reconcile reviews", "Bewertungen abgleichen"),
     "codes":    ("codes_rescan", "Scan discount codes",  "Rabattcodes scannen"),
+    "schwarmflug": ("swarm_rescan", "Read swarm flight channel", "Schwarmflug-Kanal einlesen"),
+    "prognose": ("swarm_forecast", "Swarm flight forecast", "Schwarmflug-Prognose"),
+    "saisonstart": ("swarm_season_reset", "Swarm season start", "Schwarmflug-Saisonstart"),
 }
 
 
@@ -147,8 +150,8 @@ class MaintenanceCog(commands.Cog):
 
     @discord.slash_command(
         name="wartung",
-        description="🔒 [Admin] Maintenance: jobs, shop data, map, reviews, discount codes",
-        description_localizations={"de": "🔒 [Admin] Wartung: Jobs, Shop-Daten, Karte, Bewertungen, Rabattcodes"},
+        description="🔒 [Admin] Maintenance: jobs, shop data, map, reviews, codes, swarm flights",
+        description_localizations={"de": "🔒 [Admin] Wartung: Jobs, Shop-Daten, Karte, Bewertungen, Rabattcodes, Schwarmflug"},
     )
     @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
