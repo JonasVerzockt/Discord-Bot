@@ -759,13 +759,13 @@
   "rv_cancelled": "Abgebrochen, es wurde nichts gespeichert.",
   "help_bewerten": "📝 `/bewerten shop:<Shop>`: Bewertung nach Vorlage in zwei Formularen ausfüllen und fertigen Text zum Posten kopieren",
   "help_grp_ai": "**🤖 KI-Funktionen**",
-  "swarm_cmd_title": "🪽 Schwarmflüge der letzten 48 Stunden",
-  "swarm_cmd_none": "In den letzten 48 Stunden wurde noch nichts gemeldet.",
+  "swarm_cmd_title": "🪽 Schwarmflüge der letzten {zeit}",
+  "swarm_cmd_none": "Für die letzten {zeit} ist nichts gemeldet.",
   "swarm_cmd_link": "Karte, Saisonverlauf und Steckbriefe: {url}",
   "swarm_alert_title": "🪽 Schwarmflug-Alarm",
   "swarm_alert_intro": "Eine Art, die du beobachtest, schwärmt gerade in deiner Region:",
   "swarm_alert_footer": "Alarm ändern oder löschen: {url}",
-  "help_schwarmflug": "🪽 `/schwarmflug`: was in den letzten 48 Stunden geschwärmt ist, mit Link zum Schwarmflug-Radar",
+  "help_schwarmflug": "🪽 `/schwarmflug`: was in den letzten 48 Stunden, 7 Tagen oder 30 Tagen geschwärmt ist, mit Link zum Schwarmflug-Radar",
   "swarm_start_title": "🪽 Die Schwarmflug-Saison {y} ist eröffnet!",
   "swarm_start_body": "Die erste Meldung des Jahres: **{label}** am {d} in {where}. Ab jetzt lohnt sich der Blick nach draußen.",
   "swarm_tpl_copy": "Hier ist deine Meldung nach Vorlage. Kopiere den Text und poste ihn in {channel}:",
@@ -799,5 +799,9 @@
   "fc_post_intro": "Ich sehe für morgen sehr gute Chancen auf Schwarmflüge:",
   "fc_post_outro": "Das ist eine Schätzung aus euren Meldungen seit 2019 und der Wettervorhersage, keine Garantie. Wenn ihr etwas seht, meldet es gern hier, am einfachsten mit /schwarmflug_vorlage.",
   "fc_post_footer": "Wetterdaten: Open-Meteo.com",
-  "yr_swarm_abroad": "🌍 {n} Meldungen aus dem Ausland ({c} Länder)"
+  "yr_swarm_abroad": "🌍 {n} Meldungen aus dem Ausland ({c} Länder)",
+  "swarm_cmd_more": "… und {n} weitere, alle auf der Karte",
+  "swarm_span_48h": "48 Stunden",
+  "swarm_span_7d": "7 Tage",
+  "swarm_span_30d": "30 Tage"
 }

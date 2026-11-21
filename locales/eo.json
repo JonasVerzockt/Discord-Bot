@@ -759,13 +759,13 @@
   "rv_cancelled": "Nuligita, nenio estis konservita.",
   "help_bewerten": "📝 `/bewerten shop:<butiko>`: Plenigi takson laŭ la ŝablono en du formularoj kaj kopii la pretan tekston por afiŝi",
   "help_grp_ai": "**🤖 AI-funkcioj**",
-  "swarm_cmd_title": "🪽 Svarmflugoj de la lastaj 48 horoj",
-  "swarm_cmd_none": "En la lastaj 48 horoj nenio estis raportita.",
+  "swarm_cmd_title": "🪽 Svarmflugoj de la lastaj {zeit}",
+  "swarm_cmd_none": "En la lastaj {zeit} nenio estis raportita.",
   "swarm_cmd_link": "Mapo, sezona kurbo kaj specioprofiloj: {url}",
   "swarm_alert_title": "🪽 Svarmfluga averto",
   "swarm_alert_intro": "Specio, kiun vi observas, nun svarmas en via regiono:",
   "swarm_alert_footer": "Ŝanĝi aŭ forigi la averton: {url}",
-  "help_schwarmflug": "🪽 `/schwarmflug`: kio svarmis en la lastaj 48 horoj, kun ligilo al la svarmfluga radaro",
+  "help_schwarmflug": "🪽 `/schwarmflug`: kio svarmis en la lastaj 48 horoj, 7 tagoj aŭ 30 tagoj, kun ligilo al la svarmfluga radaro",
   "swarm_start_title": "🪽 La svarmfluga sezono {y} komenciĝis!",
   "swarm_start_body": "Unua raporto de la jaro: **{label}** je {d} en {where}. Ekde nun indas rigardi eksteren.",
   "swarm_tpl_copy": "Jen via raporto laŭ la ŝablono. Kopiu la tekston kaj afiŝu ĝin en {channel}:",
@@ -799,5 +799,9 @@
   "fc_post_intro": "Mi vidas tre bonajn ŝancojn de svarmflugoj morgaŭ:",
   "fc_post_outro": "Tio estas takso el viaj raportoj ekde 2019 kaj la veterprognozo, ne garantio. Se vi vidas ion, bonvolu raporti ĉi tie, plej facile per /schwarmflug_vorlage.",
   "fc_post_footer": "Veterdatumoj: Open-Meteo.com",
-  "yr_swarm_abroad": "🌍 {n} raportoj el eksterlando ({c} landoj)"
+  "yr_swarm_abroad": "🌍 {n} raportoj el eksterlando ({c} landoj)",
+  "swarm_cmd_more": "… kaj {n} pliaj, ĉiuj sur la mapo",
+  "swarm_span_48h": "48 horoj",
+  "swarm_span_7d": "7 tagoj",
+  "swarm_span_30d": "30 tagoj"
 }

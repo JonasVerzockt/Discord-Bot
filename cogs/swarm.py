@@ -19,7 +19,7 @@ cogs/swarm.py – Schwarmflug-Radar.
 Liest den bestehenden Schwarmflug-Kanal (SWARM_CHANNEL_ID): neue, bearbeitete und gelöschte
 Nachrichten werden laufend ausgewertet. Kein neues Formular, die Community meldet wie bisher.
 
-  • /schwarmflug                     Link zum Radar + was in den letzten 48 Stunden geflogen ist
+  • /schwarmflug [zeitraum]          Link zum Radar + was in 48 Stunden / 1 Woche / 1 Monat geflogen ist
   • /schwarmflug_vorlage             Meldung nach der angepinnten Vorlage ausfüllen, Text zum Kopieren
   • Saisonstart                      erste Meldung des Jahres: Board-Banner/Intro, PN auf Wunsch, Erfolg
   • Wetter                           stündlich Wetter zur Flugzeit nachtragen (Open-Meteo, utils/weather.py)
@@ -543,21 +543,38 @@ class Swarm(commands.Cog):
         await asyncio.sleep(60)
 
     # ── /schwarmflug ─────────────────────────────────────────────────────────
-    @discord.slash_command(name="schwarmflug", description="Swarm flight radar: what flew in the last 48 hours",
-                           description_localizations={"de": "Schwarmflug-Radar: was in den letzten 48 Stunden geflogen ist"})
+    @discord.slash_command(name="schwarmflug", description="Swarm flight radar: what flew recently",
+                           description_localizations={"de": "Schwarmflug-Radar: was zuletzt geflogen ist"})
     @allowed_channel()
-    async def schwarmflug(self, ctx: discord.ApplicationContext):
+    async def schwarmflug(self, ctx: discord.ApplicationContext,
+                          zeitraum: discord.Option(  # type: ignore[valid-type]
+                              str, "Time span", name_localizations={"en-US": "period"},
+                              description_localizations={"de": "Zeitraum", "en-US": "Time span"},
+                              choices=[
+                                  discord.OptionChoice(name="48 Stunden", value="48h",
+                                                       name_localizations={"en-US": "48 hours"}),
+                                  discord.OptionChoice(name="1 Woche", value="7d",
+                                                       name_localizations={"en-US": "1 week"}),
+                                  discord.OptionChoice(name="1 Monat", value="30d",
+                                                       name_localizations={"en-US": "1 month"}),
+                              ], required=False, default="48h") = "48h"):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        since = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%d")
+        span = zeitraum if zeitraum in ("48h", "7d", "30d") else "48h"
+        hours = {"48h": 48, "7d": 7 * 24, "30d": 30 * 24}[span]
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%d")
         rs = await S.rows(self.bot, since)
         cnt: dict = {}
         for r in rs:
             reg = S.region_name(r["country"], r["region"]) if r["region"] else ""
             cnt.setdefault(r["label"], set()).add(reg)
+        ranked = sorted(cnt.items(), key=lambda x: -len(x[1]))
         lines = [f"• **{k}**" + (f" ({', '.join(sorted(x for x in v if x))[:120]})" if any(v) else "")
-                 for k, v in sorted(cnt.items(), key=lambda x: -len(x[1]))[:15]]
-        e = discord.Embed(title=l10n.get("swarm_cmd_title", lang), color=EMBED_COLOR,
-                          description="\n".join(lines) if lines else l10n.get("swarm_cmd_none", lang))
+                 for k, v in ranked[:15]]
+        if len(ranked) > 15:
+            lines.append(l10n.get("swarm_cmd_more", lang, n=len(ranked) - 15))
+        zeit = l10n.get(f"swarm_span_{span}", lang)
+        e = discord.Embed(title=l10n.get("swarm_cmd_title", lang, zeit=zeit), color=EMBED_COLOR,
+                          description="\n".join(lines) if lines else l10n.get("swarm_cmd_none", lang, zeit=zeit))
         if BOARD_PUBLIC_URL:
             e.add_field(name="🗺️", value=l10n.get("swarm_cmd_link", lang, url=f"{BOARD_PUBLIC_URL}/schwarmflug"),
                         inline=False)

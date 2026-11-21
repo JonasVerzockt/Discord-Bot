@@ -759,13 +759,13 @@
   "rv_cancelled": "Cancelled, nothing was saved.",
   "help_bewerten": "📝 `/bewerten shop:<shop>`: Fill in a review using the template in two forms and copy the finished text to post",
   "help_grp_ai": "**🤖 AI features**",
-  "swarm_cmd_title": "🪽 Nuptial flights in the last 48 hours",
-  "swarm_cmd_none": "Nothing has been reported in the last 48 hours.",
+  "swarm_cmd_title": "🪽 Nuptial flights in the last {zeit}",
+  "swarm_cmd_none": "Nothing has been reported in the last {zeit}.",
   "swarm_cmd_link": "Map, season curve and species profiles: {url}",
   "swarm_alert_title": "🪽 Nuptial flight alert",
   "swarm_alert_intro": "A species you are watching is flying in your region right now:",
   "swarm_alert_footer": "Change or delete the alert: {url}",
-  "help_schwarmflug": "🪽 `/schwarmflug`: what has been flying in the last 48 hours, with a link to the nuptial flight radar",
+  "help_schwarmflug": "🪽 `/schwarmflug`: what has been flying in the last 48 hours, 7 days or 30 days, with a link to the nuptial flight radar",
   "swarm_start_title": "🪽 The {y} nuptial flight season has started!",
   "swarm_start_body": "First report of the year: **{label}** on {d} in {where}. From now on it is worth looking outside.",
   "swarm_tpl_copy": "Here is your report using the template. Copy the text and post it in {channel}:",
@@ -799,5 +799,9 @@
   "fc_post_intro": "I see very good chances of nuptial flights tomorrow:",
   "fc_post_outro": "This is an estimate from your reports since 2019 and the weather forecast, not a guarantee. If you see something, please report it here, easiest with /schwarmflug_vorlage.",
   "fc_post_footer": "Weather data: Open-Meteo.com",
-  "yr_swarm_abroad": "🌍 {n} reports from abroad ({c} countries)"
+  "yr_swarm_abroad": "🌍 {n} reports from abroad ({c} countries)",
+  "swarm_cmd_more": "… and {n} more, all on the map",
+  "swarm_span_48h": "48 hours",
+  "swarm_span_7d": "7 days",
+  "swarm_span_30d": "30 days"
 }
