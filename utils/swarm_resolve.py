@@ -127,9 +127,54 @@ def region_fuzzy(text: str) -> tuple[str, str] | None:
 
 
 # ── Arten: aktueller Name aus der Artenliste ──────────────────────────────────
+# Wörter, die nie ein Art-Epitheton sind (stehen in Meldungen oft direkt hinter der Gattung)
+FILLER = {
+    # deutsch
+    "ist", "sind", "war", "waren", "hat", "haben", "wird", "werden", "kann", "auch", "noch", "schon", "heute",
+    "gestern", "morgen", "abend", "abends", "mittag", "nachmittag", "vormittag", "nacht", "uhr", "uhrzeit",
+    "art", "arten", "gattung", "grad", "klein", "kleine", "kleiner", "gross", "groß", "große", "glaub",
+    "glaube", "denke", "meine", "vielleicht", "welche", "welcher", "verschiedene", "mehrere", "paar",
+    "geschwärmt", "schwärmt", "schwärmen", "fliegen", "fliegt", "geflogen", "unterwegs", "gefunden",
+    "gesehen", "nähe", "direkt", "draußen", "drinnen", "hier", "dort", "überall", "sonnig", "warm",
+    "schwül", "regen", "wetter", "orange", "braun", "schwarz", "gelb", "rot", "hessen", "bayern",
+    "sachsen", "berlin", "mänchen", "männchen", "weibchen", "geschützte", "geschützt", "ich", "wir",
+    "januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober",
+    "november", "dezember", "senso", "structo", "strictu",
+    # englisch
+    "queen", "queens", "male", "males", "alate", "alates", "flying", "flight", "today", "found", "many",
+    "some", "the", "this", "that", "here", "there", "small", "big", "maybe", "probably",
+}
+_TYPO_MIN_RATIO = 0.80
+_TYPO_MIN_LEN = 5
+
+
+def epithet_plausible(word: str | None) -> bool:
+    """Kann das Wort ein Art-Epitheton sein? (keine Füllwörter, keine Umlaute)"""
+    w = (word or "").strip(".").lower()
+    return bool(w) and w not in FILLER and not re.search(r"[äöüß]", w)
+
+
+def _typo_ok(reported: str, suggested: str) -> bool:
+    """Tippfehler nur anerkennen, wenn das Epitheton allein ähnlich genug ist."""
+    from difflib import SequenceMatcher
+    a, b = reported.lower(), suggested.lower()
+    return (len(a) >= _TYPO_MIN_LEN and a[:1] == b[:1]
+            and SequenceMatcher(None, a, b).ratio() >= _TYPO_MIN_RATIO)
+
+
+def _epithet_elsewhere(genus: str, epithet: str) -> bool:
+    """Ist das Epitheton in einer anderen Gattung gültig (z. B. Camponotus scutellaris)?"""
+    from utils import species_catalog as SC
+    ep = epithet.lower()
+    if ep not in getattr(SC, "_epithets", set()):
+        return False
+    return ep not in (getattr(SC, "_by_genus", {}).get(genus.lower()) or [])
+
+
 def canon_taxa(taxa: list[dict]) -> list[dict]:
     """Setzt den aktuellen Namen (Synonym/Tippfehler) und merkt den Originaltext (raw).
-    check: ok | fixed | unknown | nolist. Unbekannte Epitheta werden vorerst „Gattung sp.“."""
+    check: ok | synonym (sicher) | filler (Füllwort entfernt, sicher) | typo (Tippfehler, vermutet) |
+    unknown | nolist. Unbekannte Epitheta werden vorerst „Gattung sp.“."""
     from utils import species_catalog as SC
     from utils.swarm import taxon_label
     out = []
@@ -139,22 +184,34 @@ def canon_taxa(taxa: list[dict]) -> list[dict]:
         if not t.get("species"):
             g = SC.canonical(t["genus"])
             if g and g != t["genus"]:
-                t["genus"], t["check"] = g, "fixed"
+                t["genus"], t["check"] = g, "synonym"
             else:
                 t["check"] = "ok" if g or not SC.available() else "nolist"
             out.append(t)
             continue
+        if not epithet_plausible(t["species"]):
+            t["species"], t["check"] = None, "filler"      # Füllwort: nur Gattung
+            if not t.get("qualifier"):
+                t["qualifier"] = "sp."
+            out.append(t)
+            continue
         res = SC.check(f"{t['genus']} {t['species']}")
+        if res["status"] == "suggest":
+            sg, ss = (res["suggestion"] or " ").split()[:2]
+            if (sg.lower() != t["genus"].lower() or _epithet_elsewhere(t["genus"], t["species"])
+                    or not _typo_ok(t["species"], ss)):
+                res = {**res, "status": "unknown"}        # unsicher: KI mit Kontext klären lassen
         if res["status"] == "unavailable":
             t["check"] = "nolist"
         elif res["status"] == "accepted":
             g, s = res["canonical"].split()[:2]
-            t["check"] = "ok" if (g, s.lower()) == (t["genus"], t["species"]) else "fixed"
+            t["check"] = "ok" if (g, s.lower()) == (t["genus"], t["species"]) else "synonym"
             t["genus"], t["species"] = g, s.lower()
         elif res["status"] in ("synonym", "suggest"):
             name = res["canonical"] or res["suggestion"]
             g, s = name.split()[:2]
-            t["genus"], t["species"], t["check"] = g, s.lower(), "fixed"
+            t["genus"], t["species"] = g, s.lower()
+            t["check"] = "synonym" if res["status"] == "synonym" else "typo"
         else:
             t["species"], t["check"] = None, "unknown"
             if not t.get("qualifier"):

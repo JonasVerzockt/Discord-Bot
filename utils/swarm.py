@@ -104,7 +104,7 @@ def parse_taxa(text: str) -> list[dict]:
                 qual.append("sp."); j += 1; break
             if wl in _GROUP:
                 qual.append("Gruppe"); j += 1; continue
-            if wl in ("sensu", "s.") and j + 1 < len(toks) and toks[j + 1].lower().startswith("str"):
+            if wl in ("sensu", "senso", "s.") and j + 1 < len(toks) and toks[j + 1].lower().startswith("str"):
                 qual.append("s. str."); j += 2; continue
             if _genus_of(w) or w in (",", "/", "+", "&"):
                 break
@@ -114,6 +114,9 @@ def parse_taxa(text: str) -> list[dict]:
                     continue
                 break
             if species is None and re.fullmatch(r"[a-zäöü]{3,}\.?", wl) and not w.isupper():
+                from utils.swarm_resolve import epithet_plausible
+                if not epithet_plausible(wl):
+                    break                                  # Füllwort („Lasius ist …“): nur Gattung
                 species = wl.strip(".")
                 j += 1
                 continue
@@ -126,7 +129,8 @@ def parse_taxa(text: str) -> list[dict]:
             out.append(item)
         # „Camponotus ligniperda/herculeanus“: zweites Epitheton ohne Gattung
         while species and j + 1 < len(toks) and toks[j] == "/" and re.fullmatch(r"[a-zäöü]{3,}", toks[j + 1]) \
-                and not _genus_of(toks[j + 1]) and toks[j + 1] not in _STOP:
+                and not _genus_of(toks[j + 1]) and toks[j + 1] not in _STOP \
+                and __import__("utils.swarm_resolve", fromlist=["x"]).epithet_plausible(toks[j + 1]):
             alt = {"genus": g, "species": toks[j + 1], "qualifier": q}
             if alt not in out:
                 out.append(alt)

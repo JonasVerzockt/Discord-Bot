@@ -4677,9 +4677,13 @@ SWARM_ADMIN = """{% extends "base" %}{% block body %}
 {% if manual %}<div class=chartbox style="overflow-x:auto"><h4>✍️ {{ t('sw_fix_list') }}</h4><table class=swt style="font-size:13px"><tr><th>{{ t('sw_abroad_when') }}</th><th>{{ t('sw_abroad_place') }}</th><th>{{ t('sw_id_region') }}</th><th>{{ t('sw_col_taxon') }}</th></tr>
 {% for o in manual %}<tr><td>{{ o.set_at|berlin }}</td><td>{{ o.place }}</td><td>{{ o.country }}{% if o.region %}-{{ o.region }}{% endif %}</td><td><i>{{ o.taxa }}</i></td></tr>{% endfor %}</table></div>{% endif %}
 <div class=chartbox style="overflow-x:auto"><h4>🔤 {{ t('sw_names_h') }}</h4><p class=muted style="font-size:12px;margin-top:0">{{ t('sw_names_intro') }}</p>
-<table class=swt style="font-size:13px"><tr><th>{{ t('sw_names_raw') }}</th><th>{{ t('sw_names_now') }}</th><th>{{ t('sw_names_how') }}</th><th>{{ t('sw_kpi_reports') }}</th></tr>
-{% for f in fixed %}<tr><td><i>{{ f.raw_label }}</i></td><td><i>{{ f.label }}</i></td><td class=muted>{{ t('sw_names_' ~ (f.taxon_check or 'fixed')) }}</td><td>{{ f.n }}</td></tr>
-{% else %}<tr><td colspan=4 class=muted>{{ t('sw_names_none') }}</td></tr>{% endfor %}</table></div>
+<style>.sure{color:#3fb950}.guess{color:#d29922}.nf{display:inline}.nf button{padding:1px 7px;font-size:12px}</style>
+<table class=swt style="font-size:13px"><tr><th>{{ t('sw_names_raw') }}</th><th>{{ t('sw_names_now') }}</th><th>{{ t('sw_names_conf') }}</th><th>{{ t('sw_names_how') }}</th><th>{{ t('sw_kpi_reports') }}</th><th></th></tr>
+{% for f in fixed %}{% set c = f.taxon_check or 'fixed' %}<tr><td><i>{{ f.raw_label }}</i></td><td><i>{{ f.label }}</i></td>
+<td>{% if c in ('synonym', 'filler', 'typo_ok', 'ai') %}<span class=sure>● {{ t('sw_names_sure') }}</span>{% elif c in ('typo', 'fixed') %}<span class=guess>● {{ t('sw_names_guess') }}</span>{% else %}<span class=muted>○</span>{% endif %}</td>
+<td class=muted>{{ t('sw_names_' ~ c) }}</td><td>{{ f.n }}</td>
+<td style="white-space:nowrap">{% if c in ('typo', 'fixed') %}{% for act, sym, tip in (('ok', '✓', 'sw_names_btn_ok'), ('no', '✗', 'sw_names_btn_no')) %}<form method=post action="/admin/schwarmflug/names?lang={{ lang }}" class=nf><input type=hidden name=csrf value="{{ csrf }}"><input type=hidden name=raw value="{{ f.raw_label }}"><input type=hidden name=label value="{{ f.label }}"><input type=hidden name=act value="{{ act }}"><button class="btn small" title="{{ t(tip) }}">{{ sym }}</button></form> {% endfor %}{% endif %}</td></tr>
+{% else %}<tr><td colspan=6 class=muted>{{ t('sw_names_none') }}</td></tr>{% endfor %}</table></div>
 {% endblock %}"""
 ENV.loader.mapping["swarm_admin"] = SWARM_ADMIN
 
@@ -4711,7 +4715,8 @@ async def h_swarm_admin(req):
                                 "country NOT IN ('de','at','ch','li')", fetch=True)
     fixed = [dict(x) for x in await execute_db(bot,
         "SELECT raw_label, label, taxon_check, COUNT(DISTINCT message_id) AS n FROM swarm_reports "
-        "WHERE raw_label IS NOT NULL GROUP BY raw_label, label, taxon_check ORDER BY n DESC LIMIT 300", fetch=True) or []]
+        "WHERE raw_label IS NOT NULL GROUP BY raw_label, label, taxon_check "
+        "ORDER BY taxon_check IN ('typo', 'fixed') DESC, n DESC LIMIT 300", fetch=True) or []]
     home = await execute_db(bot, "SELECT COUNT(DISTINCT message_id) AS n FROM swarm_reports WHERE geo_src='home'", fetch=True)
     manual = [dict(x) for x in await execute_db(bot, "SELECT * FROM swarm_override ORDER BY set_at DESC LIMIT 100",
                                                 fetch=True) or []]
@@ -4751,6 +4756,31 @@ async def h_swarm_fix(req):
                          "" if c == "li" else r, str(form.get("taxa") or "")[:200].strip(), s[0] if s else "")
     await R.apply_override(req.app["bot"], mid)
     raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}&ok={mid}#m{mid}")
+
+
+async def h_swarm_names(req):
+    """Admin: vermutete Tippfehler-Korrektur bestätigen (✓) oder verwerfen (✗ → Gattung sp.)."""
+    lang = pick_lang(req)
+    if not _is_admin(req):
+        raise web.HTTPForbidden()
+    form = await req.post()
+    if not _csrf_ok(req, form):
+        raise web.HTTPForbidden(text="bad csrf")
+    raw, label, act = (str(form.get(k) or "")[:200] for k in ("raw", "label", "act"))
+    bot = req.app["bot"]
+    cond = "raw_label=? AND label=? AND taxon_check IN ('typo', 'fixed')"
+    if act == "ok":
+        await execute_db(bot, f"UPDATE swarm_reports SET taxon_check='typo_ok' WHERE {cond}", (raw, label), commit=True)
+    elif act == "no":
+        rows = await execute_db(bot, f"SELECT id, genus, qualifier FROM swarm_reports WHERE {cond}", (raw, label),
+                                fetch=True) or []
+        for r in rows:
+            q = "cf." if "cf." in (r["qualifier"] or "") else ""
+            t = {"genus": r["genus"], "species": None, "qualifier": q or "sp."}
+            await execute_db(bot, "UPDATE OR REPLACE swarm_reports SET species=NULL, qualifier=?, label=?, "
+                                  "taxon_check='rejected' WHERE id=?",
+                             (t["qualifier"], SWB.S.taxon_label(t), r["id"]), commit=True)
+    raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}")
 
 
 async def h_swarm(req):
@@ -5448,6 +5478,7 @@ def build_app(bot) -> web.Application:
         web.get("/schwarmflug", h_swarm),
         web.get("/admin/schwarmflug", h_swarm_admin),
         web.post("/admin/schwarmflug/fix", h_swarm_fix),
+        web.post("/admin/schwarmflug/names", h_swarm_names),
         web.get("/schwarmflug/status.json", h_swarm_status),
         web.get("/konto", h_konto),
         web.get("/konto/daten.json", h_konto_export),

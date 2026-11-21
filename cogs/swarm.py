@@ -117,7 +117,8 @@ class Swarm(commands.Cog):
         for name, step in (("Saisonstart", S.load_season), ("Ausland", S.reclassify_abroad),
                            ("Budget", lambda b: execute_db(b, "DELETE FROM om_budget WHERE purpose='blocked'",
                                                            commit=True)),
-                           ("Artenliste", lambda b: self._recanon())):
+                           ("Artenliste", lambda b: self._recanon()),
+                           ("Artenliste v2", lambda b: self._recanon_v2())):
             try:
                 await step(self.bot)
             except Exception as e:
@@ -147,6 +148,41 @@ class Swarm(commands.Cog):
         await execute_db(self.bot, "INSERT OR IGNORE INTO swarm_meta (key, value) VALUES ('canon_v1', datetime('now'))",
                          commit=True)
         logger.info("🐜 Schwarmflug: %d Meldungen mit der Artenliste abgeglichen (Namen korrigiert/unklar)", n)
+
+    async def _recanon_v2(self):
+        """Einmalig: korrigierte und unklare Arten aus dem Originaltext neu abgleichen (strengere
+        Tippfehler-Regeln, Füllwörter, Epitheton aus anderer Gattung). Manuell korrigierte Meldungen
+        und KI-Ergebnisse bleiben unangetastet."""
+        from utils import species_catalog as SC
+        done = await execute_db(self.bot, "SELECT 1 FROM swarm_meta WHERE key='canon_v2'", fetch=True)
+        if done or not SC.available():
+            return
+        rows = await execute_db(self.bot,
+            "SELECT id, genus, qualifier, label, raw_label, taxon_check FROM swarm_reports "
+            "WHERE taxon_check IN ('fixed', 'unknown', 'unknown_ai') AND raw_label IS NOT NULL "
+            "AND message_id NOT IN (SELECT message_id FROM swarm_override)", fetch=True) or []
+        changed = 0
+        for r in rows:
+            parsed = S.parse_taxa(r["raw_label"])
+            src = next((x for x in parsed if x["genus"] == r["genus"]), parsed[0] if parsed else None)
+            if src is None:
+                continue
+            if src.get("species") is None and not src.get("qualifier") and r["qualifier"] in ("s. str.", "sp."):
+                src = {**src, "qualifier": r["qualifier"]}
+            t = R.canon_taxa([src])[0]
+            if src.get("species") is None and len(r["raw_label"].split()) > 1 and t["check"] == "ok" \
+                    and S.taxon_label(t) != r["raw_label"]:
+                t["check"] = "filler"                      # Parser hat das Füllwort schon verworfen
+            new_label = S.taxon_label(t)
+            if new_label == r["label"] and t["check"] == r["taxon_check"]:
+                continue
+            n = await execute_db(self.bot,
+                "UPDATE OR REPLACE swarm_reports SET genus=?, species=?, qualifier=?, label=?, taxon_check=? WHERE id=?",
+                (t["genus"], t.get("species"), t.get("qualifier") or "", new_label, t["check"], r["id"]), commit=True)
+            changed += max(0, n or 0)
+        await execute_db(self.bot, "INSERT OR IGNORE INTO swarm_meta (key, value) VALUES ('canon_v2', datetime('now'))",
+                         commit=True)
+        logger.info("🐜 Schwarmflug: Artnamen neu abgeglichen, %d Meldungen geändert", changed)
 
     def cog_unload(self):
         self.alert_loop.cancel()
