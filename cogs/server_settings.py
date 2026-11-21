@@ -154,6 +154,18 @@ class ServerSettingsCog(commands.Cog, name="ServerSettings"):
         """Bei abgelehntem Kanal-/Rechte-Check dem User kurz (ephemer) Bescheid geben,
         statt die Interaktion unbeantwortet in den Timeout laufen zu lassen."""
         if not isinstance(error, commands.CheckFailure):
+            # Sonst verschluckt py-cord den Fehler (sobald es diesen Listener gibt, druckt es nichts mehr).
+            orig = getattr(error, "original", error)
+            logger.error("❌ Fehler in /%s: %s", getattr(ctx.command, "qualified_name", "?"), orig,
+                         exc_info=(type(orig), orig, orig.__traceback__))
+            try:
+                msg = "❌ Da ist etwas schiefgelaufen. Der Fehler steht im Log."
+                if ctx.interaction.response.is_done():
+                    await ctx.followup.send(msg, ephemeral=True)
+                else:
+                    await ctx.respond(msg, ephemeral=True)
+            except discord.HTTPException:
+                pass
             return
         msg = str(error).strip()
         if not msg:

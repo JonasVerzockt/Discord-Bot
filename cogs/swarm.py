@@ -250,10 +250,10 @@ class Swarm(commands.Cog):
     async def swarm_rescan(self, ctx: discord.ApplicationContext,
                            alle: discord.Option(bool, "Also re-read messages already scanned",
                                                 description_localizations={"de": "Auch schon gelesene Nachrichten neu auswerten"},
-                                                default=False),
+                                                default=False) = False,
                            ki: discord.Option(bool, "Use AI for free-text messages (costs a little)",
                                               description_localizations={"de": "KI für Freitext nutzen (kostet etwas)"},
-                                              default=False)):
+                                              default=False) = False):
         # Über /wartung kommt nur ctx an; die Optionen sind dann noch Option-Objekte.
         alle = alle if isinstance(alle, bool) else False
         ki = ki if isinstance(ki, bool) else False
@@ -586,7 +586,7 @@ class Swarm(commands.Cog):
     async def swarm_season_reset(self, ctx: discord.ApplicationContext,
                                  verwerfen: discord.Option(bool, "Discard the current season start",
                                                            description_localizations={"de": "Aktuellen Saisonstart verwerfen"},
-                                                           default=False)):
+                                                           default=False) = False):
         verwerfen = verwerfen if isinstance(verwerfen, bool) else False
         await ctx.defer(ephemeral=True)
         y = datetime.now(BERLIN).year
