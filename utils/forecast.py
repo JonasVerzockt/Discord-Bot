@@ -111,6 +111,7 @@ async def budget_use(bot, purpose: str, n: float) -> None:
 # einer ganzen Saison zählt rund 36 – ohne Takt wäre die Minutengrenze nach ~17 Abrufen erreicht.
 PER_MIN = 480
 PER_HOUR = 4500
+TRAIN_RESERVE = 900                 # je Stunde frei für Wetter-Nachtrag und Prognose
 _WIN: list = []                     # (zeitpunkt, kosten) der letzten Stunde, alle Zwecke zusammen
 _COOL_UNTIL = 0.0                   # nach HTTP 429: Pause bis
 _HITS: dict = {}                    # Tag → Anzahl 429
@@ -122,8 +123,10 @@ def cooling() -> float:
     return max(0.0, _COOL_UNTIL - _t.monotonic())
 
 
-async def om_wait(n: float) -> bool:
-    """Wartet, bis n gewichtete Aufrufe in Minute und Stunde passen. False bei 429-Pause."""
+async def om_wait(n: float, reserve: float = 0) -> bool:
+    """Wartet, bis n gewichtete Aufrufe in Minute und Stunde passen. False bei 429-Pause.
+    reserve: so viel von Minute/Stunde bleibt für andere Zwecke frei (Lernen lässt dem
+    Wetter-Nachtrag und der Prognose Luft)."""
     import time as _t
     if cooling() > 0:
         return False
@@ -132,10 +135,10 @@ async def om_wait(n: float) -> bool:
         _WIN[:] = [(t, c) for t, c in _WIN if now - t < 3600]
         last_min = sum(c for t, c in _WIN if now - t < 60)
         last_hour = sum(c for _t2, c in _WIN)
-        if last_min + n <= PER_MIN and last_hour + n <= PER_HOUR:
+        if last_min + n <= PER_MIN - reserve / 6 and last_hour + n <= PER_HOUR - reserve:
             _WIN.append((now, n))
             return True
-        if last_hour + n > PER_HOUR:
+        if last_hour + n > PER_HOUR - reserve:
             return False                # Stundengrenze: diesen Lauf beenden, später weiter
         await asyncio.sleep(5)
 
@@ -396,7 +399,7 @@ async def train_fetch(bot, max_requests: int = 200) -> int:
             start = date(y, 2, 26)                       # 3 Tage Vorlauf für Regen 72 h
             nv = len((VARS_FC if src == "hf" else VARS_ARCH).split(","))
             c = cost(1, (end - start).days + 1, nv)
-            if await budget_left(bot, "train") < c or not await om_wait(c):
+            if await budget_left(bot, "train") < c or not await om_wait(c, reserve=TRAIN_RESERVE):
                 break
             js = await _get(s, HIST_FC if src == "hf" else ARCHIVE,
                             {"latitude": p["lat"], "longitude": p["lon"],
