@@ -1286,6 +1286,13 @@ T.update({
     'sw_names_rejected': {"de": 'verworfen (Gattung sp.)', "en": 'rejected (genus sp.)', "eo": 'malakceptita (genro sp.)'},
     'sw_names_btn_ok': {"de": 'Korrektur stimmt', "en": 'correction is right', "eo": 'korekto ĝustas'},
     'sw_names_btn_no': {"de": 'Korrektur verwerfen, nur Gattung behalten', "en": 'reject correction, keep genus only', "eo": 'malakcepti korekton, teni nur genron'},
+    'sw_names_manual': {"de": 'von dir korrigiert', "en": 'corrected by you', "eo": 'korektita de vi'},
+    'sw_names_set_ph': {"de": 'richtiger Name, z. B. Crematogaster scutellaris', "en": 'correct name, e.g. Crematogaster scutellaris', "eo": 'ĝusta nomo, ekz. Crematogaster scutellaris'},
+    'sw_names_set_ok': {"de": '✅ Artname gespeichert.', "en": '✅ Species name saved.', "eo": '✅ Specinomo konservita.'},
+    'sw_names_set_bad': {"de": '❌ Diesen Namen kennt die Artenliste nicht. Bitte Gattung und Art prüfen.', "en": '❌ The species list does not know this name. Please check genus and species.', "eo": '❌ La specilisto ne konas ĉi tiun nomon. Bonvolu kontroli genron kaj specion.'},
+    'sw_names_all_btn': {"de": 'Alle {n} vermuteten bestätigen', "en": 'Confirm all {n} guessed', "eo": 'Konfirmi ĉiujn {n} supozitajn'},
+    'sw_names_all_q': {"de": 'Alle {n} vermuteten Korrekturen als richtig bestätigen?', "en": 'Confirm all {n} guessed corrections as correct?', "eo": 'Ĉu konfirmi ĉiujn {n} supozitajn korektojn?'},
+    'sw_names_all_ok': {"de": '✅ Alle vermuteten Korrekturen bestätigt.', "en": '✅ All guessed corrections confirmed.', "eo": '✅ Ĉiuj supozitaj korektoj konfirmitaj.'},
     'sw_names_none': {"de": 'Noch keine Korrekturen.', "en": 'No corrections yet.', "eo": 'Ankoraŭ neniuj korektoj.'},
 })
 
