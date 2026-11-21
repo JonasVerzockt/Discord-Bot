@@ -1242,6 +1242,43 @@ T.update({
     'yr_swarm_abroad': {"de": '{n} Meldungen aus dem Ausland ({c} Länder)', "en": '{n} reports from abroad ({c} countries)', "eo": '{n} raportoj el eksterlando ({c} landoj)'},
 })
 
+T.update({
+    'sw_z_year': {"de": 'Jahr:', "en": 'Year:', "eo": 'Jaro:'},
+    'sw_home_hint': {"de": 'Region geschätzt aus den übrigen Meldungen der Person (kein Ort angegeben)', "en": 'Region estimated from the person’s other reports (no place given)', "eo": 'Regiono taksita el la aliaj raportoj de la persono (neniu loko donita)'},
+    'sw_home_note': {"de": '{n} Meldungen ohne Ortsangabe zählen mit geschätzter Heimatregion (nur bei den Regionen, nie als Punkt).', "en": '{n} reports without a place count with an estimated home region (regions only, never as a point).', "eo": '{n} raportoj sen loko kalkuliĝas kun taksita hejma regiono (nur regionoj, neniam kiel punkto).'},
+    'sw_raw_hint': {"de": 'gemeldet als: {raw} (Name mit der Artenliste abgeglichen)', "en": 'reported as: {raw} (name checked against the species list)', "eo": 'raportita kiel: {raw} (nomo kontrolita per la specilisto)'},
+    'sw_prog_h': {"de": 'Datensammlung', "en": 'Data collection', "eo": 'Datenkolektado'},
+    'sw_prog_places': {"de": 'Orte geprüft', "en": 'Places checked', "eo": 'Lokoj kontrolitaj'},
+    'sw_prog_clarify': {"de": 'Meldungen geklärt', "en": 'Reports clarified', "eo": 'Raportoj klarigitaj'},
+    'sw_prog_weather': {"de": 'Wetter nachgetragen', "en": 'Weather added', "eo": 'Vetero aldonita'},
+    'sw_prog_learn': {"de": 'Lerndaten (Punkt-Jahre)', "en": 'Learning data (point-years)', "eo": 'Lerndatumoj (punkto-jaroj)'},
+    'sw_prog_running': {"de": 'läuft gerade', "en": 'running', "eo": 'funkcias'},
+    'sw_prog_done': {"de": 'alles aktuell', "en": 'all up to date', "eo": 'ĉio aktuala'},
+    'sw_prog_pause': {"de": 'Pause wegen Limit, weiter in etwa {m} Min.', "en": 'paused due to the limit, continues in about {m} min', "eo": 'paŭzo pro limo, daŭrigo post ĉirkaŭ {m} min.'},
+    'sw_prog_budget': {"de": 'Wetterdienst heute: {u} von {m} Abfragen genutzt (der kostenlose Zugang erlaubt unter 10.000 am Tag, deshalb dauert das Sammeln einige Wochen).', "en": 'Weather service today: {u} of {m} requests used (the free access allows under 10,000 per day, so collecting takes a few weeks).', "eo": 'Veterservo hodiaŭ: {u} el {m} petoj uzitaj (la senpaga aliro permesas malpli ol 10.000 tage, do la kolektado daŭras kelkajn semajnojn).'},
+    'sw_unclear_k_home': {"de": 'mit geschätzter Heimatregion', "en": 'with estimated home region', "eo": 'kun taksita hejma regiono'},
+    'sw_unclear_list': {"de": 'Unklare Orte (ohne Zimmerflüge)', "en": 'Unclear places (indoor flights excluded)', "eo": 'Neklaraj lokoj (sen endomaj flugoj)'},
+    'sw_fix_h': {"de": 'Korrigieren', "en": 'Correct', "eo": 'Korekti'},
+    'sw_fix_state': {"de": 'Stand', "en": 'Status', "eo": 'Stato'},
+    'sw_fix_state_open': {"de": 'wird noch geprüft', "en": 'still being checked', "eo": 'ankoraŭ kontrolata'},
+    'sw_fix_state_none': {"de": 'Ort nicht gefunden, KI folgt', "en": 'place not found, AI next', "eo": 'loko ne trovita, AI sekvas'},
+    'sw_fix_state_unknown': {"de": 'unklar (alles versucht)', "en": 'unclear (everything tried)', "eo": 'neklara (ĉio provita)'},
+    'sw_fix_btn': {"de": 'Speichern', "en": 'Save', "eo": 'Konservi'},
+    'sw_fix_taxa_ph': {"de": 'Art (leer = so lassen)', "en": 'Species (empty = keep)', "eo": 'Specio (malplena = lasi)'},
+    'sw_fix_saved': {"de": 'Korrektur gespeichert. Sie gilt, bis die Nachricht in Discord bearbeitet wird.', "en": 'Correction saved. It applies until the message is edited in Discord.', "eo": 'Korekto konservita. Ĝi validas ĝis la mesaĝo estas redaktita en Discord.'},
+    'sw_fix_list': {"de": 'Korrekturen von Hand', "en": 'Manual corrections', "eo": 'Manaj korektoj'},
+    'sw_names_h': {"de": 'Korrigierte Artnamen', "en": 'Corrected species names', "eo": 'Korektitaj specinomoj'},
+    'sw_names_intro': {"de": 'Abgleich mit der Artenliste (AntCat): Synonyme und Tippfehler werden auf den aktuellen Namen gebracht. Unbekannte Namen zählen als „Gattung sp.“, bis die KI oder du sie klärst.', "en": 'Checked against the species list (AntCat): synonyms and typos are mapped to the current name. Unknown names count as “genus sp.” until the AI or you clarify them.', "eo": 'Kontrolo per la specilisto (AntCat): sinonimoj kaj tajperaroj ricevas la aktualan nomon. Nekonataj nomoj kalkuliĝas kiel „genro sp.“ ĝis la AI aŭ vi klarigas ilin.'},
+    'sw_names_raw': {"de": 'Gemeldet als', "en": 'Reported as', "eo": 'Raportita kiel'},
+    'sw_names_now': {"de": 'Jetzt', "en": 'Now', "eo": 'Nun'},
+    'sw_names_how': {"de": 'Wie', "en": 'How', "eo": 'Kiel'},
+    'sw_names_fixed': {"de": 'Artenliste', "en": 'species list', "eo": 'specilisto'},
+    'sw_names_ai': {"de": 'KI, von der Artenliste bestätigt', "en": 'AI, confirmed by the species list', "eo": 'AI, konfirmita de la specilisto'},
+    'sw_names_unknown': {"de": 'unbekannt, KI folgt', "en": 'unknown, AI next', "eo": 'nekonata, AI sekvas'},
+    'sw_names_unknown_ai': {"de": 'unbekannt (Gattung sp.)', "en": 'unknown (genus sp.)', "eo": 'nekonata (genro sp.)'},
+    'sw_names_none': {"de": 'Noch keine Korrekturen.', "en": 'No corrections yet.', "eo": 'Ankoraŭ neniuj korektoj.'},
+})
+
 def translate(lang: str, key: str, **kw) -> str:
     """Übersetzt *key* in *lang* (Fallback: Deutsch, dann der Key selbst).
     Platzhalter werden via str.format eingesetzt."""

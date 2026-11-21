@@ -701,6 +701,8 @@ CREATE TABLE IF NOT EXISTS swarm_reports (
     w_rain24     REAL,                   -- Niederschlag in den 24 h davor, mm
     w_state      INTEGER,
     w_src        TEXT,                   -- ifs | hf | fc (Quelle des nachgetragenen Wetters)
+    raw_label    TEXT,                   -- Art wie gemeldet (vor Abgleich mit der Artenliste)
+    taxon_check  TEXT,                   -- ok | fixed | unknown | ai | nolist
     UNIQUE (message_id, label)
 );
 CREATE INDEX IF NOT EXISTS idx_swarm_date ON swarm_reports (flight_date);
@@ -729,6 +731,16 @@ CREATE TABLE IF NOT EXISTS swarm_alert_sent (
 CREATE TABLE IF NOT EXISTS swarm_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+-- Korrektur von Hand (Admin), gilt bis die Nachricht in Discord bearbeitet wird.
+CREATE TABLE IF NOT EXISTS swarm_override (
+    message_id TEXT PRIMARY KEY,
+    place      TEXT NOT NULL DEFAULT '',
+    country    TEXT NOT NULL DEFAULT '',
+    region     TEXT NOT NULL DEFAULT '',
+    taxa       TEXT NOT NULL DEFAULT '',
+    set_by     TEXT,
+    set_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 -- Saisonstart je Jahr (erste Meldung im Freien), für Intro, Banner, PN und Erfolg.
 CREATE TABLE IF NOT EXISTS swarm_season (
@@ -860,6 +872,9 @@ _EU_COUNTRIES = [
 
 # Spalten-Migrationen für bestehende DBs: (Tabelle, Spalte, DDL)
 _MIGRATIONS = [
+    ("swarm_reports",  "raw_label",       "ALTER TABLE swarm_reports ADD COLUMN raw_label TEXT"),
+    ("swarm_reports",  "taxon_check",     "ALTER TABLE swarm_reports ADD COLUMN taxon_check TEXT"),
+    ("swarm_reports",  "w_src",           "ALTER TABLE swarm_reports ADD COLUMN w_src TEXT"),
     ("shops",          "url_override",    "ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL"),
     ("discount_codes", "status_override", "ALTER TABLE discount_codes ADD COLUMN status_override TEXT"),
     ("user_price_tracking", "target_price", "ALTER TABLE user_price_tracking ADD COLUMN target_price REAL"),

@@ -4663,11 +4663,23 @@ SWARM_ADMIN = """{% extends "base" %}{% block body %}
 <div class=kpigrid style="margin-bottom:12px">
  <div class=kpi><div class=v>{{ n_dach }}</div><div class=l>{{ t('sw_unclear_k_dach') }}</div></div>
  <div class=kpi><div class=v>{{ n_abroad }}</div><div class=l>{{ t('sw_unclear_k_abroad') }}</div></div>
+ <div class=kpi><div class=v>{{ n_home }}</div><div class=l>{{ t('sw_unclear_k_home') }}</div></div>
  <div class=kpi><div class=v>{{ items|length }}</div><div class=l>{{ t('sw_unclear_k_unclear') }}</div></div>
 </div>
-<div class=chartbox style="overflow-x:auto"><table class=swt style="font-size:13px"><tr><th>{{ t('sw_abroad_when') }}</th><th>{{ t('sw_col_taxon') }}</th><th>{{ t('sw_abroad_place') }}</th><th></th></tr>
-{% for r in items %}<tr><td style="white-space:nowrap">{{ r.flight_date|dmy }}</td><td><i>{{ r.labels }}</i></td><td>{{ r.place or '?' }}</td><td>{% if r.link %}<a href="{{ r.link }}" target=_blank rel=noopener>Discord ↗</a>{% endif %}</td></tr>
-{% else %}<tr><td colspan=4 class=muted>{{ t('sw_unclear_none') }}</td></tr>{% endfor %}</table></div>
+{% if ok %}<div class=flash>✅ {{ t('sw_fix_saved') }}</div>{% endif %}
+<style>.fx{display:flex;gap:4px;flex-wrap:wrap}.fx input,.fx select{width:auto;padding:3px 6px;font-size:12px}.fx select{max-width:170px}.fx input[name=place]{width:150px}.fx input[name=taxa]{width:150px}</style>
+<div class=chartbox style="overflow-x:auto"><h4>❓ {{ t('sw_unclear_list') }}</h4><table class=swt style="font-size:13px"><tr><th>{{ t('sw_abroad_when') }}</th><th>{{ t('sw_col_taxon') }}</th><th>{{ t('sw_abroad_place') }}</th><th>{{ t('sw_fix_state') }}</th><th>{{ t('sw_fix_h') }}</th></tr>
+{% for r in items %}<tr id="m{{ r.mid }}"><td style="white-space:nowrap">{{ r.flight_date|dmy }}{% if r.link %}<br><a href="{{ r.link }}" target=_blank rel=noopener>Discord ↗</a>{% endif %}</td><td><i>{{ r.labels }}</i></td><td>{{ r.place or '?' }}</td>
+<td class=muted style="font-size:12px">{{ t('sw_fix_state_' ~ (r.state or 'open')) }}</td>
+<td><form method=post action="/admin/schwarmflug/fix?lang={{ lang }}" class=fx><input type=hidden name=csrf value="{{ csrf }}"><input type=hidden name=mid value="{{ r.mid }}">
+<select name=where>{% for v, lbl in regions %}<option value="{{ v }}">{{ lbl }}</option>{% endfor %}</select><input name=place placeholder="{{ t('sw_abroad_place') }}" value="{{ r.place }}"><input name=taxa placeholder="{{ t('sw_fix_taxa_ph') }}"><button class="btn small">{{ t('sw_fix_btn') }}</button></form></td></tr>
+{% else %}<tr><td colspan=5 class=muted>{{ t('sw_unclear_none') }}</td></tr>{% endfor %}</table></div>
+{% if manual %}<div class=chartbox style="overflow-x:auto"><h4>✍️ {{ t('sw_fix_list') }}</h4><table class=swt style="font-size:13px"><tr><th>{{ t('sw_abroad_when') }}</th><th>{{ t('sw_abroad_place') }}</th><th>{{ t('sw_id_region') }}</th><th>{{ t('sw_col_taxon') }}</th></tr>
+{% for o in manual %}<tr><td>{{ o.set_at|berlin }}</td><td>{{ o.place }}</td><td>{{ o.country }}{% if o.region %}-{{ o.region }}{% endif %}</td><td><i>{{ o.taxa }}</i></td></tr>{% endfor %}</table></div>{% endif %}
+<div class=chartbox style="overflow-x:auto"><h4>🔤 {{ t('sw_names_h') }}</h4><p class=muted style="font-size:12px;margin-top:0">{{ t('sw_names_intro') }}</p>
+<table class=swt style="font-size:13px"><tr><th>{{ t('sw_names_raw') }}</th><th>{{ t('sw_names_now') }}</th><th>{{ t('sw_names_how') }}</th><th>{{ t('sw_kpi_reports') }}</th></tr>
+{% for f in fixed %}<tr><td><i>{{ f.raw_label }}</i></td><td><i>{{ f.label }}</i></td><td class=muted>{{ t('sw_names_' ~ (f.taxon_check or 'fixed')) }}</td><td>{{ f.n }}</td></tr>
+{% else %}<tr><td colspan=4 class=muted>{{ t('sw_names_none') }}</td></tr>{% endfor %}</table></div>
 {% endblock %}"""
 ENV.loader.mapping["swarm_admin"] = SWARM_ADMIN
 
@@ -4678,13 +4690,15 @@ async def h_swarm_admin(req):
     if not _is_admin(req):
         raise web.HTTPFound(f"/admin/login?lang={lang}")
     from config import SWARM_CHANNEL_ID
+    from utils import geo
     bot = req.app["bot"]
-    unclear = await SWB.S.rows(bot, include_indoor=True, scope="unclear")
+    unclear = [r for r in await SWB.S.rows(bot, include_indoor=True, scope="unclear") if not r["indoor"]]
     ch = bot.get_channel(SWARM_CHANNEL_ID) if SWARM_CHANNEL_ID else None
     gid = getattr(getattr(ch, "guild", None), "id", None)
     by: dict = {}
     for r in unclear:
-        e = by.setdefault(r["message_id"], {"flight_date": r["flight_date"], "place": r["place"], "labels": [],
+        e = by.setdefault(r["message_id"], {"mid": r["message_id"], "flight_date": r["flight_date"],
+                                            "place": r["place"], "labels": [], "state": r["geo_src"] or "",
                                             "link": f"https://discord.com/channels/{gid}/{SWARM_CHANNEL_ID}/{r['message_id']}"
                                             if gid else ""})
         e["labels"].append(r["label"])
@@ -4695,10 +4709,48 @@ async def h_swarm_admin(req):
                                 "country IN ('de','at','ch','li')", fetch=True)
     n_a = await execute_db(bot, "SELECT COUNT(DISTINCT message_id) AS n FROM swarm_reports WHERE country<>'' AND "
                                 "country NOT IN ('de','at','ch','li')", fetch=True)
+    fixed = [dict(x) for x in await execute_db(bot,
+        "SELECT raw_label, label, taxon_check, COUNT(DISTINCT message_id) AS n FROM swarm_reports "
+        "WHERE raw_label IS NOT NULL GROUP BY raw_label, label, taxon_check ORDER BY n DESC LIMIT 300", fetch=True) or []]
+    home = await execute_db(bot, "SELECT COUNT(DISTINCT message_id) AS n FROM swarm_reports WHERE geo_src='home'", fetch=True)
+    manual = [dict(x) for x in await execute_db(bot, "SELECT * FROM swarm_override ORDER BY set_at DESC LIMIT 100",
+                                                fetch=True) or []]
     resp = _render(req, "swarm_admin", title=translate(lang, "sw_unclear_h"), items=items,
-                   n_dach=n_d[0]["n"] if n_d else 0, n_abroad=n_a[0]["n"] if n_a else 0)
+                   n_dach=n_d[0]["n"] if n_d else 0, n_abroad=n_a[0]["n"] if n_a else 0,
+                   n_home=home[0]["n"] if home else 0, fixed=fixed, manual=manual, csrf=_csrf_token(req),
+                   regions=_sw_regions(lang), ok=req.query.get("ok", ""))
     resp.headers["Cache-Control"] = "private, no-store"
     return resp
+
+
+async def h_swarm_status(req):
+    """Live-Stand der Datensammlung (alle 10 s vom Kasten abgefragt)."""
+    lang = pick_lang(req)
+    if not _rate("swst:" + _hmac("swst", _ip(req)), 30, 60):
+        raise web.HTTPTooManyRequests()
+    prog = await SWB.progress(req.app["bot"], lambda key, **kw: translate(lang, key, **kw))
+    return web.json_response(prog, headers={"Cache-Control": "no-store"})
+
+
+async def h_swarm_fix(req):
+    """Admin: Korrektur von Hand speichern (gilt bis zur Bearbeitung in Discord)."""
+    lang = pick_lang(req)
+    if not _is_admin(req):
+        raise web.HTTPForbidden()
+    form = await req.post()
+    if not _csrf_ok(req, form):
+        raise web.HTTPForbidden(text="bad csrf")
+    from utils import swarm_resolve as R
+    mid = re.sub(r"\D", "", str(form.get("mid") or ""))[:25]
+    where = str(form.get("where") or "")
+    c, _, r = where.partition("-")
+    if not mid or (where and c not in geo.all_regions()):
+        raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}")
+    s = _admin_session(req)
+    await R.set_override(req.app["bot"], mid, str(form.get("place") or "")[:160].strip(), c if where else "",
+                         "" if c == "li" else r, str(form.get("taxa") or "")[:200].strip(), s[0] if s else "")
+    await R.apply_override(req.app["bot"], mid)
+    raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}&ok={mid}#m{mid}")
 
 
 async def h_swarm(req):
@@ -5395,6 +5447,8 @@ def build_app(bot) -> web.Application:
         web.get("/hilfe", h_hilfe),
         web.get("/schwarmflug", h_swarm),
         web.get("/admin/schwarmflug", h_swarm_admin),
+        web.post("/admin/schwarmflug/fix", h_swarm_fix),
+        web.get("/schwarmflug/status.json", h_swarm_status),
         web.get("/konto", h_konto),
         web.get("/konto/daten.json", h_konto_export),
         web.get(r"/konto/kalender/{uid:\d+}/{salt:[0-9a-f]{16}}.ics", h_konto_ics),

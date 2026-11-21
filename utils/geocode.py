@@ -87,9 +87,42 @@ def _local_places() -> dict:
     return _PLACES
 
 
+_PRE = re.compile(r"^(?:(?:in\s+der\s+)?n(?:ä|ae)he(?:\s+von)?|nahe|naeher|näher|raum|region|bei|in|im|lk\.?|landkreis|"
+                  r"kreis|gemeinde|stadt|umgebung(?:\s+von)?|nördlich(?:\s+von)?|südlich(?:\s+von)?|"
+                  r"östlich(?:\s+von)?|westlich(?:\s+von)?|irgendwo\s+(?:bei|in|zwischen))\s+", re.I)
+_POST = re.compile(r"\s+(?:umgebung|umland|innenstadt|außerhalb|ausserhalb|zentrum|uni|nord|süd|sued|ost|west|"
+                   r"und\s+umgebung|landkreis|lkr\.?|land)\s*$", re.I)
+
+
+def clean_place(place: str) -> str:
+    """„Nähe Schweinfurt“, „LK Onsabrück“, „Weinheim (Nähe Mannheim)“ → Kernort für die Suche."""
+    p = re.sub(r"\([^)]*\)", " ", place or "")
+    p = re.split(r"[,;/]| - ", p)[0]
+    p = re.sub(r"\d{4,5}", " ", p)
+    p = re.sub(r"\s+", " ", p).strip(" .`'\"-")
+    for _ in range(2):
+        p = _PRE.sub("", p).strip()
+        p = _POST.sub("", p).strip()
+    return p
+
+
+def _fuzzy_local(name: str, country: str = "") -> dict | None:
+    """Tippfehler im Ortsnamen („Onsabrück“) gegen die Ortsliste, nur bei hoher Ähnlichkeit."""
+    if len(name) < 7:
+        return None
+    try:
+        from rapidfuzz import process, fuzz
+    except Exception:
+        return None
+    places = _local_places()
+    keys = [k for k in places if not country or k[0] == country]
+    hit = process.extractOne(name.lower(), [k[1] for k in keys], scorer=fuzz.ratio, score_cutoff=88)
+    return dict(places[keys[hit[2]]]) if hit else None
+
+
 def local(place: str, country: str = "") -> dict | None:
     """PLZ im Text oder exakter Ortsname. Kein Netz."""
-    m = re.search(r"\b(\d{4,5})\b", place or "")
+    m = re.search(r"(?<!\d)(\d{4,5})(?!\d)", place or "")          # auch „1210Wien“
     for c in ([country] if country else []) + [c for c in geo.DACH if c != country]:
         if m and geo.valid_format(c, m.group(1)):
             r = geo.resolve(c, m.group(1))
@@ -104,12 +137,15 @@ def local(place: str, country: str = "") -> dict | None:
     words = cands[0].split()
     if len(words) > 1:
         cands += [" ".join(words[:2]), words[0]]
+    core = _norm(clean_place(place))
+    if core and core not in cands:
+        cands.append(core)
     for cand in cands:
         for c in ([country] if country else list(geo.DACH)):
             hit = places.get((c, cand))
             if hit:
                 return dict(hit)
-    return None
+    return _fuzzy_local(core, country) if core else None
 
 
 async def _cache_get(bot, key):
@@ -125,7 +161,7 @@ async def _cache_put(bot, key, res):
                       res.get("src") or "none"), commit=True)
 
 
-async def _nominatim(q: str) -> dict | None:
+async def _nominatim(q: str, world: bool = False) -> dict | None:
     global _LAST
     from config import BOARD_PUBLIC_URL
     try:
@@ -134,8 +170,9 @@ async def _nominatim(q: str) -> dict | None:
         _V = "1"
     headers = {"User-Agent": f"AAM-Discord-Bot/{_V} (+{BOARD_PUBLIC_URL or 'https://github.com'})",
                "Accept-Language": "de"}
-    params = {"q": q, "format": "jsonv2", "addressdetails": "1", "limit": "1",
-              "countrycodes": "de,at,ch,li"}
+    params = {"q": q, "format": "jsonv2", "addressdetails": "1", "limit": "1"}
+    if not world:
+        params["countrycodes"] = "de,at,ch,li"
     async with _LOCK:
         wait = _GAP - (time.monotonic() - _LAST)
         if wait > 0:
@@ -169,22 +206,50 @@ async def _nominatim(q: str) -> dict | None:
 
 
 async def locate(bot, place: str, country: str = "", region: str = "") -> dict | None:
-    """Koordinate + Region zu einem Ortstext. Passt die Region nicht zur genannten
-    Regionsrolle, wird das Ergebnis verworfen (Namensgleichheit in einem anderen Land)."""
+    """Koordinate + Region zu einem Ortstext (siehe locate_status)."""
+    return (await locate_status(bot, place, country, region))[0]
+
+
+async def locate_status(bot, place: str, country: str = "", region: str = "") -> tuple[dict | None, str]:
+    """(Ergebnis, Status). Status: ok | none (endgültig nicht gefunden, gecacht) | skip (kein
+    sinnvoller Ort, z. B. „?“) | error (Netz/Sperre, später erneut). Passt die Region nicht zur
+    genannten Regionsrolle, wird das Ergebnis verworfen (Namensgleichheit anderswo)."""
     from config import SWARM_OSM_GEOCODING
-    if not place or len(place) < 3:
-        return None
+    if not place or len(re.findall(r"[A-Za-zÄÖÜäöüß]", place)) < 3 and not re.search(r"\d{4,5}", place):
+        return None, "skip"
     key = _norm(f"{place}|{country}")
     cached = await _cache_get(bot, key)
     if cached is not None:
-        return cached if cached.get("lat") is not None else None
+        if cached.get("lat") is not None:
+            return cached, "ok"
+        if cached.get("country") and cached["country"] not in geo.DACH:
+            return cached, "abroad"
+        return None, "none"
     res = local(place, country)
+    core = clean_place(place)
     if res is None and SWARM_OSM_GEOCODING:
-        q = place if not region else f"{place}, {geo.all_regions().get(country, {}).get(region, '')}"
-        res = await _nominatim(q.strip(", "))
-        if res and res.get("error"):
-            return None                       # Netzfehler: nicht cachen, später erneut
+        rname = geo.all_regions().get(country, {}).get(region, "") if region else ""
+        tries = [f"{place}, {rname}".strip(", ")]
+        if core and core.lower() != place.lower():
+            tries.append(f"{core}, {rname}".strip(", "))
+        for q in tries:
+            res = await _nominatim(q)
+            if res and res.get("error"):
+                return None, "error"          # Netzfehler: nicht cachen, später erneut
+            if res:
+                break
+        if res is None and not region:
+            # Weltweit: liegt der Ort im Ausland, wird es eine Auslandsmeldung (ohne Koordinate)
+            w = await _nominatim(core or place, world=True)
+            if w and w.get("error"):
+                return None, "error"
+            if w and w.get("country") and w["country"] not in geo.DACH:
+                res = {"lat": None, "lon": None, "country": w["country"], "region": "", "src": "abroad"}
+            elif w:
+                res = w
     if res and region and res.get("region") and (res["country"], res["region"]) != (country, region):
         res = None
     await _cache_put(bot, key, res)
-    return res
+    if res and res.get("src") == "abroad":
+        return res, "abroad"
+    return (res, "ok") if res else (None, "none")

@@ -161,8 +161,14 @@ def _region_names() -> dict:
                 "mecklenburg vorpommern": ("de", "MV"), "schleswig holstein": ("de", "SH"),
                 "sachsen anhalt": ("de", "ST"), "nordrhein westfalen": ("de", "NW"),
                 "rheinland pfalz": ("de", "RP"), "oberoesterreich": ("at", "4"),
-                "niederoesterreich": ("at", "3"), "schweiz": ("ch", ""), "österreich": ("at", ""),
+                "niederoesterreich": ("at", "3"), "schweiz": ("ch", ""), "österreich": ("at", ""), "deutschland": ("de", ""),
                 "liechtenstein": ("li", "LI")})
+    try:
+        from utils.swarm_resolve import aliases
+        for k, v in aliases().items():
+            out.setdefault(k, v)
+    except Exception:
+        pass
     return out
 
 
@@ -190,7 +196,11 @@ def region_in_text(text: str) -> tuple[str, str] | None:
             if name in ("zug", "uri", "bern", "jura") and "kanton" not in low:
                 continue
             return _REGNAMES[name]
-    return None
+    try:                                    # Kürzel (BW, NRW, OÖ …) und Tippfehler („Rehinland-Pfalz“)
+        from utils.swarm_resolve import region_fuzzy
+        return region_fuzzy(text)
+    except Exception:
+        return None
 
 
 def region_name(country: str, code: str) -> str:
@@ -220,8 +230,9 @@ _FOREIGN_EXTRA = {
            "comer see", "elba", "venetien", "ligurien", "apulien", "kalabrien"],
     "fr": ["korsika", "provence", "elsass", "bretagne", "normandie", "côte d'azur", "cote d'azur"],
     "gr": ["kreta", "rhodos", "korfu", "kos", "zakynthos", "kykladen", "chalkidiki", "peloponnes", "santorini"],
-    "hr": ["istrien", "dalmatien", "krk", "pag", "rab", "brač", "hvar", "split", "dubrovnik"],
+    "hr": ["istrien", "dalmatien", "krk", "pag", "rab", "brač", "hvar", "split", "dubrovnik", "croatien", "croatia"],
     "pt": ["madeira", "azoren", "algarve"],
+    "cz": ["tschechische republik", "tschechei"],
     "nl": ["holland"], "gb": ["england", "schottland", "wales", "großbritannien", "grossbritannien"],
     "us": ["usa", "vereinigte staaten", "amerika"], "th": ["phuket", "koh samui"], "tr": ["antalya"],
     "id": ["bali", "sumatra", "java", "borneo"],
@@ -397,7 +408,14 @@ def _place(raw: str) -> str:
     if p.count("(") > p.count(")"):
         p += ")"
     p = p.lstrip(")").rstrip("(").strip()
+    if _PLACE_NOISE.fullmatch(p.strip(" .`\"'")):
+        return ""
     return "" if region_from_name(p) else p[:160]
+
+
+# Platzhalter und Vorlagenreste im Ortsfeld (kein Ort)
+_PLACE_NOISE = re.compile(r"(\?+|-+|\.+|x+|/|keine?\s*angabe|k\.?\s*a\.?|unbekannt|geheim|"
+                          r"\(?bundesländerrollen taggen\)?|bundesland.*taggen.*|)", re.I)
 
 
 # ── Auswertung einer Nachricht ────────────────────────────────────────────────
@@ -541,13 +559,14 @@ async def store(bot, message_id, author_id, posted_utc: datetime, p: dict, sourc
         await execute_db(bot,
             "INSERT OR IGNORE INTO swarm_reports (message_id, author_id, posted_at, flight_date, flight_time, "
             "genus, species, qualifier, label, country, region, place, lat, lon, geo_src, temp_c, wind, weather, "
-            "indoor, protected, source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "indoor, protected, source, raw_label, taxon_check) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (mid, str(author_id) if author_id else None,
              posted_utc.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
              p.get("date"), p.get("time"), t["genus"], t.get("species"), t.get("qualifier") or "",
              taxon_label(t), p.get("country") or "", p.get("region") or "", p.get("place") or "",
              lat, lon, geo_src, p.get("temp"), p.get("wind"), p.get("weather"),
-             1 if p.get("indoor") else 0, p.get("protected"), source), commit=True)
+             1 if p.get("indoor") else 0, p.get("protected"), source,
+             t.get("raw") if t.get("raw") and t.get("raw") != taxon_label(t) else None, t.get("check")), commit=True)
         n += 1
     await execute_db(bot, "INSERT INTO swarm_scanned (message_id, status) VALUES (?,?) "
                           "ON CONFLICT(message_id) DO UPDATE SET status=excluded.status, scanned_at=datetime('now')",

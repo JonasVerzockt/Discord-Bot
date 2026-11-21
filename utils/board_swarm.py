@@ -74,12 +74,15 @@ TEMPLATE = """{% extends "base" %}{% block body %}
  .lv{display:inline-block;font-size:11px;border-radius:20px;padding:0 7px;margin-left:4px;color:#0d1117;font-weight:600}
  .lv1{background:#F0E442} .lv2{background:#E69F00} .lv3{background:#D55E00;color:#fff}
  @media(max-width:700px){ #fcmap{height:340px !important}}
+ .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+ .pbar{height:8px;background:#21262d;border-radius:4px;overflow:hidden;margin-top:3px} .pbar i{display:block;height:100%;background:#58a6ff;transition:width .6s}
  .sbanner{background:#3fb95018;border:1px solid #3fb95066;border-radius:10px;padding:10px 14px;margin-bottom:12px}
 </style>
 <h2 style="margin:0 0 2px">🪽 {{ t('sw_h') }}</h2>
 <p class=muted style="margin:0 0 10px">{{ t('sw_intro', since=first_year) }}</p>
 <div class=rangesw>
  {% for r in ranges %}<a class="{{ 'on' if r==z }}" href="?z={{ r }}{% if g %}&g={{ g }}{% endif %}&lang={{ lang }}">{{ t('sw_z_' ~ r, y=season_year) }}</a>{% endfor %}
+ <span class=muted style="font-size:12px">{{ t('sw_z_year') }}</span>{% for y in year_list %}<a class="{{ 'on' if y==z }}" href="?z={{ y }}{% if g %}&g={{ g }}{% endif %}&lang={{ lang }}" style="padding:2px 8px">{{ y }}</a>{% endfor %}
  <form method=get style="display:inline;margin-left:auto"><input type=hidden name=z value="{{ z }}"><input type=hidden name=lang value="{{ lang }}">
  <select name=g class=gsel onchange="this.form.submit()"><option value="">{{ t('sw_all_genera') }}</option>{% for gg in genera %}<option value="{{ gg }}" {{ 'selected' if gg==g }}>{{ gg }}</option>{% endfor %}</select></form>
 </div>
@@ -105,6 +108,9 @@ TEMPLATE = """{% extends "base" %}{% block body %}
 {% for q in fc.quality %}<tr><td><i>{{ q.taxon }}</i></td><td>{{ q.n_pos }}</td><td>{{ q.lift }}</td><td class=muted>{{ q.prev or '?' }}</td><td>{{ q.auc }}</td></tr>{% endfor %}</table>
 <p class=muted style="font-size:12px;margin:6px 0 0">{{ t('fc_q_rules', n=fc.rules) }}{% if fc.pending %} {{ t('fc_q_pending', n=fc.pending) }}{% endif %}</p></details>{% endif %}
 </div>{% endif %}
+<div class=chartbox id=sammeln style="margin-top:10px"><h4>📡 {{ t('sw_prog_h') }} <span class=muted style="font-weight:400;font-size:12px" id=pgState>{{ prog.state }}</span></h4>
+<div class=pgrid>{% for b in prog.bars %}<div><div class=muted style="font-size:12px">{{ t('sw_prog_' ~ b.key) }} · <span id="pg_{{ b.key }}_t">{{ b.done }} / {{ b.total }}</span></div><div class=pbar><i id="pg_{{ b.key }}" style="width:{{ b.pct }}%"></i></div></div>{% endfor %}</div>
+<p class=muted style="font-size:12px;margin:6px 0 0" id=pgBudget>{{ prog.budget }}</p></div>
 <div class=kpigrid style="margin:12px 0">
  <div class=kpi><div class=v>{{ k.total }}</div><div class=l>{{ t('sw_kpi_reports') }}</div></div>
  <div class=kpi><div class=v>{{ k.taxa }}</div><div class=l>{{ t('sw_kpi_taxa') }}</div></div>
@@ -117,12 +123,13 @@ TEMPLATE = """{% extends "base" %}{% block body %}
   <div class=swlegend><span>{{ t('sw_legend') }}</span>{% for c, lbl in legend %}<span><i style="background:{{ c }}"></i>{{ lbl }}</span>{% endfor %}{% if member %}<span>· {{ t('sw_legend_pin') }}:</span>{% for gg, c in data.gcol.items() %}<span><i style="background:{{ c }};border-radius:50%;width:10px"></i>{{ gg }}</span>{% endfor %}<span><i style="background:#f0f6fc;border-radius:50%;width:10px"></i>{{ t('sw_legend_other') }}</span>{% endif %}</div>
   <div class=tl><button type=button class="btn grey small" id=tlPlay title="{{ t('sw_tl_hint') }}">▶ {{ t('sw_tl_play') }}</button>
    <input type=range id=tlWeek min=0 max="{{ data.weeks|length - 1 }}" value=0 aria-label="{{ t('sw_tl_hint') }}"><span class=lbl id=tlLbl>{{ t('sw_tl_all') }}</span></div>
+  {% if home_n %}<p class=muted style="font-size:12px;margin:4px 0 0">≈ {{ t('sw_home_note', n=home_n) }}</p>{% endif %}
   {% if not member %}<div class=mlock>🔒 {{ t('sw_members_only') }}{% if login_url %} <a href="{{ login_url }}">{{ t('dir_login_btn') }}</a>{% endif %}</div>{% endif %}
  </div>
  <div class=chartbox style="margin-top:0"><h4>📜 {{ t('sw_feed_h') }}</h4><div class=feed>
  {% for r in recent %}<div class=it><i>{{ r.label }}</i>{% if r.indoor %} 🏠{% endif %}
   {% if r.abroad %}<span title="{{ t('sw_abroad_hint') }}"> 🌍</span>{% endif %}
-  <div class=w>{{ r.flight_date|dmy }}{% if r.flight_time %} · {{ r.flight_time }}{% endif %}{% if r.temp_c is not none %} · {{ '%g'|format(r.temp_c) }} °C{% elif r.w_temp is not none %} · <span title="{{ t('sw_temp_est') }}">≈ {{ '%.0f'|format(r.w_temp) }} °C</span>{% endif %}{% if r.region_name %} · {{ r.region_name }}{% endif %}
+  <div class=w>{{ r.flight_date|dmy }}{% if r.flight_time %} · {{ r.flight_time }}{% endif %}{% if r.temp_c is not none %} · {{ '%g'|format(r.temp_c) }} °C{% elif r.w_temp is not none %} · <span title="{{ t('sw_temp_est') }}">≈ {{ '%.0f'|format(r.w_temp) }} °C</span>{% endif %}{% if r.region_name %} · {% if r.geo_src == 'home' %}<span title="{{ t('sw_home_hint') }}">≈ {{ r.region_name }}</span>{% else %}{{ r.region_name }}{% endif %}{% endif %}{% if member and r.raw_label %} · <span class=info title="{{ t('sw_raw_hint', raw=r.raw_label) }}">ⓘ</span>{% endif %}
   {% if member %}{% if r.place %}<br>📍 {{ r.place }}{% endif %}{% if r.link %} · <a href="{{ r.link }}" target=_blank rel=noopener>Discord ↗</a>{% endif %}{% endif %}</div></div>
  {% else %}<p class=muted>{{ t('sw_feed_none') }}</p>{% endfor %}</div></div>
 </div>
@@ -228,6 +235,15 @@ TEMPLATE = """{% extends "base" %}{% block body %}
     .bindPopup("<b><i>"+esc(c[4])+"</i></b><br>"+esc(c[5])).addTo(fm);
   });
  }
+ (function poll(){
+  setTimeout(function(){
+   fetch("/schwarmflug/status.json?lang="+encodeURIComponent(D.lang),{cache:"no-store"}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+    if(!j) return;
+    j.bars.forEach(function(b){var e=document.getElementById("pg_"+b.key),x=document.getElementById("pg_"+b.key+"_t");if(e)e.style.width=b.pct+"%";if(x)x.textContent=b.done+" / "+b.total;});
+    var s=document.getElementById("pgState");if(s)s.textContent=j.state;var bu=document.getElementById("pgBudget");if(bu)bu.textContent=j.budget;
+   }).catch(function(){}).then(poll);
+  },10000);
+ })();
  if(!window.Chart) return;
  Chart.defaults.color="#8b949e"; Chart.defaults.borderColor="#21262d";
  new Chart(document.getElementById("chSeason"),{type:"line",data:{labels:D.weeks,datasets:D.series.map(function(s){return {label:s.label,data:s.data,borderColor:s.color,backgroundColor:s.color+"33",tension:.35,pointRadius:0,borderWidth:2,fill:false};})},
@@ -371,9 +387,9 @@ def years_chart(rows: list[dict]) -> dict:
     return {"years": years, "series": series}
 
 
-def _abroad_ctx(rows: list, g: str, since, member: bool, link, lang: str) -> dict:
+def _abroad_ctx(rows: list, g: str, inr, member: bool, link, lang: str) -> dict:
     """Kasten „Aus dem Urlaub“: Meldungen aus Ländern außerhalb DACH (nicht in der Auswertung)."""
-    sel = [r for r in rows if (not g or r["genus"] == g) and (not since or r["flight_date"] >= since)]
+    sel = [r for r in rows if (not g or r["genus"] == g) and inr(r["flight_date"])]
     if not sel:
         sel = [r for r in rows if not g or r["genus"] == g]
     seen, out = set(), []
@@ -386,6 +402,47 @@ def _abroad_ctx(rows: list, g: str, since, member: bool, link, lang: str) -> dic
                     "flight_date": r["flight_date"], "place": r["place"] if member else "",
                     "link": link(r["message_id"]) if member else ""})
     return {"abroad": out[:25], "abroad_more": max(0, len(out) - 25)}
+
+
+async def progress(bot, t) -> dict:
+    """Stand der Datensammlung (für den Kasten und /schwarmflug/status.json)."""
+    from utils import forecast as FC
+    from config import SWARM_OM_DAILY
+
+    async def one(sql, params=()):
+        r = await execute_db(bot, sql, params, fetch=True)
+        return (r[0][0] or 0) if r else 0
+    q_out = "indoor=0 AND country IN ('de','at','ch','li')"
+    places_t = await one("SELECT COUNT(DISTINCT message_id) FROM swarm_reports WHERE indoor=0 AND place<>''")
+    places_o = await one("SELECT COUNT(DISTINCT message_id) FROM swarm_reports WHERE indoor=0 AND place<>'' "
+                         "AND lat IS NULL AND geo_src IS NULL")
+    clar_t = await one("SELECT COUNT(DISTINCT message_id) FROM swarm_reports WHERE indoor=0")
+    clar_o = await one("SELECT COUNT(DISTINCT message_id) FROM swarm_reports WHERE indoor=0 AND ("
+                       "(country='' AND ((geo_src IS NULL AND place='') OR geo_src='none')) OR taxon_check='unknown')")
+    wx_t = await one(f"SELECT COUNT(*) FROM swarm_reports WHERE {q_out} AND lat IS NOT NULL")
+    wx_o = await one(f"SELECT COUNT(*) FROM swarm_reports WHERE {q_out} AND lat IS NOT NULL AND w_state IS NULL")
+    try:
+        pend = await FC.train_pending(bot)
+        done = await one("SELECT COUNT(*) FROM fc_train_done")
+    except Exception:
+        pend, done = 0, 0
+    bud = await FC.budget_today(bot)
+    used = sum(v for k, v in bud.items() if k != "blocked")
+
+    def bar(key, total, open_):
+        d = max(0, total - open_)
+        return {"key": key, "done": d, "total": total, "pct": round(100 * d / total) if total else 100}
+    bars = [bar("places", places_t, places_o), bar("clarify", clar_t, clar_o), bar("weather", wx_t, wx_o),
+            bar("learn", done + pend, pend)]
+    cool = FC.cooling()
+    if cool > 0:
+        state = t("sw_prog_pause", m=int(cool // 60) + 1)
+    elif any(b["done"] < b["total"] for b in bars):
+        state = t("sw_prog_running")
+    else:
+        state = t("sw_prog_done")
+    return {"bars": bars, "state": state,
+            "budget": t("sw_prog_budget", u=f"{used:,.0f}".replace(",", "."), m=f"{SWARM_OM_DAILY:,}".replace(",", "."))}
 
 
 def season_info(lang: str) -> dict | None:
@@ -494,12 +551,17 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
     genera = sorted(genera_cnt, key=lambda x: -genera_cnt[x])
     if g and g not in genera_cnt:
         g = ""
-    if z not in RANGES:
+    year_list = sorted({r["flight_date"][:4] for r in outdoor}, reverse=True)
+    if z not in RANGES and z not in year_list:
         season_n = sum(1 for r in outdoor if r["flight_date"] >= (_since("saison", today) or ""))
         z = "saison" if season_n >= 20 else "alle"
-    since = _since(z, today)
+    since = _since(z, today) if z in RANGES else f"{z}-01-01"
+    until = f"{z}-12-31" if z in year_list else None
+
+    def inr(d: str) -> bool:
+        return (not since or d >= since) and (not until or d <= until)
     base = [r for r in outdoor if not g or r["genus"] == g]
-    sel = [r for r in base if not since or r["flight_date"] >= since]
+    sel = [r for r in base if inr(r["flight_date"])]
 
     # Regionen (Karte)
     regions, names, top = {}, {}, {}
@@ -611,7 +673,7 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
     unclear_n = len({r["message_id"] for r in await S.rows(bot, include_indoor=True, scope="unclear")}) if member else 0
     pool = sorted([r for r in all_rows + abroad_all if not g or r["genus"] == g],
                   key=lambda r: (r["flight_date"], r["flight_time"] or ""), reverse=True)
-    inside = [r for r in pool if not since or r["flight_date"] >= since]
+    inside = [r for r in pool if inr(r["flight_date"])]
     recent = []
     for r in (inside[:40] if inside else pool[:15]):
         recent.append({**r, "abroad": r["country"] not in S.DACH,
@@ -626,7 +688,7 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
     data = {"regions": regions, "names": names, "top": top, "pins": pins, "gcol": gcol,
             "series": series, "weeks": [f"KW {w}" for w in weeks], "weekTitles": week_titles,
             "weekTicks": week_ticks, "hours": hrs, "temps": temps,
-            "t": {"reports": t("sw_kpi_reports"), "perWeek": t("sw_per_week")}}
+            "t": {"reports": t("sw_kpi_reports"), "perWeek": t("sw_per_week")}, "lang": lang}
     # Zeitraffer: Meldungen je Region und Kalenderwoche (Auswahl)
     tl: dict = {}
     for r in sel:
@@ -659,14 +721,16 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
         for c in ident["cands"]:
             c["art"] = art_slug(c["name"])
     wx, wx_n = weather_table(base, t)
+    prog = await progress(bot, t)
     fc = await forecast_ctx(bot, member, q, t)
     if fc.get("data"):
         data["fc"] = fc.pop("data")
     data["t"]["fcNone"] = t("fc_region_none")
     return {"z": z, "g": g, "ranges": RANGES, "genera": genera, "flying": flying, "k": k, "data": data,
             "ident": ident, "regions_sel": regions_select(t, lang), "wx": wx, "wx_n": wx_n,
-            "season": season_info(lang), "fc": fc,
-            **_abroad_ctx(abroad_all, g, since, member, link, lang), "unclear_n": unclear_n,
+            "season": season_info(lang), "fc": fc, "prog": prog,
+            **_abroad_ctx(abroad_all, g, inr, member, link, lang), "unclear_n": unclear_n,
+            "year_list": year_list, "home_n": len({r["message_id"] for r in sel if r.get("geo_src") == "home"}),
             "recent": recent, "taxa": taxa, "legend": legend, "member": member,
             "first_year": (min(r["flight_date"][:4] for r in all_rows) if all_rows else str(today.year)),
             "last_date": max((r["flight_date"] for r in outdoor), default=""),

@@ -45,6 +45,7 @@ from config import SWARM_CHANNEL_ID, BOARD_PUBLIC_URL, SWARM_WEATHER, SWARM_FORE
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from utils import swarm as S
 from utils import geocode
+from utils import swarm_resolve as R
 from utils.account import is_quiet
 from utils.db import execute_db
 from utils.embeds import EMBED_COLOR, ADMIN_COLOR
@@ -97,6 +98,7 @@ class Swarm(commands.Cog):
         if SWARM_CHANNEL_ID:
             self.alert_loop.start()
             self.geo_loop.start()
+            self.resolve_loop.start()
             if SWARM_WEATHER:
                 self.weather_loop.start()
             if SWARM_FORECAST:
@@ -111,22 +113,65 @@ class Swarm(commands.Cog):
                              (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),), commit=True)
             await S.load_season(self.bot)
             await S.reclassify_abroad(self.bot)
+            await execute_db(self.bot, "DELETE FROM om_budget WHERE purpose='blocked'", commit=True)
+            await self._recanon()
         except Exception as e:
             logger.info("🪽 Saisonstart nicht geladen: %s", e)
+
+    async def _recanon(self):
+        """Einmalig: gespeicherte Arten mit der Artenliste abgleichen (ohne KI; Unbekanntes
+        übernimmt danach resolve_loop). Läuft erst, wenn die Artenliste vorhanden ist."""
+        from utils import species_catalog as SC
+        done = await execute_db(self.bot, "SELECT 1 FROM swarm_meta WHERE key='canon_v1'", fetch=True)
+        if done or not SC.available():
+            return
+        rows = await execute_db(self.bot, "SELECT DISTINCT genus, species, qualifier, label FROM swarm_reports "
+                                          "WHERE taxon_check IS NULL", fetch=True) or []
+        n = 0
+        for r in rows:
+            t = R.canon_taxa([{"genus": r["genus"], "species": r["species"], "qualifier": r["qualifier"]}])[0]
+            if t["check"] == "ok":
+                await execute_db(self.bot, "UPDATE swarm_reports SET taxon_check='ok' WHERE label=? AND taxon_check IS NULL",
+                                 (r["label"],), commit=True)
+                continue
+            n += max(0, await execute_db(self.bot,
+                "UPDATE OR REPLACE swarm_reports SET genus=?, species=?, qualifier=?, label=?, raw_label=?, taxon_check=? "
+                "WHERE label=? AND taxon_check IS NULL",
+                (t["genus"], t.get("species"), t.get("qualifier") or "", S.taxon_label(t), r["label"], t["check"],
+                 r["label"]), commit=True) or 0)
+        await execute_db(self.bot, "INSERT OR IGNORE INTO swarm_meta (key, value) VALUES ('canon_v1', datetime('now'))",
+                         commit=True)
+        logger.info("🐜 Schwarmflug: %d Meldungen mit der Artenliste abgeglichen (Namen korrigiert/unklar)", n)
 
     def cog_unload(self):
         self.alert_loop.cancel()
         if self.geo_loop.is_running():
             self.geo_loop.cancel()
+        if self.resolve_loop.is_running():
+            self.resolve_loop.cancel()
         if self.weather_loop.is_running():
             self.weather_loop.cancel()
         if self.forecast_loop.is_running():
             self.forecast_loop.cancel()
 
     # ── Auswertung einer Nachricht ───────────────────────────────────────────
+    async def _context(self, m: discord.Message, n: int = 2) -> list[str]:
+        """Die letzten n Nachrichten derselben Person vor m (Zusammenhang für die KI)."""
+        out = []
+        try:
+            async for x in m.channel.history(before=m, limit=40):
+                if x.author.id == m.author.id and (x.content or "").strip():
+                    out.append(S._clean(x.content, _roles(x)))
+                    if len(out) >= n:
+                        break
+        except Exception:
+            pass
+        return list(reversed(out))
+
     async def process(self, m: discord.Message, use_ai: bool = True, geo: bool = True) -> int:
-        """geo=False (Einlesen des Verlaufs): Ort nicht sofort auflösen; das erledigt geo_loop
-        im Hintergrund (OpenStreetMap erlaubt nur 1 Anfrage/s)."""
+        """Auswertung einer Nachricht (Kette siehe utils/swarm_resolve.py).
+        geo=False (Einlesen des Verlaufs): keine Ortssuche und keine KI sofort; das erledigen
+        geo_loop und resolve_loop im Hintergrund (OpenStreetMap erlaubt nur 1 Anfrage/s)."""
         if m.author.bot or m.webhook_id or not (m.content or "").strip():
             return 0
         p = S.parse_message(m.content, _roles(m), m.created_at)
@@ -148,6 +193,10 @@ class Swarm(commands.Cog):
                 await self._fill_location(m, p)
             await S.store(self.bot, m.id, m.author.id, m.created_at, {"taxa": []}, source)
             return 0
+        # Art mit der Artenliste abgleichen (aktueller Name, Tippfehler)
+        p["taxa"] = await asyncio.to_thread(R.canon_taxa, p["taxa"])
+        raw_place = (S._fields(S._clean(m.content, _roles(m))).get("place") or "").strip()
+        inherit = bool(R.INHERIT_RE.match(raw_place)) if raw_place else False
         # Ohne Ort: von der beantworteten bzw. letzten eigenen Meldung übernehmen
         if not (p.get("place") or p.get("region")):
             prev = None
@@ -157,27 +206,139 @@ class Swarm(commands.Cog):
                                      (str(ref),), fetch=True)
                 prev = dict(r[0]) if r and str(r[0]["author_id"]) == str(m.author.id) else None
             prev = prev or await S.previous_of(self.bot, m.author.id, m.created_at)
+            if not prev and inherit:
+                prev = await R.previous_place(self.bot, m.author.id,
+                                              m.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
             if prev:
                 p.update(place=prev["place"], country=prev["country"], region=prev["region"])
                 if prev.get("lat") is not None:
-                    return await S.store(self.bot, m.id, m.author.id, m.created_at, p, source,
-                                         prev["lat"], prev["lon"], "inherit")
+                    return await self._store(m, p, source, prev["lat"], prev["lon"], "inherit")
         if not p.get("abroad"):
             # KI-Ergebnis oder übernommener Ort: Land außerhalb DACH?
             p["abroad"] = S.foreign_country(p.get("place") or "") or \
                 (p["country"] if p.get("country") and p["country"] not in S.DACH else None)
         lat = lon = gsrc = None
+        retry = False
         if p.get("abroad"):
             # Ausland: Land merken, keine Ortssuche (Nominatim ist auf DACH begrenzt, das ergäbe Fehltreffer)
-            p["country"], p["region"] = p["abroad"], ""
-            return await S.store(self.bot, m.id, m.author.id, m.created_at, p, source, None, None, "abroad")
-        if p.get("place") and geo:
-            g = await geocode.locate(self.bot, p["place"], p.get("country") or "", p.get("region") or "")
-            if g:
+            p["country"], p["region"], gsrc = p["abroad"], "", "abroad"
+        elif p.get("place") and geo:
+            g, st = await geocode.locate_status(self.bot, p["place"], p.get("country") or "", p.get("region") or "")
+            if st == "abroad":
+                p["country"], p["region"], gsrc = g["country"], "", "abroad"
+            elif g:
                 lat, lon, gsrc = g["lat"], g["lon"], g["src"]
                 if not p.get("region") and g.get("region"):
                     p["country"], p["region"] = g["country"], g["region"]
-        return await S.store(self.bot, m.id, m.author.id, m.created_at, p, source, lat, lon, gsrc)
+            elif st == "error":
+                retry = True                   # später im Hintergrund erneut
+            else:
+                gsrc = "none"                  # Ort nicht gefunden (Region ggf. aus Rolle/Text)
+        if geo:
+            # KI nur, wenn Ort oder Art unklar bleiben (mit den Nachrichten davor als Zusammenhang)
+            need_place = not p.get("country")
+            uncertain = [t["raw"] for t in p["taxa"] if t.get("check") == "unknown"]
+            if use_ai and (need_place or uncertain) and R.ai_available():
+                ai = await asyncio.to_thread(R.ai_resolve, S._clean(m.content, _roles(m)), await self._context(m),
+                                             p.get("date") or "", need_place, uncertain)
+                p["taxa"] = R.apply_ai_taxa(p["taxa"], ai)
+                ap = R.ai_place(ai) if need_place else None
+                if ap and ap["country"]:
+                    p.update(place=ap["place"] or p.get("place") or "", country=ap["country"], region=ap["region"])
+                    gsrc = "abroad" if ap["country"] not in S.DACH else "ai"
+                    if gsrc == "ai" and p["place"]:
+                        g = await geocode.locate(self.bot, p["place"], p["country"], p["region"] or "")
+                        if g:
+                            lat, lon = g["lat"], g["lon"]
+                            p["region"] = p["region"] or g.get("region") or ""
+            if not p.get("country") and not p.get("place"):
+                # Heimatregion nur bei Meldungen ganz ohne Ortsangabe
+                h = await R.home_region(self.bot, m.author.id)
+                if h:
+                    p["country"], p["region"], gsrc, lat, lon = h[0], h[1], "home", None, None
+                elif not retry:
+                    gsrc = "unknown"
+        return await self._store(m, p, source, lat, lon, gsrc)
+
+    async def _store(self, m, p, source, lat, lon, gsrc) -> int:
+        n = await S.store(self.bot, m.id, m.author.id, m.created_at, p, source, lat, lon, gsrc)
+        if await R.override_of(self.bot, m.id):
+            await R.apply_override(self.bot, m.id)      # Korrektur von Hand gilt weiter
+        return n
+
+    # ── Unklares im Hintergrund klären (nach dem Einlesen alter Nachrichten) ──
+    @tasks.loop(minutes=10)
+    async def resolve_loop(self):
+        ch = self.bot.get_channel(SWARM_CHANNEL_ID)
+        if ch is None:
+            return
+        rows = await execute_db(self.bot,
+            "SELECT DISTINCT message_id FROM swarm_reports WHERE indoor=0 AND ("
+            "(country='' AND ((geo_src IS NULL AND place='') OR geo_src='none')) OR taxon_check='unknown') "
+            "ORDER BY posted_at DESC LIMIT 30", fetch=True) or []
+        for r in rows:
+            mid = r["message_id"]
+            try:
+                m = await ch.fetch_message(int(mid))
+            except discord.NotFound:
+                await S.remove(self.bot, mid)
+                continue
+            except Exception:
+                return
+            base = [dict(x) for x in await execute_db(self.bot, "SELECT * FROM swarm_reports WHERE message_id=?",
+                                                      (mid,), fetch=True) or []]
+            if not base:
+                continue
+            b = base[0]
+            taxa = [{"genus": x["genus"], "species": x["species"], "qualifier": x["qualifier"],
+                     "raw": x["raw_label"] or x["label"], "check": x["taxon_check"]} for x in base]
+            p = {"taxa": taxa, "date": b["flight_date"], "time": b["flight_time"], "temp": b["temp_c"],
+                 "wind": b["wind"], "weather": b["weather"], "place": b["place"], "country": b["country"],
+                 "region": b["region"], "indoor": bool(b["indoor"]), "protected": b["protected"]}
+            lat, lon, gsrc = b["lat"], b["lon"], b["geo_src"]
+            need_place = not b["country"]
+            if need_place:
+                raw_place = (S._fields(S._clean(m.content, _roles(m))).get("place") or "").strip()
+                if raw_place and R.INHERIT_RE.match(raw_place):
+                    prev = await R.previous_place(self.bot, b["author_id"], b["posted_at"])
+                    if prev:
+                        p.update(place=prev["place"], country=prev["country"], region=prev["region"])
+                        lat, lon, gsrc = prev["lat"], prev["lon"], "inherit"
+                        need_place = False
+            uncertain = [t["raw"] for t in taxa if t.get("check") == "unknown"]
+            if (need_place or uncertain) and R.ai_available():
+                ai = await asyncio.to_thread(R.ai_resolve, S._clean(m.content, _roles(m)), await self._context(m),
+                                             b["flight_date"], need_place, uncertain)
+                p["taxa"] = R.apply_ai_taxa(taxa, ai)
+                ap = R.ai_place(ai) if need_place else None
+                if ap and ap["country"]:
+                    p.update(place=ap["place"] or p["place"], country=ap["country"], region=ap["region"])
+                    gsrc = "abroad" if ap["country"] not in S.DACH else "ai"
+                    need_place = False
+                    if gsrc == "ai" and p["place"]:
+                        g = await geocode.locate(self.bot, p["place"], p["country"], p["region"] or "")
+                        if g:
+                            lat, lon = g["lat"], g["lon"]
+                            p["region"] = p["region"] or g.get("region") or ""
+            for t in p["taxa"]:
+                if t.get("check") == "unknown":
+                    t["check"] = "unknown_ai"          # nicht erneut versuchen
+            if need_place:
+                h = await R.home_region(self.bot, b["author_id"]) if not p.get("place") else None
+                if h:
+                    p["country"], p["region"], gsrc, lat, lon = h[0], h[1], "home", None, None
+                else:
+                    gsrc = "unknown"
+            posted = datetime.strptime(b["posted_at"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            await S.store(self.bot, mid, b["author_id"], posted, p, b["source"], lat, lon, gsrc)
+            if await R.override_of(self.bot, mid):
+                await R.apply_override(self.bot, mid)
+            await asyncio.sleep(1)
+
+    @resolve_loop.before_loop
+    async def _before_resolve(self):
+        await self.bot.wait_until_ready()
+        await asyncio.sleep(180)
 
     async def _fill_location(self, m, p):
         since = (m.created_at - timedelta(minutes=30)).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
@@ -241,6 +402,7 @@ class Swarm(commands.Cog):
         ch = self.bot.get_channel(SWARM_CHANNEL_ID)
         try:
             m = await ch.fetch_message(payload.message_id)
+            await R.drop_override(self.bot, payload.message_id)   # Korrektur von Hand gilt bis zur Bearbeitung
             await self.process(m)
         except Exception as e:
             logger.info("🪽 Bearbeitung %s nicht neu ausgewertet: %s", payload.message_id, e)
@@ -346,10 +508,18 @@ class Swarm(commands.Cog):
                                            "WHERE place=? AND lat IS NULL", (c, r["place"]), commit=True)
                 continue
             try:
-                g = await geocode.locate(self.bot, r["place"], r["country"] or "", r["region"] or "")
+                g, st = await geocode.locate_status(self.bot, r["place"], r["country"] or "", r["region"] or "")
             except Exception as e:
                 logger.info("🗺️ Ortsauflösung: %s", e)
                 return
+            if st == "error":
+                logger.info("🗺️ Ortsauflösung pausiert (OpenStreetMap nicht erreichbar), nächster Versuch in 5 Min.")
+                return
+            if st == "abroad":
+                await execute_db(self.bot, "UPDATE swarm_reports SET country=?, region='', geo_src='abroad' "
+                                           "WHERE place=? AND country=? AND region=? AND lat IS NULL",
+                                 (g["country"], r["place"], r["country"], r["region"]), commit=True)
+                continue
             if g:
                 await execute_db(self.bot,
                     "UPDATE swarm_reports SET lat=?, lon=?, geo_src=?, country=CASE WHEN region='' THEN ? ELSE country END, "
@@ -358,9 +528,6 @@ class Swarm(commands.Cog):
                     (g["lat"], g["lon"], g["src"], g["country"] or "", g.get("region") or "",
                      r["place"], r["country"], r["region"]), commit=True)
             else:
-                # Nur endgültig „nicht gefunden“ (im Cache vermerkt) abhaken; Netzfehler → später erneut
-                if await geocode._cache_get(self.bot, geocode._norm(f"{r['place']}|{r['country'] or ''}")) is None:
-                    return
                 await execute_db(self.bot, "UPDATE swarm_reports SET geo_src='none' WHERE place=? AND country=? "
                                            "AND region=? AND lat IS NULL", (r["place"], r["country"], r["region"]),
                                  commit=True)
