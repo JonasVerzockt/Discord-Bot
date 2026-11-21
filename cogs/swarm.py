@@ -91,6 +91,132 @@ def _roles(m: discord.Message) -> dict:
     return {str(r.id): r.name for r in getattr(m, "role_mentions", []) or []}
 
 
+def _yesno(v: str) -> str:
+    w = (v or "").strip().lower()
+    if w in ("j", "ja", "y", "yes", "jo"):
+        return "ja"
+    if w in ("n", "nein", "no", "nö", "ne"):
+        return "nein"
+    return (v or "").strip()
+
+
+def _tclean(v: str | None) -> str:
+    return (v or "").replace("```", "\x27\x27\x27").strip()
+
+
+class _SwPart1(discord.ui.Modal):
+    def __init__(self, view: "SwarmWizard"):
+        L = lambda k: l10n.get(k, view.lang)[:45]
+        super().__init__(title=l10n.get("swz_modal1_title", view.lang)[:45])
+        self.v = view
+        d = view.data
+        for key, lab, style, mx, req, ph in (
+                ("taxa", "swz_f_taxa", discord.InputTextStyle.short, 120, True, "Lasius niger"),
+                ("when", "swz_f_when", discord.InputTextStyle.short, 40, False, "21.06.26 18:30"),
+                ("place", "swz_f_place", discord.InputTextStyle.short, 160, False, None),
+                ("temp", "swz_f_temp", discord.InputTextStyle.short, 20, False, "26"),
+                ("wind", "swz_f_wind", discord.InputTextStyle.short, 60, False, None)):
+            self.add_item(discord.ui.InputText(label=L(lab), style=style, required=req, max_length=mx,
+                                               placeholder=ph, value=d.get(key) or None))
+
+    async def callback(self, interaction: discord.Interaction):
+        for key, item in zip(("taxa", "when", "place", "temp", "wind"), self.children):
+            self.v.data[key] = _tclean(item.value)
+        t = self.v.data["temp"]
+        if t and re.fullmatch(r"-?\d+(?:[.,]\d+)?", t):
+            self.v.data["temp"] = t + " °C"
+        self.v.part1_done = True
+        await self.v.refresh(interaction)
+
+
+class _SwPart2(discord.ui.Modal):
+    def __init__(self, view: "SwarmWizard"):
+        L = lambda k: l10n.get(k, view.lang)[:45]
+        super().__init__(title=l10n.get("swz_modal2_title", view.lang)[:45])
+        self.v = view
+        d = view.data
+        self.add_item(discord.ui.InputText(label=L("swz_f_weather"), style=discord.InputTextStyle.short,
+                                           required=False, max_length=80, value=d.get("weather") or None))
+        self.add_item(discord.ui.InputText(label=L("swz_f_protected"), style=discord.InputTextStyle.short,
+                                           required=False, max_length=20, placeholder="ja / nein",
+                                           value=d.get("protected") or None))
+        self.add_item(discord.ui.InputText(label=L("swz_f_extra"), style=discord.InputTextStyle.long,
+                                           required=False, max_length=600, value=d.get("extra") or None))
+
+    async def callback(self, interaction: discord.Interaction):
+        w, p, x = (item.value for item in self.children)
+        self.v.data.update(weather=_tclean(w), protected=_yesno(p), extra=_tclean(x))
+        self.v.part2_done = True
+        await self.v.refresh(interaction)
+
+
+class SwarmWizard(discord.ui.View):
+    """Schwarmflug-Meldung in zwei Formularen ausfüllen, Vorschau, dann Text zum Kopieren."""
+
+    def __init__(self, owner_id: int, lang: str, taxa: str, region_txt: str, has_role: bool):
+        super().__init__(timeout=1800)
+        self.owner_id, self.lang = owner_id, lang
+        self.region_txt, self.has_role = region_txt, has_role
+        self.data = {"taxa": taxa, "when": datetime.now(BERLIN).strftime("%d.%m.%y %H:%M")}
+        self.part1_done = self.part2_done = False
+        self._buttons()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.owner_id
+
+    def text(self) -> str:
+        d = dict(self.data)
+        d["place"] = f"{d.get('place') or ''} {self.region_txt}".strip()
+        return S.build_template(d, shortcodes=False)
+
+    def _buttons(self):
+        self.clear_items()
+        L = lambda k: l10n.get(k, self.lang)
+        b1 = discord.ui.Button(label=L("swz_btn_part1"), style=discord.ButtonStyle.secondary, emoji="✏️")
+        b2 = discord.ui.Button(label=L("swz_btn_part2_edit" if self.part2_done else "swz_btn_part2"),
+                               style=discord.ButtonStyle.secondary if self.part2_done else discord.ButtonStyle.primary,
+                               emoji="✏️" if self.part2_done else "➡️")
+        done = discord.ui.Button(label=L("swz_btn_done"), style=discord.ButtonStyle.success, emoji="✅",
+                                 disabled=not (self.part1_done and self.data.get("taxa")))
+        stop = discord.ui.Button(label=L("swz_btn_cancel"), style=discord.ButtonStyle.secondary)
+
+        async def on1(i): await i.response.send_modal(_SwPart1(self))
+        async def on2(i): await i.response.send_modal(_SwPart2(self))
+
+        async def on_done(i):
+            self.stop()
+            where = f"<#{SWARM_CHANNEL_ID}>" if SWARM_CHANNEL_ID else "#schwarmflug-meldungen"
+            msg = l10n.get("swarm_tpl_copy", self.lang, channel=where)
+            if self.has_role:
+                msg += "\n" + l10n.get("swarm_tpl_role", self.lang)
+            # Hinweis und reine Vorlage getrennt: Am Handy kopiert „Text kopieren“ immer die ganze Nachricht.
+            await i.response.edit_message(content=msg[:2000], view=None)
+            await i.followup.send(self.text()[:2000], ephemeral=True,
+                                  allowed_mentions=discord.AllowedMentions.none())
+
+        async def on_stop(i):
+            self.stop()
+            await i.response.edit_message(content=l10n.get("swz_cancelled", self.lang), view=None)
+
+        b1.callback, b2.callback, done.callback, stop.callback = on1, on2, on_done, on_stop
+        for b in (b2, b1, done, stop) if not self.part2_done else (b1, b2, done, stop):
+            self.add_item(b)
+
+    def preview(self) -> str:
+        head = l10n.get("swz_preview_h", self.lang)
+        hint = l10n.get("swz_hint_done" if self.part2_done else "swz_hint_part2", self.lang)
+        return f"{head}\n\n{self.text()}\n\n{hint}"[:2000]
+
+    async def refresh(self, interaction: discord.Interaction):
+        self._buttons()
+        if interaction.message is not None:
+            await interaction.response.edit_message(content=self.preview(), view=self,
+                                                    allowed_mentions=discord.AllowedMentions.none())
+        else:
+            await interaction.response.send_message(self.preview(), view=self, ephemeral=True,
+                                                    allowed_mentions=discord.AllowedMentions.none())
+
+
 class Swarm(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -911,29 +1037,10 @@ class Swarm(commands.Cog):
                             autocomplete=_ac_taxon_ref, max_length=80),
         region: discord.Option(str, "Federal state / canton (region role)",
                                description_localizations={"de": "Bundesland / Kanton (Regionsrolle)"},
-                               autocomplete=_ac_region_ref, required=False, max_length=60, default=""),
-        ort: discord.Option(str, "Place (as exact as you like, on the board only members see it)",
-                            description_localizations={"de": "Ort (so genau du willst, auf dem Board nur für Mitglieder)"},
-                            required=False, max_length=120, default=""),
-        uhrzeit: discord.Option(str, "Date and time (empty = now)",
-                                description_localizations={"de": "Datum und Uhrzeit (leer = jetzt)"},
-                                required=False, max_length=40, default=""),
-        temperatur: discord.Option(str, "Temperature, e.g. 26", description_localizations={"de": "Temperatur, z. B. 26"},
-                                   required=False, max_length=20, default=""),
-        wind: discord.Option(str, "Wind", description_localizations={"de": "Wind"},
-                             required=False, max_length=60, default=""),
-        wetter: discord.Option(str, "Weather", description_localizations={"de": "Wetter"},
-                               required=False, max_length=80, default=""),
-        geschuetzt: discord.Option(str, "Specially/strictly protected?",
-                                   description_localizations={"de": "Besonders/streng geschützt?"},
-                                   choices=["ja", "nein"], required=False, default=""),
-        zusatz: discord.Option(str, "Additional information", description_localizations={"de": "Zusatzinformationen"},
-                               required=False, max_length=300, default=""),
+                               autocomplete=_ac_region_ref, required=False, max_length=60, default="") = "",
     ):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-        when = uhrzeit.strip() or datetime.now(BERLIN).strftime("%d.%m.%y %H:%M")
-        place = ort.strip()
-        role = None
+        role, reg_txt = None, ""
         if region:
             hit = S.region_from_name(region)
             guild = ctx.guild or getattr(self.bot.get_channel(SWARM_CHANNEL_ID), "guild", None)
@@ -941,22 +1048,8 @@ class Swarm(commands.Cog):
                 nm = S.region_name(*hit).lower()
                 role = next((r for r in guild.roles if r.name.lower().lstrip("@ ") == nm), None)
             reg_txt = role.mention if role else (S.region_name(*hit) if hit else region.strip())
-            place = f"{place} {reg_txt}".strip()
-        temp = temperatur.strip()
-        if temp and re.fullmatch(r"-?\d+(?:[.,]\d+)?", temp):
-            temp += " °C"
-        data = {"taxa": art.strip(), "protected": geschuetzt, "when": when, "temp": temp, "wind": wind,
-                "place": place, "weather": wetter, "extra": zusatz}
-        # Zwei Nachrichten: Hinweis und reine Vorlage. Am Handy kopiert „Text kopieren“ immer die ganze
-        # Nachricht, deshalb steht die Vorlage allein, ohne Codeblock und mit echten Emojis.
-        text = S.build_template(data, shortcodes=False)
-        where = f"<#{SWARM_CHANNEL_ID}>" if SWARM_CHANNEL_ID else "#schwarmflug-meldungen"
-        msg = l10n.get("swarm_tpl_copy", lang, channel=where)
-        if role:
-            msg += "\n" + l10n.get("swarm_tpl_role", lang)
-        await ctx.respond(msg[:2000], ephemeral=True)
-        await ctx.followup.send(text[:2000], ephemeral=True,
-                                allowed_mentions=discord.AllowedMentions.none())
+        view = SwarmWizard(ctx.author.id, lang, art.strip(), reg_txt, bool(role))
+        await ctx.send_modal(_SwPart1(view))
 
     async def _send_alert(self, uid, reps):
         for r in reps:
