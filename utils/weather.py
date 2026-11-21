@@ -82,6 +82,10 @@ async def _fetch(session, lat: float, lon: float, day: date) -> dict | None:
     try:
         async with session.get(url, params=params) as r:
             if r.status == 429:
+                try:
+                    logger.warning("🌦️ Open-Meteo 429: %s", (await r.text())[:300])
+                except Exception:
+                    pass
                 return {"limit": True}
             if r.status != 200:
                 logger.info("🌦️ Open-Meteo HTTP %s (%s)", r.status, day)

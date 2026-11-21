@@ -1279,6 +1279,10 @@ T.update({
     'sw_names_none': {"de": 'Noch keine Korrekturen.', "en": 'No corrections yet.', "eo": 'Ankoraŭ neniuj korektoj.'},
 })
 
+T.update({
+    'sw_prog_blocked': {"de": 'Wetterdienst-Limit für heute erreicht, weiter ab Mitternacht', "en": 'weather service limit reached for today, continues after midnight', "eo": 'limo de la veterservo atingita por hodiaŭ, daŭrigo post noktomezo'},
+})
+
 def translate(lang: str, key: str, **kw) -> str:
     """Übersetzt *key* in *lang* (Fallback: Deutsch, dann der Key selbst).
     Platzhalter werden via str.format eingesetzt."""

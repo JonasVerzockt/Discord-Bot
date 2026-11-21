@@ -165,6 +165,11 @@ async def _get(session, url, params):
     try:
         async with session.get(url, params=params) as r:
             if r.status == 429:
+                try:
+                    body = (await r.text())[:300]
+                except Exception:
+                    body = ""
+                logger.warning("🔮 Open-Meteo 429: %s", body)      # z. B. „Daily/Hourly/Minutely API request limit exceeded“
                 return "limit"
             if r.status != 200:
                 logger.info("🔮 Open-Meteo HTTP %s", r.status)
