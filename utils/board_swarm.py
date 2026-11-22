@@ -290,21 +290,21 @@ TEMPLATE = """{% extends "base" %}{% block body %}
    dot(p[0],p[1],p[2],c,tip).addTo(lm);});});}
  // 3. Wetter beim Flug je Region
  if(window.L&&D.wreg&&document.getElementById("wrmap")){
-  var wm=mkmap("wrmap"),sel=document.getElementById("wrVar"),vi=1,WRC=["#2c7bb6","#abd9e9","#ffffbf","#fdae61","#d7191c"],rng=[0,1];
+  var wm=mkmap("wrmap"),wsel=document.getElementById("wrVar"),vi=1,WRC=["#2c7bb6","#abd9e9","#ffffbf","#fdae61","#d7191c"],wrng=[0,1];
   var units=["°C","%","%","hPa","km/h"];
   function calc(){var vs=Object.keys(D.wreg).map(function(k){return D.wreg[k][vi];}).filter(function(v){return v!==null&&v!==undefined;});
-   rng=vs.length?[Math.min.apply(null,vs),Math.max.apply(null,vs)]:[0,1];}
-  function wcol(v){if(v===null||v===undefined)return null;var f=rng[1]>rng[0]?(v-rng[0])/(rng[1]-rng[0]):.5;return WRC[Math.min(4,Math.floor(f*5))];}
+   wrng=vs.length?[Math.min.apply(null,vs),Math.max.apply(null,vs)]:[0,1];}
+  function wcol(v){if(v===null||v===undefined)return null;var f=wrng[1]>wrng[0]?(v-wrng[0])/(wrng[1]-wrng[0]):.5;return WRC[Math.min(4,Math.floor(f*5))];}
   function wsty(ft){var e=D.wreg[rkey(ft)],c=e?wcol(e[vi]):null;return {color:"#30363d",weight:1,fillColor:c||"#161b22",fillOpacity:c?.8:.4};}
-  function legend(){var el=document.getElementById("wrLegend");if(!el)return;var u=units[vi-1],h="<span>"+esc(sel.options[sel.selectedIndex].text)+"</span>";
-   for(var i=0;i<5;i++){var a=rng[0]+(rng[1]-rng[0])*i/5;h+="<span><i style='background:"+WRC[i]+"'></i>"+(Math.round(a*10)/10).toLocaleString(D.lang)+(i===4?"+":"")+" "+u+"</span>";}
+  function legend(){var el=document.getElementById("wrLegend");if(!el)return;var u=units[vi-1],h="<span>"+esc(wsel.options[wsel.selectedIndex].text)+"</span>";
+   for(var i=0;i<5;i++){var a=wrng[0]+(wrng[1]-wrng[0])*i/5;h+="<span><i style='background:"+WRC[i]+"'></i>"+(Math.round(a*10)/10).toLocaleString(D.lang)+(i===4?"+":"")+" "+u+"</span>";}
    h+="<span><i style='background:#161b22'></i>"+esc(D.t.wrFew)+"</span>";el.innerHTML=h;}
   calc();legend();
   var wgs=outlines(wm,wsty,function(k,ft){var e=D.wreg[k],nm=esc(D.names[k]||(ft.properties||{}).shapeName||"");
    if(!e)return "<b>"+nm+"</b><br>"+esc(D.t.wrFew);
    var h="<b>"+nm+"</b><br>"+(e[0]<3?"&lt; 3":e[0])+" "+esc(D.t.wrN);
    ["temp","rain","hum","press","wind"].forEach(function(v,i){if(e[i+1]!==null&&e[i+1]!==undefined)h+="<br>"+esc(D.t.wrVars[v])+": "+e[i+1].toLocaleString(D.lang)+" "+units[i];});return h;});
-  sel.addEventListener("change",function(){vi=+sel.value;calc();legend();wgs.forEach(function(g){g.setStyle(wsty);});});
+  wsel.addEventListener("change",function(){vi=+wsel.value;calc();legend();wgs.forEach(function(g){g.setStyle(wsty);});});
  }
  // 4. Flugwetter-Kalender
  if(window.L&&D.clim&&document.getElementById("climmap")){
