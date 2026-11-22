@@ -19,6 +19,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - **Rabattcode-Tracker** – liest im dafür vorgesehenen Kanal alle Nachrichten und extrahiert per KI (Claude Haiku) Rabattcodes inkl. Shop, Rabatthöhe und Gültigkeitszeitraum. Codes werden auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) erkannt. Jede Nachricht wird dabei nur einmal an die KI übermittelt; beim Start wird der gesamte Kanalverlauf einmalig verarbeitet. Über `/codes` rufen Mitglieder die aktuell gültigen Codes ab. Abgelaufene Codes werden automatisch ausgeblendet. **Alle** Textnachrichten sowie Bild-Anhänge dieses Kanals werden zur Auswertung an die Anthropic API übermittelt.
 - **Artensteckbriefe und Händlerseiten** – `/art` und `/shop` (und die gleichnamigen Board-Seiten) zeigen Angebote, Preise, Preisverlauf mit Preis-Ampel, Saison-Verfügbarkeit, Community-Bewertungen, durchschnittliche Lieferzeit und Rabattcodes. Dafür werden keine zusätzlichen Daten über dich gespeichert; Kurzbeschreibungen (Wikipedia) und Verbreitungsdaten (GBIF) ruft der Server selbst ab.
 - **Jahresrückblick** – vom 1. November bis 31. Januar zeigt `/rueckblick` deinen persönlichen Rückblick (nur für dich sichtbar), am 31.12. postet der Bot einen Community-Rückblick mit Summen. Frühere Jahre bleiben abrufbar. Grundlage sind die Daten, die der Bot ohnehin speichert (siehe unten).
+- **Schwarmflug-Radar** – wertet die Meldungen im Schwarmflug-Kanal aus (Art, Datum, Uhrzeit, Ort, Wetter) und zeigt sie auf board.jonasants.de/schwarmflug als Karte, Saisonverlauf, Steckbriefe, Jahresvergleich, Bestimmungshilfe und Prognose. Es gibt kein neues Formular; `/schwarmflug_vorlage` hilft nur beim Ausfüllen der Vorlage, gepostet wird weiter selbst. Auf Wunsch PN-Alarm je Art und Region sowie Prognose am Vorabend.
 - **Feedback-Board** *(optional)* – ein öffentlich einsehbares Ideen- und Bug-Board (eigener Webdienst). Jede/r kann – auch anonym ohne Account – Fehler, Feature-Wünsche und Ideen zum Bot einreichen und bestehende Einträge hochvoten. Einreichungen werden vor der Veröffentlichung geprüft (Moderation).
 
 ### Nutzung
@@ -29,6 +30,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
 - Der AI-Chat-Bot ist im AAM Discord aktuell nicht öffentlich zugänglich. Sobald er aktiviert wird, gilt: Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
 - Im Rabattcode-Kanal werden **alle** Textnachrichten sowie Bild-Anhänge zur automatischen Code-Erkennung an die Anthropic API übermittelt. Bitte auch dort keine sensiblen personenbezogenen Daten teilen.
+- Im Schwarmflug-Kanal wertet der Bot **alle** Nachrichten automatisch aus. Meldungen, die er nicht selbst lesen kann (keine Vorlage, unklarer Ort oder unbekannter Artname), schickt er an die Anthropic API, zusammen mit deinen zwei vorherigen eigenen Nachrichten im Kanal als Zusammenhang. Gib im Ort bitte nur an, was du teilen möchtest (z. B. Stadt oder Landkreis statt Adresse); genaue Orte sehen nur eingeloggte Mitglieder.
 
 ### Feedback-Board (öffentliches Ideen-/Bug-Board)
 
@@ -202,13 +204,15 @@ Die Nutzung ist freiwillig (`/offer_alert add`) und jederzeit widerrufbar (`/off
 |-------|-------|-------------|
 | Aus Nachrichten im Schwarmflug-Kanal: Nachrichten-ID, Discord User-ID, Zeitpunkt, Art/Gattung, Flugdatum und -uhrzeit, Temperatur, Wind, Wetter, Region, Ortstext und daraus ermittelte Koordinate | Karte, Saisonverlauf und Steckbriefe auf `/schwarmflug` | Lokale SQLite-Datenbank auf dem Server |
 | Ortstext (ohne Name/ID), nur wenn er nicht in der lokalen PLZ-Liste steht | Koordinate ermitteln (OpenStreetMap Nominatim, Ergebnis wird gespeichert) | OpenStreetMap Foundation (UK) |
-| Text von Meldungen ohne Vorlage | Auswertung per KI | Anthropic API (USA) |
+| Text von Meldungen ohne Vorlage bzw. mit unklarem Ort oder unbekanntem Artnamen, dazu die zwei vorherigen eigenen Nachrichten im Kanal (ohne Namen) | Auswertung bzw. Klärung per KI | Anthropic API (USA) |
+| Geschätzte Heimatregion: nur wenn eine Meldung gar keinen Ort hat, wird die Region übernommen, aus der mindestens 3 deiner früheren Meldungen und davon mindestens 60 % stammen (nur Region, nie ein Punkt, als „≈“ gekennzeichnet) | Meldung trotzdem einer Region zuordnen | Lokale SQLite-Datenbank auf dem Server |
+| Korrekturen durch Admins (Ort, Region, Art) mit Discord User-ID des Admins und Zeitpunkt; bestätigte oder verworfene Artnamen | Unklare Meldungen von Hand klären | Lokale SQLite-Datenbank, bis die Nachricht in Discord bearbeitet oder gelöscht wird |
 | Schwarmflug-Alarm: Art/Gattung + Region, bereits gemeldete Nachrichten-IDs (12 h); optional PN zum Saisonstart (je Jahr vermerkt) | PN, wenn die Art in der Region fliegt bzw. die Saison beginnt | Lokale SQLite-Datenbank auf dem Server |
 | Auf ca. 10 km gerundete Koordinate + Datum (ohne Name/ID/Ortstext) | Wetter zur Flugzeit nachtragen | Open-Meteo (OpenMeteo GmbH, Schweiz), Ergebnis lokal gespeichert |
 | Feste Rasterpunkte und Gebietsmitten (ohne Personenbezug) | Wettervorhersage und vergangenes Wetter für die Schwarmflug-Prognose | Open-Meteo (OpenMeteo GmbH, Schweiz) |
 | Stufe der Prognose-PN, Tage mit verschickter Prognose-PN | Vorwarnung am Vorabend | Lokale SQLite-Datenbank auf dem Server |
 
-Öffentlich sind nur Zahlen je Region, Steckbriefe und die letzten Meldungen ohne Ort und ohne Namen. Genaue Orte und Links zur Nachricht sehen nur eingeloggte Server-Mitglieder. Bearbeiten oder Löschen der Nachricht in Discord passt die Auswertung an bzw. löscht sie. In „Mein Konto“ (Bereich „Schwarmflug“) werden Alarme gelöscht und eigene Meldungen ohne ID und Ort anonymisiert.
+Öffentlich sind nur Zahlen und Wetterwerte je Region (Wetterwerte erst ab 3 Meldungen), Steckbriefe, Jahresvergleiche, die letzten Meldungen ohne Ort und ohne Namen sowie die festen 35-km-Rasterpunkte der Prognose (Lerndaten-Karte, Flugwetter-Kalender). Genaue Orte, Orte mit vielen Meldungen (Hotspots) und Links zur Nachricht sehen nur eingeloggte Server-Mitglieder. Bearbeiten oder Löschen der Nachricht in Discord passt die Auswertung an bzw. löscht sie. In „Mein Konto“ (Bereich „Schwarmflug“) werden Alarme gelöscht und eigene Meldungen ohne ID und Ort anonymisiert.
 
 #### Erfolge (Achievements)
 
@@ -253,7 +257,7 @@ Antworten in einem PN-Gespräch (z. B. KI-Chat) werden nicht in den Verlauf aufg
 
 #### Anthropic (KI-Verarbeitung)
 
-Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft den Bewertungs-Bot (Shop-Bewertungen), den AI-Chat-Bot (alle Nachrichten im AI-Kanal sowie im KI-Chat auf dem Board) sowie den Rabattcode-Tracker (alle Textnachrichten im Rabattcode-Kanal). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
+Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft den Bewertungs-Bot (Shop-Bewertungen), den AI-Chat-Bot (alle Nachrichten im AI-Kanal sowie im KI-Chat auf dem Board) sowie den Rabattcode-Tracker (alle Textnachrichten im Rabattcode-Kanal) und das Schwarmflug-Radar (Meldungen ohne Vorlage bzw. mit unklarem Ort oder Artnamen, siehe oben). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
 Anthropic verarbeitet diese Daten als Auftragsverarbeiter auf Grundlage seines Auftragsverarbeitungsvertrags (Data Processing Addendum, https://www.anthropic.com/legal/data-processing-addendum); die Übermittlung in die USA erfolgt auf Grundlage der darin enthaltenen EU-Standardvertragsklauseln.  
 → Datenschutz: https://www.anthropic.com/privacy
 
@@ -277,6 +281,16 @@ Zur EUR-Umrechnung von Preisen werden aktuelle Wechselkurse von `api.frankfurter
 #### Halter-Karte (optional, Opt-in)
 
 Nur bei aktiver Teilnahme (`/map_join`): gespeichert werden deine **Discord-Nutzer-ID**, ein **grober Standort** (Land bzw. aus der PLZ abgeleitete, zufällig verschobene Näherungs-Koordinate – keine genaue Adresse; auf Wunsch nur die Mitte des groben PLZ-Gebiets; die eingegebene vollständige PLZ wird nicht gespeichert, nur Bundesland/Kanton und die ersten zwei PLZ-Ziffern), optional ein **Vorname**, auf Wunsch die Freigabe „Kontakt über Discord“ (angemeldete Mitglieder sehen dann einen Link auf dein Discord-Profil inkl. Discord-Nutzer-ID), selbst gewählte Schlagworte, optional bis zu zwei weitere Bundesländer/Kantone („Auch aktiv in“, nur die Region, nur für angemeldete Mitglieder sichtbar) sowie Einwilligungs-/Bestätigungszeitpunkte. Der **Discord-Anzeigename wird nicht gespeichert**, sondern nur für angemeldete Mitglieder live aus der ID aufgelöst (euer Server-Anzeigename). Öffentlich sind ausschließlich **aggregierte Zahlen** je Region/Land (U18 werden dabei nur anonym mitgezählt, ohne Einzel-Anzeige). Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), jederzeit widerrufbar (`/map_remove`). Auto-Löschung bei Server-Austritt; jährliche Bestätigung (ohne Reaktion Löschung im nächsten Zyklus). Für den Mitglieder-Login „Login mit Discord" (OAuth2, nur Scope `identify`) wird die Discord-ID geprüft; das Zugriffstoken wird nicht gespeichert. Freigegebene Termine/Events werden öffentlich angezeigt (nur öffentliche Veranstaltungsorte). Bei „Ich gehe hin“ wird deine Discord-Nutzer-ID mit Termin und Datum gespeichert; angemeldete Mitglieder sehen deinen Anzeigenamen in der Teilnehmerliste. Löschung 30 Tage nach dem Termin bzw. beim Server-Austritt, Rückzug jederzeit möglich. Kartengrundlage/Attribution: © geoBoundaries (CC BY 4.0), © GeoNames (CC BY 4.0), Leaflet.
+
+#### Open-Meteo (Wetterdaten)
+
+Für das Schwarmflug-Radar ruft der Bot Wetterdaten bei Open-Meteo ab (OpenMeteo GmbH, Schweiz). Übertragen werden nur auf etwa 10 km gerundete Koordinaten und Datumsangaben, keine Namen, IDs oder Ortstexte. Die Anfragen kommen vom Server des Bots, nicht aus deinem Browser. Laut Open-Meteo werden Webserver-Logs nach 90 Tagen gelöscht. Wetterdaten: CC BY 4.0.  
+→ Bedingungen und Datenschutz: https://open-meteo.com/en/terms
+
+#### OpenStreetMap Nominatim (Ortssuche)
+
+Steht ein Ort aus einer Schwarmflug-Meldung nicht in der lokalen Ortsliste, sucht der Bot die Koordinate über Nominatim der OpenStreetMap Foundation. Übertragen wird nur der Ortstext, ohne Name oder ID; die Anfrage kommt vom Server des Bots, höchstens eine pro Sekunde, und jedes Ergebnis wird lokal gespeichert, damit derselbe Ort nicht erneut gesucht wird. Die OSMF speichert Daten laut eigener Erklärung im Vereinigten Königreich und in den Niederlanden.  
+→ Datenschutz: https://osmfoundation.org/wiki/Privacy_Policy
 
 #### AntCheck API
 
@@ -305,6 +319,11 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **Digest-Anmeldung** (nur User-ID) wird gespeichert, bis du dich per `/digest action:deaktivieren` abmeldest.
 - **iNat-Statistik**: Verknüpfung bis `/inat_trennen`; Beobachtungen, bis du den zugehörigen Post im Kanal löschst; offene Verknüpfungs-Codes verfallen nach 1 Stunde.
 - **Befehls-Nutzungsprotokoll** wird **12 Monate** in der lokalen Datenbank vorgehalten und danach automatisch gelöscht. Diese Dauer ist zweckgebunden für die Moderations- und Missbrauchskontrolle (ein voller Jahreszyklus erlaubt das Nachvollziehen wiederkehrender/saisonaler Muster, Ban-Evasion und später auftauchender Streitfälle) und an gängige Praxis für Moderations-/Audit-Logs angelehnt – sie ist **keine** gesetzlich vorgeschriebene Höchstfrist (die DSGVO nennt keine feste Frist; maßgeblich ist die Speicherbegrenzung nach Art. 5 Abs. 1 lit. e). Im Mod-Kanal gepostete Übersichten bleiben bestehen.
+- **Schwarmflug-Meldungen** bleiben gespeichert, solange die Nachricht im Schwarmflug-Kanal existiert; Bearbeiten passt sie an, Löschen entfernt sie. In „Mein Konto“ (Bereich „Schwarmflug“) lassen sich eigene Meldungen anonymisieren (ohne ID und Ort).
+- **Schwarmflug-Alarme** und die Stufe der Prognose-PN bleiben bis zum Löschen in „Mein Konto“; Merker bereits gemeldeter Nachrichten nur 12 Stunden.
+- **Admin-Korrekturen** zu Schwarmflug-Meldungen gelten, bis die Nachricht in Discord bearbeitet oder gelöscht wird.
+- **Ergebnisse der Ortssuche** (Ortstext → Koordinate, ohne Personenbezug) werden dauerhaft zwischengespeichert.
+- **PN-Verlauf** in „Mein Konto“: 30 Tage, höchstens die letzten 50 PNs je Person.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte
