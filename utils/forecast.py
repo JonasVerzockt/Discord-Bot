@@ -67,6 +67,8 @@ VARS_ARCH = _BASE + ",soil_temperature_0_to_7cm,soil_moisture_0_to_7cm"   # Hist
 FC_VARS = VARS_FC + ",precipitation_probability"
 CAPS = {"forecast": 5000, "weather": 1500, "train": 2000}
 TRAIN_CAP_OFFSEASON = 5000
+TRAIN_MAX_MONTHS = (11, 12, 1)            # November bis Januar: Lernen bekommt fast das ganze Tagesbudget
+WEATHER_KEEP = 300                        # davon bleibt immer frei für Wetter-Nachtrag und neue Meldungen
 SEASON = range(3, 11)                     # März bis Oktober
 RUN_SLOTS = (6, 9, 12, 15, 18)
 GRID_KM = 35
@@ -100,6 +102,8 @@ async def budget_left(bot, purpose: str) -> float:
     cap = CAPS.get(purpose, 0)
     if purpose == "train" and datetime.now(BERLIN).month not in SEASON:
         cap = TRAIN_CAP_OFFSEASON
+        if datetime.now(BERLIN).month in TRAIN_MAX_MONTHS:
+            cap = max(TRAIN_CAP_OFFSEASON, SWARM_OM_DAILY - WEATHER_KEEP)
     return max(0.0, min(cap - used.get(purpose, 0), SWARM_OM_DAILY - sum(used.values())))
 
 
