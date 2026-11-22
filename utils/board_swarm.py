@@ -108,9 +108,23 @@ TEMPLATE = """{% extends "base" %}{% block body %}
 {% for q in fc.quality %}<tr><td><i>{{ q.taxon }}</i></td><td>{{ q.n_pos }}</td><td>{{ q.lift }}</td><td class=muted>{{ q.prev or '?' }}</td><td>{{ q.auc }}</td></tr>{% endfor %}</table>
 <p class=muted style="font-size:12px;margin:6px 0 0">{{ t('fc_q_rules', n=fc.rules) }}{% if fc.pending %} {{ t('fc_q_pending', n=fc.pending) }}{% endif %}</p></details>{% endif %}
 </div>{% endif %}
+{% if clim.ok %}<div class=chartbox id=kalender style="margin-top:10px"><h4>🗓️ {{ t('sw_cl_h') }} <span class=info title="{{ t('sw_cl_exp') }}">ⓘ</span></h4>
+<form method=get action="/schwarmflug#kalender" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 8px"><input type=hidden name=z value="{{ z }}"><input type=hidden name=g value="{{ g }}"><input type=hidden name=lang value="{{ lang }}">
+ <select name=ct class=gsel onchange="this.form.submit()">{% for x in clim.taxa %}<option {{ 'selected' if x == clim.taxon }}>{{ x }}</option>{% endfor %}</select>
+ <button type=button class="btn small" id=clPlay>▶ {{ t('sw_tl_play') }}</button><input type=range id=clWeek min=0 max=30 value=12 style="flex:1;min-width:140px"><span class=muted id=clLbl style="font-size:12px"></span></form>
+<div id=climmap style="height:420px;border-radius:10px;border:1px solid #21262d;background:#0f141a"></div>
+<div class=swlegend style="margin-top:6px"><span>{{ t('sw_cl_legend') }}</span><span><i style="background:#F0E442"></i>10–25 %</span><span><i style="background:#E69F00"></i>25–50 %</span><span><i style="background:#D55E00"></i>&gt; 50 %</span></div>
+<p class=muted style="font-size:12px;margin:6px 0 0">{{ t('sw_cl_note') }}{% if not member %} {{ t('sw_lrn_guest') }}{% endif %}</p></div>
+{% elif fc.show %}<div class=chartbox id=kalender style="margin-top:10px"><h4>🗓️ {{ t('sw_cl_h') }}</h4><p class=muted style="margin:0">{{ t('sw_cl_wait') }}</p></div>{% endif %}
 <div class=chartbox id=sammeln style="margin-top:10px"><h4>📡 {{ t('sw_prog_h') }} <span class=muted style="font-weight:400;font-size:12px" id=pgState>{{ prog.state }}</span></h4>
 <div class=pgrid>{% for b in prog.bars %}<div><div class=muted style="font-size:12px">{{ t('sw_prog_' ~ b.key) }} · <span id="pg_{{ b.key }}_t">{{ b.done }} / {{ b.total }}</span></div><div class=pbar><i id="pg_{{ b.key }}" style="width:{{ b.pct }}%"></i></div></div>{% endfor %}</div>
-<p class=muted style="font-size:12px;margin:6px 0 0" id=pgBudget>{{ prog.budget }}</p></div>
+<p style="font-size:13px;margin:6px 0 0" id=pgEta>{% if prog.eta %}⏳ {{ prog.eta }}{% endif %}</p>
+<p class=muted style="font-size:12px;margin:4px 0 0" id=pgBudget>{{ prog.budget }}</p>
+{% if data.learn %}<details style="margin-top:8px" id=lrnBox><summary class=muted style="cursor:pointer;font-size:13px">🗺️ {{ t('sw_lrn_h') }}</summary>
+<p class=muted style="font-size:12px;margin:6px 0">{{ t('sw_lrn_exp') }}{% if not member %} {{ t('sw_lrn_guest') }}{% endif %}</p>
+<div id=learnmap style="height:340px;border-radius:10px;border:1px solid #21262d;background:#0f141a"></div>
+<div class=swlegend style="margin-top:6px"><span>{{ t('sw_lrn_legend') }}</span><span><i style="background:#30363d"></i>0</span><span><i style="background:#1f6f3a"></i>{{ t('sw_lrn_part') }}</span><span><i style="background:#3fb950"></i>{{ t('sw_lrn_full') }}</span><span>◆ {{ t('sw_lrn_hot') }}</span><span>● {{ t('sw_lrn_grid') }}</span></div></details>{% endif %}
+</div>
 <div class=kpigrid style="margin:12px 0">
  <div class=kpi><div class=v>{{ k.total }}</div><div class=l>{{ t('sw_kpi_reports') }}</div></div>
  <div class=kpi><div class=v>{{ k.taxa }}</div><div class=l>{{ t('sw_kpi_taxa') }}</div></div>
@@ -168,6 +182,11 @@ TEMPLATE = """{% extends "base" %}{% block body %}
 <div style="overflow-x:auto"><table class=swt><tr><th>{{ t('sw_col_taxon') }}</th><th>{{ t('sw_wx_n') }}</th><th>{{ t('sw_wx_hum') }}</th><th>{{ t('sw_wx_press') }}</th><th>{{ t('sw_wx_wind') }}</th><th>{{ t('sw_wx_cloud') }}</th><th>{{ t('sw_wx_rain') }}</th></tr>
 {% for x in wx %}<tr><td><i>{{ x.name }}</i></td><td>{{ x.n }}</td><td style="white-space:nowrap">{{ x.hum }}</td><td style="white-space:nowrap">{{ x.press }}</td><td style="white-space:nowrap">{{ x.wind }}</td><td style="white-space:nowrap">{{ x.cloud }}</td><td>{{ x.rain }}</td></tr>{% endfor %}</table></div>
 <p class=muted style="font-size:12px;margin:8px 0 0">{{ t('sw_wx_src') }} <a href="https://open-meteo.com/" target=_blank rel=noopener>Weather data by Open-Meteo.com</a> (CC BY 4.0)</p></div>{% endif %}
+{% if data.wreg %}<div class=chartbox id=wetterkarte><h4>🌡️ {{ t('sw_wr_h') }} <span class=info title="{{ t('sw_wr_exp') }}">ⓘ</span></h4>
+<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 8px"><select id=wrVar class=gsel>{% for v in ['temp','rain','hum','press','wind'] %}<option value="{{ loop.index }}">{{ t('sw_wr_' ~ v) }}</option>{% endfor %}</select>
+<span class=muted style="font-size:12px">{% if g %}{{ t('sw_wr_for', g=g) }}{% else %}{{ t('sw_wr_all') }}{% endif %}</span></div>
+<div id=wrmap style="height:420px;border-radius:10px;border:1px solid #21262d;background:#0f141a"></div>
+<div class=swlegend style="margin-top:6px" id=wrLegend></div></div>{% endif %}
 
 {% if data.yrs.series %}<div class=chartbox><h4>📅 {{ t('sw_years_h') }} <span class=info title="{{ t('sw_years_exp') }}">ⓘ</span></h4><div class=chartwrap style="height:260px"><canvas id=chYears></canvas></div></div>{% endif %}
 
@@ -252,12 +271,67 @@ TEMPLATE = """{% extends "base" %}{% block body %}
     .bindPopup("<b><i>"+esc(c[4])+"</i></b><br>"+esc(c[5])).addTo(fm);
   });
  }
+ // ── Hilfen für die zusätzlichen Karten ──
+ function rkey(ft){var p=ft.properties||{},iso=String(p.shapeISO||"");if(iso==="LIE"||p.shapeName==="Liechtenstein")return "li-LI";var i=iso.indexOf("-");return i>0?iso.slice(0,i).toLowerCase()+"-"+iso.slice(i+1).toUpperCase():"";}
+ function mkmap(id){var m=L.map(id,{minZoom:4,maxZoom:11,zoomSnap:0.25,preferCanvas:true}).fitBounds([[45.8,5.9],[55.05,17.1]]);m.attributionControl.setPrefix(false);m.createPane("dotPane").style.zIndex=620;return m;}
+ function outlines(m,styleFn,popFn,done){var gs=[];["de_bundeslaender","at_bundeslaender","ch_kantone","li_land"].forEach(function(f){
+   fetch("/static/"+f+".geojson",{credentials:"same-origin"}).then(function(r){return r.ok?r.json():null;}).then(function(gj){if(!gj)return;
+    var g=L.geoJSON(gj,{style:styleFn,onEachFeature:function(ft,ly){if(popFn)ly.bindPopup(function(){return popFn(rkey(ft),ft);});}}).addTo(m);gs.push(g);if(done)done(gs);}).catch(function(){});});return gs;}
+ function dot(lat,lon,hot,color,tip){
+  if(hot)return L.marker([lat,lon],{pane:"dotPane",icon:L.divIcon({className:"",iconSize:[10,10],html:"<div style='width:9px;height:9px;transform:rotate(45deg);background:"+color+";border:1px solid #0d1117'></div>"})}).bindPopup(tip);
+  return L.circleMarker([lat,lon],{pane:"dotPane",radius:4,color:"#0d1117",weight:1,fillColor:color,fillOpacity:.95}).bindPopup(tip);}
+ function mix(a,b,f){var x=parseInt(a.slice(1),16),y=parseInt(b.slice(1),16),r=function(s){return Math.round(((x>>s)&255)*(1-f)+((y>>s)&255)*f);};return "#"+((1<<24)+(r(16)<<16)+(r(8)<<8)+r(0)).toString(16).slice(1);}
+ // 1. Lerndaten-Karte (erst beim Aufklappen zeichnen, sonst falsche Größe)
+ var lb=document.getElementById("lrnBox");
+ if(window.L&&lb&&D.learn&&D.learn.length){var lrnDone=false;lb.addEventListener("toggle",function(){if(!lb.open||lrnDone)return;lrnDone=true;
+  var lm=mkmap("learnmap");outlines(lm,function(){return {color:"#30363d",weight:1,fillColor:"#161b22",fillOpacity:.5};});
+  D.learn.forEach(function(p){var f=p[5]?p[4]/p[5]:0,c=f<=0?"#30363d":f>=1?"#3fb950":mix("#1b3a24","#3fb950",f);
+   var tip="<b>"+esc(p[2]?D.t.lrnHot:D.t.lrnGrid)+"</b><br>"+p[4]+" "+esc(D.t.lrnOf)+" "+p[5]+(p[3]<p[4]?"<br><span style='color:#8b949e'>"+p[3]+" "+esc(D.t.lrnFine)+"</span>":"");
+   dot(p[0],p[1],p[2],c,tip).addTo(lm);});});}
+ // 3. Wetter beim Flug je Region
+ if(window.L&&D.wreg&&document.getElementById("wrmap")){
+  var wm=mkmap("wrmap"),sel=document.getElementById("wrVar"),vi=1,WRC=["#2c7bb6","#abd9e9","#ffffbf","#fdae61","#d7191c"],rng=[0,1];
+  var units=["°C","%","%","hPa","km/h"];
+  function calc(){var vs=Object.keys(D.wreg).map(function(k){return D.wreg[k][vi];}).filter(function(v){return v!==null&&v!==undefined;});
+   rng=vs.length?[Math.min.apply(null,vs),Math.max.apply(null,vs)]:[0,1];}
+  function wcol(v){if(v===null||v===undefined)return null;var f=rng[1]>rng[0]?(v-rng[0])/(rng[1]-rng[0]):.5;return WRC[Math.min(4,Math.floor(f*5))];}
+  function wsty(ft){var e=D.wreg[rkey(ft)],c=e?wcol(e[vi]):null;return {color:"#30363d",weight:1,fillColor:c||"#161b22",fillOpacity:c?.8:.4};}
+  function legend(){var el=document.getElementById("wrLegend");if(!el)return;var u=units[vi-1],h="<span>"+esc(sel.options[sel.selectedIndex].text)+"</span>";
+   for(var i=0;i<5;i++){var a=rng[0]+(rng[1]-rng[0])*i/5;h+="<span><i style='background:"+WRC[i]+"'></i>"+(Math.round(a*10)/10).toLocaleString(D.lang)+(i===4?"+":"")+" "+u+"</span>";}
+   h+="<span><i style='background:#161b22'></i>"+esc(D.t.wrFew)+"</span>";el.innerHTML=h;}
+  calc();legend();
+  var wgs=outlines(wm,wsty,function(k,ft){var e=D.wreg[k],nm=esc(D.names[k]||(ft.properties||{}).shapeName||"");
+   if(!e)return "<b>"+nm+"</b><br>"+esc(D.t.wrFew);
+   var h="<b>"+nm+"</b><br>"+(e[0]<3?"&lt; 3":e[0])+" "+esc(D.t.wrN);
+   ["temp","rain","hum","press","wind"].forEach(function(v,i){if(e[i+1]!==null&&e[i+1]!==undefined)h+="<br>"+esc(D.t.wrVars[v])+": "+e[i+1].toLocaleString(D.lang)+" "+units[i];});return h;});
+  sel.addEventListener("change",function(){vi=+sel.value;calc();legend();wgs.forEach(function(g){g.setStyle(wsty);});});
+ }
+ // 4. Flugwetter-Kalender
+ if(window.L&&D.clim&&document.getElementById("climmap")){
+  var cm=mkmap("climmap");outlines(cm,function(){return {color:"#30363d",weight:1,fillColor:"#161b22",fillOpacity:.5};});
+  function ccol(v){return v===null||v===undefined||v<10?null:v>=50?"#D55E00":v>=25?"#E69F00":"#F0E442";}
+  var cdots=D.clim.pts.map(function(p){
+   var mk=p[2]?L.marker([p[0],p[1]],{pane:"dotPane",icon:L.divIcon({className:"",iconSize:[10,10],html:"<div class=cld style='width:9px;height:9px;transform:rotate(45deg);border:1px solid #0d1117'></div>"})})
+             :L.circleMarker([p[0],p[1]],{pane:"dotPane",radius:6,color:"#0d1117",weight:1,fillOpacity:.9});
+   mk.addTo(cm);return [mk,p];});
+  var cw=document.getElementById("clWeek"),cl=document.getElementById("clLbl"),cp=document.getElementById("clPlay"),ct=null;
+  function cshow(i){cl.textContent=D.weekTitles[i]+" · "+D.clim.taxon;
+   cdots.forEach(function(x){var v=x[1][3][i],c=ccol(v),tip="<b><i>"+esc(D.clim.taxon)+"</i></b><br>"+esc(D.weekTitles[i])+"<br>"+(v===null||v===undefined?"–":v+" % "+esc(D.t.clDays));
+    if(x[1][2]){var el=x[0].getElement();if(el&&el.firstChild){el.firstChild.style.background=c||"#30363d";el.firstChild.style.opacity=c?1:.4;}}
+    else x[0].setStyle({fillColor:c||"#30363d",fillOpacity:c?.9:.35});
+    x[0].bindPopup(tip);});}
+  cshow(+cw.value);
+  cw.addEventListener("input",function(){if(ct){clearInterval(ct);ct=null;cp.textContent="▶ "+D.t.tlPlay;}cshow(+cw.value);});
+  cp.addEventListener("click",function(){if(ct){clearInterval(ct);ct=null;cp.textContent="▶ "+D.t.tlPlay;return;}
+   var i=+cw.value;if(i>=30)i=0;cp.textContent="⏸ "+D.t.tlPause;ct=setInterval(function(){i++;if(i>30){clearInterval(ct);ct=null;cp.textContent="▶ "+D.t.tlPlay;return;}cw.value=i;cshow(i);},800);});
+ }
  (function poll(){
   setTimeout(function(){
    fetch("/schwarmflug/status.json?lang="+encodeURIComponent(D.lang),{cache:"no-store"}).then(function(r){return r.ok?r.json():null;}).then(function(j){
     if(!j) return;
     j.bars.forEach(function(b){var e=document.getElementById("pg_"+b.key),x=document.getElementById("pg_"+b.key+"_t");if(e)e.style.width=b.pct+"%";if(x)x.textContent=b.done+" / "+b.total;});
     var s=document.getElementById("pgState");if(s)s.textContent=j.state;var bu=document.getElementById("pgBudget");if(bu)bu.textContent=j.budget;
+    var et=document.getElementById("pgEta");if(et)et.textContent=j.eta?"⏳ "+j.eta:"";
    }).catch(function(){}).then(poll);
   },10000);
  })();
@@ -492,6 +566,60 @@ def _abroad_ctx(rows: list, g: str, inr, member: bool, link, lang: str) -> dict:
     return {"abroad": out[:25], "abroad_more": max(0, len(out) - 25)}
 
 
+WR_VARS = ("temp", "rain", "hum", "press", "wind")
+
+
+def weather_regions(rows: list[dict]) -> tuple[dict, dict]:
+    """Wetter beim Flug je Region: {key: [n, temp, rain %, hum, press, wind]} (Median, Regen = Anteil ab 1 mm).
+    Regionen mit weniger als 3 Meldungen nur mit n (Werte None)."""
+    by: dict = {}
+    names: dict = {}
+    for r in rows:
+        if not (r["country"] and r["region"]):
+            continue
+        k = f"{r['country']}-{r['region']}"
+        names[k] = S.region_name(r["country"], r["region"])
+        by.setdefault(k, []).append(r)
+    out = {}
+    for k, lst in by.items():
+        n = len(lst)
+        if n < 3:
+            out[k] = [n, None, None, None, None, None]
+            continue
+        def med(xs):
+            xs = [x for x in xs if x is not None]
+            return round(_med(xs), 1) if len(xs) >= 3 else None
+        rain = [r["w_rain24"] for r in lst if r.get("w_rain24") is not None]
+        out[k] = [n, med([S.temp_of(r) for r in lst]),
+                  round(100 * sum(1 for x in rain if x >= 1) / len(rain)) if len(rain) >= 3 else None,
+                  med([r.get("w_hum") for r in lst]), med([r.get("w_press") for r in lst]),
+                  med([r.get("w_wind") for r in lst])]
+    return out, names
+
+
+async def climate_ctx(bot, ct: str, g: str, member: bool) -> dict:
+    """Flugwetter-Kalender: Anteil der Tage mit gutem Flugwetter je Lernpunkt und Woche (alle Jahre)."""
+    try:
+        taxa = [r["taxon"] for r in await execute_db(bot,
+            "SELECT c.taxon FROM fc_climate c LEFT JOIN fc_models m ON m.taxon=c.taxon GROUP BY c.taxon "
+            "ORDER BY MAX(m.n_pos) DESC", fetch=True) or []]
+    except Exception:
+        taxa = []
+    if not taxa:
+        return {"ok": False}
+    tx = ct if ct in taxa else (g if g in taxa else taxa[0])
+    rows = await execute_db(bot,
+        "SELECT c.key, c.week, c.days, c.good, p.lat, p.lon, p.kind FROM fc_climate c JOIN fc_points p "
+        "ON p.key=c.key WHERE c.taxon=? AND c.week BETWEEN 14 AND 44", (tx,), fetch=True) or []
+    pts: dict = {}
+    for r in rows:
+        if r["kind"] == "hot" and not member:
+            continue
+        e = pts.setdefault(r["key"], [r["lat"], r["lon"], 1 if r["kind"] == "hot" else 0, [None] * 31])
+        e[3][r["week"] - 14] = round(100 * r["good"] / r["days"]) if r["days"] else None
+    return {"ok": True, "taxa": taxa, "taxon": tx, "data": {"taxon": tx, "pts": list(pts.values())}}
+
+
 async def progress(bot, t) -> dict:
     """Stand der Datensammlung (für den Kasten und /schwarmflug/status.json)."""
     from utils import forecast as FC
@@ -531,7 +659,18 @@ async def progress(bot, t) -> dict:
         state = t("sw_prog_running")
     else:
         state = t("sw_prog_done")
-    return {"bars": bars, "state": state,
+    eta_txt = ""
+    try:
+        eta = await FC.learn_eta(bot) if hasattr(FC, "learn_eta") else None
+    except Exception:
+        eta = None
+    if eta:
+        dd = date.fromisoformat(eta["date"]).strftime("%d.%m.%Y")
+        eta_txt = t("sw_prog_eta_today") if eta["days"] == 0 else t("sw_prog_eta", d=eta["days"], date=dd,
+                                                                      n=eta["per_day"])
+    elif wx_o:
+        eta_txt = t("sw_prog_eta_wx", d=max(1, -(-wx_o // 1500)))
+    return {"bars": bars, "state": state, "eta": eta_txt,
             "budget": t("sw_prog_budget", u=f"{used:,.0f}".replace(",", "."), m=f"{SWARM_OM_DAILY:,}".replace(",", "."))}
 
 
@@ -815,6 +954,19 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
     if cmp:
         data["cmp"] = cmp.pop("data")
     wx, wx_n = weather_table(base, t)
+    from utils import forecast as FC
+    try:
+        data["learn"] = [p for p in await FC.learn_map(bot) if member or not p[2]]   # Hotspots nur für Mitglieder
+    except Exception:
+        data["learn"] = []
+    data["wreg"], wreg_names = weather_regions(base)
+    data["names"] = {**wreg_names, **data["names"]}
+    clim = await climate_ctx(bot, (q or {}).get("ct", ""), g, member)
+    if clim.get("data"):
+        data["clim"] = clim.pop("data")
+    data["t"].update(lrnHot=t("sw_lrn_hot"), lrnGrid=t("sw_lrn_grid"), lrnOf=t("sw_lrn_of"),
+                     lrnFine=t("sw_lrn_fine"), wrVars={k: t("sw_wr_" + k) for k in WR_VARS},
+                     wrFew=t("sw_wr_few"), wrN=t("sw_wr_n"), clDays=t("sw_cl_days"))
     prog = await progress(bot, t)
     fc = await forecast_ctx(bot, member, q, t)
     if fc.get("data"):
@@ -822,7 +974,7 @@ async def page(bot, z: str, g: str, member: bool, lang: str, art_slug, month_nam
     data["t"]["fcNone"] = t("fc_region_none")
     return {"z": z, "g": g, "ranges": RANGES, "genera": genera, "flying": flying, "k": k, "data": data,
             "ident": ident, "regions_sel": regions_select(t, lang), "wx": wx, "wx_n": wx_n, "cmp": cmp,
-            "season": season_info(lang), "fc": fc, "prog": prog,
+            "season": season_info(lang), "fc": fc, "prog": prog, "clim": clim,
             **_abroad_ctx(abroad_all, g, inr, member, link, lang), "unclear_n": unclear_n,
             "year_list": year_list, "home_n": len({r["message_id"] for r in sel if r.get("geo_src") == "home"}),
             "recent": recent, "taxa": taxa, "legend": legend, "member": member,

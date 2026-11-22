@@ -806,6 +806,26 @@ CREATE TABLE IF NOT EXISTS fc_models (
     n_obs      INTEGER,
     trained_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Karten aus den Lerndaten (nach jedem Lernlauf neu berechnet):
+-- Flugwetter-Kalender: je Taxon, Lernpunkt und Kalenderwoche Zahl der Tage und davon „gutes Flugwetter“ (Stufe ≥ 2)
+CREATE TABLE IF NOT EXISTS fc_climate (
+    taxon TEXT NOT NULL,
+    key   TEXT NOT NULL,
+    week  INTEGER NOT NULL,
+    days  INTEGER NOT NULL,
+    good  INTEGER NOT NULL,
+    PRIMARY KEY (taxon, key, week)
+);
+-- Gelernt gegen gemeldet: je Taxon und Lernpunkt Tage mit „sehr gut“, davon mit Meldung im Umkreis, Meldetage
+CREATE TABLE IF NOT EXISTS fc_eval (
+    taxon TEXT NOT NULL,
+    key   TEXT NOT NULL,
+    days  INTEGER NOT NULL,
+    n_hi  INTEGER NOT NULL,
+    n_hit INTEGER NOT NULL,
+    n_rep INTEGER NOT NULL,
+    PRIMARY KEY (taxon, key)
+);
 -- Vorhersage je Punkt, Tag und Taxon (nur Stufe ≥ 1). level: 1 möglich, 2 gut, 3 sehr gut.
 CREATE TABLE IF NOT EXISTS fc_pred (
     key    TEXT NOT NULL,

@@ -440,6 +440,127 @@ async def train_fetch(bot, max_requests: int = 200) -> int:
     return n
 
 
+# ── Karten aus den Lerndaten ─────────────────────────────────────────────────
+COST_PER_YEAR = 36                         # gewichtete Abfragen je Punkt-Jahr (ganze Saison, 10 Werte)
+
+
+def train_cap_on(d: date) -> float:
+    """Tagesbudget fürs Lernen an einem Tag (wie budget_left, ohne Verbrauch)."""
+    from config import SWARM_OM_DAILY
+    if d.month in SEASON:
+        return CAPS["train"]
+    if d.month in TRAIN_MAX_MONTHS:
+        return max(TRAIN_CAP_OFFSEASON, SWARM_OM_DAILY - WEATHER_KEEP)
+    return TRAIN_CAP_OFFSEASON
+
+
+async def learn_eta(bot) -> dict | None:
+    """Wie lange das Laden der Lerndaten noch ungefähr dauert: {days, date} oder None (fertig)."""
+    pending = await train_pending(bot)
+    if not pending:
+        return None
+    left_today = await budget_left(bot, "train")
+    n = pending - int(left_today // COST_PER_YEAR)
+    d = datetime.now(BERLIN).date()
+    days = 0
+    while n > 0 and days < 400:
+        d += timedelta(days=1)
+        days += 1
+        n -= int(train_cap_on(d) // COST_PER_YEAR)
+    return {"days": days, "date": d.isoformat(), "per_day": int(train_cap_on(datetime.now(BERLIN).date())
+                                                                // COST_PER_YEAR)}
+
+
+async def learn_map(bot) -> list:
+    """Lernpunkte für die Karte: [lat, lon, hot, geladen (feine Quelle), geladen gesamt, Jahre gesamt]."""
+    pts = await points(bot, train_only=True)
+    if not pts:
+        return []
+    first = await _first_year(bot)
+    today = datetime.now(BERLIN).date()
+    years = [y for y in range(first, today.year + 1)
+             if min(date(y, 10, 31), today - timedelta(days=3 if _src_for(y) == "hf" else 6)) >= date(y, 3, 1)]
+    done: dict = {}
+    for r in await execute_db(bot, "SELECT key, year, src FROM fc_train_done", fetch=True) or []:
+        e = done.setdefault(r["key"], [0, 0])
+        if r["year"] in years:
+            e[1] += 1
+            if r["src"] == _src_for(r["year"]):
+                e[0] += 1
+    return [[p["lat"], p["lon"], 1 if p["kind"] == "hot" else 0, *done.get(p["key"], [0, 0]), len(years)]
+            for p in pts]
+
+
+def _maps_for_key(rows: list, mods: dict, key: str, pkey: str, act: float, near: dict) -> tuple[list, list]:
+    """Flugwetter je Woche und Abgleich mit Meldungen für einen Lernpunkt (im Thread, numpy)."""
+    import numpy as np
+    if not rows:
+        return [], []
+    cols = ("temp", "hum", "dew", "rain24", "rain48", "rain72", "dp12", "wind", "cloud", "rad", "tmax",
+            "soil_t", "soil_m")
+    A = np.array([[np.nan if r[c] is None else float(r[c]) for c in cols] for r in rows], float)
+    t = A[:, 0]
+    tmax = np.where(np.isnan(A[:, 10]), t, A[:, 10])
+    lg = lambda v: np.log1p(v)
+    base = np.column_stack([t, t * t, A[:, 1], A[:, 2], lg(A[:, 3]), lg(A[:, 4]), lg(A[:, 5]), A[:, 6],
+                            A[:, 7], A[:, 8], A[:, 9], tmax, A[:, 11], A[:, 12],
+                            np.full(len(rows), math.log1p(act))])
+    weeks = np.array([date.fromisoformat(r["date"]).isocalendar()[1] for r in rows])
+    dates = [r["date"] for r in rows]
+    clim, ev = [], []
+    for name, mod in mods.items():
+        par = mod["params"]
+        rg = par.get("regions")
+        if rg is not None and pkey not in rg:
+            continue
+        season = np.log(np.array([par["curve"][w] for w in weeks], float))
+        X = np.column_stack([season, base])
+        mu, sd, w = np.array(par["mu"], float), np.array(par["sd"], float), np.array(par["w"], float)
+        Z = (X - mu) / sd
+        Z = np.where(np.isnan(Z), 0.0, Z)                   # fehlende Werte zählen wie der Mittelwert
+        p = 1 / (1 + np.exp(-np.clip(w[0] + Z @ w[1:], -30, 30)))
+        lv = sum((p >= c).astype(int) for c in par["levels"])
+        good = lv >= 2
+        for wk in np.unique(weeks):
+            m = weeks == wk
+            clim.append((name, key, int(wk), int(m.sum()), int(good[m].sum())))
+        rep = np.array([name in near.get(d, ()) for d in dates])
+        hi = lv >= 3
+        ev.append((name, key, len(rows), int(hi.sum()), int((hi & rep).sum()), int(rep.sum())))
+    return clim, ev
+
+
+async def build_maps(bot) -> dict:
+    """Flugwetter-Kalender und Abgleich „gelernt gegen gemeldet“ aus allen Lerndaten neu berechnen."""
+    mods = {k: v for k, v in (await models(bot)).items() if v["kind"] == "model"}
+    if not mods:
+        return {"taxa": 0}
+    pts = {p["key"]: p for p in await points(bot, train_only=True)}
+    reps = [dict(r) for r in await execute_db(bot, "SELECT * FROM swarm_reports WHERE indoor=0 AND "
+                                                   "country IN ('de','at','ch','li')", fetch=True) or []]
+    near_all = await asyncio.to_thread(_near_map, reps, pts)
+    near_by: dict = {}
+    for (k, d), tx in near_all.items():
+        near_by.setdefault(k, {})[d] = tx
+    clim, ev = [], []
+    for k, p in pts.items():
+        rows = [dict(r) for r in await execute_db(bot, "SELECT * FROM fc_train WHERE key=?", (k,), fetch=True) or []]
+        c, e = await asyncio.to_thread(_maps_for_key, rows, mods, k, f"{p['country']}-{p['region']}",
+                                       p.get("n") or 0, near_by.get(k, {}))
+        clim += c
+        ev += e
+    await execute_db(bot, "DELETE FROM fc_climate", commit=True)
+    await execute_db(bot, "DELETE FROM fc_eval", commit=True)
+    if clim:
+        await execute_many(bot, "INSERT OR REPLACE INTO fc_climate (taxon, key, week, days, good) VALUES (?,?,?,?,?)",
+                           clim)
+    if ev:
+        await execute_many(bot, "INSERT OR REPLACE INTO fc_eval (taxon, key, days, n_hi, n_hit, n_rep) "
+                                "VALUES (?,?,?,?,?,?)", ev)
+    logger.info("🗺️ Lerndaten-Karten: %d Taxa, %d Wochenwerte, %d Punktwerte", len(mods), len(clim), len(ev))
+    return {"taxa": len(mods), "climate": len(clim), "eval": len(ev)}
+
+
 async def train_pending(bot) -> int:
     pts = await points(bot, train_only=True)
     done = {(r["key"], r["year"]): r["src"] for r in
@@ -656,6 +777,11 @@ async def train_models(bot) -> dict:
                          (name, res["auc"], res["hit_hi"], res["hit_base"], res["n_pos"]), commit=True)
         out["model"] += 1
     logger.info("🔮 Modelle: %d gelernt, %d Regeln (%d Lernzeilen)", out["model"], out["rule"], len(trows))
+    if out["model"]:
+        try:
+            await build_maps(bot)
+        except Exception as e:
+            logger.warning("🗺️ Lerndaten-Karten nicht berechnet: %s", e, exc_info=True)
     return out
 
 
