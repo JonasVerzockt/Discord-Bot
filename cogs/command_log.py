@@ -175,6 +175,16 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
             if msg is None or (getattr(msg, "flags", None) and msg.flags.ephemeral):
                 return
             existing = msg.content or ""
+            if not existing and not (msg.embeds or msg.attachments or msg.components):
+                # Zwischengespeicherte Antwort ohne Inhalt (z. B. nach defer()): frisch holen,
+                # sonst würde die Kopfzeile den eigentlichen Text ersetzen.
+                try:
+                    msg = await ctx.interaction.followup.fetch_message(msg.id)
+                    existing = msg.content or ""
+                except Exception:
+                    return
+                if not existing and not (msg.embeds or msg.attachments or msg.components):
+                    return
             if existing.startswith("-#"):          # schon attribuiert -> nichts tun
                 return
             name = getattr(ctx.author, "display_name", None) or getattr(ctx.author, "name", "?")

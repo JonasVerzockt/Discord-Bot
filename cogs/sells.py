@@ -157,7 +157,6 @@ class SellsCog(commands.Cog, name="Sells"):
             default=False,
         ),
     ):
-        await ctx.defer()
         lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         query  = species.strip()
         search = normalize_species_name(query)
@@ -165,11 +164,14 @@ class SellsCog(commands.Cog, name="Sells"):
 
         # Namensprüfung gegen die Artenliste (außer bei force): bei Synonym/
         # Tippfehler/unbekannt Hinweis + korrekte Schreibweise, dann abbrechen.
+        # VOR defer(): nach einem öffentlichen defer() wird die erste Folgeantwort
+        # öffentlich (ephemeral wird ignoriert) und der Hinweis war nicht nur für dich.
         if not force:
             _msg = species_catalog.validation_message(species_catalog.check(query), lang)
             if _msg:
-                await ctx.followup.send(_msg, ephemeral=True)
+                await ctx.respond(_msg, ephemeral=True)
                 return
+        await ctx.defer()
 
         await ensure_rates()
         shop_data = await load_shop_data(self.bot)
