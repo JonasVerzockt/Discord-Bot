@@ -916,6 +916,10 @@ class Swarm(commands.Cog):
                     await execute_db(self.bot, "INSERT INTO swarm_meta (key, value) VALUES ('models_try', ?) "
                                                "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (day,), commit=True)
                     await FC.train_models(self.bot)
+            # Lerndaten-Karten einmalig nachholen, falls Modelle da sind, die Karten aber noch fehlen
+            if not await execute_db(self.bot, "SELECT 1 FROM fc_climate LIMIT 1", fetch=True) and \
+                    any(m["kind"] == "model" for m in (await FC.models(self.bot)).values()):
+                await FC.build_maps(self.bot)
         except Exception as e:
             logger.warning("🔮 Modelltraining fehlgeschlagen: %s", e, exc_info=True)
         try:

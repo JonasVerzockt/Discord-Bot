@@ -4674,6 +4674,43 @@ SWARM_ADMIN = """{% extends "base" %}{% block body %}
 <td><form method=post action="/admin/schwarmflug/fix?lang={{ lang }}" class=fx><input type=hidden name=csrf value="{{ csrf }}"><input type=hidden name=mid value="{{ r.mid }}">
 <select name=where>{% for v, lbl in regions %}<option value="{{ v }}">{{ lbl }}</option>{% endfor %}</select><input name=place placeholder="{{ t('sw_abroad_place') }}" value="{{ r.place }}"><input name=taxa placeholder="{{ t('sw_fix_taxa_ph') }}"><button class="btn small">{{ t('sw_fix_btn') }}</button></form></td></tr>
 {% else %}<tr><td colspan=5 class=muted>{{ t('sw_unclear_none') }}</td></tr>{% endfor %}</table></div>
+<link rel="stylesheet" href="/static/leaflet.css?v={{ v }}">
+<style>.amap{height:440px;border-radius:10px;border:1px solid #21262d;background:#0f141a}.alg{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:#8b949e;margin-top:6px}.alg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px}</style>
+<div class=chartbox><h4>🌦️ {{ t('sw_wc_h') }}</h4><p class=muted style="font-size:12px;margin:0 0 8px">{{ t('sw_wc_intro', n=wc_regonly) }}</p>
+<div style="margin:0 0 6px;display:flex;gap:14px;align-items:center;font-size:13px"><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type=radio name=wcm value=st checked style="width:auto;margin:0"> {{ t('sw_wc_by_state') }}</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type=radio name=wcm value=src style="width:auto;margin:0"> {{ t('sw_wc_by_src') }}</label></div>
+<div id=wcmap class=amap></div><div class=alg id=wcLeg></div></div>
+<div class=chartbox id=abgleich><h4>🎯 {{ t('sw_ev_h') }}</h4>
+{% if ev_taxa %}<form method=get action="/admin/schwarmflug#abgleich" style="margin:0 0 6px"><input type=hidden name=lang value="{{ lang }}"><select name=et class=gsel style="width:auto" onchange="this.form.submit()">{% for x in ev_taxa %}<option {{ 'selected' if x == ev_taxon }}>{{ x }}</option>{% endfor %}</select></form>
+<p class=muted style="font-size:12px;margin:0 0 8px">{{ t('sw_ev_intro') }}</p>
+<div id=evmap class=amap></div>
+<div class=alg><span><i style="background:#3fb950"></i>{{ t('sw_ev_good') }}</span><span><i style="background:#F0E442"></i>{{ t('sw_ev_mid') }}</span><span><i style="background:#E69F00"></i>{{ t('sw_ev_bad') }}</span><span><i style="background:#D55E00"></i>{{ t('sw_ev_never_rep') }}</span><span><i style="background:#a371f7"></i>{{ t('sw_ev_never_hi') }}</span><span><i style="background:#30363d"></i>{{ t('sw_ev_none') }}</span></div>
+{% else %}<p class=muted style="margin:0">{{ t('sw_cl_wait') }}</p>{% endif %}</div>
+<script src="/static/leaflet.js?v={{ v }}"></script>
+<script>
+(function(){
+ var A={{ amap|tojson }};
+ if(!window.L) return;
+ function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+ function mk(id){var m=L.map(id,{minZoom:4,maxZoom:12,zoomSnap:0.25,preferCanvas:true}).fitBounds([[45.8,5.9],[55.05,17.1]]);m.attributionControl.setPrefix(false);
+  ["de_bundeslaender","at_bundeslaender","ch_kantone","li_land"].forEach(function(f){fetch("/static/"+f+".geojson",{credentials:"same-origin"}).then(function(r){return r.ok?r.json():null;}).then(function(gj){if(gj)L.geoJSON(gj,{style:{color:"#30363d",weight:1,fillColor:"#161b22",fillOpacity:.5},interactive:false}).addTo(m);}).catch(function(){});});
+  m.createPane("dotPane").style.zIndex=620;return m;}
+ var SC={t:"#3fb950",e:"#E69F00",o:"#58a6ff",f:"#f85149"},QC={hf:"#3fb950",fc:"#56B4E9",ifs:"#E69F00","":"#6e7681"};
+ var wm=mk("wcmap"),wd=[],mode="st";
+ A.wc.forEach(function(p){var m=L.circleMarker([p[0],p[1]],{pane:"dotPane",radius:4,color:"#0d1117",weight:1,fillOpacity:.9})
+   .bindPopup("<b><i>"+esc(p[4])+"</i></b><br>"+esc(p[5])+"<br>"+esc(A.t.st[p[2]])+(p[3]?"<br>"+esc(A.t.src[p[3]]||p[3]):""));m.addTo(wm);wd.push([m,p]);});
+ function wpaint(){wd.forEach(function(x){x[0].setStyle({fillColor:mode==="st"?SC[x[1][2]]:QC[x[1][3]||""]});});
+  var L2=mode==="st"?SC:QC,names=mode==="st"?A.t.st:A.t.src,h="";Object.keys(L2).forEach(function(k){h+="<span><i style='background:"+L2[k]+"'></i>"+esc(names[k]||A.t.nosrc)+" ("+(A.cnt[mode][k]||0)+")</span>";});
+  document.getElementById("wcLeg").innerHTML=h;}
+ wpaint();
+ document.querySelectorAll("input[name=wcm]").forEach(function(r){r.addEventListener("change",function(){mode=r.value;wpaint();});});
+ if(A.ev&&A.ev.length&&document.getElementById("evmap")){var em=mk("evmap");
+  A.ev.forEach(function(p){var hi=p[4],hit=p[5],rep=p[6],days=p[3],c,base=days?rep/days:0,rate=hi?hit/hi:0;
+   if(!hi&&!rep)c="#30363d";else if(!hi)c="#a371f7";else if(!rep)c="#D55E00";else{var lift=base?rate/base:0;c=lift>=2?"#3fb950":lift>=1?"#F0E442":"#E69F00";}
+   var tip="<b>"+esc(p[2]?A.t.hot:A.t.grid)+"</b><br>"+esc(A.t.days)+": "+days+"<br>"+esc(A.t.hi)+": "+hi+"<br>"+esc(A.t.hit)+": "+hit+(hi?" ("+Math.round(100*rate)+" %)":"")+"<br>"+esc(A.t.rep)+": "+rep+(days?" ("+(Math.round(1000*base)/10)+" %)":"");
+   (p[2]?L.marker([p[0],p[1]],{pane:"dotPane",icon:L.divIcon({className:"",iconSize:[10,10],html:"<div style='width:9px;height:9px;transform:rotate(45deg);background:"+c+";border:1px solid #0d1117'></div>"})})
+        :L.circleMarker([p[0],p[1]],{pane:"dotPane",radius:5,color:"#0d1117",weight:1,fillColor:c,fillOpacity:.9})).bindPopup(tip).addTo(em);});}
+})();
+</script>
 {% if manual %}<div class=chartbox style="overflow-x:auto"><h4>✍️ {{ t('sw_fix_list') }}</h4><table class=swt style="font-size:13px"><tr><th>{{ t('sw_abroad_when') }}</th><th>{{ t('sw_abroad_place') }}</th><th>{{ t('sw_id_region') }}</th><th>{{ t('sw_col_taxon') }}</th></tr>
 {% for o in manual %}<tr><td>{{ o.set_at|berlin }}</td><td>{{ o.place }}</td><td>{{ o.country }}{% if o.region %}-{{ o.region }}{% endif %}</td><td><i>{{ o.taxa }}</i></td></tr>{% endfor %}</table></div>{% endif %}
 <div class=chartbox style="overflow-x:auto"><h4>🔤 {{ t('sw_names_h') }}</h4><p class=muted style="font-size:12px;margin-top:0">{{ t('sw_names_intro') }}</p>
@@ -4720,11 +4757,42 @@ async def h_swarm_admin(req):
         "WHERE raw_label IS NOT NULL GROUP BY raw_label, label, taxon_check "
         "ORDER BY taxon_check IN ('typo', 'fixed') DESC, n DESC LIMIT 300", fetch=True) or []]
     home = await execute_db(bot, "SELECT COUNT(DISTINCT message_id) AS n FROM swarm_reports WHERE geo_src='home'", fetch=True)
+    # Karte Wetter-Abdeckung: t = zur Uhrzeit, e = geschätzte Stunde, o = noch offen, f = nicht abrufbar
+    wc, cnt = [], {"st": {}, "src": {}}
+    for r in await execute_db(bot, "SELECT lat, lon, flight_time, flight_date, w_state, w_src, label FROM swarm_reports "
+                                    "WHERE indoor=0 AND country IN ('de','at','ch','li') AND lat IS NOT NULL",
+                              fetch=True) or []:
+        st = ("t" if r["flight_time"] else "e") if r["w_state"] == 1 else ("o" if r["w_state"] is None else "f")
+        src = (r["w_src"] or "") if r["w_state"] == 1 else ""
+        cnt["st"][st] = cnt["st"].get(st, 0) + 1
+        cnt["src"][src] = cnt["src"].get(src, 0) + 1
+        wc.append([round(r["lat"], 4), round(r["lon"], 4), st, src, r["label"],
+                   datetime.strptime(r["flight_date"], "%Y-%m-%d").strftime("%d.%m.%Y") if r["flight_date"] else ""])
+    regonly = await execute_db(bot, "SELECT COUNT(*) AS n FROM swarm_reports WHERE indoor=0 AND lat IS NULL AND "
+                                    "region<>'' AND country IN ('de','at','ch','li')", fetch=True)
+    # Karte Gelernt gegen gemeldet
+    try:
+        ev_taxa = [r["taxon"] for r in await execute_db(bot,
+            "SELECT e.taxon FROM fc_eval e LEFT JOIN fc_models m ON m.taxon=e.taxon GROUP BY e.taxon "
+            "ORDER BY MAX(m.n_pos) DESC", fetch=True) or []]
+    except Exception:
+        ev_taxa = []
+    ev_taxon = req.query.get("et") if req.query.get("et") in ev_taxa else (ev_taxa[0] if ev_taxa else "")
+    ev = [[r["lat"], r["lon"], 1 if r["kind"] == "hot" else 0, r["days"], r["n_hi"], r["n_hit"], r["n_rep"]]
+          for r in await execute_db(bot, "SELECT e.*, p.lat, p.lon, p.kind FROM fc_eval e JOIN fc_points p "
+                                          "ON p.key=e.key WHERE e.taxon=?", (ev_taxon,), fetch=True) or []] \
+        if ev_taxon else []
+    T = lambda k: translate(lang, k)
+    amap = {"wc": wc, "cnt": cnt, "ev": ev,
+            "t": {"st": {k: T("sw_wc_st_" + k) for k in "teof"}, "src": {k: T("sw_wc_src_" + k) for k in ("hf", "fc", "ifs")},
+                  "nosrc": T("sw_wc_src_none"), "hot": T("sw_lrn_hot"), "grid": T("sw_lrn_grid"),
+                  "days": T("sw_ev_t_days"), "hi": T("sw_ev_t_hi"), "hit": T("sw_ev_t_hit"), "rep": T("sw_ev_t_rep")}}
     manual = [dict(x) for x in await execute_db(bot, "SELECT * FROM swarm_override ORDER BY set_at DESC LIMIT 100",
                                                 fetch=True) or []]
     resp = _render(req, "swarm_admin", title=translate(lang, "sw_unclear_h"), items=items,
                    n_dach=n_d[0]["n"] if n_d else 0, n_abroad=n_a[0]["n"] if n_a else 0,
                    n_home=home[0]["n"] if home else 0, fixed=fixed, manual=manual, csrf=_csrf_token(req),
+                   amap=amap, wc_regonly=regonly[0]["n"] if regonly else 0, ev_taxa=ev_taxa, ev_taxon=ev_taxon,
                    n_guess=sum(1 for f in fixed if f["taxon_check"] in ("typo", "fixed")),
                    names_msg={"set": translate(lang, "sw_names_set_ok"), "bad": translate(lang, "sw_names_set_bad"),
                               "all": translate(lang, "sw_names_all_ok")}.get(req.query.get("nm", ""), ""),
