@@ -29,7 +29,13 @@ Umgebungsvariablen:
   ANTCHECK_API_URL   - Basis-URL (Standard: https://antcheck.info)
   ANTCHECK_VERIFY_SSL- SSL-Zertifikat prüfen (Standard: true)
   DATA_DIRECTORY     - Zielverzeichnis für shops_data.json
+
+Parallel-Schutz: Eine Lock-Datei (DATA_DIRECTORY/grabber.lock, flock) verhindert,
+dass zwei Läufe gleichzeitig schreiben (z.B. stündlicher Cron + manueller Abruf per
+/wartung aktion:AntCheck-Daten). Ein zweiter Lauf bricht dann sofort mit
+Exit-Code 75 (EX_TEMPFAIL) ab, ohne etwas zu verändern.
 """
+import fcntl
 import json
 import logging
 import os
@@ -72,6 +78,8 @@ DATA_DIRECTORY    = os.getenv("DATA_DIRECTORY", os.getenv("DATA_DIR", str(_BASE_
 Path(DATA_DIRECTORY).mkdir(parents=True, exist_ok=True)
 OUTPUT_FILE       = Path(DATA_DIRECTORY) / "shops_data.json"
 PRICE_HISTORY_DB  = Path(DATA_DIRECTORY) / "price_history.db"
+LOCK_FILE         = Path(DATA_DIRECTORY) / "grabber.lock"
+EXIT_LOCKED       = 75   # EX_TEMPFAIL: anderer Grabber-Lauf aktiv
 
 # Bestehende Root-Dateien einmalig nach data/ verschieben (idempotent), damit
 # der Grabber unabhängig vom Bot-Start dieselben (historischen) Daten nutzt.
@@ -122,7 +130,7 @@ _SP_EPITHETS: set[str] = set()            # ALLE akzeptierten Epitheta (gattungs
 
 
 def _load_species_catalog() -> None:
-    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS, _SP_EPITHETS
+    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS
     if _SP_LOADED:
         return
     _SP_LOADED = True
@@ -838,5 +846,27 @@ def main():
         sys.exit(1)
 
 
+def _acquire_lock():
+    """Exklusiver, nicht-blockierender Lock. Gibt das offene File-Objekt zurück
+    (muss bis Prozessende offen bleiben) oder None, wenn schon ein Lauf aktiv ist.
+    Der Lock hängt am Prozess: stirbt der Grabber, gibt das OS ihn automatisch frei."""
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(LOCK_FILE, "a+")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        fh.close()
+        return None
+    fh.seek(0)
+    fh.truncate()
+    fh.write(f"{os.getpid()} {datetime.now(timezone.utc).isoformat()}\n")
+    fh.flush()
+    return fh
+
+
 if __name__ == "__main__":
+    _lock = _acquire_lock()
+    if _lock is None:
+        logger.warning("⏳ Anderer Grabber-Lauf aktiv (%s) – dieser Lauf wird übersprungen.", LOCK_FILE)
+        sys.exit(EXIT_LOCKED)
     main()

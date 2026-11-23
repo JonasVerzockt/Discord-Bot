@@ -36,7 +36,8 @@ from utils.timez import BERLIN
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils import geo, map_geodata
-from cogs.map import MapConfirmView, _delete_entry, _delete_rsvps
+from utils.map_views import MapConfirmView
+from utils.map_store import _delete_entry, _delete_rsvps
 
 logger = logging.getLogger(__name__)
 

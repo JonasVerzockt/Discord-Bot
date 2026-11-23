@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "4.2.4"
+VERSION = "5.2.1"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -215,8 +215,13 @@ BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(DATA_DIR / "board.db"))
 BOARD_AI_CHAT          = os.getenv("BOARD_AI_CHAT", "true").lower() == "true"
 BOARD_AI_CHAT_PER_MIN  = int(os.getenv("BOARD_AI_CHAT_PER_MIN", "5"))
 BOARD_AI_CHAT_PER_HOUR = int(os.getenv("BOARD_AI_CHAT_PER_HOUR", "40"))
-# Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
-BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", "change-me-board-salt").encode()
+# Geheimer Schlüssel für alle HMAC-Signaturen des Boards: IP-Hashes (keine Roh-IP gespeichert),
+# Admin-/Mitglieder-Cookies, CSRF-Tokens, Captcha. PFLICHT bei BOARD_ENABLED=true: mit dem
+# Platzhalter oder einem zu kurzen Wert startet das Board nicht (sonst wären Cookies fälschbar).
+# Erzeugen z. B. mit:  python3 -c "import secrets; print(secrets.token_hex(32))"
+BOARD_HASH_SALT_PLACEHOLDER = "change-me-board-salt"
+BOARD_HASH_SALT_MIN_LEN     = 16
+BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", BOARD_HASH_SALT_PLACEHOLDER).encode()
 
 # ── Halter-Karte (Map-Feature) ────────────────────────────────────────────────
 # Standardmäßig AUS. Zeigt Ameisenhalter grob (DACH-Karte) + International als Liste.

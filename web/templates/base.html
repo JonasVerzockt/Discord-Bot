@@ -1,0 +1,31 @@
+<!doctype html><html lang="{{ lang }}"><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>{{ title }} · AAM-Bot Board</title><link rel="icon" id="favicon" type="image/png" href="/static/favicon.png?v={{ v }}"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ v }}"><script>if(/Firefox\//.test(navigator.userAgent)){var f=document.getElementById("favicon");f.type="image/gif";f.href="/static/favicon.gif?v={{ v }}";}</script><link rel="stylesheet" href="/static/board.css?v={{ css_v }}"></head><body>
+<header><h1>🐜 {{ t('brand') }}</h1>
+ <a href="/{{ qs() }}">{{ t('nav_board') }}</a><a href="/stats{{ qs() }}">{{ t('nav_stats') }}</a><a href="/shops{{ qs() }}">{{ t('nav_shops') }}</a><a href="/art{{ qs() }}">{{ t('nav_species') }}</a><a href="/map{{ qs() }}">{{ t('nav_map') }}</a><a href="/schwarmflug{{ qs() }}">{{ t('nav_swarm') }}</a><a href="/submit{{ qs() }}">{{ t('nav_submit') }}</a><a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener">{{ t('nav_support') }}</a><span class=grow></span>
+ <span class="langsw">{% for code in langs %}<a class="{{ 'on' if code==lang }}" href="{{ switch_urls[code] }}" title="{{ flag_title[code] }}">{{ flags[code][0]|safe }} {{ flags[code][1] }}</a>{% endfor %}</span>
+ <a href="/hilfe{{ qs() }}">{{ t('nav_help') }}</a>
+ {% if nav_member %}<a href="/konto{{ qs() }}">{{ t('nav_konto') }}</a>{% endif %}
+ {% if admin %}<span class=muted>{{ t('nav_owner') }}</span> <a href="/admin{{ qs() }}">{{ t('nav_admin') }}</a> <a href="/admin/logout">{{ t('nav_logout') }}</a>
+ {% else %}<a href="/admin/login{{ qs() }}">{{ t('nav_login') }}</a>{% endif %}</header>
+<div class=wrap>{% if swarm_banner %}<div class=flash style="background:#3fb95018;border-color:#3fb95066">🪽 <b>{{ t('sw_season_open', y=swarm_banner.year) }}</b> {{ t('sw_season_first', label=swarm_banner.label, d=swarm_banner.flight_date|dmy, where=swarm_banner.where) }} <a href="/schwarmflug{{ qs() }}">{{ t('sw_art_more') }} →</a></div>{% endif %}{% if flash %}<div class=flash>{{ flash }}</div>{% endif %}{% block body %}{% endblock %}</div>
+{% if partner_strip %}<div class=pstrip aria-label="{{ t('map_partner_h') }}"><span class=plbl>🤝 <a href="/partner?lang={{ lang }}" style="color:inherit">{{ t('map_partner_h') }}</a></span>
+{% for p in partner_strip %}<a href="{{ p.url }}" target=_blank rel="{{ 'sponsored ' if p.ad }}noopener noreferrer" title="{{ p.text }}{% if p.code %} · {{ t('map_partner_code') }}: {{ p.code }}{% endif %}">{% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}<span>{{ p.name }}</span>{% if p.ad %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
+<footer style="max-width:1100px;margin:28px auto 12px;padding:14px 20px;border-top:1px solid #30363d;color:#8b949e;font-size:13px;text-align:center;line-height:1.6">
+  💖 <strong>{{ t('footer_run') }}</strong>
+  <a href="https://paypal.me/JonasBeier1998" target="_blank" rel="noopener" style="color:#58a6ff">paypal.me/JonasBeier1998</a>
+  · <a href="https://github.com/JonasVerzockt/Discord-Bot" target="_blank" rel="noopener" style="color:#58a6ff">{{ t('footer_source') }}</a>
+  · <a href="/impressum?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_impressum') }}</a>
+  · <a href="/datenschutz?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_privacy') }}</a>
+  · <a href="/partner?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_partner') }}</a>
+  · <a href="/gewinnspiel?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_giveaway') }}</a>
+  · <a href="/rueckblick?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_yearreview') }}</a>
+  · <a href="/inat?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_inat') }}</a>
+  · <a href="/schwarmflug?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_swarm') }}</a>
+  · <a href="/konto?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_konto') }}</a>
+  · <a href="/hilfe?lang={{ lang }}" style="color:#58a6ff">{{ t('nav_help') }}</a>
+</footer>
+{% if chat_ok %}{% include "chatwidget" %}{% endif %}
+<script src="/static/intro.js?v={{ intro_v }}" defer></script>
+</body></html>

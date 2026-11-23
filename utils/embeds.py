@@ -23,7 +23,7 @@ Ausgaben (Listen/Reports); kurze Bestätigungen/Fehler bleiben bewusst Plain-Tex
 """
 import discord
 
-from utils.text_chunks import chunk_lines, chunk_paragraphs
+from utils.text_chunks import chunk_paragraphs
 
 # Einheitliche Farben: Türkis für normale (User-)Ausgaben, Weinrot für Admin/Mod.
 EMBED_COLOR = discord.Colour(0x00BFA5)   # Türkis – Standard/User

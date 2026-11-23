@@ -1,0 +1,22 @@
+{% extends "base" %}{% block body %}
+<div style="max-width:680px;margin:30px auto;text-align:center">
+<div style="font-size:54px">🐜💤</div>
+<h2 style="margin:8px 0">{{ t('yr_wait_h') }}</h2>
+<p class=muted>{{ t('yr_wait_text', d=opens, y=ry) }}</p>
+<div class=chartbox style="text-align:left;margin-top:22px">
+ <h4>🐜 {{ t('yr_wait_fact_h') }}</h4>
+ <p id=fact style="font-size:16px;line-height:1.5;margin:6px 0 10px">{{ facts[start].text }}</p>
+ <p class=muted style="font-size:12px;margin:0">{{ t('yr_wait_src') }}: <a id=factsrc href="{{ facts[start].url }}" target=_blank rel="noopener noreferrer">{{ facts[start].src }}</a></p>
+ <p style="margin:12px 0 0"><a href="#" id=factnext class=btn>{{ t('yr_wait_more') }}</a></p>
+</div>
+{% if years %}<h3 style="margin-top:28px">📚 {{ t('yr_wait_past_h') }}</h3>
+<div class=kpigrid style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">
+ {% for y in years %}<a class=kpi href="/rueckblick/{{ y }}{{ qs() }}" style="text-decoration:none"><div class=v>{{ y }}</div><div class=l>{{ t('yr_tile_open') }}</div></a>{% endfor %}
+</div>{% endif %}
+</div>
+<script>(function(){var F={{ facts|tojson }},i={{ start }},
+ p=document.getElementById("fact"),s=document.getElementById("factsrc");
+ document.getElementById("factnext").addEventListener("click",function(e){e.preventDefault();
+  i=(i+1+Math.floor(Math.random()*(F.length-1)))%F.length;
+  p.textContent=F[i].text;s.textContent=F[i].src;s.href=F[i].url;});})();</script>
+{% endblock %}

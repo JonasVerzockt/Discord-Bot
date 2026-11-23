@@ -1,0 +1,145 @@
+{% extends "base" %}{% block body %}
+<link rel="stylesheet" href="/static/leaflet.css?v={{ v }}">
+<link rel="stylesheet" href="/static/MarkerCluster.css?v={{ v }}">
+<link rel="stylesheet" href="/static/MarkerCluster.Default.css?v={{ v }}">
+<link rel="stylesheet" href="/static/board-map.css?v={{ css_v }}">
+<h2>{{ t('map_h') }}</h2>
+<p class=muted style="max-width:860px">{{ t('map_intro') }}</p>
+<div class=flash style="max-width:860px">ℹ️ {{ t('map_u18_notice') }}</div>
+<div class=rangesw>
+  <span class=muted>{{ t('map_layer') }}:</span>
+  <a href="#" class="on" data-layer="map">{{ t('map_layer_map') }}</a>
+  <a href="#" data-layer="events">{{ t('map_layer_events') }}</a>
+  <a href="#" data-layer="all">{{ t('map_layer_all') }}</a>
+</div>
+<div class=rangesw id=choroswitch>
+  <span class=muted>{{ t('map_region_level') }}:</span>
+  <a href="#" class="on" data-level="bundesland">{{ t('map_level_state') }}</a>
+  <a href="#" data-level="plz">{{ t('map_level_plz') }}</a>
+  <a href="#" id=citytoggle class=on aria-pressed="true" style="margin-left:8px">🏙️ {{ t('map_cities') }}</a>
+</div>
+<div class=rangesw id=colorswitch role=group aria-label="{{ t('map_colors') }}">
+  <span class=muted>🎨 {{ t('map_colors') }}:</span>
+  <a href="#" data-colors="standard" aria-pressed="false">{{ t('map_colors_standard') }}</a>
+  <a href="#" data-colors="cvd" aria-pressed="false">{{ t('map_colors_cvd') }}</a>
+  <a href="#" data-colors="contrast" aria-pressed="false">{{ t('map_colors_contrast') }}</a>
+</div>
+<div id=cholegend class=muted style="margin:4px 0;font-size:12px"></div>
+<div class=rangesw id=rangeswitch style="display:none">
+  <span class=muted>{{ t('map_range_filter') }}:</span>
+  <a href="#" data-range="30">{{ t('map_range_30') }}</a>
+  <a href="#" data-range="90">{{ t('map_range_90') }}</a>
+  <a href="#" class="on" data-range="all">{{ t('map_range_all') }}</a>
+</div>
+<div id=evlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+<div id=pinlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+{% if member and tag_groups %}
+<details id=tagfilterbox style="margin:4px 0 10px">
+<summary class=muted style="cursor:pointer;font-size:13px">🏷️ {{ t('map_tag_filter') }} <span id=tagcount></span></summary>
+<div class=rangesw id=tagfilter style="margin-top:8px">
+  {% for g in tag_groups %}<span class="muted tgrp">{{ g.label }}</span>
+  {% for code, label in g.tags %}<a href="#" data-tag="{{ code }}">{{ label }}</a>{% endfor %}{% endfor %}
+  <a href="#" id=tagreset style="display:none">✕ {{ t('map_tag_reset') }}</a>
+</div>
+</details>
+{% endif %}
+<div id=mapnotice class=muted style="margin:6px 0"></div>
+<div class=mapgrid>
+  <div class=mapleft>
+  <div id=map style="height:70vh;min-height:420px;background:#0f141a;border:1px solid #21262d;border-radius:10px"></div>
+  <details id=statsbox class=chartbox>
+    <summary>{{ t('map_st_title') }}</summary>
+    <div id=statsbody aria-live=polite><p class=muted>{{ t('map_st_loading') }}</p></div>
+  </details>
+  </div>
+  <div class=mapside>
+    <div class=chartbox style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      {% if member %}<span class=muted>✅ {{ t('map_member_on') }}</span><span class=grow></span>
+      <a href="/map/logout?lang={{ lang }}">{{ t('map_logout') }}</a>
+      {% else %}<a class=btn href="/map/login?lang={{ lang }}" style="width:100%;box-sizing:border-box;text-align:center">{{ t('map_login') }}</a>{% endif %}
+    </div>
+    <div class=chartbox id=listbox>
+      <h4>{{ t('map_list_title') }}</h4>
+      <input id=listsearch placeholder="{{ t('map_search') }}" autocomplete=off>
+      <div id=maplist class=col-body style="max-height:58vh;margin-top:8px"></div>
+    </div>
+    <div class=chartbox id=agendabox style="display:none">
+      <h4>{{ t('map_agenda_title') }}</h4>
+      <div id=agenda class=col-body style="max-height:50vh"></div>
+      {% if ics_url %}
+      <div id=calsub style="border-top:1px solid #21262d;margin-top:10px;padding-top:10px">
+        <h4>📅 {{ t('map_cal_title') }}</h4>
+        <a class=btn href="{{ webcal_url }}" style="width:100%;box-sizing:border-box;text-align:center">{{ t('map_cal_subscribe') }}</a>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id=calurl value="{{ ics_url }}" readonly style="flex:1;min-width:0;font-size:12px" onclick="this.select()">
+          <button type=button class=btn id=calcopy data-done="{{ t('map_cal_copied') }}">{{ t('map_cal_copy') }}</button>
+        </div>
+        <p class=muted style="font-size:12px;margin:8px 0 0">{{ t('map_cal_hint') }}</p>
+      </div>
+      <script>
+      (function () {
+        var btn = document.getElementById("calcopy"), inp = document.getElementById("calurl");
+        if (!btn || !inp) return;
+        var label = btn.textContent;
+        function ok() { btn.textContent = btn.getAttribute("data-done") || label;
+                        setTimeout(function () { btn.textContent = label; }, 2000); }
+        function legacy() {            // Fallback ohne Clipboard-API (z. B. http:// oder ältere Browser)
+          var ta = document.createElement("textarea");
+          ta.value = inp.value; ta.setAttribute("readonly", "");
+          ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          var done = false;
+          try { done = document.execCommand("copy"); } catch (e) { done = false; }
+          document.body.removeChild(ta);
+          if (done) ok(); else { inp.focus(); inp.select(); }   // notfalls markieren -> Strg+C
+        }
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(inp.value).then(ok, legacy);
+          } else { legacy(); }
+        });
+      })();
+      </script>
+      {% endif %}
+    </div>
+    <div class=chartbox id=joinbox style="margin-top:14px">
+      <h4>🙌 {{ t('map_join_h') }}</h4>
+      <ul>
+        <li>📍 {{ t('map_join_entry')|safe }}</li>
+        <li>🏷️ {{ t('map_join_tags')|safe }}</li>
+        <li>📅 {{ t('map_join_event')|safe }}</li>
+        <li>🙋 {{ t('map_join_rsvp') }}</li>
+      </ul>
+      {% if invite_url %}<a class=btn href="{{ invite_url }}" target=_blank rel="noopener noreferrer" style="display:block;margin-top:10px;text-align:center">{{ t('map_join_invite') }}</a>{% endif %}
+    </div>
+    <div class=chartbox id=partnerbox style="margin-top:14px">
+      <h4>🤝 {{ t('map_partner_h') }}</h4>
+      {% for p in partners %}
+      <a class=partner href="{{ p.url }}" target=_blank rel="{{ 'sponsored ' if p.ad }}noopener noreferrer">
+        {% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}
+        <span><b>{{ p.name }}</b>{% if p.ad %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}{% if p.text %}<br><span class=pt>{{ p.text }}</span>{% endif %}{% if p.code %}<br><span class=pt>🏷️ {{ t('map_partner_code') }}: <code>{{ p.code }}</code></span>{% endif %}</span>
+      </a>
+      {% endfor %}
+      {% if partners %}<p class=pt style="margin:8px 0 0;font-size:12px"><a href="/partner?lang={{ lang }}">{{ t('map_partner_become') }}</a></p>{% else %}
+      <div class=pslot>{{ t('map_partner_empty') }}<br>
+        <a href="/partner?lang={{ lang }}">{{ t('map_partner_contact') }}</a></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
+<script>window.MAP_CFG={lang:"{{ lang }}",v:"{{ v }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
+ emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}", choroLabel:"{{ t('map_choro_label') }}",
+ csrf:"{{ member_csrf }}",
+ st:{{ (st_labels or {})|tojson }},
+ evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
+         count:"{{ t('map_ev_count') }}"},
+ pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}",also:"{{ t('map_pin_also') }}",alsoHere:"{{ t('map_also_here') }}"},
+ evlabels:{fair:"{{ t('map_evtype_fair') }}",meetup:"{{ t('map_evtype_meetup') }}",shop:"{{ t('map_evtype_shop') }}",talk:"{{ t('map_evtype_talk') }}",field:"{{ t('map_evtype_field') }}",other:"{{ t('map_evtype_other') }}"}};</script>
+<script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
+<script src="/static/leaflet.markercluster.js?v={{ v }}"></script>
+<script src="/static/map.js?v={{ v }}"></script>
+<script src="/static/map_stats.js?v={{ v }}"></script>
+{% endblock %}

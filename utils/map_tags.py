@@ -19,7 +19,7 @@ utils/map_tags.py – Fester Tag-Katalog für die Halter-Karte.
 
 Bewusst eine FESTE, vordefinierte Liste (kein Freitext): Datenschutz + Moderation.
 Jeder Tag: eindeutiger Code + Label de/en/eo. Gruppiert für die Anzeige.
-Verwendet von cogs/map.py (Auswahl) und cogs/board.py (Anzeige/Filter).
+Verwendet von cogs/map.py (Auswahl) und web/features/map.py (Anzeige/Filter).
 """
 from __future__ import annotations
 

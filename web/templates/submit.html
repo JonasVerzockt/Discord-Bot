@@ -1,0 +1,12 @@
+{% extends "base" %}{% block body %}
+<h2>{{ t('submit_h') }}</h2>
+<p class=muted>{{ t('submit_anon') }}</p>
+<p class=muted>{{ t('submit_terms') }}</p>
+<form method=post action="/submit?lang={{ lang }}">
+ <label>{{ t('f_type') }}</label><select name=type>{% for ty in types %}<option value="{{ty}}">{{ type_label(ty) }}</option>{% endfor %}</select>
+ <label>{{ t('f_title') }}</label><input name=title maxlength=120 required>
+ <label>{{ t('f_desc') }}</label><textarea name=body rows=6 maxlength=4000></textarea>
+ <label>{{ t('f_name') }}</label><input name=submitter_name maxlength=40 placeholder="{{ t('ph_anon') }}">
+ <input class=hp type=text name=website tabindex=-1 autocomplete=off>
+ <div style="margin-top:14px"><button class=btn>{{ t('btn_send') }}</button> <a href="/?lang={{ lang }}">{{ t('cancel') }}</a></div>
+</form>{% endblock %}

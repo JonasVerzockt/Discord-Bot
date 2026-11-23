@@ -1,0 +1,44 @@
+# Automatische Tests bei jedem Push auf beta/main und bei Pull Requests.
+# Läuft ohne Discord-Login, ohne Google Sheets und ohne API-Keys (alles offline).
+# Ein roter Haken am Pull Request beta → main heißt: NICHT mergen, sonst zieht der
+# Auto-Deploy (update.py) den kaputten Stand auf den Server.
+name: Tests
+
+on:
+  push:
+    branches: [beta, main]
+  pull_request:
+    branches: [beta, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"        # wie auf dem Server
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Abhängigkeiten installieren (exakt die gepinnten Versionen)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip check
+
+      - name: Statische Prüfung (undefinierte Namen, Syntaxfehler)
+        run: python tests/static_check.py
+
+      - name: Tests
+        run: python -m pytest tests/ -v

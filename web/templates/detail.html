@@ -1,0 +1,13 @@
+{% extends "base" %}{% block body %}
+<p><a href="/?lang={{ lang }}">{{ t('back_board') }}</a></p>
+<span class="tag {{c.type}}">{{ type_label(c.type) }}</span>{% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
+{% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}<span class=tag>{{ c.status }}</span>
+<h2 style="margin:8px 0">{{ c.title }}</h2>
+<form method=post action="/upvote/{{c.id}}?lang={{ lang }}"><button class=up>{{ t('upvotes_n', n=c.upvotes) }}</button></form>
+<p style="white-space:pre-wrap;margin-top:14px">{{ c.body }}</p>
+<p class=muted>{{ t('submitted_at', d=c.created_at) }}{% if c.version %} · {{ t('done_in', v=c.version) }}{% endif %}</p>
+{% if comments %}<h3 style="margin-top:22px">{{ t('comments_h') }}</h3>
+{% for k in comments %}<div class=card><b>{{ k.author or 'Owner' }}</b> <span class=muted>· {{ k.created_at }}</span>
+ <div style="white-space:pre-wrap;margin-top:4px">{{ k.body }}</div></div>{% endfor %}{% endif %}
+{% if admin %}<p style="margin-top:16px"><a class="btn small" href="/admin/{{c.id}}/edit?lang={{ lang }}">{{ t('edit_or_comment') }}</a></p>{% endif %}
+{% endblock %}

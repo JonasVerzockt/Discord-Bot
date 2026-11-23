@@ -33,7 +33,6 @@ from discord.ext import commands
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from config import AI_CHAT_PUBLIC
-from utils.availability import load_shop_data
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from config import SHOPS_DATA_FILE, VERSION
 from utils.timez import BERLIN
@@ -123,7 +122,7 @@ class StatsCog(commands.Cog, name="Stats"):
             total = total_rows[0]["c"] if total_rows else 0
 
             # Shop-Datei-Status
-            import os, time as _time
+            import os
             try:
                 mtime = os.path.getmtime(SHOPS_DATA_FILE)
                 age   = datetime.utcnow() - datetime.utcfromtimestamp(mtime)
@@ -203,7 +202,7 @@ class StatsCog(commands.Cog, name="Stats"):
     ]
     _HELP_ADMIN_GROUPS = [
         ("help_grp_server", [
-            "help_startup", "help_reloadshops", "help_uncanonical",
+            "help_startup", "help_reloadshops", "help_grab_now", "help_uncanonical",
             "help_shopmapping", "help_shopmap", "help_shopurl",
         ]),
         ("help_grp_reviews", [

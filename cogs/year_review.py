@@ -21,7 +21,6 @@ cogs/year_review.py – Jahresrückblick.
   • /rueckblick [jahr]   – persönlicher Rückblick, nur für dich sichtbar.
   • /rueckblick_post     – (Admin) Vorschau des Community-Posts oder sofort posten.
 """
-import asyncio
 import logging
 from datetime import datetime, time as dtime
 

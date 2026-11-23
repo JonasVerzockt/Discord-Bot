@@ -1,0 +1,6 @@
+{% extends "base" %}{% block body %}
+<p class=muted style="margin:0"><a href="/art{{ qs() }}">← {{ t('dir_art_index_h') }}</a></p>
+<h2><i>{{ art_name }}</i></h2>
+<div class=flash>{{ t('dir_art_missing' if known else 'dir_art_unknown') }}</div>
+{% if known %}<p class=muted>🔗 {{ t('dir_more_at') }} <a href="{{ ext.antwiki }}" target=_blank rel="noopener noreferrer">AntWiki</a>{% if ext.antweb %} · <a href="{{ ext.antweb }}" target=_blank rel="noopener noreferrer">AntWeb</a>{% endif %}</p>{% endif %}
+{% endblock %}

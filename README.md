@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `4.2.4` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `5.2.1` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -59,6 +59,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 18. [Grabber](#grabber)
 19. [Datenbank](#datenbank)
 20. [Projektstruktur](#projektstruktur)
+    - [Tests](#tests)
 21. [Lokalisierung](#lokalisierung)
 22. [Halter-Karte](#halter-karte)
 23. [Credits & Danksagung](#credits--danksagung)
@@ -67,7 +68,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 
 ## Voraussetzungen
 
-- Python 3.11+
+- Python 3.13 (getestet mit 3.13; die festen Paketversionen in `requirements.txt` brauchen mindestens 3.12)
 - Discord-Bot-Token ([discord.com/developers](https://discord.com/developers/applications)) mit aktivierten Intents: **Message Content**, **Server Members**, **Reactions**
 - Google Service Account JSON für Sheets-Zugriff (`service_account.json`)
 - Anthropic API Key für Claude Haiku (KI-Parser)
@@ -194,6 +195,24 @@ ANTCHECK_VERIFY_SSL=false
 # ANTCHECK_TIMEOUT=30
 # Wartezeit zwischen Wiederholungen in Sekunden (Grabber, Standard: 5)
 # ANTCHECK_RETRY_DELAY=5
+# Max. Laufzeit in Sekunden für den manuellen Grabber-Abruf per /wartung (Standard: 600)
+# GRABBER_TIMEOUT=600
+
+# ── Datenbank-Backup (täglich 03:30, utils/backup.py) ──────────────────
+# false = keine Backups
+# BACKUP_ENABLED=true
+# Zielordner (Standard: <DATA_DIRECTORY>/backups)
+# BACKUP_DIR=data/backups
+# Aufbewahrung in Tagen (1–7, mehr ist nicht möglich)
+# BACKUP_KEEP_DAYS=7
+# so viel muss NACH dem Backup frei bleiben, sonst wird übersprungen
+# BACKUP_MIN_FREE_GB=2
+
+# ── Auto-Deploy (update.py, liest diese Werte aus der .env) ─────────────
+# Vorabprüfung vor dem Neustart (bei Fehler: Rollback, kein Neustart)
+# UPDATE_PREFLIGHT=true
+# DM an BOARD_OWNER_ID, wenn ein Update abgelehnt wurde
+# UPDATE_NOTIFY_DM=true
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────
 # Kanal-ID in dem der Bot auf @-Erwaehnung reagiert.
@@ -226,7 +245,8 @@ AI_CHAT_USER_DAILY_BUDGET_USD=0.10
 # AI_CHAT_PROMPT_CACHE=true
 # AI_CHAT_MAX_HISTORY_TURNS=10
 # AI_CHAT_CONVERSATION_TTL_HOURS=24
-AI_CHAT_PUBLIC=false              # true = KI-Befehle in /help anzeigen und KI öffentlich zugänglich
+# true = KI-Befehle in /help anzeigen und KI öffentlich zugänglich
+AI_CHAT_PUBLIC=false
 
 # ── Command-Log (Moderation) ──────────────────────────────────
 # Kanal-ID für das gebündelte Befehls-Nutzungsprotokoll (leer/0 = kein
@@ -289,7 +309,9 @@ DISCOUNT_CHANNEL_ID=123456789012345678
 # BOARD_AI_CHAT=true
 # BOARD_AI_CHAT_PER_MIN=5
 # BOARD_AI_CHAT_PER_HOUR=40
-# Salt fürs IP-Hashing (in Produktion setzen; keine Roh-IP wird gespeichert):
+# PFLICHT bei BOARD_ENABLED=true: geheimer Schlüssel für alle Board-Signaturen (IP-Hashes,
+# Admin-/Mitglieder-Cookies, CSRF, Captcha). Mindestens 16 Zeichen – mit Platzhalter oder zu kurzem
+# Wert startet das Board NICHT. Erzeugen: python3 -c "import secrets; print(secrets.token_hex(32))"
 # BOARD_HASH_SALT=ein-langes-zufaelliges-salt
 
 # ── Halter-Karte (Map-Feature) ────────────────────────────────────────────────
@@ -297,12 +319,18 @@ DISCOUNT_CHANNEL_ID=123456789012345678
 # MAP_ENABLED=false
 # Guild-ID für Mitgliedschaftsprüfung (Login) + Auto-Löschung bei Austritt:
 # MAP_GUILD_ID=123456789012345678
-# MAP_JITTER_METERS=3000      # fester Pin-Versatz (±, aus user_id geseedet)
-# MAP_MAX_ZOOM=10             # max. Zoom (Stadt/Umland, keine Straßenebene)
-# MAP_REMIND_MONTHS=12        # Jahres-Bestätigung: erinnern
-# MAP_DELETE_MONTHS=24        # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
-# MAP_GEODATA_AUTO=false      # Bot lädt/konvertiert Geodaten selbst (Leaflet + GeoJSON/CSV)
-# MAP_GEODATA_REFRESH_DAYS=30 # Intervall der Selbst-Aktualisierung
+# fester Pin-Versatz (±, aus user_id geseedet)
+# MAP_JITTER_METERS=3000
+# max. Zoom (Stadt/Umland, keine Straßenebene)
+# MAP_MAX_ZOOM=10
+# Jahres-Bestätigung: erinnern
+# MAP_REMIND_MONTHS=12
+# löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
+# MAP_DELETE_MONTHS=24
+# Bot lädt/konvertiert Geodaten selbst (Leaflet + GeoJSON/CSV)
+# MAP_GEODATA_AUTO=false
+# Intervall der Selbst-Aktualisierung
+# MAP_GEODATA_REFRESH_DAYS=30
 # Discord-OAuth2 ("Login mit Discord", nur Scope identify) – Secrets NICHT committen:
 # BOARD_OAUTH_CLIENT_ID=
 # BOARD_OAUTH_CLIENT_SECRET=
@@ -312,6 +340,21 @@ DISCOUNT_CHANNEL_ID=123456789012345678
 # Ausgabe sofort flushen (empfohlen für Logs in Docker/systemd)
 PYTHONUNBUFFERED=1
 
+# ── Schwarmflug-Radar ─────────────────────────────────────────────────────────
+# Kanal mit den Schwarmflug-Meldungen (wird gelesen, nicht beschrieben außer ✅). Leer/0 = aus.
+# SWARM_CHANNEL_ID=
+# KI-Modell nur für Meldungen ohne erkennbare Art (Standard: wie REVIEW_PARSER_MODEL)
+# SWARM_PARSER_MODEL=
+# Orte, die nicht in der PLZ-Liste stehen, über OpenStreetMap Nominatim auflösen (1 Anfrage/s, gecacht)
+# SWARM_OSM_GEOCODING=true
+# Wetter zur Flugzeit stündlich nachtragen (Open-Meteo, gerundete Koordinate + Datum, Daten CC BY 4.0)
+# SWARM_WEATHER=true
+# Schwarmflug-Prognose (März bis Oktober, Open-Meteo) und Post im Schwarmflug-Kanal bei sehr guten Chancen
+# SWARM_FORECAST=true
+# SWARM_FORECAST_POST=true
+# Höchstens so viele Open-Meteo-Aufrufe am Tag für alles zusammen (freie API: unter 10.000)
+# SWARM_OM_DAILY=8500
+
 # ── Jahresrückblick ───────────────────────────────────────────────────────────
 # Kanal für den Community-Rückblick am 31.12. um 23:00 (Berliner Zeit). Leer/0 = kein Post.
 # YEAR_REVIEW_CHANNEL_ID=
@@ -320,7 +363,11 @@ PYTHONUNBUFFERED=1
 # AI_CHAT_TOOL_ROUNDS=3
 ```
 
-Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV` und `SERVICE` liest nur `update.py`; sie werden in `aam-bot-update.service` gesetzt.
+**Eigene `.env` an die Vorlage angleichen:** `python3 tools/env_sync.py` schreibt eine `.env.new` mit Aufbau, Abschnitten und Kommentaren aus `.env.example` und **deinen Werten** aus der `.env` (zeichengenau). Was bei dir gesetzt ist, steht **aktiv** in der neuen Datei – auch wenn es in der Vorlage nur auskommentiert ist. Nicht gesetzte Variablen bleiben auskommentiert, unbekannte landen in einem Prüf-Abschnitt am Ende; das Skript prüft, dass sich die wirksame Konfiguration nicht ändert, und gibt **nur Variablennamen, nie Werte** aus. Passt alles: `python3 tools/env_sync.py --write` (legt vorher `.env.bak-<Zeit>` an), dann den Bot neu starten.
+
+> **Keine Kommentare hinter Werten:** Der Dienst liest die `.env` über systemd (`EnvironmentFile=`). Kommentare gehören in eine **eigene Zeile** davor – `env_sync.py` warnt bei verdächtigen Werten.
+
+Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV`, `SERVICE`, `UPDATE_PREFLIGHT` und `UPDATE_NOTIFY_DM` liest nur `update.py` (aus der Umgebung oder der `.env`); die ersten vier werden in `aam-bot-update.service` gesetzt.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
@@ -360,7 +407,11 @@ Für den Dauerbetrieb liegen drei systemd-Unit-Vorlagen im Repo:
 | `aam-bot-update.service` | Oneshot-Auto-Deploy – führt `update.py` aus (siehe unten). |
 | `aam-bot-update.timer` | Löst `aam-bot-update.service` alle 5 Minuten aus (`OnUnitActiveSec=5min`). |
 
-**`update.py`** prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben). Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`).
+**`update.py`** prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben).
+
+**Sicherheitsnetz:** Vor dem Neustart läuft eine **Vorabprüfung** (`tests/deploy_check.py`: alles kompilierbar, alle Cogs laden, Web-Oberfläche + Templates, Sprachdateien – offline, ohne die echten Daten anzufassen, ca. 3 s). Schlägt sie oder die Paket-Installation fehl, wird **auf den vorherigen Commit zurückgesetzt** (inkl. der vorherigen Paketversionen) und **nicht neu gestartet** – der Bot läuft mit dem alten Stand weiter. Der abgelehnte Commit wird in `data/.update_rejected` gemerkt und nicht alle 5 Minuten neu versucht; erst ein neuer Commit auf `main` löst den nächsten Versuch aus. Optional kommt eine **DM an den Owner** (`BOARD_OWNER_ID`, gesendet mit `DISCORD_TOKEN` aus der `.env`) – bei Ablehnung und bei fehlgeschlagenem Neustart.
+
+Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`), `UPDATE_PREFLIGHT` (Vorabprüfung, Default `true`), `UPDATE_NOTIFY_DM` (DM bei Problemen, Default `true`).
 
 Installation (einmalig, als root):
 
@@ -395,6 +446,7 @@ Zwei wiederkehrende Aufgaben laufen per Cron – **in der Crontab des Bot-Users*
 
 Hinweise:
 
+- **Parallel-Schutz:** Der Grabber hält während des Laufs eine Lock-Datei (`data/grabber.lock`, `flock`). Startet ein zweiter Lauf (z. B. Cron, während per `/wartung aktion:AntCheck-Daten jetzt abrufen` manuell abgerufen wird), beendet er sich sofort mit Exit-Code `75` und ändert nichts.
 - **Als `aam` einrichten**, nicht als root – sonst gehören `shops_data.json`/`price_history.db`/`data/*` root und der Bot (User `aam`) kann sie nicht mehr schreiben.
 - Das `cd /opt/discord-bot` sorgt dafür, dass der Grabber die `.env` findet (`DATA_DIRECTORY`, API-Key). `build_ant_species.py` braucht keinen API-Key (AntCat REST `/v1` ist offen zugänglich; ein identifizierender User-Agent wird als Etikette gesetzt, ist aber technisch nicht nötig).
 - Monatlich reicht für die Artenliste (die Ameisentaxonomie ändert sich langsam); der stündliche Grabber übernimmt die frische Liste beim nächsten Lauf automatisch (`canonical_species`).
@@ -848,7 +900,7 @@ Die meisten Admin-Befehle sind zu **Gruppen** zusammengefasst, damit das Befehls
 
 | Befehl | Parameter | Beschreibung | Beispiel |
 |--------|-----------|--------------|----------|
-| `/wartung` | `aktion` (Hintergrund-Jobs / Shop-Daten / Karte / Bewertungen abgleichen / Rabattcodes scannen) | Wartungsläufe in **einem** Befehl: entspricht den früheren Einzelbefehlen `/run_jobs`, `/reloadshops`, `/map_refresh`, `/rescan` und `/codes_rescan` (Details siehe die jeweiligen Zeilen unten). „Karte“ erscheint nur mit `MAP_ENABLED`. | `/wartung aktion:Hintergrund-Jobs` |
+| `/wartung` | `aktion` (Hintergrund-Jobs / Shop-Daten / AntCheck-Daten jetzt abrufen / Karte / Bewertungen abgleichen / Rabattcodes scannen) | Wartungsläufe in **einem** Befehl: entspricht den früheren Einzelbefehlen `/run_jobs`, `/reloadshops`, `/grab_now`, `/map_refresh`, `/rescan` und `/codes_rescan` (Details siehe die jeweiligen Zeilen unten). „Karte“ erscheint nur mit `MAP_ENABLED`. | `/wartung aktion:Hintergrund-Jobs` |
 | `/startup` | `language` (`de`/`en`/`eo`), `channel` (optional) | Bot-Kanal und Sprache für diesen Server festlegen. Muss einmalig pro Server aufgerufen werden. Ohne `channel` sind Befehle in allen Kanälen erlaubt. | `/startup language:de channel:#ameisen-bot` |
 | `/bot status` | – | Zeigt die Anzahl der Bewertungen im Google Sheet, die verarbeiteten Reviews und die ausstehenden (🟡) Nachrichten, dazu eine **Gesundheits-Übersicht** (dieselben Checks wie die Status-Seite des Boards: Discord, Datenbanken, KI-Chat, iNaturalist-API, Hintergrund-Jobs, Cronjobs; nur Auffälligkeiten einzeln) und die Größe der Datenbanken. | `/bot status` |
 | `/review offen` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. | `/review offen` |
@@ -860,7 +912,8 @@ Die meisten Admin-Befehle sind zu **Gruppen** zusammengefasst, damit das Befehls
 | `/export_chat` | `channel` (ID, Pflicht), `von`/`bis` (`JJJJ-MM-TT`, optional, `bis` inklusive), `reaktionen_detail` (optional, Standard aus) | Exportiert einen **kompletten Channel/Thread** (optional im Datumsbereich) als **umfangreiche JSON** und liefert sie als **Datei-Download in der ephemeren Antwort**. Erfasst pro Nachricht Autor, Zeitstempel (erstellt/bearbeitet), Inhalt, **Anhänge inkl. Bild-Links**, Embeds, Sticker, **Reaktionen** (Emoji + Anzahl; mit `reaktionen_detail:true` auch **wer** reagiert hat – langsam bei großen Channels), Antwort-/Referenzbezug, Mentions und Thread-Info. Ohne Zeitraum wird **alles** exportiert. Bei Überschreitung des Server-Upload-Limits wird automatisch **gzip** komprimiert (`.json.gz`). Nicht abrufbar (Discord-API): gelöschte Nachrichten, frühere Bearbeitungsversionen, „gelesen von". | `/export_chat channel:123… von:2026-07-01 bis:2026-07-31` |
 | `/bot stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/bot stats` |
 | `/bot system` | – | Systemstatus: **laufende Bot-Version**, Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/bot system` |
-| `/wartung aktion:Shop-Daten` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). | `/wartung aktion:Shop-Daten` |
+| `/wartung aktion:Shop-Daten` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). Holt **keine** neuen Daten von AntCheck – zeigt aber den **Datenstand** (`_meta.fetched_at`) samt Alter an und warnt, wenn die Daten älter als 2 Std. sind (Grabber-Cron prüfen). | `/wartung aktion:Shop-Daten` |
+| `/wartung aktion:AntCheck-Daten jetzt abrufen` | – | Startet den **Grabber sofort** (statt auf den stündlichen Cron zu warten) – mit demselben venv-Python und User wie der Bot (`aam`), Timeout `GRABBER_TIMEOUT` (Standard 600 s). Danach werden Shop-Daten neu geladen und Daten-Pipeline (Preis → Arten) sowie Verfügbarkeits-Check direkt ausgeführt, sodass DMs sofort rausgehen. Läuft gerade der Cron-Grabber, wird abgebrochen (Lock-Datei, siehe [Grabber](#grabber)). Nützlich, wenn AntCheck einen Datenfehler behoben hat. | `/wartung aktion:AntCheck-Daten jetzt abrufen` |
 | `/uncanonical` | – | Listet alle **Nicht-Merch-Angebote ohne `canonical_species`** (Artname weder exakt noch per Tippfehler-Fallback der Artenliste zuordenbar – also unbekannte Arten oder Tippfehler > 1 Editierschritt). Je Artname gebündelt mit Anzahl und betroffenen Shops; lange Listen als `uncanonical.txt`. Hilft, Datenlücken/Shop-Tippfehler aufzuspüren. | `/uncanonical` |
 | `/shopmapping add` | `external`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. | `/shopmapping add external:Antstore.de shop_id:2` |
 | `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. | `/shopmapping show` |
@@ -1019,6 +1072,7 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 | Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` und sendet Abschluss-DM |
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
+| Datenbank-Backup | täglich 03:30 (Berliner Zeit) | Sichert `antcheckbot.db`, `board.db` und `price_history.db` per SQLite-Backup-API (konsistent auch während geschrieben wird, danach `quick_check`) nach `data/backups/JJJJ-MM-TT/`. **Höchstens 7 Tage** werden behalten. Läuft **nur, wenn danach mindestens 2 GB frei bleiben** (vorher geschätzt, nachher geprüft) – sonst übersprungen und als gelbe Kachel auf der Statusseite gemeldet. Manuell: `/wartung aktion:Hintergrund-Jobs`. Wiederherstellen: Bot stoppen, gewünschte Datei aus dem Tagesordner nach `data/` kopieren, Bot starten. |
 | Bot-Status | alle 2 Minuten | Rotierender Discord-Status mit Ameisen-Sprüchen (20 Quotes), jeweils mit der Bot-Version davor (z. B. `v0.1.0 · …`) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 | AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest die Tabs „Übersicht", „Händler A-Z", „Prüfung" (Kategorien) und „Close" (inaktive Shops) aus Google Sheet und aktualisiert den System-Prompt-Anhang |
@@ -1041,7 +1095,7 @@ Eigenständiges Skript, das **nicht** Teil des Bots ist und separat läuft. Läd
 2. `GET /api/v2/ecommerce/products?shop_id={id}&product_type=ants` → Produkte pro Shop
 3. `GET /api/v2/ecommerce/variants?limit=-1` → **alle Varianten global**, nach `product_id` gruppiert und dem jeweiligen Produkt zugeordnet
 
-Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, **AntCat-akzeptierten** Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde. **Klammer-Inhalte** werden bewusst **nicht** entfernt, da manche Shops die echte Art in Klammern schreiben (z. B. „Lesser Red Carpenter Ant (Camponotus decipiens)" → „Camponotus decipiens"); reine Kommentare in Klammern („(Tococa)", „(helle Variante)") ergeben kein bekanntes Binomen und schaden daher nicht. Die **Gattungs-Fuzzy** (verschriebene Gattung) übernimmt einen Treffer nur, wenn dabei eine **echte Art** herauskommt oder ein `sp.` vorlag – so werden Nicht-Arten wie „Lesser Red Carpenter Ant" oder „Formicarium" **nicht** fälschlich zu Gattungen. Bestimmungs-Qualifier und Commerce-/Kasten-Wörter (`cf.`, `aff.`, `colony`, `queen`, `workers`, `starter`, `kit` … – alle gegen den Katalog als Nicht-Epitheton geprüft, `major`/`minor` bleiben als echte Epitheta erhalten) werden als eigenständige Token entfernt, sodass z. B. „Lasius cf. niger" zu „Lasius niger" kanonisiert wird und „Pheidole colony" korrekt zur Gattung „Pheidole" statt fälschlich zu einer ähnlich klingenden Art wird. **`sp.`/`spp.`** (Art *unbestimmt*) unterbindet die Art-Bestimmung ganz – dann wird nur die **Gattung** gesetzt (kein Epitheton geraten); `cf.`/`aff.` meinen dagegen eine konkrete Art und werden normal aufgelöst. Ist die **Gattung selbst** verschrieben, wird sie – analog zum Epitheton – per **Fuzzy** (Damerau ≤ 2, eindeutig nächste Gattung, ab 5 Zeichen) auf die nächste bekannte Gattung korrigiert und die Art darin bestimmt (z. B. „Tetramoirum caespitum" → „Tetramorium caespitum"). Lässt sich **kein** Binomen bestimmen (unbestimmte/mehrdeutige Art oder reines „Camponotus sp."), aber die **Gattung** ist bekannt, wird als **Gattungs-Fallback** wenigstens der akzeptierte **Gattungsname** gesetzt (z. B. „Camponotus"). `null` bleibt nur, wenn nicht einmal die Gattung erkannt wird. Das Roh-`species`-Feld bleibt unangetastet und zeigt weiterhin `cf.`/`sp.`/`aff.`, die Unsicherheit ist also weiter sichtbar. Findet die exakte Zuordnung nichts, greift ein **konservativer Tippfehler-Fallback** für Tippfehler im **Shop-eigenen** Artnamen: die Gattung muss exakt eine bekannte Gattung sein, das Epitheton (≥ 4 Zeichen) darf höchstens **zwei Editierschritte** vom akzeptierten Epitheton abweichen – Ersetzen, Einfügen, Löschen **oder Nachbar-Dreher** (Damerau/OSA-Distanz ≤ 2) – und korrigiert wird nur auf den **eindeutig nächsten** Treffer. **Schutz vor Art-Verwechslung:** Ist das Shop-Epitheton **selbst ein im Katalog akzeptiertes Epitheton** (nur in einer *anderen* Gattung), wird es **nicht** auf eine fremde Art umgebogen – erlaubt bleibt dann nur eine reine Endungs-/Gender-Variante (gemeinsamer Präfix ≥ Länge − 2, z. B. `niger→nigra`). So bleibt etwa „Camponotus chinensis" unangetastet (`chinensis` ist eine echte Art anderer Gattungen), statt fälschlich zu „chilensis" zu werden. So werden z. B. „Monomorium chiense/chiensa" → „Monomorium chinense", „Lasius nigar/nigre" → „Lasius niger" korrigiert, ohne über Gattungsgrenzen hinweg zu raten (jede Korrektur inkl. Distanz erscheint im Grabber-Log; teilen sich zwei Arten die kleinste Distanz → keine Korrektur). Dadurch finden `/sells` und `/notification` solche Angebote trotz Shop-Tippfehler. Für Fälle, die der Automatik nicht sicher gelingen (mehrdeutige Tippfehler oder bekannte Fehlzuordnungen), gibt es im Grabber eine kleine **manuelle Override-Map** (`_OVERRIDES`): ein Eintrag kann eine Korrektur **erzwingen** (z. B. das bestätigte „monomorium chiense" → „Monomorium chinense", das per Distanz mehrdeutig zu „chilense" wäre) oder eine Fuzzy-Korrektur **blocken** (bleibt `null`). Verbleibende, nicht zuordenbare Artnamen (unbekannte Arten oder > 2 Editierschritte) lassen sich per Admin-Befehl **`/uncanonical`** auflisten.
+Ergebnis wird atomar als `shops_data.json` geschrieben (`.json.tmp` → rename). Ein **manueller Sofort-Abruf** ist per `/wartung aktion:AntCheck-Daten jetzt abrufen` möglich (gleicher Grabber, gleiche venv, gleicher User); gleichzeitige Läufe verhindert eine Lock-Datei (`data/grabber.lock`, Exit-Code `75` beim zweiten Lauf). Jedes Produkt trägt zusätzlich ein Feld `variants` (Liste mit `title`, `description`, `price`, `currency_iso`, `url`, `in_stock`, `is_active`) – dadurch stehen die Einzelpreise pro Variante **allen** Bot-Funktionen zur Verfügung (aktuell genutzt von `/sells`; `min_price`/`max_price` pro Produkt bleiben als Zusammenfassung erhalten). Fällt der Varianten-Endpoint aus, bleibt `variants` leer und alle Funktionen arbeiten wie bisher auf Produkt-Ebene weiter. Ist die **Artenliste** (siehe unten) vorhanden, schreibt der Grabber je Produkt außerdem `canonical_species` – den aus dem (oft verrauschten) `species`-Feld extrahierten, **AntCat-akzeptierten** Artnamen (Synonyme aufgelöst) bzw. `null`, wenn nichts Bekanntes erkannt wurde. **Klammer-Inhalte** werden bewusst **nicht** entfernt, da manche Shops die echte Art in Klammern schreiben (z. B. „Lesser Red Carpenter Ant (Camponotus decipiens)" → „Camponotus decipiens"); reine Kommentare in Klammern („(Tococa)", „(helle Variante)") ergeben kein bekanntes Binomen und schaden daher nicht. Die **Gattungs-Fuzzy** (verschriebene Gattung) übernimmt einen Treffer nur, wenn dabei eine **echte Art** herauskommt oder ein `sp.` vorlag – so werden Nicht-Arten wie „Lesser Red Carpenter Ant" oder „Formicarium" **nicht** fälschlich zu Gattungen. Bestimmungs-Qualifier und Commerce-/Kasten-Wörter (`cf.`, `aff.`, `colony`, `queen`, `workers`, `starter`, `kit` … – alle gegen den Katalog als Nicht-Epitheton geprüft, `major`/`minor` bleiben als echte Epitheta erhalten) werden als eigenständige Token entfernt, sodass z. B. „Lasius cf. niger" zu „Lasius niger" kanonisiert wird und „Pheidole colony" korrekt zur Gattung „Pheidole" statt fälschlich zu einer ähnlich klingenden Art wird. **`sp.`/`spp.`** (Art *unbestimmt*) unterbindet die Art-Bestimmung ganz – dann wird nur die **Gattung** gesetzt (kein Epitheton geraten); `cf.`/`aff.` meinen dagegen eine konkrete Art und werden normal aufgelöst. Ist die **Gattung selbst** verschrieben, wird sie – analog zum Epitheton – per **Fuzzy** (Damerau ≤ 2, eindeutig nächste Gattung, ab 5 Zeichen) auf die nächste bekannte Gattung korrigiert und die Art darin bestimmt (z. B. „Tetramoirum caespitum" → „Tetramorium caespitum"). Lässt sich **kein** Binomen bestimmen (unbestimmte/mehrdeutige Art oder reines „Camponotus sp."), aber die **Gattung** ist bekannt, wird als **Gattungs-Fallback** wenigstens der akzeptierte **Gattungsname** gesetzt (z. B. „Camponotus"). `null` bleibt nur, wenn nicht einmal die Gattung erkannt wird. Das Roh-`species`-Feld bleibt unangetastet und zeigt weiterhin `cf.`/`sp.`/`aff.`, die Unsicherheit ist also weiter sichtbar. Findet die exakte Zuordnung nichts, greift ein **konservativer Tippfehler-Fallback** für Tippfehler im **Shop-eigenen** Artnamen: die Gattung muss exakt eine bekannte Gattung sein, das Epitheton (≥ 4 Zeichen) darf höchstens **zwei Editierschritte** vom akzeptierten Epitheton abweichen – Ersetzen, Einfügen, Löschen **oder Nachbar-Dreher** (Damerau/OSA-Distanz ≤ 2) – und korrigiert wird nur auf den **eindeutig nächsten** Treffer. **Schutz vor Art-Verwechslung:** Ist das Shop-Epitheton **selbst ein im Katalog akzeptiertes Epitheton** (nur in einer *anderen* Gattung), wird es **nicht** auf eine fremde Art umgebogen – erlaubt bleibt dann nur eine reine Endungs-/Gender-Variante (gemeinsamer Präfix ≥ Länge − 2, z. B. `niger→nigra`). So bleibt etwa „Camponotus chinensis" unangetastet (`chinensis` ist eine echte Art anderer Gattungen), statt fälschlich zu „chilensis" zu werden. So werden z. B. „Monomorium chiense/chiensa" → „Monomorium chinense", „Lasius nigar/nigre" → „Lasius niger" korrigiert, ohne über Gattungsgrenzen hinweg zu raten (jede Korrektur inkl. Distanz erscheint im Grabber-Log; teilen sich zwei Arten die kleinste Distanz → keine Korrektur). Dadurch finden `/sells` und `/notification` solche Angebote trotz Shop-Tippfehler. Für Fälle, die der Automatik nicht sicher gelingen (mehrdeutige Tippfehler oder bekannte Fehlzuordnungen), gibt es im Grabber eine kleine **manuelle Override-Map** (`_OVERRIDES`): ein Eintrag kann eine Korrektur **erzwingen** (z. B. das bestätigte „monomorium chiense" → „Monomorium chinense", das per Distanz mehrdeutig zu „chilense" wäre) oder eine Fuzzy-Korrektur **blocken** (bleibt `null`). Verbleibende, nicht zuordenbare Artnamen (unbekannte Arten oder > 2 Editierschritte) lassen sich per Admin-Befehl **`/uncanonical`** auflisten.
 
 ### Artenliste & Namensprüfung (AntCat)
 
@@ -1151,15 +1205,18 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── main.py                  # Einstiegspunkt – lädt alle Cogs (inkl. Guild-Lock)
 ├── config.py                # Zentrale Konfiguration + Umgebungsvariablen
 ├── grabber.py               # AntCheck API → shops_data.json + price_history.db
-├── update.py                # Auto-Deploy (git pull + venv-pip + Dienst-Neustart)
+├── update.py                # Auto-Deploy (git pull + venv-pip + Vorabprüfung + Neustart/Rollback)
 ├── aam-bot.service          # systemd: Bot-Dienst (main.py)
 ├── aam-bot-update.service   # systemd: Oneshot-Auto-Deploy (update.py)
 ├── aam-bot-update.timer     # systemd: löst den Auto-Deploy alle 5 Min aus
 ├── service_account.json     # Google Service Account (nicht im Git)
 ├── .env                     # Umgebungsvariablen (nicht im Git)
 ├── .env.example             # Vorlage
-├── requirements.txt
-├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db,
+├── requirements.txt         # Laufzeit-Pakete, exakt gepinnt (getestete Versionen)
+├── requirements-dev.txt     # zusätzlich für Tests (pytest, openpyxl, pyflakes)
+├── .github/workflows/tests.yml  # automatische Tests auf GitHub (Push/Pull Request)
+├── .github/dependabot.yml   # wöchentliche Update-Vorschläge für die festen Paketversionen (auf beta)
+├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db, backups/,
 │                            #   shops_data.json, shop_mapping.csv, species_profiles.json, plz_dach.csv
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
 ├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
@@ -1171,7 +1228,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── admin.py             # /bot status|export|nutzer, /review offen|test|neu_verarbeiten, Wartung: Jobs/Abgleich
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
-│   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task
+│   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task (Logik/UI in utils/)
 │   ├── price_history.py     # /price_history: Preisverlauf-Chart (matplotlib) + Bestpreis-Marker
 │   ├── price_targets.py     # /set_target: Zielpreis-Alerts (pro Tracking wählbar)
 │   ├── stats.py             # /bot stats, /bot system, /help
@@ -1193,7 +1250,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── chat_export.py       # /export_chat: Kanal als JSON exportieren (Admin)
 │   ├── directory.py         # /art (Artensteckbrief) und /shop (Händlerseite)
 │   ├── year_review.py       # /rueckblick + Community-Rückblick am 31.12. um 23 Uhr
-│   ├── board.py             # Board: Feedback, Halter-Karte, Statistik, Arten/Shops, Rückblick, KI-Chat, Mein Konto, OAuth
+│   ├── board.py             # Startet die Web-Oberfläche (web/) + minütlicher Health-Monitor
 │   ├── map.py               # Halter-Karte: /map_join /map_tags /map_confirm /map_remove /event_add, /event_admin … (nur MAP_ENABLED)
 │   ├── map_tasks.py         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup (nur MAP_ENABLED)
 │   └── admin_groups.py      # Admin-Gruppen /bot /review /codes_admin /info_admin /event_admin + /wartung (lädt als letztes)
@@ -1225,7 +1282,13 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── logging_setup.py     # Rotating File Handler
 │   ├── ai_compat.py         # Modell-Unterschiede der Claude-API (Thinking, max_tokens)
 │   ├── ai_tools.py          # Werkzeuge des KI-Chats (Arten, Angebote, Preise, Shops, Codes)
-│   ├── board_i18n.py        # Texte der Board-Seiten (de/en/eo)
+│   ├── board_i18n.py        # Sprachhelfer der Web-Seiten; Texte in locales/board/*.json
+│   ├── health.py            # Status-Kacheln, Systemmetriken, Vorfälle, Alarm-DMs (Board + /bot status)
+│   ├── price_tracking.py    # Preis-Tracking: Preis-Historie, Produktsuche, Speichern (ohne Discord-UI)
+│   ├── price_tracking_views.py  # Preis-Tracking: Discord-Auswahlmenüs/Buttons
+│   ├── map_store.py         # Halter-Karte: Datenzugriff (Einträge, Regionen, Zusagen, Events)
+│   ├── map_events.py        # Halter-Karte: Termin-Logik (RRULE, nächstes Vorkommen, Ende)
+│   ├── backup.py            # tägliches SQLite-Backup (max. 7 Tage, ≥ 2 GB Reserve)
 │   ├── shop_stats.py        # Auswertungen für die Statistik-Seite
 │   ├── usage_stats.py       # Nutzungsstatistik (Monatssummen, ohne Admin-Befehle)
 │   ├── directory.py         # Daten für /art und /shop (Angebote, Bewertungen, Lieferzeit)
@@ -1241,16 +1304,29 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── locales/
 │   ├── de.json              # Deutsch
 │   ├── en.json              # English
-│   └── eo.json              # Esperanto
+│   ├── eo.json              # Esperanto
+│   └── board/               # Texte der Web-Seiten: de.json, en.json, eo.json
+│
+├── web/                     # Web-Oberfläche (aiohttp im Bot-Prozess), gestartet von cogs/board.py
+│   ├── __init__.py          # build_app(bot): alle Routen
+│   ├── core/                # security.py (Sitzungen, CSRF, Rate-Limits), render.py (Jinja2),
+│   │                        #   static.py (/static, Favicon), partners.py (Partner-Daten)
+│   ├── features/            # je Bereich ein Modul: feedback, status, stats, species, shops, rueckblick,
+│   │                        #   chat, login, map, events, help, account (Mein Konto), swarm, legal
+│   └── templates/           # Jinja2-Templates (*.html); Stylesheets liegen in static/board*.css
+│
+├── tests/                   # Prüf-Werkzeuge (siehe Abschnitt „Tests“)
 │
 ├── tools/
-│   └── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
+│   ├── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
+│   └── env_sync.py          # eigene .env in Aufbau/Reihenfolge von .env.example bringen (Werte bleiben)
 │
 ├── legal/                   # Rechtsseiten: nur *.example.* im Git, echte Dateien nur auf dem Server
 │
 └── static/                  # self-hosted Assets (kein CDN)
     ├── chart.umd.js, chartjs-chart-treemap.min.js  # Chart.js (siehe README_chartjs.txt)
     ├── stats.js, map_stats.js   # Statistik-Seite und Karten-Statistik
+    ├── board.css            # Grundlayout aller Board-Seiten (+ board-map/-konto/-swarm/-help/-chat.css je Seite)
     ├── favicon.png, favicon.gif, apple-touch-icon.png
     ├── map.js               # Halter-Karte: Leaflet-Frontend (Choropleth/Pins/Liste/Events)
     ├── leaflet.js, leaflet.css          # vom Bot geladen (utils/map_geodata.py)
@@ -1258,6 +1334,39 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ```
 
 Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geoBoundaries-Umrisse + GeoNames-PLZ → `data/plz_dach.csv`), gesteuert vom Task in `cogs/map_tasks.py` bzw. manuell per `/wartung aktion:Karte`. Kein `tools/`-Script nötig.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Tests
+
+Für Umbauten gibt es Prüf-Werkzeuge, die **ohne Discord-Login, ohne Google Sheets und ohne Internet** laufen.
+Die Test-Werkzeuge stehen in `requirements-dev.txt` (nicht in `requirements.txt` – der Auto-Deploy würde sie sonst auf den Server installieren):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+```bash
+python tests/static_check.py && python -m pytest tests/
+```
+
+**Paket-Updates:** Weil `requirements.txt` feste Versionen enthält, schlägt **Dependabot** (`.github/dependabot.yml`) jeden Montag neue Versionen als Pull Request auf `beta` vor; die CI testet sie automatisch. Grün + gemergt → kommt mit dem nächsten Merge nach `main` auf den Server.
+
+**Automatisch auf GitHub:** Der Workflow [`.github/workflows/tests.yml`](.github/workflows/tests.yml) führt beides bei jedem Push auf `beta`/`main` und bei jedem Pull Request aus (Python 3.13, exakt die gepinnten Versionen). **Roter Haken am Pull Request `beta` → `main` = nicht mergen**, sonst zieht der Auto-Deploy den kaputten Stand auf den Server.
+
+- **`tests/static_check.py`** – pyflakes über den gesamten Code: Syntaxfehler, undefinierte Namen, unbenutzte Importe/Variablen. Einziger ignorierter Fehlalarm: Texte in py-cord-Optionen (`discord.Option(...)` als Parameter-Annotation).
+- **`tests/test_*.py`** – pytest (110 Tests): alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen; Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte); Benachrichtigungen (Verfügbarkeit nach Region/Gattung/Blacklist/CH, Grund von Preisänderungen, Bestand, Preis-Ampel); Rabattcode-Prüfung (KI-Antwort durch feste Antwort ersetzt); Auto-Deploy mit echten Git-Repos (Rollback, abgelehnte Commits, DM).
+- **`tests/deploy_check.py`** – die Vorabprüfung, die `update.py` auf dem Server vor jedem Neustart ausführt (nur Laufzeit-Pakete nötig).
+- **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) vergleicht `--compare`; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
+- **`tests/command_tree_snapshot.py`** – schreibt alle Slash-Befehle (Optionen, Choices, Übersetzungen), Listener und Task-Loops als JSON – zum Vergleich vor/nach einer Änderung.
+
+Mit echten Shop-Bewertungen/Warnungen testen: Excel-Export des Google Sheets angeben – er wird **nur gelesen** und gehört **nicht** ins Repo (`*.xlsx` ist in `.gitignore`):
+
+```bash
+BOARD_TEST_SHEET_XLSX=/pfad/zum/export.xlsx python tests/board_snapshot.py /tmp/snap_neu
+```
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -1374,7 +1483,7 @@ Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam
 | `BOARD_ADMIN_IDS` | weitere Discord-IDs mit Admin-Rechten im Board | kommagetrennt; Login über Discord (`BOARD_OAUTH_*` nötig) |
 | `BOARD_OWNER_ID` | Discord-User-ID für die Einreichungs-DM | leer/0 = DM wird übersprungen (nur Log) |
 | `BOARD_DB_FILE` | eigene DB-Datei | Standard `board.db` im Projektordner |
-| `BOARD_HASH_SALT` | Salt fürs IP-Hashing | in Produktion setzen (keine Roh-IP gespeichert) |
+| `BOARD_HASH_SALT` | Geheimer Schlüssel für alle Board-Signaturen (IP-Hashes, Admin-/Mitglieder-Cookies, CSRF, Captcha) | **Pflicht**, mind. 16 Zeichen – mit Platzhalter oder zu kurzem Wert startet das Board **nicht** (Fehler im Log). Erzeugen: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `BOARD_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | „Login mit Discord“ (Mitglieder und Admins) | ohne Werte kein Login |
 | `BOARD_AI_CHAT` | KI-Chat-Fenster für eingeloggte Mitglieder | `true` |
 | `BOARD_AI_CHAT_PER_MIN` / `_PER_HOUR` | Nachrichtenlimit je Mitglied | `5` / `40` |

@@ -30,10 +30,7 @@ from discord.ext import commands
 from utils.localization import l10n, get_user_lang
 from cogs.server_settings import allowed_channel
 from utils.embeds import EMBED_COLOR
-from utils.achievements import (
-    ACHIEVEMENTS, evaluate, gather_stats, check_and_grant, log_event,
-    rank_for, next_rank_threshold,
-)
+from utils.achievements import ACHIEVEMENTS, check_and_grant, log_event, rank_for, next_rank_threshold
 
 logger = logging.getLogger(__name__)
 

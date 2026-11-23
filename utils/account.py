@@ -274,6 +274,9 @@ AREAS: dict[str, list[tuple[str, bool]]] = {
         ("DELETE FROM offer_alert_msgs WHERE user_id=?", False),
         ("DELETE FROM quiet_offer_queue WHERE user_id=?", False),
     ],
+    # Vollständige Löschung auf Wunsch der Person („Mein Konto“). Bewusst umfassender als
+    # utils/map_store.py (_delete_entry/_delete_rsvps), das beim Server-Austritt und beim
+    # automatischen Aufräumen (cogs/map_tasks.py) nur Eintrag + Zusagen entfernt.
     "map": [
         ("DELETE FROM map_entry_tags WHERE user_id=?", False),
         ("DELETE FROM map_entry_regions WHERE user_id=?", False),

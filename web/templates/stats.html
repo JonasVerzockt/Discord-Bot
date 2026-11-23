@@ -1,0 +1,188 @@
+{% extends "base" %}{% block body %}
+{% set sections = [('overview','st_sec_overview'),('species','st_sec_species'),('shops','st_sec_shops'),('prices','st_sec_prices'),('availability','st_sec_availability'),('quality','st_sec_quality'),('trends','st_sec_trends'),('usage','st_sec_usage')] %}
+{% macro mask(n) %}{% if n is none %}–{% elif 0 < n < 3 %}&lt; 3{% else %}{{ n }}{% endif %}{% endmacro %}
+<h2 style="margin-bottom:6px">{{ t('nav_stats') }}</h2>
+{% if not data %}
+<div class=flash>{{ t('st_error') }}</div>
+{% else %}
+<p class=muted style="margin-top:0">{{ t('st_intro') }}</p>
+<div class="statmeta">
+ <span>📅 {{ t('st_data_as_of', d=data.meta.fetched_at) }}</span>
+ <span>💶 {{ t('st_fx_note') }}</span>
+ <span>♻️ {{ t('st_cache_note') }}</span>
+ <span>🕒 {{ t('st_generated', d=data.meta.generated_at) }}</span>
+</div>
+<nav class="secnav"><span class=muted>{{ t('st_nav') }}</span>
+ {% for aid,key in sections %}<a href="#{{ aid }}">{{ t(key) }}</a>{% endfor %}
+</nav>
+{% for aid,key in sections %}
+<section id="{{ aid }}" class="statsec">
+ <h3>{{ t(key) }} <span class="info" title="{{ t('exp_sec_' ~ aid) }}">ⓘ</span></h3>
+ {% if aid=='overview' %}
+  {% set o = data.overview %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ o.shops_total }}</div><div class=l>{{ t('kpi_shops') }}</div></div>
+   <div class=kpi><div class=v>{{ o.shops_with_products }}</div><div class=l>{{ t('kpi_shops_with') }}</div></div>
+   <div class=kpi><div class=v>{{ o.live_products }}</div><div class=l>{{ t('kpi_live') }}</div></div>
+   <div class=kpi><div class=v>{{ o.merch_products }}</div><div class=l>{{ t('kpi_merch') }}</div></div>
+   <div class=kpi><div class=v>{{ o.inactive_products|default(0) }}</div><div class=l>{{ t('kpi_inactive') }}</div></div>
+   <div class=kpi><div class=v>{{ o.species_total }}</div><div class=l>{{ t('kpi_species') }}</div></div>
+   <div class=kpi><div class=v>{{ o.genera_total }}</div><div class=l>{{ t('kpi_genera') }}</div></div>
+   <div class=kpi><div class=v>{{ o.instock_pct }}&nbsp;%</div><div class=l>{{ t('kpi_instock_pct') }}</div></div>
+   <div class=kpi><div class=v>{{ o.countries|length }}</div><div class=l>{{ t('kpi_countries') }}</div></div>
+  </div>
+  <div class=chartbox><h4>{{ t('ch_countries_title') }}</h4><div class=chartwrap><canvas id="chCountries"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('ch_stock_title') }}</h4><div class="chartwrap" style="height:260px"><canvas id="chStock"></canvas></div></div>
+ {% elif aid=='species' %}
+  {% set sp = data.species %}
+  <div class=chartbox><h4>{{ t('sp_genera_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chGenera"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_reach_title') }}</h4><div class="chartwrap" style="height:400px"><canvas id="chReach"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_longtail_title') }}</h4><div class=chartwrap><canvas id="chLongtail"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sp_rarities_title') }} <span class="info" title="{{ t('exp_rarities') }}">ⓘ</span></h4>
+   <p class=muted style="margin-top:0">{{ t('sp_rarities_count', n=sp.rarities_count) }}</p>
+   {% set rf = sp.rarities_full or [] %}
+   {% if rf %}<details id=rarebox><summary style="cursor:pointer;color:#58a6ff">{{ t('sp_rarities_show', n=rf|length) }}</summary>
+    <input id=rarefilter type=search placeholder="{{ t('sp_rarities_filter') }}" autocomplete=off style="margin-top:8px;max-width:360px">
+    <span id=rarecount class=muted style="font-size:12px;margin-left:8px"></span>
+    <div class=raritygrid id=rarelist>{% for art, shop in rf %}<div data-q="{{ (art ~ ' ' ~ shop)|lower }}">{{ art }} <span class=rshop>· {{ shop }}</span></div>{% endfor %}</div>
+    <script>
+    (function () {
+      var inp = document.getElementById("rarefilter"), rows = document.querySelectorAll("#rarelist > div"),
+          cnt = document.getElementById("rarecount");
+      if (!inp) return;
+      function apply() {
+        var q = inp.value.trim().toLowerCase(), n = 0;
+        rows.forEach(function (r) { var ok = !q || r.getAttribute("data-q").indexOf(q) >= 0; r.style.display = ok ? "" : "none"; if (ok) n++; });
+        cnt.textContent = q ? (n + " / " + rows.length) : "";
+      }
+      inp.addEventListener("input", apply);
+    })();
+    </script></details>{% endif %}
+  </div>
+ {% elif aid=='shops' %}
+  <div class=chartbox><h4>{{ t('sh_offers_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopOffers"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_breadth_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopBreadth"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_exclusive_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chShopExclusive"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('sh_scatter_title') }}</h4><div class="chartwrap" style="height:380px"><canvas id="chShopScatter"></canvas></div></div>
+ {% elif aid=='prices' %}
+  {% set ps = data.prices.stats %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ ps.median }}&nbsp;€</div><div class=l>{{ t('kpi_price_median') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.mean }}&nbsp;€</div><div class=l>{{ t('kpi_price_mean') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.p25 }}&nbsp;€</div><div class=l>{{ t('kpi_price_p25') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.p75 }}&nbsp;€</div><div class=l>{{ t('kpi_price_p75') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.min }}&nbsp;€</div><div class=l>{{ t('kpi_price_min') }}</div></div>
+   <div class=kpi><div class=v>{{ ps.max }}&nbsp;€</div><div class=l>{{ t('kpi_price_max') }}</div></div>
+  </div>
+  <p class=muted style="margin-top:8px">{{ t('pr_basis_note') }}</p>
+  <div class=chartbox><h4>{{ t('pr_hist_title') }}</h4><div class=chartwrap><canvas id="chPriceHist"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceGenus"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_spread_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpread"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('pr_spread_small_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chPriceSpreadSmall"></canvas></div></div>
+ {% elif aid=='availability' %}
+  <div class=chartbox><h4>{{ t('av_genus_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvGenus"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_country_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvCountry"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_shop_best_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopBest"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('av_shop_worst_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chAvShopWorst"></canvas></div></div>
+  {% set nw = data.availability.nowhere or [] %}
+  <div class=chartbox><h4>{{ t('av_hardest_title') }}</h4>
+   {% if nw %}<details id=nowherebox style="margin:0 0 10px"><summary style="cursor:pointer;color:#58a6ff">{{ t('av_nowhere_line', n=nw|length) }}</summary>
+    <input id=nowherefilter type=search placeholder="{{ t('av_nowhere_filter') }}" autocomplete=off style="margin-top:8px;max-width:360px">
+    <span id=nowherecount class=muted style="font-size:12px;margin-left:8px"></span>
+    <div class=raritygrid id=nowherelist>{% for art, nsh in nw %}<div data-q="{{ art|lower }}">{{ art }} <span class=rshop>· {{ nsh }} {{ t('lbl_shops') }}</span></div>{% endfor %}</div>
+    <script>
+    (function () {
+      var inp = document.getElementById("nowherefilter"), rows = document.querySelectorAll("#nowherelist > div"),
+          cnt = document.getElementById("nowherecount");
+      if (!inp) return;
+      inp.addEventListener("input", function () {
+        var q = inp.value.trim().toLowerCase(), n = 0;
+        rows.forEach(function (r) { var ok = !q || r.getAttribute("data-q").indexOf(q) >= 0; r.style.display = ok ? "" : "none"; if (ok) n++; });
+        cnt.textContent = q ? (n + " / " + rows.length) : "";
+      });
+    })();
+    </script></details>{% endif %}
+   {% if data.availability.hardest %}<div class="chartwrap" style="height:360px"><canvas id="chAvHardest"></canvas></div>{% else %}<p class=muted>{{ t('st_none') }}</p>{% endif %}
+  </div>
+ {% elif aid=='quality' %}
+  {% set q = data.quality %}
+  <p class=muted style="margin-top:0">{{ t('dq_intro') }}</p>
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ q.coverage_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_coverage') }}</div></div>
+   <div class=kpi><div class=v>{{ q.uncanon }}</div><div class=l>{{ t('kpi_dq_uncanon') }}</div></div>
+   <div class=kpi><div class=v>{{ q.adjusted_pct }}&nbsp;%</div><div class=l>{{ t('kpi_dq_adjusted') }}</div></div>
+  </div>
+  {% if q.shop_uncanon %}<div class=chartbox><h4>{{ t('dq_shop_uncanon_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopUncanon"></canvas></div></div>{% endif %}
+  <div class=chartbox><h4>{{ t('dq_shop_adjusted_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqShopAdjusted"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_variants_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chDqVariants"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('dq_uncanon_list_title') }}</h4>
+   {% if q.uncanon_raw %}<details><summary style="cursor:pointer;color:#58a6ff">{{ t('dq_uncanon_show', n=q.uncanon_raw|length) }}</summary>
+    <div class=raritygrid>{% for name,cnt in q.uncanon_raw %}<div>{{ name }} <span class=muted>· {{ cnt }}</span></div>{% endfor %}</div></details>
+   {% else %}<p class=muted style="margin-top:0">{{ t('dq_all_resolved') }}</p>{% endif %}
+  </div>
+ {% elif aid=='trends' %}
+  <div class="rangesw">
+   <span class=muted>{{ t('tr_range_label') }}</span>
+   <a class="{{ 'on' if ts_range=='3' }}" href="/stats?lang={{ lang }}&range=3#trends">{{ t('tr_range_3') }}</a>
+   <a class="{{ 'on' if ts_range=='12' }}" href="/stats?lang={{ lang }}&range=12#trends">{{ t('tr_range_12') }}</a>
+   <a class="{{ 'on' if ts_range=='all' }}" href="/stats?lang={{ lang }}&range=all#trends">{{ t('tr_range_all') }}</a>
+  </div>
+  {% if not ts_available %}
+   <p class=muted>{{ t('tr_unavailable') }}</p>
+  {% else %}
+   <div class=chartbox><h4>{{ t('tr_price_title') }}</h4><p class=muted style="margin:0 0 6px">{{ t('tr_price_note') }}</p><div class=chartwrap><canvas id="chTrPrice"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_changes_title') }}</h4><div class=chartwrap><canvas id="chTrChanges"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_drops_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chTrDrops"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_increases_title') }}</h4><div class="chartwrap" style="height:360px"><canvas id="chTrIncreases"></canvas></div></div>
+   <div class=chartbox><h4>{{ t('tr_avail_title') }}</h4>
+    {% if l10n.tr_avail and l10n.tr_avail.empty %}<p class=muted>{{ t('tr_avail_empty') }}</p>{% else %}<div class=chartwrap><canvas id="chTrAvail"></canvas></div>{% endif %}
+   </div>
+  {% endif %}
+ {% elif aid=='usage' %}
+  {% if not usage %}<p class=muted>{{ t('us_none') }}</p>{% else %}
+  {% set k = usage.kpi %}
+  <div class=kpigrid>
+   <div class=kpi><div class=v>{{ mask(k.calls_month) }}</div><div class=l>{{ t('us_kpi_calls_month') }}</div></div>
+   <div class=kpi><div class=v>{{ mask(k.users_month) }}</div><div class=l>{{ t('us_kpi_users_month') }}</div></div>
+   <div class=kpi><div class=v>{{ mask(k.calls_total) }}</div><div class=l>{{ t('us_kpi_calls_total', since=usage.since) }}</div></div>
+   {% if k.notifications is not none %}<div class=kpi><div class=v>{{ mask(k.notifications) }}</div><div class=l>{{ t('us_kpi_notif') }}</div></div>{% endif %}
+   {% if k.price_tracking is not none %}<div class=kpi><div class=v>{{ mask(k.price_tracking) }}</div><div class=l>{{ t('us_kpi_track') }}</div></div>{% endif %}
+   {% if k.species_watch is not none %}<div class=kpi><div class=v>{{ mask(k.species_watch) }}</div><div class=l>{{ t('us_kpi_watch') }}</div></div>{% endif %}
+  </div>
+  <div class=chartbox><h4>{{ t('us_calls_title') }}</h4><div class=chartwrap><canvas id="chUsCalls"></canvas></div></div>
+  <div class=chartbox><h4>{{ t('us_content_title') }}</h4><div class=chartwrap><canvas id="chUsContent"></canvas></div></div>
+  {% if usage.top %}<div class=chartbox><h4>{{ t('us_top_title') }}</h4><div class="chartwrap" style="height:{{ 60 + usage.top|length * 28 }}px"><canvas id="chUsTop"></canvas></div></div>{% endif %}
+  <p class=muted>{{ t('us_note') }}</p>
+  <script>
+  window.addEventListener("load", function () {
+   if (!window.Chart) return;
+   var U = {{ usage|tojson }}, g = {color: "#21262d"}, tk = {color: "#8b949e"};
+   var base = {maintainAspectRatio: false, plugins: {legend: {labels: tk}}};
+   new Chart(document.getElementById("chUsCalls"), {type: "bar", data: {labels: U.labels, datasets: [
+     {label: {{ t('us_calls')|tojson }}, data: U.calls, backgroundColor: "#1f6feb99", yAxisID: "y"},
+     {type: "line", label: {{ t('us_users')|tojson }}, data: U.users, borderColor: "#3fb950", spanGaps: false, yAxisID: "y2", tension: .2}]},
+     options: Object.assign({}, base, {scales: {x: {ticks: tk, grid: g}, y: {beginAtZero: true, ticks: tk, grid: g},
+       y2: {position: "right", beginAtZero: true, ticks: tk, grid: {display: false}}}})});
+   new Chart(document.getElementById("chUsContent"), {type: "bar", data: {labels: U.labels, datasets: [
+     {label: {{ t('us_reviews')|tojson }}, data: U.reviews, backgroundColor: "#3fb95099"},
+     {label: {{ t('us_codes')|tojson }}, data: U.codes, backgroundColor: "#d2a8ff99"}]},
+     options: Object.assign({}, base, {scales: {x: {ticks: tk, grid: g}, y: {beginAtZero: true, ticks: tk, grid: g}}})});
+   var top = document.getElementById("chUsTop");
+   if (top) new Chart(top, {type: "bar", data: {labels: U.top.map(function (x) { return "/" + x[0]; }),
+     datasets: [{data: U.top.map(function (x) { return x[1]; }), backgroundColor: "#1f6feb99"}]},
+     options: {indexAxis: "y", maintainAspectRatio: false, plugins: {legend: {display: false}},
+       scales: {x: {beginAtZero: true, ticks: tk, grid: g}, y: {ticks: tk, grid: g}}}});
+  });
+  </script>
+  {% endif %}
+ {% else %}
+  <p class=muted>{{ t('st_wip') }}</p>
+ {% endif %}
+</section>
+{% endfor %}
+<script src="/static/chart.umd.js?v={{ ver }}"></script>
+<script src="/static/chartjs-chart-treemap.min.js?v={{ ver }}"></script>
+<script>var STATS = {{ data|tojson }}; var STATS_L = {{ l10n|tojson }};</script>
+<script src="/static/stats.js?v={{ ver }}"></script>
+{% endif %}
+{% endblock %}

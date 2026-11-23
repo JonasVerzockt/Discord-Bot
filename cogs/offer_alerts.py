@@ -57,7 +57,7 @@ from discord.ext import commands, tasks
 from config import (OFFER_CHANNEL_ID, OFFER_ALERT_DELAY_MIN, OFFER_BACKFILL_DAYS,
                     OFFER_SOLD_EMOTE_ID, OFFER_QUIET_START_HOUR, OFFER_QUIET_END_HOUR)
 from utils.db import execute_db, execute_many
-from utils.embeds import EMBED_COLOR, ADMIN_COLOR
+from utils.embeds import EMBED_COLOR
 from utils.timez import berlin_from_dt, align_delay_seconds, BERLIN
 from utils.account import is_quiet
 from cogs.server_settings import admin_or_manage_messages, allowed_channel

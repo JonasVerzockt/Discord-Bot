@@ -1,0 +1,7 @@
+{% if swarm %}<div class=chartbox><h4>🪽 {{ t('sw_art_h') }}</h4>
+{% if swarm.n %}<p style="margin:0 0 8px">{{ t('sw_art_line', n=swarm.n, y=swarm.years) }}{% if swarm.win %} {{ t('sw_art_win', w=swarm.win) }}{% endif %}{% if swarm.peak %} {{ t('sw_art_peak', p=swarm.peak) }}{% endif %}</p>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end;height:50px">{% for m in swarm.months %}<div style="background:{{ '#3fb950' if m >= 0.5 else ('#3fb95055' if m > 0 else '#21262d') }};height:{{ (4 + m * 46)|int }}px;border-radius:3px"></div>{% endfor %}</div>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;font-size:11px;text-align:center" class=muted>{% for n in (season.short if season else sw_short) %}<div>{{ n }}</div>{% endfor %}</div>
+<p class=muted style="margin:8px 0 0;font-size:13px">{% if swarm.hours %}🕑 {{ swarm.hours }} {{ t('sw_oclock') }} · {% endif %}{% if swarm.temps %}🌡️ {{ swarm.temps }} °C · {% endif %}{% if swarm.regions %}🗺️ {{ swarm.regions|join(', ') }} · {% endif %}{{ t('sw_art_last', d=swarm.last|dmy) }}</p>
+{% else %}<p style="margin:0">{{ t('sw_art_genus_only', g=swarm.genus, n=swarm.genus_n) }}</p>{% endif %}
+<p style="margin:8px 0 0"><a href="/schwarmflug?g={{ swarm.genus }}&lang={{ lang }}">{{ t('sw_art_more') }} →</a></p></div>{% endif %}

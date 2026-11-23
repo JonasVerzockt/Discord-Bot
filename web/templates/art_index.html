@@ -1,0 +1,33 @@
+{% extends "base" %}{% block body %}
+<h2 style="margin-bottom:6px">{{ t('dir_art_index_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('dir_art_index_intro', n=items|length) }}</p>
+<form method=get action="/art" style="max-width:420px;display:flex;gap:8px">
+ <input type=hidden name=lang value="{{ lang }}">
+ <input id=dirfilter name=q type=search value="{{ q }}" placeholder="{{ t('dir_art_search') }}" autocomplete=off>
+</form>
+<details class=chartbox {% if fnd.active %}open{% endif %} style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">🔎 {{ t('fnd_h') }}</summary>
+<form method=get action="/art" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:8px">
+ <input type=hidden name=lang value="{{ lang }}">
+ <div style="flex:1 1 180px"><label>{{ t('fnd_genus') }}</label><select name=g><option value="">{{ t('fnd_all') }}</option>{% for gname in fnd.genera %}<option value="{{ gname }}" {% if gname == fnd.g %}selected{% endif %}>{{ gname }}</option>{% endfor %}</select></div>
+ <div style="flex:0 1 110px"><label>{{ t('fnd_pmin') }}</label><input name=pmin inputmode=decimal value="{{ fnd.pmin_raw }}" placeholder="0"></div>
+ <div style="flex:0 1 110px"><label>{{ t('fnd_pmax') }}</label><input name=pmax inputmode=decimal value="{{ fnd.pmax_raw }}" placeholder="100"></div>
+ <div style="flex:1 1 200px"><label>{{ t('fnd_land') }}</label><select name=land><option value="">{{ t('fnd_all') }}</option><option value="chd" {% if fnd.land == 'chd' %}selected{% endif %}>🇨🇭 {{ t('fnd_chd') }}</option>{% for c, n in fnd.countries %}<option value="{{ c }}" {% if c == fnd.land %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+ <label style="display:flex;gap:6px;align-items:center;margin:0 0 8px;color:#c9d1d9;font-size:14px"><input type=checkbox name=stock value=1 style="width:auto" {% if fnd.stock %}checked{% endif %}> {{ t('fnd_stock') }}</label>
+ <div style="margin-bottom:2px"><button class=btn>{{ t('fnd_go') }}</button>{% if fnd.active %} <a class="btn grey" href="/art{{ qs() }}">{{ t('fnd_reset') }}</a>{% endif %}</div>
+</form>
+<p class=muted style="margin:6px 0 0;font-size:12px">{{ t('fnd_note') }}</p>
+</details>
+{% if fnd.active %}
+<h3 style="margin:16px 0 6px">{{ t('fnd_results', n=fnd.rows|length) }}</h3>
+{% if fnd.rows %}<table><tr><th>{{ t('fnd_col_species') }}</th><th>{{ t('fnd_col_shops') }}</th><th>{{ t('fnd_col_from') }}</th><th></th></tr>
+{% for r in fnd.rows %}<tr><td><a href="/art/{{ r.name|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ r.name }}</i></a>{% if r.instock %} <span style="color:#3fb950;font-size:12px">● {{ t('dir_instock_n', n=r.instock) }}</span>{% endif %}</td>
+ <td>{{ r.shops }}</td><td style="white-space:nowrap">{{ r.price }}</td>
+ <td style="white-space:nowrap">{% if fnd.uid %}{% if r.watched %}<span class=muted title="{{ t('star_watched') }}">★</span>{% else %}<form method=post action="/konto/beobachtung/neu{{ qs() }}" style="display:inline"><input type=hidden name=csrf value="{{ fnd.csrf }}"><input type=hidden name=species value="{{ r.name }}"><input type=hidden name=back value="{{ fnd.back }}"><button class="btn grey small" title="{{ t('star_add') }}">☆</button></form>{% endif %}{% endif %}
+ <a class="btn grey small" href="/konto?{{ r.nq }}#benachrichtigungen" title="{{ t('fnd_notify') }}">🔔</a></td></tr>{% endfor %}</table>
+{% if fnd.more %}<p class=muted>{{ t('fnd_more', n=fnd.more) }}</p>{% endif %}
+{% else %}<div class=flash>{{ t('fnd_none') }}</div>{% endif %}
+{% else %}
+{% if q and not items %}<div class=flash style="margin-top:12px">{{ t('dir_art_nohit', q=q) }}</div>{% endif %}
+{% from "genmac" import genlist with context %}{{ genlist("artgen", groups, total, "dirfilter", q) }}
+{% endif %}
+{% endblock %}

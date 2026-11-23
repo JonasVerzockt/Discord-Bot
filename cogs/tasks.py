@@ -48,6 +48,8 @@ logger = logging.getLogger(__name__)
 # um :05 (kurz nach dem Grabber-Cron um :00), damit sie auf frischen Shop-Daten läuft
 # – statt 'Bot-Startzeit + N h' zu driften. 24 feste Uhrzeiten = stündlicher Trigger.
 _PIPELINE_TIMES = [dtime(hour=h, minute=5, tzinfo=BERLIN) for h in range(24)]
+# Datenbank-Backup täglich nachts (ruhige Zeit, nach dem Grabber-Lauf um :00).
+_BACKUP_TIME = dtime(hour=3, minute=30, tzinfo=BERLIN)
 
 
 class TasksCog(commands.Cog, name="Tasks"):
@@ -64,6 +66,7 @@ class TasksCog(commands.Cog, name="Tasks"):
         self.expire_old_notifications.start()
         self.optimize_db.start()
         self.update_bot_status.start()
+        self.backup_databases.start()
 
     def cog_unload(self):
         self.check_availability.cancel()
@@ -72,6 +75,7 @@ class TasksCog(commands.Cog, name="Tasks"):
         self.expire_old_notifications.cancel()
         self.optimize_db.cancel()
         self.update_bot_status.cancel()
+        self.backup_databases.cancel()
 
     # ── Verfügbarkeitsprüfung alle 5 Minuten ──────────────────────────────────
     @tasks.loop(minutes=5)
@@ -241,6 +245,20 @@ class TasksCog(commands.Cog, name="Tasks"):
     async def before_expire(self):
         await self.bot.wait_until_ready()
         await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
+
+    # ── Datenbank-Backup täglich 03:30 (utils/backup.py) ──────────────────────
+    @tasks.loop(time=_BACKUP_TIME)
+    async def backup_databases(self):
+        """Sichert alle SQLite-DBs (max. 7 Tage, nur wenn danach ≥ 2 GB frei bleiben)."""
+        from utils import backup
+        try:
+            await self.bot.loop.run_in_executor(None, backup.run_backup)
+        except Exception as e:
+            logger.error(f"❌ backup_databases error: {e}")
+
+    @backup_databases.before_loop
+    async def before_backup(self):
+        await self.bot.wait_until_ready()
 
     # ── DB-Optimierung wöchentlich ────────────────────────────────────────────
     @tasks.loop(hours=168)

@@ -1,0 +1,47 @@
+<link rel="stylesheet" href="/static/board-chat.css?v={{ css_v }}">
+<button id=aic-btn type=button title="{{ t('chat_title') }}" aria-label="{{ t('chat_title') }}">💬</button>
+<div id=aic-box role=dialog aria-label="{{ t('chat_title') }}">
+ <div id=aic-head><b>🤖 {{ t('chat_title') }}</b><button type=button id=aic-new>{{ t('chat_new') }}</button><button type=button id=aic-close aria-label="close">✕</button></div>
+ <div style="padding:8px 12px 0"><select id=aic-model aria-label="{{ t('chat_model') }}"></select></div>
+ <div id=aic-msgs><div class="aic-m aic-a">{{ t('chat_hello') }}</div></div>
+ <form id=aic-form><textarea id=aic-in maxlength=1500 placeholder="{{ t('chat_placeholder') }}"></textarea><button id=aic-send type=submit>➤</button></form>
+ <div id=aic-note>{{ t('chat_note', h=chat_ttl) }}</div>
+</div>
+<script>(function(){
+ var CSRF={{ chat_csrf|tojson }}, LANG={{ lang|tojson }}, L={think:{{ t('chat_thinking')|tojson }},err:{{ t('chat_error')|tojson }}};
+ var box=document.getElementById("aic-box"),msgs=document.getElementById("aic-msgs"),inp=document.getElementById("aic-in"),
+     send=document.getElementById("aic-send"),sel=document.getElementById("aic-model"),conv=null,loaded=false;
+ try{conv=sessionStorage.getItem("aic-conv")}catch(e){}
+ function esc(t){return t.replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+ function md(t){t=esc(t);
+  t=t.replace(/```([\s\S]*?)```/g,function(_,c){return "<code>"+c+"</code>"});
+  t=t.replace(/`([^`\n]+)`/g,"<code>$1</code>");
+  t=t.replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g,"$1<i>$2</i>");
+  t=t.replace(/\[([^\]\n]+)\]\(&lt;?(https?:\/\/[^\s)&]+(?:&amp;[^\s)&]+)*)&gt;?\)/g,'<a href="$2" target=_blank rel="noopener noreferrer">$1</a>');
+  t=t.replace(/&lt;(https?:\/\/[^\s<>]+?)&gt;/g,'<a href="$1" target=_blank rel="noopener noreferrer">$1</a>');
+  t=t.replace(/^-# (.+)$/gm,'<span class=aic-s>$1</span>');
+  t=t.replace(/^#{1,3} (.+)$/gm,"<b>$1</b>");
+  return t}
+ var hist=[];try{hist=JSON.parse(sessionStorage.getItem("aic-hist")||"[]")}catch(e){}
+ function keep(){try{sessionStorage.setItem("aic-hist",JSON.stringify(hist.slice(-30)))}catch(e){}}
+ function add(cls,html){var d=document.createElement("div");d.className="aic-m "+cls;d.innerHTML=html;msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;return d}
+ hist.forEach(function(h){add(h[0],h[1])});
+ function loadModels(){if(loaded)return;loaded=true;
+  fetch("/chat/models?lang="+LANG,{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(j){
+   (j.models||[]).forEach(function(m){var o=document.createElement("option");o.value=m.id;o.textContent=m.emoji+" "+m.label+" · "+m.tier+(m.rec?" · 👍":"");o.title=m.desc;if(m.id===j.preselect)o.selected=true;sel.appendChild(o)})})}
+ document.getElementById("aic-btn").onclick=function(){box.classList.toggle("open");if(box.classList.contains("open")){loadModels();inp.focus()}};
+ document.getElementById("aic-close").onclick=function(){box.classList.remove("open")};
+ document.getElementById("aic-new").onclick=function(){conv=null;try{sessionStorage.removeItem("aic-conv")}catch(e){}
+  hist=[];keep();msgs.innerHTML="";add("aic-a",esc({{ t('chat_hello')|tojson }}))};
+ inp.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();document.getElementById("aic-form").requestSubmit()}});
+ document.getElementById("aic-form").onsubmit=function(e){e.preventDefault();var q=inp.value.trim();if(!q||send.disabled)return;
+  add("aic-u",esc(q));hist.push(["aic-u",esc(q)]);keep();inp.value="";send.disabled=true;var w=add("aic-a","<i>"+esc(L.think)+"</i>");
+  fetch("/chat/send?lang="+LANG,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF":CSRF},
+   body:JSON.stringify({msg:q,conv:conv,model:sel.value||null})})
+  .then(function(r){return r.json().catch(function(){return {answer:L.err}})})
+  .then(function(j){w.innerHTML=md(j.answer||L.err)+(j.footer?'<span class=aic-f>'+esc(j.footer)+'</span>':"");
+   hist.push(["aic-a",w.innerHTML]);keep();
+   if(j.conv){conv=String(j.conv);try{sessionStorage.setItem("aic-conv",conv)}catch(e){}}
+   msgs.scrollTop=msgs.scrollHeight})
+  .catch(function(){w.textContent=L.err}).finally(function(){send.disabled=false;inp.focus()})};
+})();</script>

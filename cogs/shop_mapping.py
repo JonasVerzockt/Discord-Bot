@@ -29,7 +29,6 @@ from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
 from utils.shop import set_mapping, remove_mapping, all_mappings
-from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, ADMIN_COLOR
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 

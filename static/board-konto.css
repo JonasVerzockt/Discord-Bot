@@ -1,0 +1,25 @@
+/* static/board-konto.css – aus web/templates/konto.html ausgelagert (5.1.0). Eingebunden per
+   <link> an derselben Stelle wie früher der <style>-Block (gleiche Reihenfolge der Regeln). */
+
+ .kt td,.kt th{font-size:14px} .kt th{color:#8b949e;font-weight:600;font-size:12px}
+ .kform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
+ .kform label{margin:0 0 3px} .kform>div{min-width:150px;flex:1}
+ .kform .chk{display:flex;gap:6px;align-items:center;flex:0 0 auto;min-width:0;color:#c9d1d9;font-size:14px;margin:0}
+ .kform .chk input,.kchk input{width:auto}
+ .kchk{display:inline-flex;gap:6px;align-items:center;margin:2px 14px 2px 0;color:#c9d1d9;font-size:14px}
+ .inl{display:inline} .inl button{margin:1px 0}
+ .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;border:1px solid #30363d}
+ .p-active{color:#3fb950;border-color:#3fb95066} .p-paused{color:#d29922;border-color:#d2992266} .p-done{color:#8b949e}
+ .bar{height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:4px} .bar i{display:block;height:100%;background:#238636}
+ .achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+ .ach{background:#0f141a;border:1px solid #21262d;border-radius:8px;padding:8px 10px} .ach.on{border-color:#3fb95066}
+ .ach .n{font-weight:600} .ach .d{color:#8b949e;font-size:12px}
+ .hist div{padding:5px 0;border-bottom:1px solid #161b22;font-size:14px} .hist .w{color:#8b949e;font-size:12px;margin-right:8px;white-space:nowrap}
+ .codebox{font:600 20px ui-monospace,monospace;background:#0d1117;border:1px dashed #58a6ff;border-radius:8px;padding:8px 14px;display:inline-block;letter-spacing:1px}
+ .danger{border-color:#8b2b2b !important}
+ .kdanger{display:none !important} .kunlocked .kdanger{display:inline-block !important} .kunlocked .kdanger.kb{display:block !important}
+ .kunlocked .klocked{display:none !important}
+ .kunlock{display:flex;gap:10px;align-items:flex-start;background:#8b2b2b22;border:1px solid #8b2b2b;border-radius:8px;padding:10px 12px;margin:10px 0 4px;cursor:pointer}
+ .kunlock input{width:auto;margin-top:4px} .kunlock b{display:block}
+ .kt input,.kt select{padding:4px 6px}
+ @media(max-width:700px){.kt .hm{display:none}}

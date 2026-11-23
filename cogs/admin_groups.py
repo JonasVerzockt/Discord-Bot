@@ -26,7 +26,7 @@ Top-Level-Liste genommen und als Unterbefehl in eine Admin-Gruppe gehängt:
   /codes_admin  setzen | datum | bearbeiten
   /info_admin   anlegen | bearbeiten | löschen | quelltext
   /event_admin  offen | freigeben | ablehnen | absagen | bearbeiten   (nur MAP_ENABLED)
-  /wartung aktion:<jobs | shops | karte | abgleich | codes>
+  /wartung aktion:<jobs | shops | antcheck | karte | abgleich | codes | …>
 
 Alle Gruppen: default_member_permissions = Nachrichten verwalten (für andere
 unsichtbar) + admin_or_manage_messages()-Check auf Gruppenebene.
@@ -82,6 +82,7 @@ GROUPS: dict[str, tuple[str, str, list[tuple[str, str]]]] = {
 MAINTENANCE: dict[str, tuple[str, str, str]] = {
     "jobs":     ("run_jobs",     "Background jobs",      "Hintergrund-Jobs"),
     "shops":    ("reloadshops",  "Shop data",            "Shop-Daten"),
+    "antcheck": ("grab_now",     "Fetch AntCheck data now", "AntCheck-Daten jetzt abrufen"),
     "karte":    ("map_refresh",  "Map",                  "Karte"),
     "abgleich": ("rescan",       "Re-reconcile reviews", "Bewertungen abgleichen"),
     "codes":    ("codes_rescan", "Scan discount codes",  "Rabattcodes scannen"),
@@ -150,8 +151,8 @@ class MaintenanceCog(commands.Cog):
 
     @discord.slash_command(
         name="wartung",
-        description="🔒 [Admin] Maintenance: jobs, shop data, map, reviews, codes, swarm flights",
-        description_localizations={"de": "🔒 [Admin] Wartung: Jobs, Shop-Daten, Karte, Bewertungen, Rabattcodes, Schwarmflug"},
+        description="🔒 [Admin] Maintenance: jobs, shop/AntCheck data, map, reviews, codes, swarm",
+        description_localizations={"de": "🔒 [Admin] Wartung: Jobs, Shop-/AntCheck-Daten, Karte, Bewertungen, Codes, Schwarmflug"},
     )
     @discord.default_permissions(manage_messages=True)
     @admin_or_manage_messages()
