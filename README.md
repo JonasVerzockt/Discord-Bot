@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `5.2.2` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `5.2.3` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -1357,7 +1357,7 @@ python tests/static_check.py && python -m pytest tests/
 **Automatisch auf GitHub:** Der Workflow [`.github/workflows/tests.yml`](.github/workflows/tests.yml) führt beides bei jedem Push auf `beta`/`main` und bei jedem Pull Request aus (Python 3.13, exakt die gepinnten Versionen). **Roter Haken am Pull Request `beta` → `main` = nicht mergen**, sonst zieht der Auto-Deploy den kaputten Stand auf den Server.
 
 - **`tests/static_check.py`** – pyflakes über den gesamten Code: Syntaxfehler, undefinierte Namen, unbenutzte Importe/Variablen. Einziger ignorierter Fehlalarm: Texte in py-cord-Optionen (`discord.Option(...)` als Parameter-Annotation).
-- **`tests/test_*.py`** – pytest (114 Tests): alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen; Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte); Benachrichtigungen (Verfügbarkeit nach Region/Gattung/Blacklist/CH, Grund von Preisänderungen, Bestand, Preis-Ampel); Rabattcode-Prüfung (KI-Antwort durch feste Antwort ersetzt); Auto-Deploy mit echten Git-Repos (Rollback, abgelehnte Commits, DM).
+- **`tests/test_*.py`** – pytest (116 Tests): alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen; Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte); Benachrichtigungen (Verfügbarkeit nach Region/Gattung/Blacklist/CH, Grund von Preisänderungen, Bestand, Preis-Ampel); Rabattcode-Prüfung (KI-Antwort durch feste Antwort ersetzt); Auto-Deploy mit echten Git-Repos (Rollback, abgelehnte Commits, DM).
 - **`tests/deploy_check.py`** – die Vorabprüfung, die `update.py` auf dem Server vor jedem Neustart ausführt (nur Laufzeit-Pakete nötig).
 - **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) vergleicht `--compare`; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
 - **`tests/command_tree_snapshot.py`** – schreibt alle Slash-Befehle (Optionen, Choices, Übersetzungen), Listener und Task-Loops als JSON – zum Vergleich vor/nach einer Änderung.
@@ -1514,6 +1514,7 @@ Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` s
 - Bindet nur an `127.0.0.1` – **HTTPS und öffentliche Domain macht der Reverse-Proxy** (Caddy/nginx); der aiohttp-Server wird nie direkt exponiert.
 - **Moderations-Queue** (nichts öffentlich ohne Freigabe), **Honeypot** und **Rate-Limits** gegen Spam, **CSRF-Schutz** auf Admin-Aktionen, **Jinja2-Autoescape** gegen XSS, Frontend **dark-mode-only**.
 - **Mitglieder-Login:** „Login mit Discord“ prüft beim Anmelden, ob die Person auf dem AAM-Server ist. Alle Mitglieder-Bereiche (Karte mit Pins, Liste, Namen und Statistiken, Termin-Zusagen, Mein Konto, KI-Chat, persönlicher Rückblick, Bewertungsdetails, Stern) prüfen das zusätzlich **bei jedem Aufruf** live; wer den Server verlässt, sieht sofort nur noch die öffentliche Ansicht, auch wenn die Sitzung (30 Tage) noch läuft.
+- **Cookies:** Alle Board-Cookies (Login, Mitglieds-/Admin-Sitzung, Votes, Intro) sind `HttpOnly` und `SameSite=Lax`; beginnt `BOARD_PUBLIC_URL` mit `https://`, zusätzlich `Secure` (nur über HTTPS gesendet). Das Rücksprungziel nach dem Login wird serverseitig gemerkt, nicht im Cookie.
 - **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-SHA3-512-Hash** (mit geheimem `BOARD_HASH_SALT` als Schlüssel) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
 
 ### Arten-Finder, Stern und Hilfeseite

@@ -34,7 +34,7 @@ from config import (
 
 from web.core.render import _render
 from web.core.security import (
-    _ADMIN_COOKIE, _admin_ids, _admin_sign, _ADMIN_TTL, _DISCORD_AUTH, _DISCORD_ME,
+    COOKIE_SECURE, _ADMIN_COOKIE, _admin_ids, _admin_sign, _ADMIN_TTL, _DISCORD_AUTH, _DISCORD_ME,
     _DISCORD_TOKEN, _hmac, _login_next, _LOGIN_NEXT_COOKIE, _MEMBER_COOKIE, _member_name,
     _member_sign, _MEMBER_TTL, _OAUTH_STATE_COOKIE, _safe_local_redirect,
 )
@@ -83,7 +83,7 @@ async def h_map_login(req):
     resp = web.HTTPFound(f"{_DISCORD_AUTH}?{params}")
     # State signiert im Cookie ablegen (CSRF-Schutz), kurzlebig.
     resp.set_cookie(_OAUTH_STATE_COOKIE, f"{state}.{_hmac('oauthstate', state)}",
-                    max_age=600, httponly=True, samesite="Lax")
+                    max_age=600, httponly=True, samesite="Lax", secure=COOKIE_SECURE)
     if nxt:
         _remember_next(state, nxt)
     resp.del_cookie(_LOGIN_NEXT_COOKIE)          # Alt-Cookie früherer Versionen aufräumen
@@ -141,14 +141,14 @@ async def h_map_callback(req):
     if uid in _admin_ids():                    # Owner/Admin: zusätzlich Admin-Sitzung (7 Tage)
         aexp = int(time.time()) + _ADMIN_TTL
         resp.set_cookie(_ADMIN_COOKIE, f"{uid}.{aexp}.{_admin_sign(uid, aexp)}",
-                        max_age=_ADMIN_TTL, httponly=True, samesite="Lax")
+                        max_age=_ADMIN_TTL, httponly=True, samesite="Lax", secure=COOKIE_SECURE)
         logger.info("🔑 Admin-Login über Discord: %s", uid)
     elif nxt == "/admin":
         resp = web.HTTPFound(f"/admin/login?denied=1&lang={lang}")
         resp.del_cookie(_OAUTH_STATE_COOKIE)
         resp.del_cookie(_LOGIN_NEXT_COOKIE)
     resp.set_cookie(_MEMBER_COOKIE, f"{uid}.{exp}.{_member_sign(uid, exp)}",
-                    max_age=_MEMBER_TTL, httponly=True, samesite="Lax")
+                    max_age=_MEMBER_TTL, httponly=True, samesite="Lax", secure=COOKIE_SECURE)
     raise resp
 
 

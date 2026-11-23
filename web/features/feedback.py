@@ -35,7 +35,7 @@ from config import BOARD_OWNER_ID, BOARD_PUBLIC_URL, VERSION
 from utils.health import _collect_health, _metrics_chip, _system_metrics
 from web.core.render import _render, _ver_key
 from web.core.security import (
-    _ADMIN_COOKIE, _admin_guard, _admin_ids, _admin_login_url, _csrf_token, _hmac, _ip,
+    COOKIE_SECURE, _ADMIN_COOKIE, _admin_guard, _admin_ids, _admin_login_url, _csrf_token, _hmac, _ip,
     _is_admin, _is_member, _rate, _safe_local_redirect, _VOTER_COOKIE,
 )
 from utils.web_keys import BOT_KEY
@@ -140,7 +140,7 @@ async def h_upvote(req):
     vid = req.cookies.get(_VOTER_COOKIE)
     if not vid:
         vid = secrets.token_hex(8)
-        resp.set_cookie(_VOTER_COOKIE, vid, max_age=31536000, httponly=True, samesite="Lax")
+        resp.set_cookie(_VOTER_COOKIE, vid, max_age=31536000, httponly=True, samesite="Lax", secure=COOKIE_SECURE)
     await board_exec("INSERT OR IGNORE INTO board_votes (submission_id, voter_hash) VALUES (?,?)",
                      (sid, _hmac("vote", _ip(req), vid)))
     raise resp

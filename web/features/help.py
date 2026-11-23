@@ -30,7 +30,7 @@ from utils.board_i18n import pick_lang, translate
 from config import MAP_GUILD_ID
 
 from web.core.render import _render
-from web.core.security import _aam_member, _hmac, _ip, _is_admin, _rate
+from web.core.security import COOKIE_SECURE, _aam_member, _hmac, _ip, _is_admin, _rate
 from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
@@ -184,5 +184,5 @@ async def h_intro(req):
         await ACC.set_prefs(bot, uid, **pick["commit"])
     resp = web.json_response(_intro_payload(lang, pick), headers=hdr)
     resp.set_cookie(_INTRO_COOKIE, IN.build_cookie(tday, seen, pick["key"]), max_age=_INTRO_TTL,
-                    httponly=True, samesite="Lax", secure=req.secure)
+                    httponly=True, samesite="Lax", secure=COOKIE_SECURE)
     return resp

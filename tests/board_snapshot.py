@@ -393,7 +393,14 @@ async def run(out: Path) -> int:
     app = build_app(bot)
     out.mkdir(parents=True, exist_ok=True)
     index = {}
-    async with TestClient(TestServer(app)) as client:
+    # Der Test-Server läuft über http://127.0.0.1, das echte Board über HTTPS. Cookies mit
+    # „Secure“ (COOKIE_SECURE) würde ein Client über http nicht zurücksenden – deshalb den
+    # lokalen Server als sicheren Ursprung behandeln, wie ein Browser bei https.
+    from aiohttp import CookieJar
+    server = TestServer(app)
+    await server.start_server()
+    jar = CookieJar(unsafe=True, treat_as_secure_origin=str(server.make_url("/")))
+    async with TestClient(server, cookie_jar=jar) as client:
         try:
             from web.core.security import _hits      # nach dem Umbau
         except ImportError:
