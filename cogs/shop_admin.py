@@ -19,6 +19,7 @@ cogs/shop_admin.py – Shop-Verwaltungsbefehle als discord.py Cog.
 
 Slash Commands (Admin/Mod):
   /reloadshops          – shops_data.json neu laden und in DB schreiben
+  /grab_now             – Grabber (AntCheck-Abruf) sofort ausführen, danach neu laden
   /shopmapping add      – Externen Shopnamen → interne Shop-ID mappen
   /shopmapping show     – Alle Mappings anzeigen
   /shopmapping remove   – Mapping löschen
@@ -39,6 +40,7 @@ from utils.availability import load_shop_data, is_merch_product
 from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, ADMIN_COLOR
 from utils.timez import berlin_from_utc_naive
+from utils.grabber_run import run_grabber, format_data_status, GRABBER_TIMEOUT
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,24 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
+    async def _sync_shops_to_db(self) -> int:
+        """shops_data.json einlesen und Shops in die DB übernehmen (Name/Land/URL;
+        average_rating und url_override bleiben unangetastet). Gibt die Shop-Anzahl zurück."""
+        shop_data = await load_shop_data(self.bot)
+        for sid, sd in shop_data.items():
+            await execute_db(
+                self.bot,
+                """INSERT INTO shops (id, name, country, url)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                       name=excluded.name,
+                       country=excluded.country,
+                       url=excluded.url""",
+                (sid, sd.get("name"), sd.get("country"), sd.get("url")),
+                commit=True,
+            )
+        return len(shop_data)
+
     # ── /reloadshops ──────────────────────────────────────────────────────────
     @discord.slash_command(name="reloadshops", description="🔒 [Admin] Reload shop data from JSON file", description_localizations={"de": "🔒 [Admin] Shop-Daten aus JSON-Datei neu laden"})
     @discord.default_permissions(manage_messages=True)
@@ -58,24 +78,65 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         await ctx.defer(ephemeral=True)
         try:
-            shop_data = await load_shop_data(self.bot)
-            for sid, sd in shop_data.items():
-                await execute_db(
-                    self.bot,
-                    """INSERT INTO shops (id, name, country, url)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT(id) DO UPDATE SET
-                           name=excluded.name,
-                           country=excluded.country,
-                           url=excluded.url""",
-                    (sid, sd.get("name"), sd.get("country"), sd.get("url")),
-                    commit=True,
-                )
-            await ctx.respond(l10n.get("reloadshops_success", lang), ephemeral=True)
-            logger.info(f"🏪 Shop-Daten neu geladen von {ctx.author.id}: {len(shop_data)} Shops")
+            count = await self._sync_shops_to_db()
+            msg = (l10n.get("reloadshops_success", lang)
+                   + "\n" + format_data_status(l10n, lang)
+                   + "\n" + l10n.get("reloadshops_hint", lang))
+            await ctx.respond(msg, ephemeral=True)
+            logger.info(f"🏪 Shop-Daten neu geladen von {ctx.author.id}: {count} Shops")
         except Exception as e:
             logger.error(f"❌ reloadshops error: {e}")
             await ctx.respond(l10n.get("general_error", lang), ephemeral=True)
+
+    # ── /grab_now ─────────────────────────────────────────────────────────────
+    @discord.slash_command(name="grab_now", description="🔒 [Admin] Fetch fresh data from AntCheck now, then reload", description_localizations={"de": "🔒 [Admin] AntCheck-Daten jetzt frisch abrufen und neu laden"})
+    @discord.default_permissions(manage_messages=True)
+    @admin_or_manage_messages()
+    @allowed_channel()
+    async def grab_now(self, ctx: discord.ApplicationContext):
+        """Startet grabber.py sofort (statt auf den stündlichen Cron zu warten),
+        lädt danach shops_data.json neu und meldet den neuen Datenstand."""
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
+        await ctx.defer(ephemeral=True)
+        logger.info(f"🛰️ Grabber manuell angestoßen von {ctx.author.id}")
+        try:
+            res = await run_grabber()
+        except Exception as e:
+            logger.error(f"❌ grab_now error: {e}", exc_info=True)
+            await ctx.respond(l10n.get("general_error", lang), ephemeral=True)
+            return
+
+        if res.status == "locked":
+            msg = l10n.get("grab_locked", lang)
+        elif res.status == "timeout":
+            msg = l10n.get("grab_timeout", lang, seconds=GRABBER_TIMEOUT)
+        elif res.status == "failed":
+            msg = l10n.get("grab_failed", lang, code=res.returncode, tail=res.tail or "–")
+        else:
+            try:
+                await self._sync_shops_to_db()
+            except Exception as e:
+                logger.error(f"❌ grab_now reload error: {e}")
+                await ctx.respond(l10n.get("general_error", lang), ephemeral=True)
+                return
+            msg = l10n.get("grab_success", lang, duration=f"{res.duration:.0f}",
+                           summary=res.summary or "–")
+            # Folge-Jobs sofort statt erst zur nächsten :05 – sonst kämen Preis-/
+            # Verfügbarkeits-DMs zu den frischen Daten bis zu einer Stunde später.
+            tasks_cog = self.bot.get_cog("Tasks")
+            for key, attr in (("grab_followup_pipeline", "reload_shops_task"),
+                              ("grab_followup_availability", "check_availability")):
+                loop = getattr(tasks_cog, attr, None) if tasks_cog else None
+                if loop is None:
+                    continue
+                try:
+                    await loop()
+                    msg += "\n✅ " + l10n.get(key, lang)
+                except Exception as e:
+                    logger.error(f"❌ grab_now: {attr} fehlgeschlagen: {e}", exc_info=True)
+                    msg += "\n❌ " + l10n.get(key, lang) + f" – {str(e)[:80]}"
+        msg += "\n" + format_data_status(l10n, lang)
+        await ctx.respond(msg[:2000], ephemeral=True)
 
     # ── /uncanonical ──────────────────────────────────────────────────────────
     @discord.slash_command(

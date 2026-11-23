@@ -44,6 +44,7 @@ from utils.ai_parser import parse_with_ai
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from utils.localization import l10n, get_user_lang
 from utils.embeds import send_embeds, ADMIN_COLOR
+from utils.grabber_run import format_data_status
 
 logger = logging.getLogger(__name__)
 
@@ -147,9 +148,13 @@ class AdminCog(commands.Cog, name="Admin"):
             except Exception as e:
                 logger.error("run_jobs: %s (%s) fehlgeschlagen: %s", attr, cog_name, e, exc_info=True)
                 lines.append(f"❌ {label} – {str(e)[:80]}")
+        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         embed = discord.Embed(
             title="🔄 Hintergrund-Jobs einmalig ausgeführt",
-            description="\n".join(lines) + "\n\n*Wochen-Digest bewusst ausgenommen (fester Montags-Versand).*",
+            description="\n".join(lines)
+            + "\n\n" + format_data_status(l10n, lang)
+            + "\n" + l10n.get("reloadshops_hint", lang)
+            + "\n\n*Wochen-Digest bewusst ausgenommen (fester Montags-Versand).*",
             color=ADMIN_COLOR,
         )
         await ctx.followup.send(embed=embed, ephemeral=True)
