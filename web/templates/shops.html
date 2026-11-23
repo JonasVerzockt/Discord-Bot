@@ -1,0 +1,11 @@
+{% extends "base" %}{% block body %}
+<h2 style="margin-bottom:6px">{{ t('dir_shops_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('dir_shops_intro') }}</p>
+<input id=dirfilter type=search placeholder="{{ t('dir_shops_search') }}" autocomplete=off style="max-width:420px">
+<table id=dirlist style="margin-top:10px"><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_rating') }}</th><th>{{ t('dir_col_species') }}</th><th>{{ t('dir_col_instock') }}</th></tr>
+{% for s in items %}<tr data-q="{{ (s.name ~ ' ' ~ s.domain)|lower }}"><td><a href="/shop/{{ s.domain|urlencode }}{{ qs() }}">{{ s.name }}</a>{% if s.partner %} 🤝{% endif %}<div class=muted style="font-size:12px">{{ s.domain }}</div></td>
+<td>{% if s.avg is not none %}⭐ {{ '%.2f'|format(s.avg) }} <span class=muted>({{ s.n }})</span>{% else %}<span class=muted>–</span>{% endif %}</td>
+<td>{{ s.species or '–' }}</td><td>{{ s.instock or '–' }}</td></tr>{% endfor %}
+</table>
+{{ filter_js|safe }}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base" %}{% block body %}
+<h2>{{ heading }}</h2>
+{% if is_example %}<div class=flash>{{ t('legal_draft_note') }}</div>{% endif %}
+<p class=muted>{{ t('legal_lang_note') }}</p>
+<div class="legal">{{ body|safe }}</div>
+{% if show_contact %}
+<div class="legal" id=kontakt style="margin-top:18px">
+ <h3>{{ t('contact_h') }}</h3>
+ <div class=flash style="max-width:640px">{{ t('contact_intro')|safe }}</div>
+ <form method=post action="/impressum/contact?lang={{ lang }}" style="max-width:640px">
+  <label>{{ t('contact_name') }}</label><input name=name maxlength=80 required>
+  <label>{{ t('contact_email') }}</label><input name=email type=email maxlength=120 required>
+  <label>{{ t('contact_tel') }}</label><input name=tel maxlength=40>
+  <label>{{ t('contact_msg') }}</label><textarea name=message rows=5 maxlength=2000 required></textarea>
+  <label>{{ t('contact_captcha', q=captcha_q) }}</label><input name=captcha maxlength=6 required autocomplete=off inputmode=numeric>
+  <input type=hidden name=captcha_sig value="{{ captcha_sig }}">
+  <input class=hp type=text name=website tabindex=-1 autocomplete=off>
+  <div style="margin-top:12px"><button class=btn>{{ t('contact_send') }}</button></div>
+  <p class=muted style="margin-top:8px">{{ t('contact_privacy') }} <a href="/datenschutz?lang={{ lang }}">{{ t('nav_privacy') }}</a></p>
+ </form>
+</div>
+{% endif %}
+{% endblock %}

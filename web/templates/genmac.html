@@ -1,0 +1,25 @@
+{% macro genlist(gid, groups, total, filter_id, q='') %}
+<p style="margin:10px 0 4px"><a href="#" data-gall="{{ gid }}" data-open=1>{{ t('dir_expand_all') }}</a> · <a href="#" data-gall="{{ gid }}" data-open=0>{{ t('dir_collapse_all') }}</a> <span id="{{ gid }}-cnt" class=muted style="font-size:12px;margin-left:8px"></span></p>
+<div id="{{ gid }}" data-genlist data-filter="{{ filter_id }}" data-total="{{ total }}">{% for genus, rows in groups %}
+<details class=gen style="border-bottom:1px solid #21262d;padding:4px 0"{% if q %} open{% endif %}>
+ <summary style="cursor:pointer"><i>{{ genus }}</i> <span class=muted style="font-size:12px">· {{ t('dir_species_count', n=rows|length) }}{% set gi = rows|selectattr('instock')|list|length %}{% if gi %} · {{ t('dir_instock_species', n=gi) }}{% endif %}</span></summary>
+ <div class=raritygrid style="font-style:normal;margin:4px 0 6px 14px">{% for r in rows %}<div data-q="{{ r.name|lower }}"><a href="/art/{{ r.name|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ r.name }}</i></a>{% if r.note %} <span class=rshop>· {{ r.note }}</span>{% endif %}</div>{% endfor %}</div>
+</details>{% endfor %}</div>
+<script>(function(){
+ var box=document.getElementById("{{ gid }}"); if(!box) return;
+ var inp=document.getElementById(box.getAttribute("data-filter")), cnt=document.getElementById("{{ gid }}-cnt"),
+     gens=box.querySelectorAll("details.gen"), total=box.getAttribute("data-total");
+ function apply(){
+  var q=(inp?inp.value:"").trim().toLowerCase(), shown=0;
+  gens.forEach(function(d){
+   var hit=0; d.querySelectorAll("[data-q]").forEach(function(r){
+    var ok=!q||r.getAttribute("data-q").indexOf(q)>=0; r.style.display=ok?"":"none"; if(ok) hit++;});
+   d.style.display=hit?"":"none"; if(q) d.open=hit>0; shown+=hit;});
+  if(cnt) cnt.textContent=q?shown+" / "+total:"";
+ }
+ document.querySelectorAll('[data-gall="{{ gid }}"]').forEach(function(a){a.addEventListener("click",function(e){
+  e.preventDefault(); var o=a.getAttribute("data-open")==="1";
+  gens.forEach(function(d){if(d.style.display!=="none") d.open=o;});});});
+ if(inp){inp.addEventListener("input",apply); apply();}
+})();</script>
+{% endmacro %}

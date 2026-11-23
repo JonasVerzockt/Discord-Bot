@@ -1,0 +1,290 @@
+{% extends "base" %}{% block body %}
+<style>
+ .kt td,.kt th{font-size:14px} .kt th{color:#8b949e;font-weight:600;font-size:12px}
+ .kform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:10px 0}
+ .kform label{margin:0 0 3px} .kform>div{min-width:150px;flex:1}
+ .kform .chk{display:flex;gap:6px;align-items:center;flex:0 0 auto;min-width:0;color:#c9d1d9;font-size:14px;margin:0}
+ .kform .chk input,.kchk input{width:auto}
+ .kchk{display:inline-flex;gap:6px;align-items:center;margin:2px 14px 2px 0;color:#c9d1d9;font-size:14px}
+ .inl{display:inline} .inl button{margin:1px 0}
+ .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;border:1px solid #30363d}
+ .p-active{color:#3fb950;border-color:#3fb95066} .p-paused{color:#d29922;border-color:#d2992266} .p-done{color:#8b949e}
+ .bar{height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:4px} .bar i{display:block;height:100%;background:#238636}
+ .achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+ .ach{background:#0f141a;border:1px solid #21262d;border-radius:8px;padding:8px 10px} .ach.on{border-color:#3fb95066}
+ .ach .n{font-weight:600} .ach .d{color:#8b949e;font-size:12px}
+ .hist div{padding:5px 0;border-bottom:1px solid #161b22;font-size:14px} .hist .w{color:#8b949e;font-size:12px;margin-right:8px;white-space:nowrap}
+ .codebox{font:600 20px ui-monospace,monospace;background:#0d1117;border:1px dashed #58a6ff;border-radius:8px;padding:8px 14px;display:inline-block;letter-spacing:1px}
+ .danger{border-color:#8b2b2b !important}
+ .kdanger{display:none !important} .kunlocked .kdanger{display:inline-block !important} .kunlocked .kdanger.kb{display:block !important}
+ .kunlocked .klocked{display:none !important}
+ .kunlock{display:flex;gap:10px;align-items:flex-start;background:#8b2b2b22;border:1px solid #8b2b2b;border-radius:8px;padding:10px 12px;margin:10px 0 4px;cursor:pointer}
+ .kunlock input{width:auto;margin-top:4px} .kunlock b{display:block}
+ .kt input,.kt select{padding:4px 6px}
+ @media(max-width:700px){.kt .hm{display:none}}
+</style>
+{% if former %}
+<div style="max-width:640px;margin:30px auto;text-align:center"><div style="font-size:50px">👋</div>
+<h2 style="margin:6px 0">{{ t('konto_left_h') }}</h2><p class=muted>{{ t('konto_left_text') }}</p>
+{% if invite_url %}<div class=chartbox style="text-align:left"><h4>🐜 {{ t('konto_left_join_h') }}</h4><p style="margin:0 0 10px">{{ t('konto_left_join_text') }}</p>
+ <a class=btn href="{{ invite_url }}" target=_blank rel="noopener noreferrer">{{ t('konto_left_join_btn') }}</a></div>{% endif %}
+<div class="chartbox danger" style="text-align:left"><h4>🗑️ {{ t('konto_left_del_h') }}</h4><p style="margin:0 0 10px">{{ t('konto_left_del_text') }}</p>
+ <form method=post action="/konto/loeschen{{ qs() }}" onsubmit="return confirm({{ t('konto_confirm_all')|tojson }})"><input type=hidden name=csrf value="{{ csrf }}"><input type=hidden name=area value=all>
+  <span class=kchk><input type=checkbox name=sure value=1 required> {{ t('konto_delete_all_sure') }}</span>
+  <p style="margin:10px 0 0"><button class="btn red">{{ t('konto_delete_all') }}</button></p></form>
+ <p class=muted style="margin:10px 0 0">{{ t('konto_delete_note', d=log_days) }}</p></div>
+<p class=muted><a href="/map/logout{{ qs() }}">{{ t('konto_left_logout') }}</a></p>
+</div>
+{% elif not uid %}
+<div style="max-width:620px;margin:30px auto;text-align:center"><div style="font-size:50px">👤</div>
+<h2 style="margin:6px 0">{{ t('konto_h') }}</h2><p class=muted>{{ t('konto_login_text') }}</p>
+{% if login_url %}<p><a class=btn href="{{ login_url }}">{{ t('dir_login_btn') }}</a></p>{% else %}<div class=flash>{{ t('konto_login_off') }}</div>{% endif %}
+</div>
+{% else %}
+{% macro cs() %}<input type=hidden name=csrf value="{{ csrf }}">{% endmacro %}
+{% macro ul() %}<input type=hidden name=unlock value="" class=kul>{% endmacro %}
+{% macro act(a) %}/konto/{{ a }}{{ qs() }}{% endmacro %}
+<h2 style="margin-bottom:4px">👤 {{ t('konto_h') }}{% if member_name %} · {{ member_name }}{% endif %}</h2>
+<p class=muted style="margin-top:0">🔒 {{ t('konto_intro') }}</p>
+<label class=kunlock for=kunlock><input type=checkbox id=kunlock autocomplete=off><span><b>🗑️ {{ t('konto_unlock_t') }}</b><span class=muted>{{ t('konto_unlock_s') }}</span></span></label>
+<script>(function(){var c=document.getElementById("kunlock");c.checked=false;function u(){document.body.classList.toggle("kunlocked",c.checked);document.querySelectorAll(".kul").forEach(function(i){i.value=c.checked?"1":"";});}c.addEventListener("change",u);window.addEventListener("pageshow",function(){c.checked=false;u();});u();})();</script>
+<nav class=secnav>
+ <a href="#uebersicht">{{ t('konto_s_overview') }}</a><a href="#benachrichtigungen">{{ t('konto_s_notif') }}</a><a href="#preise">{{ t('konto_s_prices') }}</a><a href="#einstellungen">{{ t('konto_s_settings') }}</a><a href="#schwarmflug">{{ t('konto_s_swarm') }}</a><a href="#termine">{{ t('konto_s_events') }}</a><a href="#karte">{{ t('konto_s_map') }}</a><a href="#inat">{{ t('konto_s_inat') }}</a><a href="#erfolge">{{ t('konto_s_ach') }}</a><a href="#bewertungen">{{ t('konto_s_reviews') }}</a><a href="#verlauf">{{ t('konto_s_history') }}</a><a href="#daten">{{ t('konto_s_data') }}</a>
+</nav>
+
+<section class=statsec id=uebersicht><h3>📋 {{ t('konto_s_overview') }}</h3>
+<div class=kpigrid>
+ <a class=kpi href="#benachrichtigungen" style="text-decoration:none"><div class=v>{{ n_active }}</div><div class=l>🔔 {{ t('konto_k_notif') }}</div></a>
+ <a class=kpi href="#preise" style="text-decoration:none"><div class=v>{{ d.tracked|length }}</div><div class=l>📈 {{ t('konto_k_tracked') }}</div></a>
+ <a class=kpi href="#preise" style="text-decoration:none"><div class=v>{{ d.watches|length }}</div><div class=l>🔭 {{ t('konto_k_watches') }}</div></a>
+ <a class=kpi href="#einstellungen" style="text-decoration:none"><div class=v>{{ d.keywords|length }}</div><div class=l>🛒 {{ t('konto_k_keywords') }}</div></a>
+ <a class=kpi href="#termine" style="text-decoration:none"><div class=v>{{ d.rsvps|length }}</div><div class=l>📅 {{ t('konto_k_events') }}</div></a>
+ {% if d.rank %}<a class=kpi href="#erfolge" style="text-decoration:none"><div class=v>{{ d.rank.emoji }} {{ d.rank.n }}/{{ d.rank.total }}</div><div class=l>🏅 {{ d.rank.name }}</div></a>{% endif %}
+ <a class=kpi href="#inat" style="text-decoration:none"><div class=v>{{ d.inat_year.species }}</div><div class=l>🔬 {{ t('konto_k_inat', y=year) }}</div></a>
+ <a class=kpi href="#bewertungen" style="text-decoration:none"><div class=v>{{ n_reviews_year }}</div><div class=l>⭐ {{ t('konto_k_reviews', y=year) }}</div></a>
+</div>
+{% if d.ai %}<div class=chartbox><h4>🤖 {{ t('konto_ai_h') }}</h4>
+ <p style="margin:2px 0">{{ t('konto_ai_text', p=d.ai.pct) }}</p>
+ <div class=bar style="max-width:420px"><i style="width:{{ d.ai.pct }}%;{% if d.ai.pct >= 90 %}background:#d29922{% endif %}"></i></div>
+ <p class=muted style="margin:6px 0 0">{{ t('konto_ai_reset', r=d.ai.reset) }}{% if d.ai.global_pct >= 90 %} · {{ t('konto_ai_global', p=d.ai.global_pct) }}{% endif %}</p>
+</div>{% endif %}
+{% if quiet_now %}<div class=flash style="margin-top:12px">🌙 {{ t('konto_quiet_now', s=d.prefs.quiet_start, e=d.prefs.quiet_end) }}</div>{% endif %}
+</section>
+
+<section class=statsec id=benachrichtigungen><h3>🔔 {{ t('konto_s_notif') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_notif_intro') }}</p>
+{% if d.notifications %}<table class=kt><tr><th>{{ t('konto_col_species') }}</th><th>{{ t('konto_col_regions') }}</th><th>{{ t('konto_col_status') }}</th><th class=hm>{{ t('konto_col_since') }}</th><th></th></tr>
+{% for n in d.notifications %}<tr>
+ <td><i>{{ n.species }}</i>{% if n.excluded_species %}<div class=muted>{{ t('konto_excl') }}: {{ n.excluded_species }}</div>{% endif %}</td>
+ <td>{{ n.regions|replace(',', ', ')|upper }}</td>
+ <td><span class="pill {{ 'p-active' if n.status == 'active' else ('p-paused' if n.status == 'paused' else 'p-done') }}">{{ t('konto_st_' ~ (n.status if n.status in sts else 'other')) }}</span>{% if n.notified_at %}<div class=muted>{{ t('konto_notified') }} {{ n.notified_at|dmy }}</div>{% endif %}</td>
+ <td class=hm>{{ n.created_at|dmy }}</td>
+ <td style="white-space:nowrap">
+  <form class=inl method=post action="{{ act('benachrichtigung') }}">{{ cs() }}{{ ul() }}<input type=hidden name=id value="{{ n.id }}">
+  {% if n.status == 'active' %}<button class="btn grey small" name=do value=pause>⏸️ {{ t('konto_pause') }}</button>
+  {% else %}<button class="btn small" name=do value=resume>▶️ {{ t('konto_resume') }}</button>{% endif %}
+  <button class="btn red small kdanger" name=do value=delete onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form>
+ </td></tr>{% endfor %}</table>
+{% else %}<p>{{ t('konto_notif_none') }}</p>{% endif %}
+<details class=chartbox {% if open_form == 'notif' %}open{% endif %}><summary style="cursor:pointer;font-weight:600">➕ {{ t('konto_notif_new') }}</summary>
+<form method=post action="{{ act('benachrichtigung/neu') }}">{{ cs() }}
+ <div class=kform>
+  <div style="flex:0 0 auto;min-width:0"><label>{{ t('konto_kind') }}</label>
+   <span class=kchk><input type=radio name=kind value=species {% if form.kind != 'genus' %}checked{% endif %}> {{ t('konto_kind_species') }}</span>
+   <span class=kchk><input type=radio name=kind value=genus {% if form.kind == 'genus' %}checked{% endif %}> {{ t('konto_kind_genus') }}</span></div>
+  <div style="flex:2"><label>{{ t('konto_name') }}</label><input name=name list=kspecies required maxlength=80 value="{{ form.name or '' }}" placeholder="Messor barbarus"></div>
+  <div style="flex:2"><label>{{ t('konto_exclude') }}</label><input name=exclude maxlength=300 value="{{ form.exclude or '' }}" placeholder="Messor structor, …"></div>
+ </div>
+ <label>{{ t('konto_regions') }}</label>
+ <div>{% for code, label in regions %}<span class=kchk><input type=checkbox name=region value="{{ code }}" {% if code in form.regions %}checked{% endif %}> {{ label }}</span>{% endfor %}</div>
+ <div class=kform>
+  <span class=chk><input type=checkbox name=swiss value=1 {% if form.swiss %}checked{% endif %}> 🇨🇭 {{ t('konto_swiss') }}</span>
+  <span class=chk><input type=checkbox name=force value=1> {{ t('konto_force') }}</span>
+  <button class=btn>{{ t('konto_create') }}</button>
+ </div>
+ <p class=muted style="margin:0">{{ t('konto_notif_hint') }}</p>
+</form></details>
+</section>
+
+<section class=statsec id=preise><h3>📈 {{ t('konto_s_prices') }}</h3>
+<h4 style="margin:4px 0 6px">{{ t('konto_tracked_h') }}</h4>
+{% if d.tracked %}<table class=kt><tr><th>{{ t('konto_col_product') }}</th><th class=hm>{{ t('konto_col_shop') }}</th><th>{{ t('konto_col_price') }}</th><th>{{ t('konto_col_target') }}</th><th></th></tr>
+{% for p in d.tracked %}<tr>
+ <td>{% if p.product_url %}<a href="{{ p.product_url }}" target=_blank rel="noopener noreferrer">{{ p.product_title or p.species }}</a>{% else %}{{ p.product_title or p.species }}{% endif %}{% if p.variant_title %}<div class=muted>{{ p.variant_title }}</div>{% endif %}</td>
+ <td class=hm>{{ p.shop_name }}</td>
+ <td style="white-space:nowrap">{% if p.last_notified_min is not none %}{{ '%.2f'|format(p.last_notified_min) }}{% if p.last_notified_max and p.last_notified_max != p.last_notified_min %}–{{ '%.2f'|format(p.last_notified_max) }}{% endif %} {{ p.currency_iso }}{% else %}–{% endif %}</td>
+ <td><form class=inl method=post action="{{ act('zielpreis') }}">{{ cs() }}<input type=hidden name=pid value="{{ p.product_id }}"><input type=hidden name=vid value="{{ p.variant_id }}">
+  <input name=price inputmode=decimal style="width:80px" value="{{ ('%.2f'|format(p.target_price)) if p.target_price is not none else '' }}" placeholder="{{ p.currency_iso }}">
+  <select name=mode style="width:auto"><option value=additional {% if p.target_mode != 'replace' %}selected{% endif %}>{{ t('konto_mode_add') }}</option><option value=replace {% if p.target_mode == 'replace' %}selected{% endif %}>{{ t('konto_mode_replace') }}</option></select>
+  <button class="btn grey small">🎯</button></form></td>
+ <td><form class="inl kdanger" method=post action="{{ act('preis/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=pid value="{{ p.product_id }}"><input type=hidden name=vid value="{{ p.variant_id }}"><button class="btn red small" onclick="return confirm({{ t('konto_confirm_del')|tojson }})">🗑️</button></form></td>
+</tr>{% endfor %}</table>
+<p class=muted>{{ t('konto_target_hint') }}</p>
+{% else %}<p>{{ t('konto_tracked_none') }}</p>{% endif %}
+
+<div class=chartbox id=produktsuche><h4>➕ {{ t('konto_track_new') }}</h4>
+<form method=get action="/konto#produktsuche" class=kform><input type=hidden name=lang value="{{ lang }}">
+ <div style="flex:3"><label>{{ t('konto_name') }}</label><input name=ps list=kspecies required maxlength=80 value="{{ ps or '' }}" placeholder="Lasius niger"></div>
+ <button class="btn grey">🔎 {{ t('konto_search') }}</button></form>
+{% if ps %}{% if ps_results %}
+<form method=post action="{{ act('preis/neu') }}">{{ cs() }}<input type=hidden name=species value="{{ ps }}">
+<table class=kt><tr><th></th><th>{{ t('konto_col_product') }}</th><th class=hm>{{ t('konto_col_shop') }}</th><th>{{ t('konto_col_price') }}</th></tr>
+{% for r in ps_results %}<tr><td><input type=checkbox name=sel value="{{ r.key }}" style="width:auto" {% if r.tracked %}checked disabled{% endif %}></td>
+ <td>{{ r.title }}{% if r.tracked %} <span class=muted>({{ t('konto_already') }})</span>{% endif %}</td><td class=hm>{{ r.shop }}</td>
+ <td style="white-space:nowrap">{{ r.price }} {% if r.stock %}✅{% else %}❌{% endif %}</td></tr>{% endfor %}</table>
+{% if ps_more %}<p class=muted>{{ t('konto_ps_more', n=ps_more) }}</p>{% endif %}
+<p><button class=btn>{{ t('konto_track_btn') }}</button> <span class=muted>{{ t('konto_track_variants') }}</span></p></form>
+{% else %}<p>{{ t('konto_ps_none', q=ps) }}</p>{% endif %}{% endif %}
+</div>
+
+<h4 style="margin:16px 0 6px">{{ t('konto_watches_h') }}</h4>
+<p class=muted style="margin-top:0">{{ t('konto_watches_intro') }}</p>
+{% if d.watches %}<div>{% for w in d.watches %}<form class=inl method=post action="{{ act('beobachtung/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=species value="{{ w.species }}"><span class=tag style="font-size:13px;padding:3px 8px"><i>{{ w.species|capitalize }}</i>{% if w.is_genus %} ({{ t('konto_kind_genus') }}){% endif %} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>
+{% else %}<p>{{ t('konto_watches_none') }}</p>{% endif %}
+<form method=post action="{{ act('beobachtung/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>{{ t('konto_watch_new') }}</label><input name=species list=kspecies required maxlength=80 placeholder="Camponotus"></div>
+ <button class="btn grey">🔭 {{ t('konto_watch_btn') }}</button></form>
+</section>
+
+<section class=statsec id=einstellungen><h3>⚙️ {{ t('konto_s_settings') }}</h3>
+<form method=post action="{{ act('einstellungen') }}">{{ cs() }}
+ <div class=kform>
+  <div style="flex:0 0 220px"><label>{{ t('konto_lang') }}</label><select name=language>
+   <option value="" {% if not d.language %}selected{% endif %}>{{ t('konto_lang_server') }}</option>
+   {% for c, n in [('de','Deutsch'),('en','English'),('eo','Esperanto')] %}<option value="{{ c }}" {% if d.language == c %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+ </div>
+ <div><span class=kchk><input type=checkbox name=digest value=1 {% if d.digest %}checked{% endif %}> 📰 {{ t('konto_digest') }}</span></div>
+ <div><span class=kchk><input type=checkbox name=rsvp value=1 {% if d.prefs.rsvp_reminder %}checked{% endif %}> 📅 {{ t('konto_rsvp') }}</span></div>
+ <div><span class=kchk><input type=checkbox name=intros value=1 {% if d.prefs.intros %}checked{% endif %}> 🎬 {{ t('konto_intros') }}</span></div>
+ <div class=kform>
+  <span class=chk><input type=checkbox name=quiet value=1 {% if d.prefs.quiet_start is not none %}checked{% endif %}> 🌙 {{ t('konto_quiet') }}</span>
+  <div style="flex:0 0 110px"><label>{{ t('konto_quiet_from') }}</label><select name=qs>{% for h in range(24) %}<option value="{{ h }}" {% if h == (d.prefs.quiet_start if d.prefs.quiet_start is not none else 22) %}selected{% endif %}>{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
+  <div style="flex:0 0 110px"><label>{{ t('konto_quiet_to') }}</label><select name=qe>{% for h in range(24) %}<option value="{{ h }}" {% if h == (d.prefs.quiet_end if d.prefs.quiet_end is not none else 7) %}selected{% endif %}>{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
+ </div>
+ <p class=muted style="margin:0 0 8px">{{ t('konto_quiet_hint') }}</p>
+ <button class=btn>{{ t('konto_save') }}</button>
+</form>
+
+<h4 style="margin:18px 0 6px">🚫 {{ t('konto_bl_h') }}</h4>
+<p class=muted style="margin-top:0">{{ t('konto_bl_intro') }}</p>
+{% if blacklist %}<div>{% for sid, sname in blacklist %}<form class=inl method=post action="{{ act('blacklist/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=shop value="{{ sid }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ sname }} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_bl_none') }}</p>{% endif %}
+<form method=post action="{{ act('blacklist/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>{{ t('konto_bl_add') }}</label><select name=shop required><option value="">…</option>{% for sid, sname in shops %}<option value="{{ sid }}">{{ sname }}</option>{% endfor %}</select></div>
+ <button class="btn grey">{{ t('konto_add') }}</button></form>
+
+<h4 style="margin:18px 0 6px">🛒 {{ t('konto_kw_h') }}</h4>
+<p class=muted style="margin-top:0">{{ t('konto_kw_intro', n=kw_max) }}</p>
+{% if d.keywords %}<div>{% for k in d.keywords %}<form class=inl method=post action="{{ act('schlagwort/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=kw value="{{ k.keyword }}"><span class=tag style="font-size:13px;padding:3px 8px">{{ k.keyword_raw or k.keyword }} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_kw_none') }}</p>{% endif %}
+{% if kw_enabled %}<form method=post action="{{ act('schlagwort/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>{{ t('konto_kw_add') }}</label><input name=kw required maxlength=400 placeholder="Lasius niger, Formicarium"></div>
+ <button class="btn grey">{{ t('konto_add') }}</button></form>{% endif %}
+</section>
+
+<section class=statsec id=schwarmflug><h3>🪽 {{ t('konto_s_swarm') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_sw_intro') }} <a href="/schwarmflug{{ qs() }}">{{ t('nav_swarm') }} →</a></p>
+{% if d.swarm_alerts %}<div>{% for a in d.swarm_alerts %}<form class=inl method=post action="{{ act('schwarm/entfernen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=taxon value="{{ a.taxon }}"><input type=hidden name=country value="{{ a.country }}"><input type=hidden name=region value="{{ a.region }}"><span class=tag style="font-size:13px;padding:3px 8px">{% if a.taxon == '*' %}🎉 {{ t('konto_sw_start') }}{% else %}<i>{{ a.taxon }}</i> · {{ sw_where(a.country, a.region) }}{% endif %} <button class="btn red small kdanger" style="padding:0 5px" title="{{ t('konto_remove') }}">✕</button></span></form> {% endfor %}</div>{% else %}<p>{{ t('konto_sw_none') }}</p>{% endif %}
+{% if sw_enabled and not sw_start_on %}<p style="margin:10px 0 0"><form method=post action="{{ act('schwarm/neu') }}" class=inl>{{ cs() }}<input type=hidden name=taxon value="*"><input type=hidden name=where value=""><button class="btn grey small">🎉 {{ t('konto_sw_start_btn') }}</button></form> <span class=muted style="font-size:13px">{{ t('konto_sw_start_d') }}</span></p>{% endif %}
+{% if sw_enabled and fc_enabled %}<form method=post action="{{ act('schwarm/prognose') }}" class=kform>{{ cs() }}
+ <div style="flex:3"><label>🔮 {{ t('konto_fc_h') }}</label><select name=level>{% for v in ('off', 'rare', 'normal', 'often') %}<option value="{{ v }}" {{ 'selected' if d.swarm_fc == v }}>{{ t('konto_fc_' ~ v) }}</option>{% endfor %}</select></div>
+ <button class="btn grey">{{ t('konto_fc_save') }}</button></form>{% endif %}
+{% if sw_enabled %}<form method=post action="{{ act('schwarm/neu') }}" class=kform>{{ cs() }}
+ <div style="flex:2"><label>{{ t('konto_sw_taxon') }}</label><input name=taxon required maxlength=60 list=kspecies placeholder="Lasius niger, Camponotus"></div>
+ <div style="flex:2"><label>{{ t('konto_sw_region') }}</label><select name=where>{% for v, lbl in sw_regions %}<option value="{{ v }}" {{ 'selected' if v==sw_default }}>{{ lbl }}</option>{% endfor %}</select></div>
+ <button class="btn grey">{{ t('konto_add') }}</button></form>{% endif %}
+{% if d.swarm_mine %}<details><summary class=muted style="cursor:pointer">{{ t('konto_sw_mine', n=d.swarm_mine|length) }}</summary>
+<table class=kt>{% for r in d.swarm_mine %}<tr><td>{{ r.flight_date|dmy }}</td><td><i>{{ r.label }}</i></td><td>{{ sw_where(r.country, r.region) if r.region else '' }}</td><td class=muted>{{ r.place }}</td></tr>{% endfor %}</table></details>{% endif %}
+</section>
+
+<section class=statsec id=termine><h3>📅 {{ t('konto_s_events') }}</h3>
+{% if d.rsvps %}<table class=kt><tr><th>{{ t('konto_col_date') }}</th><th>{{ t('konto_col_event') }}</th><th class=hm>{{ t('konto_col_place') }}</th><th></th></tr>
+{% for r in d.rsvps %}<tr><td style="white-space:nowrap">{{ r.occ_date|dmy }}{% if not r.all_day and r.start_at %}<div class=muted>{{ r.start_at[11:16] }}</div>{% endif %}</td>
+ <td>{{ r.title }}{% if r.url %} <a href="{{ r.url }}" target=_blank rel="noopener noreferrer">🔗</a>{% endif %}</td>
+ <td class=hm>{{ r.venue or '' }}{% if r.country %} ({{ r.country|upper }}){% endif %}</td>
+ <td style="white-space:nowrap"><a class="btn grey small" href="/map/events/{{ r.event_id }}.ics">📥</a>
+  <form class="inl kdanger" method=post action="{{ act('termin/absagen') }}">{{ cs() }}{{ ul() }}<input type=hidden name=eid value="{{ r.event_id }}"><input type=hidden name=occ value="{{ r.occ_date }}"><button class="btn red small">{{ t('konto_cancel') }}</button></form></td></tr>{% endfor %}</table>
+{% else %}<p>{{ t('konto_events_none') }} <a href="/map{{ qs() }}">{{ t('nav_map') }}</a></p>{% endif %}
+<div class=chartbox><h4>🗓️ {{ t('konto_ics_h') }}</h4>
+ <p class=muted style="margin-top:0">{{ t('konto_ics_intro') }}</p>
+ {% if ics_url %}<input readonly value="{{ ics_url }}" onclick="this.select()" style="margin-bottom:8px">
+ <a class="btn grey small" href="{{ webcal_url }}">{{ t('konto_ics_subscribe') }}</a>{% endif %}
+ <form class=inl method=post action="{{ act('kalender/neu') }}">{{ cs() }}<button class="btn grey small">{{ t('konto_ics_new' if ics_url else 'konto_ics_create') }}</button></form>
+</div>
+</section>
+
+<section class=statsec id=karte><h3>🗺️ {{ t('konto_s_map') }}</h3>
+{% if d.map %}
+ <p style="margin:2px 0">{{ t('konto_map_where') }}: <b>{{ map_country }}</b>{% if d.map.region_name %} · {{ d.map.region_name }}{% endif %}{% if d.map.plz_prefix %} · PLZ {{ d.map.plz_prefix }}…{% endif %}</p>
+ <p class=muted style="margin:2px 0">{{ t('konto_map_vis_' ~ ('pin' if d.map.show_entry else 'count')) }} · {{ t('konto_map_name_' ~ ('on' if d.map.show_name else 'off')) }} · {{ t('konto_map_contact_' ~ ('on' if d.map.contact_ok else 'off')) }}{% if d.map.last_confirmed_at %} · {{ t('konto_map_confirmed') }} {{ d.map.last_confirmed_at|dmy }}{% endif %}</p>
+ <form method=post action="{{ act('karte/tags') }}">{{ cs() }}
+ {% for g in tag_groups %}<label>{{ g.label }}</label><div>{% for c, l in g.tags %}<span class=kchk><input type=checkbox name=tag value="{{ c }}" {% if c in d.map_tags %}checked{% endif %}> {{ l }}</span>{% endfor %}</div>{% endfor %}
+ <p><button class="btn grey">{{ t('konto_map_tags_save') }}</button></p></form>
+ <p class=muted>{{ t('konto_map_change') }}</p>
+ <form class="kdanger kb" method=post action="{{ act('karte/loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_map')|tojson }})">{{ cs() }}{{ ul() }}<button class="btn red">🗑️ {{ t('konto_map_delete') }}</button></form>
+{% else %}<p>{{ t('konto_map_none') }}</p>{% endif %}
+</section>
+
+<section class=statsec id=inat><h3>🔬 {{ t('konto_s_inat') }}</h3>
+{% if d.inat %}
+ <p>{{ t('konto_inat_linked') }} <a href="https://www.inaturalist.org/people/{{ d.inat.inat_login|urlencode }}" target=_blank rel="noopener noreferrer"><b>{{ d.inat.inat_login }}</b></a></p>
+ <div class=kpigrid>
+  <div class=kpi><div class=v>{{ d.inat_year.species }}</div><div class=l>{{ t('konto_inat_species_y', y=year) }}</div></div>
+  <div class=kpi><div class=v>{{ d.inat_year.obs }}</div><div class=l>{{ t('konto_inat_obs_y', y=year) }}</div></div>
+  <div class=kpi><div class=v>{{ d.inat_all.species }}</div><div class=l>{{ t('konto_inat_species_all') }}</div></div>
+ </div>
+ {% if d.inat_all.taxa %}<details style="margin-top:10px"><summary style="cursor:pointer">{{ t('konto_inat_taxa', n=d.inat_all.taxa|length) }}</summary><p>{% for x in d.inat_all.taxa %}<a href="/art/{{ x|replace(' ','_')|urlencode }}{{ qs() }}"><i>{{ x }}</i></a>{% if not loop.last %}, {% endif %}{% endfor %}</p></details>{% endif %}
+ <form method=post action="{{ act('inat/trennen') }}" style="margin-top:10px" onsubmit="return confirm({{ t('konto_confirm_inat')|tojson }})">{{ cs() }}<button class="btn red small">{{ t('konto_inat_unlink') }}</button></form>
+{% elif d.inat_pending %}
+ <p>{{ t('konto_inat_pending', login=d.inat_pending.inat_login) }}</p>
+ <ol><li>{{ t('konto_inat_step1') }} <a href="https://www.inaturalist.org/users/edit" target=_blank rel="noopener noreferrer">inaturalist.org/users/edit</a></li>
+ <li>{{ t('konto_inat_step2') }}<br><span class=codebox>{{ d.inat_pending.code }}</span></li><li>{{ t('konto_inat_step3') }}</li></ol>
+ <form method=post action="{{ act('inat/pruefen') }}" class=inl>{{ cs() }}<button class=btn>{{ t('konto_inat_check') }}</button></form>
+ <form method=post action="{{ act('inat/start') }}" class=kform>{{ cs() }}<div><label>{{ t('konto_inat_other') }}</label><input name=login maxlength=40 required></div><button class="btn grey">{{ t('konto_inat_start') }}</button></form>
+{% else %}
+ <p>{{ t('konto_inat_intro') }}</p>
+ <form method=post action="{{ act('inat/start') }}" class=kform>{{ cs() }}<div><label>{{ t('konto_inat_login') }}</label><input name=login maxlength=40 required placeholder="mein_inat_name"></div><button class=btn>{{ t('konto_inat_start') }}</button></form>
+{% endif %}
+</section>
+
+<section class=statsec id=erfolge><h3>🏅 {{ t('konto_s_ach') }}</h3>
+{% if d.rank %}<p>{{ d.rank.emoji }} <b>{{ d.rank.name }}</b> · {{ t('konto_ach_n', n=d.rank.n, total=d.rank.total) }}{% if d.rank.next %} · {{ t('konto_ach_next', n=d.rank.next - d.rank.n) }}{% endif %}</p>{% endif %}
+{% for cat, label in ach_cats %}{% set items = d.ach|selectattr('cat', 'equalto', cat)|list %}{% if items %}
+<h4 style="margin:12px 0 6px">{{ label }}</h4><div class=achgrid>
+{% for a in items %}{% if a.hidden and not a.unlocked %}<div class=ach><div class=n>🔒 ???</div><div class=d>{{ t('konto_ach_hidden') }}</div></div>
+{% else %}<div class="ach {{ 'on' if a.unlocked }}"><div class=n>{{ a.emoji }} {{ a.title }}{% if a.unlocked %} ✅{% endif %}</div><div class=d>{{ a.desc }}</div>
+ {% if a.unlocked %}{% if a.date %}<div class=d>{{ t('konto_ach_since') }} {{ a.date|dmy }}</div>{% endif %}{% else %}<div class=bar><i style="width:{{ (100 * a.cur / a.tgt)|round|int if a.tgt else 0 }}%"></i></div><div class=d>{{ a.cur }}/{{ a.tgt }}</div>{% endif %}</div>{% endif %}
+{% endfor %}</div>{% endif %}{% endfor %}
+</section>
+
+<section class=statsec id=bewertungen><h3>⭐ {{ t('konto_s_reviews') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_reviews_intro') }}</p>
+{% if d.reviews %}<table class=kt><tr><th>{{ t('konto_col_date') }}</th><th>{{ t('konto_col_shop') }}</th><th>{{ t('konto_col_rating') }}</th><th></th></tr>
+{% for r in d.reviews %}<tr><td>{{ r.review_date|dmy }}</td><td>{% if r.shop %}<a href="/shop/{{ r.shop|urlencode }}{{ qs() }}">{{ shop_names.get(r.shop, r.shop) }}</a>{% endif %}</td>
+ <td>{% if r.rating is not none %}⭐ {{ ('%g'|format(r.rating)) }}{% else %}–{% endif %}</td>
+ <td>{% if d.review_link %}<a href="{{ d.review_link }}{{ r.message_id }}" target=_blank rel="noopener noreferrer">{{ t('konto_to_msg') }}</a>{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p>{{ t('konto_reviews_none') }}</p>{% endif %}
+</section>
+
+<section class=statsec id=verlauf><h3>📨 {{ t('konto_s_history') }}</h3>
+<p class=muted style="margin-top:0">{{ t('konto_history_intro', d=dm_days, n=dm_max) }}</p>
+{% if d.history %}<div class=hist>{% for h in d.history %}<div><span class=w>{{ h.sent_at|berlin }}</span>{{ h.preview }}</div>{% endfor %}</div>
+{% else %}<p>{{ t('konto_history_none') }}</p>{% endif %}
+</section>
+
+<section class=statsec id=daten><h3>🛡️ {{ t('konto_s_data') }}</h3>
+<div class=chartbox><h4>📥 {{ t('konto_export_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_export_intro') }}</p>
+ <a class=btn href="/konto/daten.json{{ qs() }}">{{ t('konto_export_btn') }}</a></div>
+<div class=chartbox><h4>🔑 {{ t('konto_sessions_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_sessions_intro') }}</p>
+ <form method=post action="{{ act('abmelden') }}" onsubmit="return confirm({{ t('konto_confirm_logout')|tojson }})">{{ cs() }}<button class="btn grey">{{ t('konto_logout_all') }}</button></form></div>
+<div class="chartbox klocked" style="border-style:dashed">🔒 {{ t('konto_delete_locked') }} <a href="#kunlock">{{ t('konto_delete_locked_link') }}</a></div>
+<div class="chartbox danger kdanger kb"><h4>🗑️ {{ t('konto_delete_h') }}</h4><p class=muted style="margin-top:0">{{ t('konto_delete_intro') }}</p>
+ <table class=kt>{% for a in areas %}<tr><td><b>{{ t('konto_area_' ~ a) }}</b><div class=muted>{{ t('konto_area_' ~ a ~ '_d') }}</div></td>
+  <td style="white-space:nowrap;text-align:right"><form class=inl method=post action="{{ act('loeschen') }}" onsubmit="return confirm({{ t('konto_confirm_area')|tojson }})">{{ cs() }}{{ ul() }}<input type=hidden name=area value="{{ a }}"><button class="btn red small">{{ t('konto_delete_btn') }}</button></form></td></tr>{% endfor %}</table>
+ <form method=post action="{{ act('loeschen') }}" style="margin-top:14px" onsubmit="return confirm({{ t('konto_confirm_all')|tojson }})">{{ cs() }}{{ ul() }}<input type=hidden name=area value=all>
+  <span class=kchk><input type=checkbox name=sure value=1 required> {{ t('konto_delete_all_sure') }}</span>
+  <button class="btn red">{{ t('konto_delete_all') }}</button></form>
+ <p class=muted style="margin-bottom:0">{{ t('konto_delete_note', d=log_days) }}</p>
+</div>
+</section>
+<datalist id=kspecies>{% for s in species_names %}<option value="{{ s }}">{% endfor %}</datalist>
+{% endif %}
+{% endblock %}

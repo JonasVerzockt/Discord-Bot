@@ -20,6 +20,9 @@ cogs/map.py – Halter-Karte: Slash-Befehle + Events.
 Datenschutz: Opt-in, grob/gefuzzt, Discord-Name nie gespeichert (nur optional Vorname),
 U18 ohne Einzel-Sichtbarkeit (nur anonyme Zählung), Löschung bei Server-Austritt
 (siehe cogs/tasks.py), jährliche Bestätigung. Siehe dev-notes/map_feature_concept.md.
+
+Seit 5.0.0: Datenzugriff in utils/map_store.py, Termin-Logik (RRULE, nächstes Vorkommen)
+in utils/map_events.py – gemeinsam mit der Web-Karte (web/features/map.py, events.py).
 """
 import asyncio
 import logging
@@ -32,11 +35,13 @@ from config import MAP_ENABLED, MAP_JITTER_METERS, BOARD_OWNER_ID, BOARD_PUBLIC_
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils import geo, map_tags, map_geodata
+from utils.map_events import _recur_code, _row_dt, _rrule_from
+from utils.map_store import (MAX_EXTRA_REGIONS, _delete_entry, _event_row, _load_extra_regions,
+                             _region_label, _save_extra_regions)
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 
 logger = logging.getLogger(__name__)
 
-_WEEKDAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
 # Kanal, in dem neu freigegebene Termine angekündigt werden (fest eingetragen, keine .env nötig).
 EVENT_ANNOUNCE_CHANNEL_ID = 543529652413530123
@@ -134,29 +139,8 @@ class TagView(discord.ui.View):
 
 
 # ── „Auch aktiv in“: bis zu 2 weitere Regionen (nur Bundesland/Kanton, kein Ort) ─────
-MAX_EXTRA_REGIONS = 2
 _DACH_FLAGS = {"de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "li": "🇱🇮"}
 
-
-async def _load_extra_regions(bot, uid) -> list[tuple[str, str]]:
-    rows = await execute_db(bot, "SELECT country, region_code FROM map_entry_regions WHERE user_id=?",
-                            (str(uid),), fetch=True) or []
-    return [(r["country"], r["region_code"]) for r in rows]
-
-
-async def _save_extra_regions(bot, uid, pairs) -> None:
-    uid = str(uid)
-    await execute_db(bot, "DELETE FROM map_entry_regions WHERE user_id=?", (uid,), commit=True)
-    valid = geo.all_regions()
-    for cc, code in list(pairs)[:MAX_EXTRA_REGIONS]:
-        if code in valid.get(cc, {}):
-            await execute_db(bot,
-                "INSERT OR IGNORE INTO map_entry_regions (user_id, country, region_code) VALUES (?,?,?)",
-                (uid, cc, code), commit=True)
-
-
-def _region_label(cc: str, code: str) -> str:
-    return geo.all_regions().get(cc, {}).get(code, code)
 
 
 class MapExtrasView(discord.ui.View):
@@ -275,30 +259,6 @@ class MapConfirmView(discord.ui.View):
         await _delete_entry(bot, interaction.user.id)
         await interaction.response.edit_message(content=l10n.get("map_confirm_deleted", lang), view=None)
 
-
-async def _delete_entry(bot, uid):
-    uid = str(uid)
-    await execute_db(bot, "DELETE FROM map_entry_tags WHERE user_id=?", (uid,), commit=True)
-    await execute_db(bot, "DELETE FROM map_entry_regions WHERE user_id=?", (uid,), commit=True)
-    await execute_db(bot, "DELETE FROM map_entries WHERE user_id=?", (uid,), commit=True)
-
-
-async def _delete_rsvps(bot, uid):
-    """Alle Teilnahme-Angaben einer Person löschen (z. B. beim Server-Austritt)."""
-    await execute_db(bot, "DELETE FROM map_event_rsvp WHERE user_id=?", (str(uid),), commit=True)
-
-
-def _rrule_from(kind: str, dt: datetime) -> str | None:
-    if kind == "weekly":
-        return "FREQ=WEEKLY"
-    if kind == "monthly_day":
-        return f"FREQ=MONTHLY;BYMONTHDAY={dt.day}"
-    if kind == "monthly_weekday":
-        ordn = ((dt.day - 1) // 7) + 1
-        return f"FREQ=MONTHLY;BYDAY={ordn}{_WEEKDAYS[dt.weekday()]}"
-    if kind == "yearly":
-        return "FREQ=YEARLY"
-    return None
 
 
 # ── Geführte Abläufe (interaktiv) ─────────────────────────────────────────────
@@ -782,23 +742,7 @@ async def _submit_event(bot, user, d: dict):
 
 
 # ── Event-Freigabe: Admin-PN mit Buttons, Benachrichtigung der Einreichenden ─────
-def _recur_code(rrule) -> str:
-    """Gespeicherte RRULE -> Code der Wiederholungs-Auswahl (für Anzeige/Neuberechnung)."""
-    r = (rrule or "").upper()
-    if "FREQ=WEEKLY" in r:
-        return "weekly"
-    if "FREQ=MONTHLY" in r:
-        return "monthly_weekday" if "BYDAY" in r else "monthly_day"
-    if "FREQ=YEARLY" in r:
-        return "yearly"
-    return "none"
 
-
-def _row_dt(s):
-    try:
-        return datetime.fromisoformat(str(s).replace("T", " ")) if s else None
-    except ValueError:
-        return None
 
 
 def _event_when(row, until: str = "bis", notes: bool = True) -> str:
@@ -816,10 +760,6 @@ def _event_when(row, until: str = "bis", notes: bool = True) -> str:
             when += " (keine Endzeit)"
     return when
 
-
-async def _event_row(bot, eid):
-    rows = await execute_db(bot, "SELECT * FROM map_events WHERE id=?", (int(eid),), fetch=True)
-    return rows[0] if rows else None
 
 
 async def _event_admin_text(bot, row, lang: str) -> str:

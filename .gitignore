@@ -76,3 +76,8 @@ dev-notes/
 C*.md
 # ── Git-Credentials (Token, NIEMALS committen) ──────────────────────────────────
 .git-credentials
+
+# ── Tests ──
+.pytest_cache/
+# Excel-Exporte (z. B. Google-Sheet als Testdaten) – enthalten personenbezogene Daten
+*.xlsx

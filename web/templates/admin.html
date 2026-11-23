@@ -1,0 +1,29 @@
+{% extends "base" %}{% block body %}
+<h2>{{ t('queue_h', n=queue|length) }}</h2>
+{% if not queue %}<p class=muted>{{ t('nothing_review') }}</p>{% endif %}
+{% for c in queue %}<div class=card><span class="tag {{c.type}}">{{ type_label(c.type) }}</span> <b>{{ c.title }}</b>
+ <div class=muted>{{ c.body }}</div>
+ <form method=post action="/admin/{{c.id}}/approve?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small">{{ t('btn_approve') }}</button></form>
+ <form method=post action="/admin/{{c.id}}/reject?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small red">{{ t('btn_reject') }}</button></form>
+ <form method=post action="/admin/{{c.id}}/delete?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">{{ t('btn_delete') }}</button></form>
+</div>{% endfor %}
+<h2 style="margin-top:24px">{{ t('all_entries_h', n=items|length) }}</h2>
+<p class="muted legend">{{ t('legend_priority') }} <span class=tag>P0</span> {{ t('prio_p0') }} · <span class=tag>P1</span> {{ t('prio_p1') }} · <span class=tag>P2</span> {{ t('prio_p2') }} · <span class=tag>P3</span> {{ t('prio_p3') }} · {{ t('admin_legend_edit') }}</p>
+<table><tr><th>#</th><th>{{ t('th_title') }}</th><th>{{ t('th_status_meta') }}</th><th>▲</th><th></th></tr>
+{% for c in items if c.status!='pending' %}<tr><td>{{c.id}}</td>
+ <td><span class="tag {{c.type}}">{{ type_label(c.type) }}</span> {{ c.title }}</td>
+ <td><form method=post action="/admin/{{c.id}}/status?lang={{ lang }}"><input type=hidden name=csrf value="{{csrf}}"><div style="display:flex;gap:6px;flex-wrap:wrap">
+   <select name=status>{% for s in statuses %}<option value="{{s}}" {{'selected' if s==c.status}}>{{s}}</option>{% endfor %}</select>
+   <select name=priority>{% for p in priorities %}<option value="{{p}}" {{'selected' if p==c.priority}}>{{p or '–'}}</option>{% endfor %}</select>
+   <select name=component>{% for k in components %}<option value="{{k}}" {{'selected' if k==c.component}}>{{k or '–'}}</option>{% endfor %}</select>
+   <input name=version value="{{c.version}}" placeholder="{{ t('f_version') }}" style="width:90px">
+   <button class="btn small">{{ t('btn_save') }}</button></div></form></td>
+ <td>{{ c.upvotes }}</td>
+ <td style="white-space:nowrap"><a class="btn small" href="/admin/{{c.id}}/edit?lang={{ lang }}">✏️</a>
+   <form method=post action="/admin/{{c.id}}/delete?lang={{ lang }}" style="display:inline"><input type=hidden name=csrf value="{{csrf}}"><button class="btn small grey">🗑</button></form></td></tr>
+{% endfor %}</table>
+<h3 style="margin-top:24px">{{ t('csv_h') }}</h3>
+<form method=post action="/admin/import?lang={{ lang }}" enctype="multipart/form-data"><input type=hidden name=csrf value="{{csrf}}">
+ <input type=file name=file accept=".csv"> <button class="btn small">{{ t('csv_import') }}</button>
+ <div class=muted>{{ t('csv_help')|safe }}</div></form>
+{% endblock %}

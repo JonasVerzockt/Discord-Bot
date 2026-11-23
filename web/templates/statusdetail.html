@@ -1,0 +1,18 @@
+{% extends "base" %}{% block body %}
+<p><a href="/?lang={{ lang }}">{{ t('back_board') }}</a></p>
+<h2 style="margin-bottom:4px">🩺 {{ key }}</h2>
+{% if current %}<p><span class="dot {{ current.state }}" style="display:inline-block;vertical-align:middle"></span>
+ {{ t('current_label') }} <b>{{ current.state|upper }}</b> · {{ current.detail }}</p>{% endif %}
+<p class=muted>{{ t('inc_intro') }}</p>
+<h3 style="margin-top:16px">{{ t('inc_recent_h') }}</h3>
+{% if not incidents %}<p class=muted>{{ t('inc_none') }}</p>{% endif %}
+{% for inc in incidents %}<div class=card>
+ {% if admin %}<form method=post action="/status/incident/{{ inc.id }}/note?lang={{ lang }}" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=key value="{{ key }}">
+  <input name=note maxlength=500 value="{{ inc.admin_note }}" placeholder="{{ t('ph_admin_note') }}" style="width:220px"> <button class="btn small">📝</button></form>{% endif %}
+ <span class="dot {{ inc.state }}" style="display:inline-block;vertical-align:middle"></span> <b>{{ inc.state|upper }}</b>
+ <div style="margin-top:4px">🔴 {{ t('inc_since') }} <b>{{ inc.started_local }}</b> —
+  {% if inc.ended_local %}🟢 {{ t('inc_ok_since') }} <b>{{ inc.ended_local }}</b>{% else %}<span class=muted>{{ t('inc_running') }}</span>{% endif %}</div>
+ {% if inc.detail %}<div class=muted style="margin-top:3px">{{ inc.detail }}</div>{% endif %}
+ {% if inc.admin_note %}<div style="margin-top:4px">📝 {{ inc.admin_note }}</div>{% endif %}
+</div>{% endfor %}
+{% endblock %}

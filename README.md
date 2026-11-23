@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `4.2.5` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `5.0.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -59,6 +59,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 18. [Grabber](#grabber)
 19. [Datenbank](#datenbank)
 20. [Projektstruktur](#projektstruktur)
+    - [Tests](#tests)
 21. [Lokalisierung](#lokalisierung)
 22. [Halter-Karte](#halter-karte)
 23. [Credits & Danksagung](#credits--danksagung)
@@ -1175,7 +1176,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── admin.py             # /bot status|export|nutzer, /review offen|test|neu_verarbeiten, Wartung: Jobs/Abgleich
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
-│   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task
+│   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task (Logik/UI in utils/)
 │   ├── price_history.py     # /price_history: Preisverlauf-Chart (matplotlib) + Bestpreis-Marker
 │   ├── price_targets.py     # /set_target: Zielpreis-Alerts (pro Tracking wählbar)
 │   ├── stats.py             # /bot stats, /bot system, /help
@@ -1197,7 +1198,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── chat_export.py       # /export_chat: Kanal als JSON exportieren (Admin)
 │   ├── directory.py         # /art (Artensteckbrief) und /shop (Händlerseite)
 │   ├── year_review.py       # /rueckblick + Community-Rückblick am 31.12. um 23 Uhr
-│   ├── board.py             # Board: Feedback, Halter-Karte, Statistik, Arten/Shops, Rückblick, KI-Chat, Mein Konto, OAuth
+│   ├── board.py             # Startet die Web-Oberfläche (web/) + minütlicher Health-Monitor
 │   ├── map.py               # Halter-Karte: /map_join /map_tags /map_confirm /map_remove /event_add, /event_admin … (nur MAP_ENABLED)
 │   ├── map_tasks.py         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup (nur MAP_ENABLED)
 │   └── admin_groups.py      # Admin-Gruppen /bot /review /codes_admin /info_admin /event_admin + /wartung (lädt als letztes)
@@ -1229,7 +1230,12 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── logging_setup.py     # Rotating File Handler
 │   ├── ai_compat.py         # Modell-Unterschiede der Claude-API (Thinking, max_tokens)
 │   ├── ai_tools.py          # Werkzeuge des KI-Chats (Arten, Angebote, Preise, Shops, Codes)
-│   ├── board_i18n.py        # Texte der Board-Seiten (de/en/eo)
+│   ├── board_i18n.py        # Sprachhelfer der Web-Seiten; Texte in locales/board/*.json
+│   ├── health.py            # Status-Kacheln, Systemmetriken, Vorfälle, Alarm-DMs (Board + /bot status)
+│   ├── price_tracking.py    # Preis-Tracking: Preis-Historie, Produktsuche, Speichern (ohne Discord-UI)
+│   ├── price_tracking_views.py  # Preis-Tracking: Discord-Auswahlmenüs/Buttons
+│   ├── map_store.py         # Halter-Karte: Datenzugriff (Einträge, Regionen, Zusagen, Events)
+│   ├── map_events.py        # Halter-Karte: Termin-Logik (RRULE, nächstes Vorkommen, Ende)
 │   ├── shop_stats.py        # Auswertungen für die Statistik-Seite
 │   ├── usage_stats.py       # Nutzungsstatistik (Monatssummen, ohne Admin-Befehle)
 │   ├── directory.py         # Daten für /art und /shop (Angebote, Bewertungen, Lieferzeit)
@@ -1245,7 +1251,18 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── locales/
 │   ├── de.json              # Deutsch
 │   ├── en.json              # English
-│   └── eo.json              # Esperanto
+│   ├── eo.json              # Esperanto
+│   └── board/               # Texte der Web-Seiten: de.json, en.json, eo.json
+│
+├── web/                     # Web-Oberfläche (aiohttp im Bot-Prozess), gestartet von cogs/board.py
+│   ├── __init__.py          # build_app(bot): alle Routen
+│   ├── core/                # security.py (Sitzungen, CSRF, Rate-Limits), render.py (Jinja2),
+│   │                        #   static.py (/static, Favicon), partners.py (Partner-Daten)
+│   ├── features/            # je Bereich ein Modul: feedback, status, stats, species, shops, rueckblick,
+│   │                        #   chat, login, map, events, help, account (Mein Konto), swarm, legal
+│   └── templates/           # Jinja2-Templates (*.html)
+│
+├── tests/                   # Prüf-Werkzeuge (siehe Abschnitt „Tests“)
 │
 ├── tools/
 │   └── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
@@ -1262,6 +1279,37 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ```
 
 Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geoBoundaries-Umrisse + GeoNames-PLZ → `data/plz_dach.csv`), gesteuert vom Task in `cogs/map_tasks.py` bzw. manuell per `/wartung aktion:Karte`. Kein `tools/`-Script nötig.
+
+[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
+
+---
+
+## Tests
+
+Für Umbauten gibt es Prüf-Werkzeuge, die **ohne Discord-Login** und ohne Internet laufen.
+Die Test-Werkzeuge stehen bewusst **nicht** in `requirements.txt` (der Auto-Deploy würde sie sonst
+auf den Server installieren) – nur dort installieren, wo getestet wird:
+
+```bash
+pip install pytest openpyxl pyflakes
+```
+
+```bash
+python -m pytest tests/
+```
+
+`openpyxl` wird nur für Tests mit Excel-Export benötigt (siehe unten), `pyflakes` für die statische
+Prüfung (`python -m pyflakes web utils cogs`).
+
+- **`tests/test_basics.py`** – lädt alle Cogs, rendert jede Board-Seite (keine 5xx), prüft Templates und die Board-Übersetzungen (gleiche Schlüssel in de/en/eo).
+- **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) lassen sich mit `--compare` vergleichen; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
+- **`tests/command_tree_snapshot.py`** – schreibt alle Slash-Befehle (Optionen, Choices, Übersetzungen), Listener und Task-Loops als JSON – zum Vergleich vor/nach einer Änderung.
+
+Mit echten Shop-Bewertungen/Warnungen testen: Excel-Export des Google Sheets angeben – er wird **nur gelesen** und gehört **nicht** ins Repo (`*.xlsx` ist in `.gitignore`):
+
+```bash
+BOARD_TEST_SHEET_XLSX=/pfad/zum/export.xlsx python tests/board_snapshot.py /tmp/snap_neu
+```
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 

@@ -1,0 +1,46 @@
+{% extends "base" %}{% block body %}
+<p class=muted style="margin:0"><a href="/art{{ qs() }}">← {{ t('dir_art_index_h') }}</a></p>
+<h2 style="margin:6px 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><i>{{ sp.name }}</i>
+{% if star.uid %}{% if star.watched %}<a class="btn grey small" href="/konto{{ qs() }}#preise" title="{{ t('star_manage') }}">★ {{ t('star_watched') }}</a>
+{% else %}<form method=post action="/konto/beobachtung/neu{{ qs() }}" style="display:inline"><input type=hidden name=csrf value="{{ star.csrf }}"><input type=hidden name=species value="{{ sp.name }}"><input type=hidden name=back value="{{ star.back }}"><button class="btn small" title="{{ t('star_hint') }}">☆ {{ t('star_add') }}</button></form>{% endif %}
+{% if not star.genus_watched %}<form method=post action="/konto/beobachtung/neu{{ qs() }}" style="display:inline"><input type=hidden name=csrf value="{{ star.csrf }}"><input type=hidden name=species value="{{ sp.genus }}"><input type=hidden name=back value="{{ star.back }}"><button class="btn grey small" title="{{ t('star_hint') }}">☆ {{ t('star_genus', g=sp.genus) }}</button></form>{% endif %}
+{% elif star.login %}<a class="btn grey small" href="{{ star.login }}" title="{{ t('star_login') }}">☆ {{ t('star_add') }}</a>{% endif %}</h2>
+<p class=muted style="margin-top:0">{{ t('dir_genus') }}: <i>{{ sp.genus }}</i>{% if rare %} · 💎 {{ t('dir_rare') }}{% endif %}</p>
+{% if prof.wiki %}<div class=chartbox style="margin-top:0;margin-bottom:12px"><h4>📖 {{ t('dir_about_h') }}{% if prof.wiki.lang != lang %} <span class=muted style="font-weight:400">({{ prof.wiki.lang|upper }})</span>{% endif %}</h4>
+ <p style="margin:0 0 8px" lang="{{ prof.wiki.lang }}">{{ prof.wiki.text }}</p>
+ <p class=muted style="margin:0;font-size:12px">{{ t('dir_wiki_text') }} <a href="{{ prof.wiki.url }}" target=_blank rel="noopener noreferrer">Wikipedia: „{{ prof.wiki.title }}“</a>
+ · <a href="{{ prof.wiki.history }}" target=_blank rel="noopener noreferrer">{{ t('dir_wiki_authors') }}</a>
+ · {{ t('dir_wiki_license') }} <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.{{ 'de' if lang=='de' else 'en' }}" target=_blank rel="noopener noreferrer">CC BY-SA 4.0</a>{% if prof.wiki.cut %} · {{ t('dir_wiki_cut') }}{% endif %}</p>
+</div>{% endif %}
+{% if prof.gbif and prof.gbif.count %}<p style="margin:0 0 12px">🌍 {{ t('dir_gbif_line', n=gbif_count, c=prof.gbif.countries|length) }}{% if gbif_top %} · {{ t('dir_gbif_top') }}: {{ gbif_top|join(', ') }}{% endif %}
+ <span class=muted style="font-size:12px">· {{ t('dir_gbif_src') }} <a href="{{ prof.gbif.url }}" target=_blank rel="noopener noreferrer">GBIF.org</a></span></p>{% endif %}
+<p class=muted style="margin:0 0 14px">🔗 {{ t('dir_more_at') }} <a href="{{ ext.antwiki }}" target=_blank rel="noopener noreferrer">AntWiki</a>{% if ext.antweb %} · <a href="{{ ext.antweb }}" target=_blank rel="noopener noreferrer">AntWeb</a>{% endif %}{% if prof.gbif %} · <a href="{{ prof.gbif.url }}" target=_blank rel="noopener noreferrer">GBIF</a>{% endif %}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{{ sp.shops|length }}</div><div class=l>{{ t('dir_kpi_shops') }}</div></div>
+ <div class=kpi><div class=v>{{ instock|length }}</div><div class=l>{{ t('dir_kpi_instock') }}</div></div>
+ <div class=kpi><div class=v>{{ eur(trend.now) }}</div><div class=l>{{ t('dir_kpi_now') }}</div></div>
+ <div class=kpi><div class=v>{{ eur(trend.m3) }}</div><div class=l>{{ t('dir_kpi_m3') }}</div></div>
+ <div class=kpi><div class=v>{{ eur(trend.m12) }}</div><div class=l>{{ t('dir_kpi_m12') }}</div></div>
+</div>
+{% if trend['values']|select|list|length > 1 %}
+<div class=chartbox><h4>{{ t('dir_trend_h') }} <span class=info title="{{ t('dir_trend_exp') }}">ⓘ</span></h4><div class=chartwrap style="height:260px"><canvas id=chTrend></canvas></div></div>
+<script src="/static/chart.umd.js?v={{ v }}"></script>
+<script>
+(function(){var el=document.getElementById("chTrend"); if(!el||!window.Chart) return;
+ new Chart(el,{type:"line",data:{labels:{{ trend.labels|tojson }},datasets:[{data:{{ trend['values']|tojson }},spanGaps:true,stepped:true,borderColor:"#3fb950",backgroundColor:"#3fb95033",fill:true,pointRadius:2}]},
+ options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e"},grid:{color:"#21262d"}},y:{ticks:{color:"#8b949e",callback:function(v){return v+" €"}},grid:{color:"#21262d"}}}}});})();
+</script>
+{% endif %}
+<p style="margin:12px 0 0"><a class=btn href="/art/{{ sp.name|replace(' ','_')|urlencode }}/karte.png{{ qs() }}" download>📤 {{ t('dir_card_btn') }}</a> <span class=muted style="font-size:12px">{{ t('dir_card_hint') }}</span></p>
+<div class=chartbox><h4>{{ t('dir_offers_h') }}</h4>
+<table><tr><th>{{ t('dir_col_shop') }}</th><th>{{ t('dir_col_price') }}</th><th>{{ t('dir_col_stock') }}</th><th></th></tr>
+{% for o in offers %}<tr><td><a href="/shop/{{ o.domain|urlencode }}{{ qs() }}">{{ o.shop }}</a></td><td>{{ price(o) }}{% set sg = sig.get(o.pid) if o.in_stock else none %}{% if sg %} <span title="{{ sig_txt[sg] }}">{{ sig_emoji[sg] }}</span>{% endif %}</td>
+<td>{% if o.in_stock %}<span style="color:#3fb950">● {{ t('dir_instock') }}</span>{% else %}<span class=muted>○ {{ t('dir_soldout') }}</span>{% endif %}</td>
+<td><a href="{{ o.url }}" target=_blank rel="noopener noreferrer">{{ t('dir_to_offer') }} ↗</a></td></tr>{% endfor %}
+</table>{% if sig_any %}<p class=muted style="font-size:12px;margin:8px 0 0">{{ sig_legend }}</p>{% endif %}</div>
+{% include "swarm_box" %}
+{% if season %}<div class=chartbox><h4>{{ season.h }}</h4><p style="margin:0 0 10px">{{ season.text }}</p>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end;height:70px">{% for m in season.months %}<div title="{{ season.names[loop.index0] }}{% if m is not none %}: {{ (m * 100)|round|int }} %{% endif %}" style="background:{% if m is none %}#21262d{% elif m >= 0.5 %}#3fb950{% else %}#3fb95055{% endif %};height:{{ 6 if m is none else (6 + m * 64)|int }}px;border-radius:3px"></div>{% endfor %}</div>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;font-size:11px;text-align:center" class=muted>{% for n in season.short %}<div>{{ n }}</div>{% endfor %}</div></div>{% endif %}
+<p class=muted>{{ t('dir_art_note', d=fetched) }}</p>
+{% endblock %}

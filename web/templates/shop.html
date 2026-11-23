@@ -1,0 +1,50 @@
+{% extends "base" %}{% block body %}
+<p class=muted style="margin:0"><a href="/shops{{ qs() }}">← {{ t('dir_shops_h') }}</a></p>
+<h2 style="margin:6px 0">{{ sh.name }}{% if partner %} <span class=tag style="color:#d2a8ff;border-color:#d2a8ff">🤝 {{ t('dir_partner') }}</span>{% endif %}</h2>
+<p class=muted style="margin-top:0"><a href="{{ sh.url }}" target=_blank rel="noopener noreferrer">{{ sh.domain }} ↗</a>{% if sh.country %} · {{ country }}{% endif %}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{% if rv and rv.avg is not none %}⭐ {{ '%.2f'|format(rv.avg) }}{% else %}–{% endif %}</div><div class=l>{{ t('dir_kpi_rating') }}</div></div>
+ <div class=kpi><div class=v>{{ rv.count if rv else 0 }}</div><div class=l>{{ t('dir_kpi_reviews') }}</div></div>
+ <div class=kpi><div class=v>{{ rv.last if rv else '–' }}</div><div class=l>{{ t('dir_kpi_last') }}</div></div>
+ {% if delivery %}<div class=kpi><div class=v>{{ ('%.1f'|format(delivery.avg)).replace('.', ',') if lang=='de' else '%.1f'|format(delivery.avg) }} {{ t('dir_days') }}</div><div class=l>{{ t('dir_kpi_delivery', n=delivery.n) }} <span class=info title="{{ t('dir_delivery_exp', m=delivery.median) }}">ⓘ</span></div></div>{% endif %}
+ <div class=kpi><div class=v>{{ sh.species_count }}</div><div class=l>{{ t('dir_kpi_species') }}</div></div>
+ <div class=kpi><div class=v>{{ sh.instock_count }} / {{ sh.offers_count }}</div><div class=l>{{ t('dir_kpi_instock_of') }}</div></div>
+ <div class=kpi><div class=v>{{ sh.exclusive|length }}</div><div class=l>{{ t('dir_kpi_exclusive') }}</div></div>
+ <div class=kpi><div class=v>{% if sh.price_level is none %}–{% elif sh.price_level > 0 %}+{{ sh.price_level }} %{% else %}{{ sh.price_level }} %{% endif %}</div><div class=l>{{ t('dir_kpi_level', n=sh.price_level_n) }} <span class=info title="{{ t('dir_level_exp') }}">ⓘ</span></div></div>
+</div>
+{% if codes %}<div class=chartbox><h4>🏷️ {{ t('dir_codes_h') }}</h4>
+{% for c in codes %}<div><code>{{ c.code }}</code>{% if c.discount %} · {{ c.discount }}{% endif %}{% if c.min_order %} · {{ t('dir_min_order', m=c.min_order) }}{% endif %} · <span class=muted>{{ t('dir_perm') if c.permanent else (t('dir_until', d=c.until) if c.until else t('dir_open')) }}</span></div>{% endfor %}
+</div>{% endif %}
+
+{% if member %}
+ {% if warns %}<div class=chartbox style="border-color:#d2992266"><h4>⚠️ {{ t('dir_warn_h') }}</h4>
+ {% for w in warns %}<div>{{ w.emoji }} {{ w.text }}{% if w.date %} <span class=muted>({{ w.date }})</span>{% endif %}</div>{% endfor %}
+ <p class=muted style="margin-bottom:0">{{ t('dir_warn_note') }} <a href="/impressum{{ qs() }}#kontakt">{{ t('contact_h') }}</a></p></div>{% endif %}
+ {% if rv and rv.years %}<div class=chartbox><h4>{{ t('dir_years_h') }}</h4><div class=chartwrap style="height:240px"><canvas id=chYears></canvas></div></div>
+ <div class=chartbox><h4>{{ t('dir_dist_h') }}</h4><div class=chartwrap style="height:220px"><canvas id=chDist></canvas></div></div>
+ <script src="/static/chart.umd.js?v={{ v }}"></script>
+ <script>
+ (function(){ if(!window.Chart) return; var g={color:"#21262d"}, tk={color:"#8b949e"};
+  new Chart(document.getElementById("chYears"),{type:"bar",data:{labels:{{ years_labels|tojson }},datasets:[
+   {type:"line",label:"{{ t('dir_avg') }}",data:{{ years_avg|tojson }},borderColor:"#3fb950",yAxisID:"y",tension:.2},
+   {label:"{{ t('dir_kpi_reviews') }}",data:{{ years_n|tojson }},backgroundColor:"#1f6feb66",yAxisID:"y2"}]},
+   options:{maintainAspectRatio:false,plugins:{legend:{labels:tk}},scales:{x:{ticks:tk,grid:g},y:{min:0,max:10,ticks:tk,grid:g},y2:{position:"right",ticks:tk,grid:{display:false},beginAtZero:true}}}});
+  new Chart(document.getElementById("chDist"),{type:"bar",data:{labels:{{ dist_labels|tojson }},datasets:[{data:{{ dist_n|tojson }},backgroundColor:"#3fb95099"}]},
+   options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:tk,grid:g},y:{ticks:tk,grid:g,beginAtZero:true}}}});
+ })();
+ </script>{% endif %}
+ {% if rv and rv.recent %}<div class=chartbox><h4>{{ t('dir_recent_h') }}</h4>
+ {% for r in rv.recent %}<div class=card><div class=muted>{{ r.date }}{% if r.rating is not none %} · ⭐ {{ r.rating|round(1) }}{% endif %}</div>
+ {% if r.pos %}<div>👍 {{ r.pos }}</div>{% endif %}{% if r.neg %}<div>👎 {{ r.neg }}</div>{% endif %}</div>{% endfor %}
+ <p class=muted style="margin-bottom:0">{{ t('dir_recent_note') }}</p></div>{% endif %}
+{% elif login_url %}
+ <div class=flash>🔒 {{ t('dir_login_more') }} <a href="{{ login_url }}">{{ t('dir_login_btn') }}</a></div>
+{% endif %}
+
+{% if sh.exclusive %}<div class=chartbox><h4>💎 {{ t('dir_excl_h') }}</h4>
+<div class=raritygrid>{% for n in sh.exclusive %}<div><a href="/art/{{ n|replace(' ','_')|urlencode }}{{ qs() }}">{{ n }}</a></div>{% endfor %}</div></div>{% endif %}
+{% if sh.species %}<div class=chartbox><h4>{{ t('dir_species_h', n=sh.species|length) }}</h4>
+<input id=shopfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off style="max-width:360px">
+{% from "genmac" import genlist with context %}{{ genlist("shopgen", groups, sh.species|length, "shopfilter") }}{% if sig_legend %}<p class=muted style="font-size:12px;margin:8px 0 0">{{ sig_legend }}</p>{% endif %}</div>{% endif %}
+<p class=muted>{{ t('dir_shop_note') }}</p>
+{% endblock %}

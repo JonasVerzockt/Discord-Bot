@@ -1,0 +1,5 @@
+{% extends "base" %}{% block body %}
+<h2>{{ t('login_h') }}</h2>
+<p class=muted style="max-width:560px">{{ t('login_discord_note') }}</p>
+{% if login_url %}<p><a class=btn href="{{ login_url }}">{{ t('dir_login_btn') }}</a></p>{% endif %}
+{% endblock %}

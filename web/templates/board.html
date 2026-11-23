@@ -1,0 +1,106 @@
+{% extends "base" %}{% block body %}
+<details class="status-panel">
+ <summary class="status-head">{{ t('status_head') }}
+  <span id="hc-badge" class="status-badge s-{{ overall[0] }}">{{ overall[1] }}</span>
+  <span id="hc-ver" class="status-ver" title="{{ t('ver_title') }}">v{{ version }}</span>
+  <span id="hc-metrics" class="status-metrics">{{ metrics_html|safe }}</span>
+  <span id="hc-stand" class="status-stand" title="{{ t('stand_title') }}">{{ t('stand_label') }} {{ generated }}</span>
+  <span class="status-toggle">{{ t('details') }}</span></summary>
+ <div id="hc-body" class="status-body">
+ {% for sec in sections %}
+ <div class="status-section">
+  <div class="status-sub">{{ sec.title }}{% if sec.note %} <span class=muted>· {{ sec.note }}</span>{% endif %}</div>
+  <div class="status-grid">
+  {% for hc in sec.checks %}
+   <a class=hc href="/status/check/{{ hc.name|urlencode }}?lang={{ lang }}" title="{{ t('incident_history') }}"><span class="dot {{ hc.state }}"></span>
+    <div><div class=n>{{ hc.name }}</div><div class=d>{{ hc.detail }}</div></div></a>
+  {% endfor %}
+  </div>
+ </div>
+ {% endfor %}
+ </div>
+</details>
+<script>
+var I18N={incident:{{ t('incident_history')|tojson }},stand:{{ t('stand_label')|tojson }},noconn:{{ t('js_noconn')|tojson }},lang:{{ lang|tojson }}};
+(function(){
+  // Aktualisiert alle 5 s NUR den Status-Bereich (Rest der Seite bleibt unberührt);
+  // rendert nur neu, wenn sich die Daten gegenüber dem letzten Poll geändert haben.
+  // last=null → der erste Poll (nach 5 s) gleicht die Anzeige einmal mit dem Server
+  // ab, danach wird ausschließlich bei echten Änderungen neu gezeichnet.
+  var last = null;
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function _gbjs(b){return (b/1073741824).toFixed(1);}
+  function _seg(part,label,val,title){ if(!part){return '';} var cls={ok:'mok',warn:'mwarn',down:'mdown'}[part.state]||''; return '<span class="'+cls+'" title="'+esc(title)+'">'+label+' '+val+'</span>'; }
+  function buildMetrics(m){ if(!m){return '';} var p=[];
+    if(m.cpu){ var lo=m.cpu.load; p.push(_seg(m.cpu,'Load',lo[0].toFixed(2),'1/5/15 min: '+lo[0].toFixed(2)+' / '+lo[1].toFixed(2)+' / '+lo[2].toFixed(2)+' · '+m.cpu.cores+' Kerne')); }
+    if(m.ram){ p.push(_seg(m.ram,'RAM',m.ram.percent+'%',_gbjs(m.ram.used)+'/'+_gbjs(m.ram.total)+' GB')); }
+    if(m.disk){ p.push(_seg(m.disk,'SSD',m.disk.percent+'%',_gbjs(m.disk.used)+'/'+_gbjs(m.disk.total)+' GB')); }
+    return p.length ? '⚙️ '+p.join(' · ') : ''; }
+  function setMetrics(m){ var e=document.getElementById('hc-metrics'); if(e){ e.innerHTML=buildMetrics(m); } }
+  function build(d){
+    var badge=document.getElementById('hc-badge');
+    if(badge){ badge.className='status-badge s-'+d.overall[0]; badge.textContent=d.overall[1]; }
+    var ver=document.getElementById('hc-ver'); if(ver){ ver.textContent='v'+d.version; }
+    var body=document.getElementById('hc-body'); if(!body){ return; }
+    var frag=document.createDocumentFragment();
+    (d.sections||[]).forEach(function(sec){
+      var s=document.createElement('div'); s.className='status-section';
+      var sub=document.createElement('div'); sub.className='status-sub'; sub.textContent=sec.title;
+      if(sec.note){ var m=document.createElement('span'); m.className='muted'; m.textContent=' · '+sec.note; sub.appendChild(m); }
+      s.appendChild(sub);
+      var grid=document.createElement('div'); grid.className='status-grid';
+      (sec.checks||[]).forEach(function(hc){
+        var card=document.createElement('a'); card.className='hc';
+        card.href='/status/check/'+encodeURIComponent(hc.name)+'?lang='+I18N.lang;
+        card.title=I18N.incident;
+        var dot=document.createElement('span'); dot.className='dot '+hc.state; card.appendChild(dot);
+        var box=document.createElement('div');
+        var n=document.createElement('div'); n.className='n'; n.textContent=hc.name; box.appendChild(n);
+        var de=document.createElement('div'); de.className='d'; de.textContent=hc.detail; box.appendChild(de);
+        card.appendChild(box); grid.appendChild(card);
+      });
+      s.appendChild(grid); frag.appendChild(s);
+    });
+    body.replaceChildren(frag);
+  }
+  function setStand(txt){ var st=document.getElementById('hc-stand'); if(st){ st.textContent=txt; } }
+  function tick(){
+    // Cache-Bust gegen Proxy-/Browser-Caching; Fehler werden SICHTBAR gemacht,
+    // damit ein Reverse-Proxy-/CSP-Problem nicht still bleibt.
+    fetch('/status.json?lang='+I18N.lang+'&_='+Date.now(),{cache:'no-store'}).then(function(r){
+      if(!r.ok){ throw new Error('HTTP '+r.status); }
+      return r.json();
+    }).then(function(d){
+      setStand(I18N.stand+' '+d.generated);   // Zeitstempel bei JEDEM Poll aktualisieren
+      setMetrics(d.metrics);                  // CPU-Load/RAM/SSD bei JEDEM Poll aktualisieren
+      var sig=JSON.stringify([d.overall, d.version, d.sections]);  // 'generated' bewusst NICHT vergleichen
+      if(sig===last){ return; }   // Health unverändert -> Kacheln nicht neu rendern
+      last=sig; build(d);
+    }).catch(function(){ setStand(I18N.noconn); });
+  }
+  tick();                 // sofort (nicht erst nach 5 s)
+  setInterval(tick, 5000);
+})();
+</script>
+<p class=muted>{{ t('board_intro') }} <a href="/submit?lang={{ lang }}">+ {{ t('nav_submit') }}</a></p>
+<p class="muted legend">{{ t('legend_priority') }} <span class=tag>P0</span> {{ t('prio_p0') }} · <span class=tag>P1</span> {{ t('prio_p1') }} · <span class=tag>P2</span> {{ t('prio_p2') }} · <span class=tag>P3</span> {{ t('prio_p3') }} &nbsp;|&nbsp; {{ t('legend_upvotes') }} · {{ t('legend_comments') }} · {{ t('legend_more') }}</p>
+<div class=cols>{% for key,tkey in cols %}
+ <div class=col><h2>{{ t(tkey) }}</h2>
+  <div class=col-body>
+  {% for c in items if c.status==key %}
+   <div class=card><span class="tag {{c.type}}">{{ type_label(c.type) }}</span>
+    {% if c.component %}<span class=tag>{{ c.component }}</span>{% endif %}
+    {% if c.priority %}<span class=tag>{{ c.priority }}</span>{% endif %}
+    <div class=t><a href="/submission/{{c.id}}?lang={{ lang }}">{{ c.title }}</a></div>
+    {% if c.version %}<div class=muted>{{ t('done_in', v=c.version) }}</div>{% endif %}
+    <div class=cardfoot>
+     <form method=post action="/upvote/{{c.id}}" style="margin:0"><button class=up>▲ {{ c.upvotes }}</button></form>
+     {% if c.comments %}<a class="muted cmark" href="/submission/{{c.id}}?lang={{ lang }}" title="{{ t('n_comments_title', n=c.comments) }}">💬 {{ c.comments }}</a>{% endif %}
+     <a class="muted cmark cardmore" href="/submission/{{c.id}}?lang={{ lang }}" title="{{ t('more') }}">{{ t('more') }}</a>
+    </div>
+   </div>
+  {% else %}<div class=muted>—</div>{% endfor %}
+  </div>
+ </div>
+{% endfor %}</div>
+{% endblock %}

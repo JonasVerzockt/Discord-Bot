@@ -1,0 +1,219 @@
+{% extends "base" %}{% block body %}
+<link rel="stylesheet" href="/static/leaflet.css?v={{ v }}">
+<link rel="stylesheet" href="/static/MarkerCluster.css?v={{ v }}">
+<link rel="stylesheet" href="/static/MarkerCluster.Default.css?v={{ v }}">
+<style>
+ .mapgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
+ .mapgrid>*{min-width:0}   /* Inhalt darf die Spalten nicht aufweiten (Karte bleibt 2/3 breit) */
+ @media(max-width:820px){.mapgrid{grid-template-columns:1fr}}
+ /* Statistiken: Desktop unter der Karte (linke Spalte), mobil zwischen Karte und Liste */
+ .mapleft{min-width:0}
+ #statsbox{margin-top:14px;min-width:0}
+ @media(max-width:820px){.mapleft{display:contents} #map{order:1} #statsbox{order:2;margin-top:0} .mapside{order:3}}
+ #statsbox>summary{cursor:pointer;font-weight:600;font-size:15px;list-style-position:inside}
+ #statsbody{margin-top:10px}
+ #joinbox ul{margin:0;padding-left:18px;font-size:13px} #joinbox li{margin:4px 0}
+ #joinbox code{background:#0f141a;border:1px solid #30363d;border-radius:4px;padding:0 4px;font-size:12px}
+ .partner .ad,#partnerbox h4 .ad{font-size:10px;font-weight:400;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:middle}
+ .partner{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #21262d}
+ .partner img{width:44px;height:44px;object-fit:contain;border-radius:6px;background:#fff1}
+ .partner .pt{font-size:12px;color:#8b949e}
+ .pslot{border:1px dashed #30363d;border-radius:8px;padding:12px;text-align:center;font-size:13px;color:#8b949e}
+ .stk{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+ .stk div{background:#0f141a;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
+ .stk b{display:block;font-size:20px;color:#e6edf3}
+ .stk span{font-size:12px;color:#8b949e}
+ .stgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+ .stgrid>section{min-width:0}
+ .stgrid h5{margin:0 0 6px;font-size:13px;color:#c9d1d9}
+ .stnote{font-size:11px;color:#8b949e;margin:-2px 0 6px}
+ .sbar{display:grid;grid-template-columns:minmax(0,1fr) 2fr auto;gap:8px;align-items:center;font-size:12px;margin:3px 0}
+ .sbar .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .sbar .tr{height:10px;background:#21262d;border-radius:5px;overflow:hidden}
+ .sbar .fi{height:100%;background:#58a6ff;border-radius:5px}
+ .sbar .vl{color:#8b949e;white-space:nowrap;text-align:right}
+ .scol{display:flex;align-items:flex-end;gap:3px;height:80px;border-bottom:1px solid #30363d}
+ .scol div{flex:1;background:#58a6ff;border-radius:3px 3px 0 0;min-height:2px;position:relative}
+ .scolx{display:flex;gap:3px;font-size:10px;color:#8b949e;margin-top:3px}
+ .scolx span{flex:1;text-align:center;overflow:hidden}
+ .stlist{font-size:12px;margin:0;padding-left:18px} .stlist li{margin:2px 0}
+ .stpriv{font-size:11px;color:#8b949e;border-top:1px solid #21262d;margin-top:12px;padding-top:8px}
+ html[data-mapcolors=contrast] .sbar .fi,html[data-mapcolors=contrast] .scol div{background:#ffffff}
+ .mrow{display:flex;gap:9px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid #21262d}
+ .mrow .fl2{font-size:13px;color:#8b949e;white-space:nowrap}
+ .mrow .nm{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+ .mrow .tg{font-size:11px;color:#8b949e;margin-top:2px}
+ .mrow>div{min-width:0}
+ a.cbtn{display:inline-block;margin-top:4px;padding:2px 9px;border:1px solid #5865f2;border-radius:6px;color:#c9d1d9;background:#5865f222;font-size:12px;text-decoration:none}
+ a.cbtn:hover{background:#5865f255}
+ .evact{margin-top:4px} .evact a.cbtn{margin:2px 4px 2px 0} a.cbtn.rsvp.on{border-color:#3fb950;background:#3fb95022}
+ #agenda .fl2{white-space:normal;overflow-wrap:anywhere}   /* Termine: lange Orte umbrechen */
+ .mrow[data-ref]{cursor:pointer} .mrow.hl{background:#1f6feb33;border-radius:6px}
+ /* Leaflet ans Board-Dark-Theme angleichen (Zoom-Buttons, Attribution, Popups) */
+ .leaflet-container{background:#0f141a}
+ .mpin,.mevw,.mcl{background:none;border:0}
+ .mcity{background:none;border:0;white-space:nowrap}
+ .mcity .cdot{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:#c9d1d9;box-shadow:0 0 0 1px #0b0f14}
+ .mcity .clbl{position:absolute;left:5px;top:-7px;font-size:11px;line-height:14px;color:#c9d1d9;text-shadow:0 0 3px #0b0f14,0 0 2px #0b0f14,0 0 1px #0b0f14}
+ .mcity.big .cdot{width:6px;height:6px;left:-3px;top:-3px}
+ .mcity.big .clbl{font-size:12px;font-weight:600;top:-8px;color:#e6edf3}
+ html[data-mapcolors=contrast] .mcity .clbl{color:#ffffff;font-weight:600;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000}
+ html[data-mapcolors=contrast] .mcity .cdot{background:#ffffff;box-shadow:0 0 0 1.5px #000}
+ .mpin svg{display:block;filter:drop-shadow(0 0 1px #000)}
+ .mev{display:flex;align-items:center;justify-content:center;border-radius:5px;box-sizing:border-box;line-height:1;box-shadow:0 0 2px #000}
+ .mcl div{border-radius:50%;text-align:center;font-weight:700;font-size:13px;box-sizing:border-box;box-shadow:0 0 3px #000}
+ .lgi{display:inline-flex;align-items:center;gap:4px;margin:2px 12px 2px 0;vertical-align:middle}
+ .lgi .mev{display:inline-flex}
+ .lgsw{display:inline-block;width:14px;height:12px;border-radius:2px;border:1px solid #0b0f14}
+ html[data-mapcolors=contrast] .lgsw{border-color:#fff}
+ html[data-mapcolors=contrast] #map{border-color:#ffffff !important}
+ #tagfilter a{font-size:12px;padding:2px 9px} #tagfilter .tgrp{font-size:12px;margin-left:6px}
+ .leaflet-bar a,.leaflet-bar a:hover{background:#161b22;color:#e6edf3;border-bottom-color:#30363d}
+ .leaflet-bar{border:1px solid #30363d}
+ .leaflet-control-attribution{background:#161b22cc !important;color:#8b949e}
+ .leaflet-control-attribution a{color:#58a6ff}
+ .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#161b22;color:#e6edf3;border:1px solid #30363d}
+ .leaflet-popup-content{color:#e6edf3}
+ .leaflet-popup-content a{color:#58a6ff}
+ a.leaflet-popup-close-button{color:#8b949e}
+</style>
+<h2>{{ t('map_h') }}</h2>
+<p class=muted style="max-width:860px">{{ t('map_intro') }}</p>
+<div class=flash style="max-width:860px">ℹ️ {{ t('map_u18_notice') }}</div>
+<div class=rangesw>
+  <span class=muted>{{ t('map_layer') }}:</span>
+  <a href="#" class="on" data-layer="map">{{ t('map_layer_map') }}</a>
+  <a href="#" data-layer="events">{{ t('map_layer_events') }}</a>
+  <a href="#" data-layer="all">{{ t('map_layer_all') }}</a>
+</div>
+<div class=rangesw id=choroswitch>
+  <span class=muted>{{ t('map_region_level') }}:</span>
+  <a href="#" class="on" data-level="bundesland">{{ t('map_level_state') }}</a>
+  <a href="#" data-level="plz">{{ t('map_level_plz') }}</a>
+  <a href="#" id=citytoggle class=on aria-pressed="true" style="margin-left:8px">🏙️ {{ t('map_cities') }}</a>
+</div>
+<div class=rangesw id=colorswitch role=group aria-label="{{ t('map_colors') }}">
+  <span class=muted>🎨 {{ t('map_colors') }}:</span>
+  <a href="#" data-colors="standard" aria-pressed="false">{{ t('map_colors_standard') }}</a>
+  <a href="#" data-colors="cvd" aria-pressed="false">{{ t('map_colors_cvd') }}</a>
+  <a href="#" data-colors="contrast" aria-pressed="false">{{ t('map_colors_contrast') }}</a>
+</div>
+<div id=cholegend class=muted style="margin:4px 0;font-size:12px"></div>
+<div class=rangesw id=rangeswitch style="display:none">
+  <span class=muted>{{ t('map_range_filter') }}:</span>
+  <a href="#" data-range="30">{{ t('map_range_30') }}</a>
+  <a href="#" data-range="90">{{ t('map_range_90') }}</a>
+  <a href="#" class="on" data-range="all">{{ t('map_range_all') }}</a>
+</div>
+<div id=evlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+<div id=pinlegend class=muted style="display:none;margin:4px 0;font-size:12px"></div>
+{% if member and tag_groups %}
+<details id=tagfilterbox style="margin:4px 0 10px">
+<summary class=muted style="cursor:pointer;font-size:13px">🏷️ {{ t('map_tag_filter') }} <span id=tagcount></span></summary>
+<div class=rangesw id=tagfilter style="margin-top:8px">
+  {% for g in tag_groups %}<span class="muted tgrp">{{ g.label }}</span>
+  {% for code, label in g.tags %}<a href="#" data-tag="{{ code }}">{{ label }}</a>{% endfor %}{% endfor %}
+  <a href="#" id=tagreset style="display:none">✕ {{ t('map_tag_reset') }}</a>
+</div>
+</details>
+{% endif %}
+<div id=mapnotice class=muted style="margin:6px 0"></div>
+<div class=mapgrid>
+  <div class=mapleft>
+  <div id=map style="height:70vh;min-height:420px;background:#0f141a;border:1px solid #21262d;border-radius:10px"></div>
+  <details id=statsbox class=chartbox>
+    <summary>{{ t('map_st_title') }}</summary>
+    <div id=statsbody aria-live=polite><p class=muted>{{ t('map_st_loading') }}</p></div>
+  </details>
+  </div>
+  <div class=mapside>
+    <div class=chartbox style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      {% if member %}<span class=muted>✅ {{ t('map_member_on') }}</span><span class=grow></span>
+      <a href="/map/logout?lang={{ lang }}">{{ t('map_logout') }}</a>
+      {% else %}<a class=btn href="/map/login?lang={{ lang }}" style="width:100%;box-sizing:border-box;text-align:center">{{ t('map_login') }}</a>{% endif %}
+    </div>
+    <div class=chartbox id=listbox>
+      <h4>{{ t('map_list_title') }}</h4>
+      <input id=listsearch placeholder="{{ t('map_search') }}" autocomplete=off>
+      <div id=maplist class=col-body style="max-height:58vh;margin-top:8px"></div>
+    </div>
+    <div class=chartbox id=agendabox style="display:none">
+      <h4>{{ t('map_agenda_title') }}</h4>
+      <div id=agenda class=col-body style="max-height:50vh"></div>
+      {% if ics_url %}
+      <div id=calsub style="border-top:1px solid #21262d;margin-top:10px;padding-top:10px">
+        <h4>📅 {{ t('map_cal_title') }}</h4>
+        <a class=btn href="{{ webcal_url }}" style="width:100%;box-sizing:border-box;text-align:center">{{ t('map_cal_subscribe') }}</a>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id=calurl value="{{ ics_url }}" readonly style="flex:1;min-width:0;font-size:12px" onclick="this.select()">
+          <button type=button class=btn id=calcopy data-done="{{ t('map_cal_copied') }}">{{ t('map_cal_copy') }}</button>
+        </div>
+        <p class=muted style="font-size:12px;margin:8px 0 0">{{ t('map_cal_hint') }}</p>
+      </div>
+      <script>
+      (function () {
+        var btn = document.getElementById("calcopy"), inp = document.getElementById("calurl");
+        if (!btn || !inp) return;
+        var label = btn.textContent;
+        function ok() { btn.textContent = btn.getAttribute("data-done") || label;
+                        setTimeout(function () { btn.textContent = label; }, 2000); }
+        function legacy() {            // Fallback ohne Clipboard-API (z. B. http:// oder ältere Browser)
+          var ta = document.createElement("textarea");
+          ta.value = inp.value; ta.setAttribute("readonly", "");
+          ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          var done = false;
+          try { done = document.execCommand("copy"); } catch (e) { done = false; }
+          document.body.removeChild(ta);
+          if (done) ok(); else { inp.focus(); inp.select(); }   // notfalls markieren -> Strg+C
+        }
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(inp.value).then(ok, legacy);
+          } else { legacy(); }
+        });
+      })();
+      </script>
+      {% endif %}
+    </div>
+    <div class=chartbox id=joinbox style="margin-top:14px">
+      <h4>🙌 {{ t('map_join_h') }}</h4>
+      <ul>
+        <li>📍 {{ t('map_join_entry')|safe }}</li>
+        <li>🏷️ {{ t('map_join_tags')|safe }}</li>
+        <li>📅 {{ t('map_join_event')|safe }}</li>
+        <li>🙋 {{ t('map_join_rsvp') }}</li>
+      </ul>
+      {% if invite_url %}<a class=btn href="{{ invite_url }}" target=_blank rel="noopener noreferrer" style="display:block;margin-top:10px;text-align:center">{{ t('map_join_invite') }}</a>{% endif %}
+    </div>
+    <div class=chartbox id=partnerbox style="margin-top:14px">
+      <h4>🤝 {{ t('map_partner_h') }}</h4>
+      {% for p in partners %}
+      <a class=partner href="{{ p.url }}" target=_blank rel="{{ 'sponsored ' if p.ad }}noopener noreferrer">
+        {% if p.logo %}<img src="/partner-logo/{{ p.logo }}?v={{ v }}" alt="" loading=lazy>{% endif %}
+        <span><b>{{ p.name }}</b>{% if p.ad %}<span class=ad>{{ t('map_partner_ad') }}</span>{% endif %}{% if p.text %}<br><span class=pt>{{ p.text }}</span>{% endif %}{% if p.code %}<br><span class=pt>🏷️ {{ t('map_partner_code') }}: <code>{{ p.code }}</code></span>{% endif %}</span>
+      </a>
+      {% endfor %}
+      {% if partners %}<p class=pt style="margin:8px 0 0;font-size:12px"><a href="/partner?lang={{ lang }}">{{ t('map_partner_become') }}</a></p>{% else %}
+      <div class=pslot>{{ t('map_partner_empty') }}<br>
+        <a href="/partner?lang={{ lang }}">{{ t('map_partner_contact') }}</a></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
+<script>window.MAP_CFG={lang:"{{ lang }}",v:"{{ v }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
+ emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}", choroLabel:"{{ t('map_choro_label') }}",
+ csrf:"{{ member_csrf }}",
+ st:{{ (st_labels or {})|tojson }},
+ evtext:{ics:"{{ t('map_ev_ics') }}",go:"{{ t('map_ev_go') }}",going:"{{ t('map_ev_going') }}",
+         count:"{{ t('map_ev_count') }}"},
+ pinlabels:{exact:"{{ t('map_pin_exact') }}",coarse:"{{ t('map_pin_coarse') }}",coarseNote:"{{ t('map_pin_coarse_note') }}",contact:"{{ t('map_pin_contact') }}",contactBtn:"{{ t('map_contact_btn') }}",also:"{{ t('map_pin_also') }}",alsoHere:"{{ t('map_also_here') }}"},
+ evlabels:{fair:"{{ t('map_evtype_fair') }}",meetup:"{{ t('map_evtype_meetup') }}",shop:"{{ t('map_evtype_shop') }}",talk:"{{ t('map_evtype_talk') }}",field:"{{ t('map_evtype_field') }}",other:"{{ t('map_evtype_other') }}"}};</script>
+<script src="/static/leaflet.js?v={{ v }}" onerror="document.getElementById('mapnotice').textContent='{{ t('map_assets_missing') }}'"></script>
+<script src="/static/leaflet.markercluster.js?v={{ v }}"></script>
+<script src="/static/map.js?v={{ v }}"></script>
+<script src="/static/map_stats.js?v={{ v }}"></script>
+{% endblock %}

@@ -78,7 +78,8 @@ class TrackFromAlertView(discord.ui.View):
     @discord.ui.button(label="Track prices", style=discord.ButtonStyle.primary, custom_id="track_from_alert")
     async def track(self, button: discord.ui.Button, interaction: discord.Interaction):
         # Lazy-Import vermeidet Ladereihenfolge-Probleme zwischen den Cogs.
-        from cogs.price_tracking import _find_products_for_tracking, ShopSelectView
+        from utils.price_tracking import _find_products_for_tracking
+        from utils.price_tracking_views import ShopSelectView
         await interaction.response.defer()
         shops_data = await _find_products_for_tracking(self.bot, self.species)
         if not shops_data:

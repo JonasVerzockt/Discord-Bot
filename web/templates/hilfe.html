@@ -1,0 +1,31 @@
+{% extends "base" %}{% block body %}
+<style>.hp-cmd{padding:7px 0;border-bottom:1px solid #161b22} .hp-ex{color:#8b949e;font-size:13px;margin-top:2px}
+.hp-ex code,.hp-cmd code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:0 5px}
+.hp-card{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px 14px}
+.hp-card h4{margin:0 0 6px} .hp-card p{margin:0 0 6px;font-size:14px}
+.hp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+details.hp-faq{border-bottom:1px solid #21262d;padding:8px 0} details.hp-faq summary{cursor:pointer;font-weight:600}</style>
+<h2 style="margin-bottom:6px">❓ {{ t('hp_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('hp_intro') }}</p>
+<input id=hpq type=search placeholder="{{ t('hp_search') }}" autocomplete=off style="max-width:420px">
+<nav class=secnav style="margin-top:10px"><a href="#befehle">{{ t('hp_s_cmds') }}</a><a href="#board">{{ t('hp_s_board') }}</a><a href="#faq">{{ t('hp_s_faq') }}</a>{% if admin_groups %}<a href="#admin">{{ t('hp_s_admin') }}</a>{% endif %}</nav>
+<section class=statsec id=befehle><h3>💬 {{ t('hp_s_cmds') }}</h3>
+<p class=muted style="margin-top:0">{{ t('hp_cmds_note') }}</p>
+{% for head, items in groups %}<div class=hp-grp><h4 style="margin:14px 0 4px">{{ head }}</h4>
+{% for it in items %}<div class=hp-cmd data-q="{{ it.q }}">{{ it.html }}{% if it.ex %}<div class=hp-ex>{{ t('hp_example') }}: <code>{{ it.ex }}</code></div>{% endif %}</div>{% endfor %}</div>{% endfor %}
+</section>
+<section class=statsec id=board><h3>🌐 {{ t('hp_s_board') }}</h3><div class=hp-grid>
+{% for k, link in board %}<div class=hp-card data-q="{{ (t('hp_b_' ~ k ~ '_t') ~ ' ' ~ t('hp_b_' ~ k ~ '_d'))|lower }}"><h4>{{ t('hp_b_' ~ k ~ '_t') }}</h4><p>{{ t('hp_b_' ~ k ~ '_d') }}</p>{% if link %}<a href="{{ link }}{{ qs() }}">{{ t('hp_open') }} →</a>{% endif %}</div>{% endfor %}
+</div></section>
+<section class=statsec id=faq><h3>🙋 {{ t('hp_s_faq') }}</h3>
+{% for k in faq %}<details class=hp-faq data-q="{{ (t('hp_f_' ~ k ~ '_q') ~ ' ' ~ t('hp_f_' ~ k ~ '_a'))|lower }}"><summary>{{ t('hp_f_' ~ k ~ '_q') }}</summary><p style="margin:6px 0 0">{{ t('hp_f_' ~ k ~ '_a') }}</p></details>{% endfor %}
+</section>
+{% if admin_groups %}<section class=statsec id=admin><h3>🔒 {{ t('hp_s_admin') }}</h3>
+{% for head, items in admin_groups %}<div class=hp-grp><h4 style="margin:14px 0 4px">{{ head }}</h4>{% for it in items %}<div class=hp-cmd data-q="{{ it.q }}">{{ it.html }}</div>{% endfor %}</div>{% endfor %}
+</section>{% endif %}
+<script>(function(){var q=document.getElementById("hpq");if(!q)return;
+function f(){var v=q.value.trim().toLowerCase();document.querySelectorAll("[data-q]").forEach(function(e){
+ var ok=!v||e.getAttribute("data-q").indexOf(v)>=0;e.style.display=ok?"":"none";if(ok&&v&&e.tagName==="DETAILS")e.open=true;});
+ document.querySelectorAll(".hp-grp").forEach(function(g){var any=[].some.call(g.querySelectorAll("[data-q]"),function(e){return e.style.display!=="none";});g.style.display=any?"":"none";});}
+q.addEventListener("input",f);})();</script>
+{% endblock %}

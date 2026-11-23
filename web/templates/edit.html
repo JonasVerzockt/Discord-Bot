@@ -1,0 +1,26 @@
+{% extends "base" %}{% block body %}
+<p><a href="/admin?lang={{ lang }}">{{ t('back_admin') }}</a> · <a href="/submission/{{c.id}}?lang={{ lang }}">{{ t('public_view') }}</a></p>
+<h2>{{ t('edit_h', id=c.id) }}</h2>
+<form method=post action="/admin/{{c.id}}/edit?lang={{ lang }}"><input type=hidden name=csrf value="{{csrf}}">
+ <label>{{ t('f_type') }}</label><select name=type>{% for ty in types %}<option value="{{ty}}" {{'selected' if ty==c.type}}>{{ type_label(ty) }}</option>{% endfor %}</select>
+ <label>{{ t('f_title') }}</label><input name=title maxlength=120 required value="{{ c.title }}">
+ <label>{{ t('f_desc') }}</label><textarea name=body rows=8 maxlength=4000>{{ c.body }}</textarea>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+  <div style="flex:1;min-width:120px"><label>{{ t('f_status') }}</label><select name=status>{% for s in statuses %}<option value="{{s}}" {{'selected' if s==c.status}}>{{s}}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:100px"><label>{{ t('f_priority') }}</label><select name=priority>{% for p in priorities %}<option value="{{p}}" {{'selected' if p==c.priority}}>{{p or '–'}}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:150px"><label>{{ t('f_component') }}</label><select name=component>{% for k in components %}<option value="{{k}}" {{'selected' if k==c.component}}>{{k or '–'}}</option>{% endfor %}</select></div>
+  <div style="min-width:110px"><label>{{ t('f_version') }}</label><input name=version value="{{ c.version }}" style="width:110px"></div>
+ </div>
+ <p class="muted legend" style="margin-top:8px">{{ t('legend_priority') }} <span class=tag>P0</span> {{ t('prio_p0') }} · <span class=tag>P1</span> {{ t('prio_p1') }} · <span class=tag>P2</span> {{ t('prio_p2') }} · <span class=tag>P3</span> {{ t('prio_p3') }}</p>
+ <div style="margin-top:12px"><button class=btn>{{ t('btn_save_disk') }}</button></div>
+</form>
+<h3 style="margin-top:26px">{{ t('comments_count_h', n=comments|length) }}</h3>
+{% for k in comments %}<div class=card>
+ <form method=post action="/admin/comment/{{k.id}}/delete?lang={{ lang }}" style="float:right"><input type=hidden name=csrf value="{{csrf}}"><input type=hidden name=sid value="{{c.id}}"><button class="btn small grey">🗑</button></form>
+ <b>{{ k.author or 'Owner' }}</b> <span class=muted>· {{ k.created_at }}</span>
+ <div style="white-space:pre-wrap;margin-top:4px">{{ k.body }}</div></div>{% endfor %}
+<form method=post action="/admin/{{c.id}}/comment?lang={{ lang }}" style="margin-top:12px"><input type=hidden name=csrf value="{{csrf}}">
+ <label>{{ t('new_comment') }}</label><textarea name=body rows=3 maxlength=4000 required placeholder="{{ t('ph_comment') }}"></textarea>
+ <label>{{ t('f_author') }}</label><input name=author maxlength=40 value="Owner" style="max-width:220px">
+ <div style="margin-top:10px"><button class=btn>{{ t('add_comment') }}</button></div>
+</form>{% endblock %}

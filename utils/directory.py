@@ -411,7 +411,7 @@ async def active_codes(bot, dom: str) -> list[dict]:
 
 def partner_of(dom: str) -> dict | None:
     try:
-        from cogs.board import _load_partners
+        from web.core.partners import _load_partners
         for p in _load_partners():
             if domain_of(p.get("url", "")) == dom:
                 return p

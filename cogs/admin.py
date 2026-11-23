@@ -81,7 +81,7 @@ class AdminCog(commands.Cog, name="Admin"):
         icon = {"ok": "🟢", "warn": "🟡", "down": "🔴", "off": "⚪"}
         e = discord.Embed(title=l10n.get("health_title", lang), color=ADMIN_COLOR)
         try:
-            from cogs.board import _collect_health
+            from utils.health import _collect_health
             overall, sections = await _collect_health({"bot": self.bot}, lang)
             e.description = f"{icon.get(overall[0], '❔')} **{overall[1]}**"
             for sec in sections:

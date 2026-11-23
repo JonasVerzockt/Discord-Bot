@@ -1,0 +1,16 @@
+{% extends "base" %}{% block body %}
+{% macro m(n) %}{% if 0 < n < 3 %}&lt; 3{% else %}{{ n }}{% endif %}{% endmacro %}
+<h2 style="margin-bottom:6px">🔬 {{ t('inat_page_h') }}</h2>
+<p class=muted style="margin-top:0">{{ t('inat_page_intro') }}</p>
+<div class=kpigrid>
+ <div class=kpi><div class=v>{{ d.taxa|length }}</div><div class=l>{{ t('inat_k_species') }}</div></div>
+ <div class=kpi><div class=v>{{ d.obs }}</div><div class=l>{{ t('inat_k_obs') }}</div></div>
+ <div class=kpi><div class=v>{{ m(d.people) }}</div><div class=l>{{ t('inat_k_people') }}</div></div>
+ {% if d.years %}<div class=kpi><div class=v>{{ d.years[0] }}</div><div class=l>{{ t('inat_k_since') }}</div></div>{% endif %}
+</div>
+{% if d.taxa %}
+<form onsubmit="return false" style="max-width:420px;margin-top:14px"><input id=inatfilter type=search placeholder="{{ t('dir_art_search') }}" autocomplete=off></form>
+{% from "genmac" import genlist with context %}{{ genlist("inatgen", groups, d.taxa|length, "inatfilter") }}
+{% else %}<div class=flash style="margin-top:12px">{{ t('inat_page_empty') }}</div>{% endif %}
+<p class=muted>{{ t('inat_page_note') }}</p>
+{% endblock %}
