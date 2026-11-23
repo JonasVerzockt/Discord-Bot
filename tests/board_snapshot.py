@@ -35,6 +35,15 @@ SALT = "snapshot-test-salt"
 
 
 def _setup_env(tmp: Path) -> None:
+    """Test-Umgebung: alle Daten in *tmp*, feste Schlüssel, alle Features an.
+
+    WICHTIG: Die Alt-Daten-Migration (config.py/grabber.py verschieben beim Import alte
+    Dateien aus dem Projektordner nach DATA_DIR) wird hier abgeschaltet – sonst könnte ein
+    Testlauf in einer älteren Installation echte Daten in den Temp-Ordner verschieben."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    import utils.paths as _paths
+    _paths.migrate_legacy_files = lambda mapping: []
     os.environ.update({
         "DATA_DIR": str(tmp), "DATA_DIRECTORY": str(tmp),
         "DB_FILE": str(tmp / "bot.db"), "BOARD_DB_FILE": str(tmp / "board.db"),
@@ -218,7 +227,8 @@ PATHS = [
     "/map", "/map/regions.json", "/map/pins.json", "/map/list.json", "/map/events.json",
     "/map/stats.json", "/map/events.ics", "/map/events/1.ics", "/map/events/2.ics", "/intro.json", "/hilfe", "/schwarmflug",
     "/schwarmflug/status.json", "/admin/schwarmflug", "/konto", "/konto/daten.json",
-    "/chat/models", "/static/stats.js", "/static/map.js", "/favicon.ico", "/nicht-vorhanden",
+    "/chat/models", "/static/stats.js", "/static/map.js", "/static/board.css", "/static/board-map.css",
+    "/static/board-chat.css", "/static/board-help.css", "/static/board-konto.css", "/static/board-swarm.css", "/favicon.ico", "/nicht-vorhanden",
 ]
 
 # Werte, die sich bei jedem Lauf ändern (Zeit, Zufall, Systemlast) → Platzhalter

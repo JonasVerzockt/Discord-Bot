@@ -30,7 +30,6 @@ dauerhaft; nur die DB-Zeilen werden nach COMMAND_LOG_RETENTION_DAYS bereinigt.
 import asyncio
 import logging
 import re
-from datetime import datetime, timezone
 
 import discord
 from discord.ext import commands, tasks

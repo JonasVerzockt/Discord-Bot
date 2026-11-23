@@ -130,7 +130,7 @@ _SP_EPITHETS: set[str] = set()            # ALLE akzeptierten Epitheta (gattungs
 
 
 def _load_species_catalog() -> None:
-    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS, _SP_EPITHETS
+    global _SP_LOADED, _SP_ACCEPTED, _SP_SYNONYMS, _SP_GENERA, _SP_BY_GENUS
     if _SP_LOADED:
         return
     _SP_LOADED = True

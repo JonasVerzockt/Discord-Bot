@@ -35,7 +35,7 @@ import re
 import json
 import logging
 import calendar
-from datetime import date, timedelta
+from datetime import date
 
 import anthropic
 from dotenv import load_dotenv

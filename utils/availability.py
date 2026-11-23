@@ -24,7 +24,6 @@ import os
 import re
 import html
 import json
-import asyncio
 import logging
 import threading
 from config import SHOPS_DATA_FILE

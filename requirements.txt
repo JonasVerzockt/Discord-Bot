@@ -1,42 +1,47 @@
+# Laufzeit-Abhängigkeiten des Bots – EXAKT die getesteten Versionen (Python 3.13).
+# Der Auto-Deploy (update.py) installiert diese Datei bei jeder Änderung; feste Versionen
+# verhindern, dass dabei ungetestete neue Hauptversionen auf den Server kommen.
+# Aktualisieren: Version hier anheben, lokal/CI testen (python -m pytest tests/), dann deployen.
+#
 # Discord (py-cord – wird benötigt für Slash Commands / ApplicationContext)
-py-cord>=2.4.0
+py-cord==2.8.1
 
 # KI-Parser (Claude Haiku)
-anthropic>=0.25.0
+anthropic==2.12.0
 
 # Google Sheets
-gspread>=6.0.0
-google-auth>=2.0.0
+gspread==6.2.1
+google-auth==2.63.1
 
 # HTTP (Grabber)
-requests>=2.31.0
+requests==2.34.2
 
 # Fuzzy Matching
-rapidfuzz>=3.0.0
+rapidfuzz==3.14.6
 
 # System-Stats (/system Befehl)
-psutil>=5.9.0
+psutil==7.2.2
 
 # Umgebungsvariablen
-python-dotenv>=1.0.0
+python-dotenv==1.2.4
 
 # Lokalisierte Ländernamen (CLDR-Daten)
-Babel>=2.8.0
+Babel==2.18.0
 
 # Voice (optional, unterdrückt discord voice-warning / behebt Voice-Fehlermeldungen)
-PyNaCl>=1.5.0
-davey
+PyNaCl==1.6.2
+davey==0.2.0
 
 # Ranking-Bild (iNat-Treppchen, lokal gerendert)
-matplotlib>=3.7.0
+matplotlib==3.11.2
 
 # Schwarmflug-Prognose (logistische Regression, utils/forecast.py); kommt auch mit matplotlib
-numpy>=1.24
+numpy==2.5.5
 
-# Feedback-Board (cogs/board.py): Webserver + Templates.
+# Web-Oberfläche (web/, gestartet von cogs/board.py): Webserver + Templates.
 # aiohttp ist ohnehin py-cord-Abhängigkeit; hier explizit + Jinja2 (Templates, Autoescape).
-aiohttp>=3.9.0
-Jinja2>=3.1.0
+aiohttp==3.14.5
+Jinja2==3.1.6
 
-# Halter-Karte (cogs/map.py): Event-Wiederholungen (iCal-RRULE) + ICS-Export.
-python-dateutil>=2.8.0
+# Halter-Karte (cogs/map.py, utils/map_events.py): Event-Wiederholungen (iCal-RRULE) + ICS-Export.
+python-dateutil==4.0.0

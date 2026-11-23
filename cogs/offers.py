@@ -26,7 +26,8 @@ import discord
 from discord.ext import commands
 
 from utils.localization import l10n, get_user_lang
-from utils.availability import load_shop_data, available_variants, strip_html, ensure_url_scheme, format_rating, is_live_ant_species, is_merch_product
+from utils.availability import (load_shop_data, available_variants, strip_html, ensure_url_scheme,
+                                format_rating, is_merch_product)
 from utils.currency import ensure_rates
 from utils.countries import flag_emoji
 from cogs.server_settings import allowed_channel

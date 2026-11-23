@@ -44,7 +44,7 @@ from config import (BOARD_ENABLED, BOARD_BIND, BOARD_PORT, BOARD_PUBLIC_URL, BOA
 from utils.board_db import board_init
 from utils.health import _process_alerts, _record_incidents
 from web import build_app
-from web.core.security import _admin_ids
+from web.core.security import _admin_ids, salt_problem
 from web.core.static import _DebugAccessLogger
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,12 @@ class BoardCog(commands.Cog, name="Board"):
 
     async def _start(self):
         await self.bot.wait_until_ready()
+        problem = salt_problem()
+        if problem:
+            logger.error("❌ Board NICHT gestartet: %s. Bitte in der .env einen langen, zufälligen "
+                         "Wert setzen (z. B. python3 -c \"import secrets; print(secrets.token_hex(32))\") "
+                         "und den Bot neu starten.", problem)
+            return
         if not _admin_ids() or not (BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
             logger.warning("⚠️ Board aktiv, aber Admin-Login unmöglich: BOARD_OWNER_ID und "
                            "Discord-OAuth (BOARD_OAUTH_*) müssen gesetzt sein.")

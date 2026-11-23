@@ -19,6 +19,9 @@ utils/map_store.py – Datenzugriff der Halter-Karte (Einträge, Zusatzregionen,
 
 Gemeinsam genutzt von cogs/map.py (Befehle) und cogs/map_tasks.py (Austritt, Ablauf,
 Aufräumen) – vorher importierte map_tasks diese Funktionen direkt aus dem Map-Cog.
+
+Hinweis: Die vollständige Löschung über „Mein Konto“ (utils/account.py, AREAS["map"]) entfernt
+zusätzlich Erinnerungs-Merker (map_rsvp_reminded) und anonymisiert eingereichte Events.
 """
 from utils import geo
 from utils.db import execute_db

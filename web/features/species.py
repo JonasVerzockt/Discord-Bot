@@ -101,7 +101,6 @@ def _fnum(raw):
 
 async def _finder(req, idx: dict, lang: str) -> dict:
     """Filtert den Arten-Index nach Gattung, Preis (EUR), Shop-Land/CH-Lieferung und Lagerstand."""
-    from utils import directory as dirx
     from utils.availability import normalize_species_name
     q = req.query
     g = (q.get("g") or "").strip()[:60]

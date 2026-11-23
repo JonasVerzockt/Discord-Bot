@@ -22,7 +22,7 @@ Namen der Meldenden werden nirgends angezeigt.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 from utils import swarm as S
 from utils.db import execute_db

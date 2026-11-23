@@ -44,6 +44,13 @@ _STATIC_FILES = {
     "MarkerCluster.css": "text/css",
     "MarkerCluster.Default.css": "text/css",
     "map.js": "application/javascript",
+    # Stylesheets der Board-Seiten (aus den Templates ausgelagert, 5.1.0).
+    "board.css": "text/css",
+    "board-chat.css": "text/css",
+    "board-help.css": "text/css",
+    "board-konto.css": "text/css",
+    "board-map.css": "text/css",
+    "board-swarm.css": "text/css",
     "de_bundeslaender.geojson": "application/geo+json",
     "at_bundeslaender.geojson": "application/geo+json",
     "ch_kantone.geojson": "application/geo+json",

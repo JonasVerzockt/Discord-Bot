@@ -86,6 +86,7 @@ def _render(req, name, title="Board", flash="", **ctx):
                 partner_strip=(_load_partners() if name != "map" else []))
     i18n["nav_member"] = bool(_aam_member(req))
     i18n["intro_v"] = _intro_asset_v()
+    i18n["css_v"] = _css_asset_v()
     i18n["swarm_banner"] = SWB.season_info(lang) if name not in ("schwarmflug", "map") else None
     chat_uid = _chat_uid(req) if name != "map" else None
     i18n.update(chat_ok=bool(chat_uid), chat_csrf=_member_csrf(chat_uid) if chat_uid else "",
@@ -113,6 +114,16 @@ def _konto_flash(req) -> str:
     m = req.query.get("m", "")
     return translate(pick_lang(req), "konto_m_" + m, n=req.query.get("n", "")) \
         if m and ("konto_m_" + m) in _BI18N_T else ""
+
+
+def _css_asset_v() -> str:
+    """Cache-Busting für die Board-Stylesheets: Version + jüngste Änderungszeit aller
+    static/board*.css – ändert sich bei jedem Update einer CSS-Datei, sonst stabil."""
+    try:
+        newest = max(int(p.stat().st_mtime) for p in STATIC_DIR.glob("board*.css"))
+        return f"{VERSION}.{newest}"
+    except (OSError, ValueError):
+        return VERSION
 
 
 def _intro_asset_v() -> str:

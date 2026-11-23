@@ -37,7 +37,6 @@ from rapidfuzz import process
 from utils.db import execute_db
 from utils.localization import l10n, get_user_lang
 from utils.availability import load_shop_data, is_merch_product
-from utils.text_chunks import send_chunked
 from utils.embeds import send_embeds, ADMIN_COLOR
 from utils.timez import berlin_from_utc_naive
 from utils.grabber_run import run_grabber, format_data_status, GRABBER_TIMEOUT

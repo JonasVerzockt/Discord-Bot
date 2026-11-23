@@ -27,7 +27,6 @@ Verwendung:
     row_num = sheet.append([...])
     sheet.update(row_num, [...])
 """
-import os
 import logging
 import gspread
 from config import SPREADSHEET_ID, SHEET_NAME

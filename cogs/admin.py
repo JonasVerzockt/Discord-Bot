@@ -36,10 +36,7 @@ from discord.ext import commands
 
 from config import MAPPING_FILE, SCAN_DAYS, REVIEW_CHANNEL_ID
 from utils.sheet import sheet
-from utils.tracking import (
-    get_all_pending, get_all_tracking, pending_count, tracking_count,
-    get_tracking, remove_pending,
-)
+from utils.tracking import get_all_pending, pending_count, tracking_count, get_tracking, remove_pending
 from utils.ai_parser import parse_with_ai
 from cogs.server_settings import admin_or_manage_messages, allowed_channel
 from utils.localization import l10n, get_user_lang

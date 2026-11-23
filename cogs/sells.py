@@ -27,7 +27,6 @@ import json
 import logging
 import re
 from collections import Counter
-from datetime import datetime
 
 import discord
 from discord.ext import commands

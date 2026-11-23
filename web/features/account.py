@@ -196,6 +196,352 @@ def _num(v, cast=int):
         return None
 
 
+# ── Benachrichtigungen ────────────────────────────────────────────────────
+async def _konto_benachrichtigung(req, form, uid, lang, bot, act):
+    """Aktion benachrichtigung."""
+    nid, do = _num(form.get("id")), form.get("do")
+    if nid is None:
+        raise _konto_back(req, "error", "benachrichtigungen")
+    if do == "delete":
+        await execute_db(bot, "DELETE FROM notifications WHERE id=? AND user_id=?", (nid, uid), commit=True)
+        raise _konto_back(req, "deleted", "benachrichtigungen")
+    if do == "pause":
+        await execute_db(bot, "UPDATE notifications SET status='paused' WHERE id=? AND user_id=? "
+                              "AND status='active'", (nid, uid), commit=True)
+        raise _konto_back(req, "paused", "benachrichtigungen")
+    if do == "resume":
+        rows = await execute_db(bot, "SELECT species, regions, excluded_species FROM notifications "
+                                     "WHERE id=? AND user_id=?", (nid, uid), fetch=True)
+        if rows:
+            await execute_db(bot, "UPDATE notifications SET status='active', created_at=CURRENT_TIMESTAMP, "
+                                  "pending_feedback_until=NULL WHERE id=? AND user_id=?", (nid, uid), commit=True)
+            r = rows[0]
+            _konto_check_now(bot, uid, r["species"], r["regions"], r["excluded_species"])
+        raise _konto_back(req, "resumed", "benachrichtigungen")
+    raise _konto_back(req, "error", "benachrichtigungen")
+
+
+async def _konto_benachrichtigung_neu(req, form, uid, lang, bot, act):
+    """Aktion benachrichtigung/neu."""
+    return await _konto_notif_add(req, uid, form)
+
+
+# ── Preise ────────────────────────────────────────────────────────────────
+async def _konto_preis_entfernen(req, form, uid, lang, bot, act):
+    """Aktion preis/entfernen."""
+    pid, vid = _num(form.get("pid")), _num(form.get("vid")) or 0
+    await execute_db(bot, "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=? AND variant_id=?",
+                     (uid, pid, vid), commit=True)
+    raise _konto_back(req, "deleted", "preise")
+
+
+async def _konto_zielpreis(req, form, uid, lang, bot, act):
+    """Aktion zielpreis."""
+    pid, vid = _num(form.get("pid")), _num(form.get("vid")) or 0
+    raw = (form.get("price") or "").strip()
+    mode = form.get("mode") if form.get("mode") in ("additional", "replace") else "additional"
+    if not raw:
+        await execute_db(bot, "UPDATE user_price_tracking SET target_price=NULL, target_mode=NULL "
+                              "WHERE user_id=? AND product_id=? AND variant_id=?", (uid, pid, vid), commit=True)
+        raise _konto_back(req, "target_off", "preise")
+    price = _num(raw, float)
+    if price is None or price <= 0 or price > 100000:
+        raise _konto_back(req, "bad_price", "preise")
+    await execute_db(bot, "UPDATE user_price_tracking SET target_price=?, target_mode=? "
+                          "WHERE user_id=? AND product_id=? AND variant_id=?",
+                     (round(price, 2), mode, uid, pid, vid), commit=True)
+    raise _konto_back(req, "target_set", "preise")
+
+
+async def _konto_preis_neu(req, form, uid, lang, bot, act):
+    """Aktion preis/neu."""
+    from utils.price_tracking import _find_products_for_tracking, save_tracking
+    species = (form.get("species") or "").strip()[:80]
+    sel = {str(x) for x in form.getall("sel", [])}
+    if not species or not sel:
+        raise _konto_back(req, "nothing", "preise")
+    found = await _find_products_for_tracking(bot, species)
+    saved = 0
+    for sid, blk in found.items():
+        for p in blk["products"]:
+            if f"{sid}|{p.get('id')}" in sel and p.get("id") is not None:
+                if await save_tracking(bot, uid, sid, blk["shop_info"].get("name", sid), p):
+                    saved += 1
+    raise _konto_back(req, "track_added", "preise", n=saved)
+
+
+async def _konto_beobachtung_neu(req, form, uid, lang, bot, act):
+    """Aktion beobachtung/neu."""
+    from utils.availability import normalize_species_name
+    from utils import species_catalog
+    from utils.price_tracking import init_species_watch_seen
+    raw = (form.get("species") or "").strip()[:80]
+    if len(raw) < 3:
+        raise _konto_back(req, "nothing", "preise")
+    canon = species_catalog.canonical(raw)
+    norm = normalize_species_name(canon or raw)
+    is_genus = 0 if " " in norm.strip() else 1
+    rc = await execute_db(bot, "INSERT INTO user_species_watch (user_id, species, is_genus) VALUES (?,?,?) "
+                               "ON CONFLICT(user_id, species) DO NOTHING", (uid, norm, is_genus), commit=True)
+    if rc:
+        await init_species_watch_seen(bot, uid, norm, is_genus)
+    back = str(form.get("back") or "")
+    if _BACK_RE.match(back):                         # Stern auf /art: zurück zur Seite
+        path, _, qs_ = back.partition("?")
+        qd = dict(p.split("=", 1) for p in qs_.split("&") if "=" in p) if qs_ else {}
+        qd = {k: v for k, v in qd.items() if k not in ("m", "n", "lang")}
+        from urllib.parse import unquote_plus
+        qd = {k: unquote_plus(v) for k, v in qd.items()}
+        qd.update(lang=lang, m="watch_added" if rc else "exists")
+        raise web.HTTPSeeOther(path + "?" + urlencode(qd))
+    raise _konto_back(req, "watch_added" if rc else "exists", "preise")
+
+
+async def _konto_beobachtung_entfernen(req, form, uid, lang, bot, act):
+    """Aktion beobachtung/entfernen."""
+    sp = (form.get("species") or "").strip()
+    for sql in ("DELETE FROM user_species_watch WHERE user_id=? AND species=?",
+                "DELETE FROM user_species_watch_seen WHERE user_id=? AND watched_species=?",
+                "DELETE FROM user_species_watch_variant_seen WHERE user_id=? AND watched_species=?",
+                "DELETE FROM pending_variant_removed WHERE user_id=? AND watched_species=?"):
+        await execute_db(bot, sql, (uid, sp), commit=True)
+    raise _konto_back(req, "deleted", "preise")
+
+
+# ── Einstellungen ─────────────────────────────────────────────────────────
+async def _konto_einstellungen(req, form, uid, lang, bot, act):
+    """Aktion einstellungen."""
+    lng = form.get("language") or ""
+    if lng in ("de", "en", "eo"):
+        await execute_db(bot, "DELETE FROM user_settings WHERE user_id=?", (uid,), commit=True)
+        await execute_db(bot, "INSERT INTO user_settings (user_id, language) VALUES (?, ?) "
+                              "ON CONFLICT(user_id) DO UPDATE SET language=excluded.language",
+                         (int(uid), lng), commit=True)
+    elif lng == "":
+        for v in (int(uid), uid):
+            await execute_db(bot, "DELETE FROM user_settings WHERE user_id=?", (v,), commit=True)
+    if form.get("digest"):
+        await execute_db(bot, "INSERT OR IGNORE INTO digest_subscribers (user_id) VALUES (?)", (uid,), commit=True)
+    else:
+        await execute_db(bot, "DELETE FROM digest_subscribers WHERE user_id=?", (uid,), commit=True)
+    qs_, qe_ = _num(form.get("qs")), _num(form.get("qe"))
+    quiet = bool(form.get("quiet")) and qs_ is not None and qe_ is not None \
+        and 0 <= qs_ < 24 and 0 <= qe_ < 24 and qs_ != qe_
+    await ACC.set_prefs(bot, uid, rsvp_reminder=1 if form.get("rsvp") else 0,
+                        intros=1 if form.get("intros") else 0,
+                        quiet_start=qs_ if quiet else None, quiet_end=qe_ if quiet else None)
+    raise _konto_back(req, "saved", "einstellungen")
+
+
+async def _konto_blacklist_neu(req, form, uid, lang, bot, act):
+    """Aktion blacklist/neu."""
+    from utils.availability import load_shop_data
+    sid = str(form.get("shop") or "")
+    if sid in await load_shop_data(bot):
+        await execute_db(bot, "INSERT OR IGNORE INTO user_shop_blacklist (user_id, shop_id) VALUES (?, ?)",
+                         (uid, sid), commit=True)
+    raise _konto_back(req, "saved", "einstellungen")
+
+
+async def _konto_blacklist_entfernen(req, form, uid, lang, bot, act):
+    """Aktion blacklist/entfernen."""
+    await execute_db(bot, "DELETE FROM user_shop_blacklist WHERE user_id=? AND shop_id=?",
+                     (uid, str(form.get("shop") or "")), commit=True)
+    raise _konto_back(req, "deleted", "einstellungen")
+
+
+async def _konto_schlagwort_neu(req, form, uid, lang, bot, act):
+    """Aktion schlagwort/neu."""
+    from cogs.offer_alerts import _plain, MAX_KEYWORDS
+    cnt = await execute_db(bot, "SELECT COUNT(*) AS n FROM offer_keywords WHERE user_id=?", (uid,), fetch=True)
+    have = cnt[0]["n"] if cnt else 0
+    added = []
+    for part in re.split(r"[;,]", form.get("kw") or ""):
+        raw = part.strip()
+        kw = _plain(raw)
+        if not (2 <= len(kw) <= 80) or have >= MAX_KEYWORDS:
+            continue
+        rc = await execute_db(bot, "INSERT OR IGNORE INTO offer_keywords (user_id, keyword, keyword_raw) "
+                                   "VALUES (?,?,?)", (uid, kw, raw), commit=True)
+        if rc:
+            have += 1
+            added.append((kw, raw))
+    cog = bot.cogs.get("OfferAlerts") if hasattr(bot, "cogs") else None
+    if cog and added:
+        async def _bf():
+            try:
+                user = bot.get_user(int(uid)) or await bot.fetch_user(int(uid))
+                for kw, raw in added:
+                    await cog._backfill(user, uid, kw, raw)
+            except Exception as e:
+                logger.info("👤 Konto: Rückblick für Schlagworte fehlgeschlagen: %s", e)
+        asyncio.create_task(_bf())
+    raise _konto_back(req, "kw_added", "einstellungen", n=len(added))
+
+
+async def _konto_schlagwort_entfernen(req, form, uid, lang, bot, act):
+    """Aktion schlagwort/entfernen."""
+    await execute_db(bot, "DELETE FROM offer_keywords WHERE user_id=? AND keyword=?",
+                     (uid, str(form.get("kw") or "")), commit=True)
+    await execute_db(bot, "DELETE FROM quiet_offer_queue WHERE user_id=? AND keyword=?",
+                     (uid, str(form.get("kw") or "")), commit=True)
+    raise _konto_back(req, "deleted", "einstellungen")
+
+
+# ── Schwarmflug-Alarm ─────────────────────────────────────────────────────
+async def _konto_schwarm_neu(req, form, uid, lang, bot, act):
+    """Aktion schwarm/neu."""
+    from utils import swarm as SW
+    if str(form.get("taxon") or "") == "*":            # PN beim Saisonstart
+        await execute_db(bot, "INSERT OR IGNORE INTO swarm_alerts (user_id, taxon, country, region) "
+                              "VALUES (?,?,?,?)", (uid, "*", "", ""), commit=True)
+        raise _konto_back(req, "sw_added", "schwarmflug")
+    taxa = SW.parse_taxa(str(form.get("taxon") or "")[:60])
+    if not taxa:
+        raw = str(form.get("taxon") or "").strip().split()
+        g = SW._genus_of(raw[0]) if raw else None
+        taxa = [{"genus": g, "species": None}] if g else []
+    where = str(form.get("where") or "")
+    c, _, r = where.partition("-")
+    ok_where = where == "" or (c in geo.all_regions() and (not r or r in geo.all_regions()[c]))
+    cnt = await execute_db(bot, "SELECT COUNT(*) AS n FROM swarm_alerts WHERE user_id=?", (uid,), fetch=True)
+    if not taxa or not ok_where or (cnt and cnt[0]["n"] >= 20):
+        raise _konto_back(req, "sw_bad", "schwarmflug")
+    tx = taxa[0]
+    taxon = tx["genus"] + (" " + tx["species"] if tx.get("species") else "")
+    await execute_db(bot, "INSERT OR IGNORE INTO swarm_alerts (user_id, taxon, country, region) VALUES (?,?,?,?)",
+                     (uid, taxon, c, "" if c == "li" else r), commit=True)
+    raise _konto_back(req, "sw_added", "schwarmflug")
+
+
+async def _konto_schwarm_prognose(req, form, uid, lang, bot, act):
+    """Aktion schwarm/prognose."""
+    lv = str(form.get("level") or "")
+    if lv not in ("off", "rare", "normal", "often"):
+        raise _konto_back(req, "error", "schwarmflug")
+    await execute_db(bot, "INSERT INTO fc_pref (user_id, level) VALUES (?,?) ON CONFLICT(user_id) "
+                          "DO UPDATE SET level=excluded.level", (uid, lv), commit=True)
+    raise _konto_back(req, "fc_saved", "schwarmflug")
+
+
+async def _konto_schwarm_entfernen(req, form, uid, lang, bot, act):
+    """Aktion schwarm/entfernen."""
+    await execute_db(bot, "DELETE FROM swarm_alerts WHERE user_id=? AND taxon=? AND country=? AND region=?",
+                     (uid, str(form.get("taxon") or ""), str(form.get("country") or ""),
+                      str(form.get("region") or "")), commit=True)
+    raise _konto_back(req, "deleted", "schwarmflug")
+
+
+# ── Termine & Kalender ────────────────────────────────────────────────────
+async def _konto_termin_absagen(req, form, uid, lang, bot, act):
+    """Aktion termin/absagen."""
+    await execute_db(bot, "DELETE FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
+                     (_num(form.get("eid")), str(form.get("occ") or "")[:10], uid), commit=True)
+    raise _konto_back(req, "rsvp_removed", "termine")
+
+
+async def _konto_kalender_neu(req, form, uid, lang, bot, act):
+    """Aktion kalender/neu."""
+    await ACC.ics_salt(bot, uid, rotate=True)
+    raise _konto_back(req, "ics_new", "termine")
+
+
+# ── Karte ─────────────────────────────────────────────────────────────────
+async def _konto_karte_tags(req, form, uid, lang, bot, act):
+    """Aktion karte/tags."""
+    have = await execute_db(bot, "SELECT 1 FROM map_entries WHERE user_id=?", (uid,), fetch=True)
+    if have:
+        tags = [c for c in form.getall("tag", []) if map_tags.is_valid(c)]
+        await execute_db(bot, "DELETE FROM map_entry_tags WHERE user_id=?", (uid,), commit=True)
+        for c in dict.fromkeys(tags):
+            await execute_db(bot, "INSERT OR IGNORE INTO map_entry_tags (user_id, tag_code) VALUES (?,?)",
+                             (uid, c), commit=True)
+    raise _konto_back(req, "saved", "karte")
+
+
+async def _konto_karte_loeschen(req, form, uid, lang, bot, act):
+    """Aktion karte/loeschen."""
+    for sql in ("DELETE FROM map_entry_tags WHERE user_id=?", "DELETE FROM map_entry_regions WHERE user_id=?",
+                "DELETE FROM map_entries WHERE user_id=?"):
+        await execute_db(bot, sql, (uid,), commit=True)
+    raise _konto_back(req, "map_deleted", "karte")
+
+
+# ── iNaturalist ───────────────────────────────────────────────────────────
+async def _konto_inat(req, form, uid, lang, bot, act):
+    """Aktionen inat/start, inat/pruefen, inat/trennen."""
+    from utils import inat as I
+    from utils.localization import l10n
+    if act == "inat/trennen":
+        await I.unlink(bot, uid)
+        raise _konto_back(req, "inat_unlinked", "inat")
+    if act == "inat/start":
+        login = (form.get("login") or "").strip().lstrip("@")
+        if not I.LOGIN_RE.match(login):
+            return await _konto_page(req, uid, flash=_MD_STRIP.sub("", l10n.get("inat_link_bad_login", lang)))
+        await I.start_link(bot, uid, login)
+        raise _konto_back(req, "inat_code", "inat")
+    status, u = await I.verify_link(bot, uid)
+    if status == "ok":
+        st = await I.user_stats(bot, uid)
+        msg = l10n.get("inat_link_ok", lang, login=u["login"], obs=st["obs"], species=st["species"])
+    else:
+        msg = l10n.get(f"inat_link_{status}", lang)
+    return await _konto_page(req, uid, flash=_MD_STRIP.sub("", msg))
+
+
+# ── Sitzungen & Datenschutz ───────────────────────────────────────────────
+async def _konto_abmelden(req, form, uid, lang, bot, act):
+    """Aktion abmelden."""
+    await ACC.set_prefs(bot, uid, logout_before=ACC.now_epoch())
+    resp = web.HTTPSeeOther(f"/konto?lang={lang}&m=logout")
+    resp.del_cookie(_MEMBER_COOKIE)
+    resp.del_cookie(_ADMIN_COOKIE)
+    logger.info("👤 Konto: überall abgemeldet (%s)", uid)
+    raise resp
+
+
+async def _konto_loeschen(req, form, uid, lang, bot, act):
+    """Aktion loeschen."""
+    area = str(form.get("area") or "")
+    if area == "all" and not form.get("sure"):
+        raise _konto_back(req, "error", "daten")
+    if area != "all" and area not in ACC.AREAS:
+        raise _konto_back(req, "error", "daten")
+    await ACC.delete_area(bot, uid, area)
+    raise _konto_back(req, "area_deleted", "daten")
+
+
+# Aktion (URL /konto/<aktion>) → Handler. Jeder Handler endet mit raise (Redirect/Fehler)
+# oder return (Seite); Prüfungen davor (Login, CSRF, Rate-Limit, Lösch-Sperre) laufen in h_konto_post.
+_KONTO_ACTIONS = {
+    "benachrichtigung": _konto_benachrichtigung,
+    "benachrichtigung/neu": _konto_benachrichtigung_neu,
+    "preis/entfernen": _konto_preis_entfernen,
+    "zielpreis": _konto_zielpreis,
+    "preis/neu": _konto_preis_neu,
+    "beobachtung/neu": _konto_beobachtung_neu,
+    "beobachtung/entfernen": _konto_beobachtung_entfernen,
+    "einstellungen": _konto_einstellungen,
+    "blacklist/neu": _konto_blacklist_neu,
+    "blacklist/entfernen": _konto_blacklist_entfernen,
+    "schlagwort/neu": _konto_schlagwort_neu,
+    "schlagwort/entfernen": _konto_schlagwort_entfernen,
+    "schwarm/neu": _konto_schwarm_neu,
+    "schwarm/prognose": _konto_schwarm_prognose,
+    "schwarm/entfernen": _konto_schwarm_entfernen,
+    "termin/absagen": _konto_termin_absagen,
+    "kalender/neu": _konto_kalender_neu,
+    "karte/tags": _konto_karte_tags,
+    "karte/loeschen": _konto_karte_loeschen,
+    "inat/start": _konto_inat,
+    "inat/pruefen": _konto_inat,
+    "inat/trennen": _konto_inat,
+    "abmelden": _konto_abmelden,
+    "loeschen": _konto_loeschen,
+}
+
+
 async def h_konto_post(req):
     """Alle Änderungen aus „Mein Konto“ (Formular-POST, CSRF + Rate-Limit, nur eigene Daten)."""
     lang = pick_lang(req)
@@ -222,285 +568,15 @@ async def h_konto_post(req):
         raise web.HTTPTooManyRequests(text="rate limited")
     bot = req.app["bot"]
     act = req.match_info["action"]
-    T = lambda key, **kw: translate(lang, key, **kw)
     # Löschen nur mit freigeschaltetem Schalter „Löschen freischalten“ (Seite oben).
     if (act in _KONTO_DANGER or (act == "benachrichtigung" and form.get("do") == "delete")) \
             and form.get("unlock") != "1":
         raise _konto_back(req, "locked", "")
 
-    # ── Benachrichtigungen ────────────────────────────────────────────────────
-    if act == "benachrichtigung":
-        nid, do = _num(form.get("id")), form.get("do")
-        if nid is None:
-            raise _konto_back(req, "error", "benachrichtigungen")
-        if do == "delete":
-            await execute_db(bot, "DELETE FROM notifications WHERE id=? AND user_id=?", (nid, uid), commit=True)
-            raise _konto_back(req, "deleted", "benachrichtigungen")
-        if do == "pause":
-            await execute_db(bot, "UPDATE notifications SET status='paused' WHERE id=? AND user_id=? "
-                                  "AND status='active'", (nid, uid), commit=True)
-            raise _konto_back(req, "paused", "benachrichtigungen")
-        if do == "resume":
-            rows = await execute_db(bot, "SELECT species, regions, excluded_species FROM notifications "
-                                         "WHERE id=? AND user_id=?", (nid, uid), fetch=True)
-            if rows:
-                await execute_db(bot, "UPDATE notifications SET status='active', created_at=CURRENT_TIMESTAMP, "
-                                      "pending_feedback_until=NULL WHERE id=? AND user_id=?", (nid, uid), commit=True)
-                r = rows[0]
-                _konto_check_now(bot, uid, r["species"], r["regions"], r["excluded_species"])
-            raise _konto_back(req, "resumed", "benachrichtigungen")
-        raise _konto_back(req, "error", "benachrichtigungen")
-
-    if act == "benachrichtigung/neu":
-        return await _konto_notif_add(req, uid, form)
-
-    # ── Preise ────────────────────────────────────────────────────────────────
-    if act == "preis/entfernen":
-        pid, vid = _num(form.get("pid")), _num(form.get("vid")) or 0
-        await execute_db(bot, "DELETE FROM user_price_tracking WHERE user_id=? AND product_id=? AND variant_id=?",
-                         (uid, pid, vid), commit=True)
-        raise _konto_back(req, "deleted", "preise")
-
-    if act == "zielpreis":
-        pid, vid = _num(form.get("pid")), _num(form.get("vid")) or 0
-        raw = (form.get("price") or "").strip()
-        mode = form.get("mode") if form.get("mode") in ("additional", "replace") else "additional"
-        if not raw:
-            await execute_db(bot, "UPDATE user_price_tracking SET target_price=NULL, target_mode=NULL "
-                                  "WHERE user_id=? AND product_id=? AND variant_id=?", (uid, pid, vid), commit=True)
-            raise _konto_back(req, "target_off", "preise")
-        price = _num(raw, float)
-        if price is None or price <= 0 or price > 100000:
-            raise _konto_back(req, "bad_price", "preise")
-        await execute_db(bot, "UPDATE user_price_tracking SET target_price=?, target_mode=? "
-                              "WHERE user_id=? AND product_id=? AND variant_id=?",
-                         (round(price, 2), mode, uid, pid, vid), commit=True)
-        raise _konto_back(req, "target_set", "preise")
-
-    if act == "preis/neu":
-        from utils.price_tracking import _find_products_for_tracking, save_tracking
-        species = (form.get("species") or "").strip()[:80]
-        sel = {str(x) for x in form.getall("sel", [])}
-        if not species or not sel:
-            raise _konto_back(req, "nothing", "preise")
-        found = await _find_products_for_tracking(bot, species)
-        saved = 0
-        for sid, blk in found.items():
-            for p in blk["products"]:
-                if f"{sid}|{p.get('id')}" in sel and p.get("id") is not None:
-                    if await save_tracking(bot, uid, sid, blk["shop_info"].get("name", sid), p):
-                        saved += 1
-        raise _konto_back(req, "track_added", "preise", n=saved)
-
-    if act == "beobachtung/neu":
-        from utils.availability import normalize_species_name
-        from utils import species_catalog
-        from utils.price_tracking import init_species_watch_seen
-        raw = (form.get("species") or "").strip()[:80]
-        if len(raw) < 3:
-            raise _konto_back(req, "nothing", "preise")
-        canon = species_catalog.canonical(raw)
-        norm = normalize_species_name(canon or raw)
-        is_genus = 0 if " " in norm.strip() else 1
-        rc = await execute_db(bot, "INSERT INTO user_species_watch (user_id, species, is_genus) VALUES (?,?,?) "
-                                   "ON CONFLICT(user_id, species) DO NOTHING", (uid, norm, is_genus), commit=True)
-        if rc:
-            await init_species_watch_seen(bot, uid, norm, is_genus)
-        back = str(form.get("back") or "")
-        if _BACK_RE.match(back):                         # Stern auf /art: zurück zur Seite
-            path, _, qs_ = back.partition("?")
-            qd = dict(p.split("=", 1) for p in qs_.split("&") if "=" in p) if qs_ else {}
-            qd = {k: v for k, v in qd.items() if k not in ("m", "n", "lang")}
-            from urllib.parse import unquote_plus
-            qd = {k: unquote_plus(v) for k, v in qd.items()}
-            qd.update(lang=lang, m="watch_added" if rc else "exists")
-            raise web.HTTPSeeOther(path + "?" + urlencode(qd))
-        raise _konto_back(req, "watch_added" if rc else "exists", "preise")
-
-    if act == "beobachtung/entfernen":
-        sp = (form.get("species") or "").strip()
-        for sql in ("DELETE FROM user_species_watch WHERE user_id=? AND species=?",
-                    "DELETE FROM user_species_watch_seen WHERE user_id=? AND watched_species=?",
-                    "DELETE FROM user_species_watch_variant_seen WHERE user_id=? AND watched_species=?",
-                    "DELETE FROM pending_variant_removed WHERE user_id=? AND watched_species=?"):
-            await execute_db(bot, sql, (uid, sp), commit=True)
-        raise _konto_back(req, "deleted", "preise")
-
-    # ── Einstellungen ─────────────────────────────────────────────────────────
-    if act == "einstellungen":
-        lng = form.get("language") or ""
-        if lng in ("de", "en", "eo"):
-            await execute_db(bot, "DELETE FROM user_settings WHERE user_id=?", (uid,), commit=True)
-            await execute_db(bot, "INSERT INTO user_settings (user_id, language) VALUES (?, ?) "
-                                  "ON CONFLICT(user_id) DO UPDATE SET language=excluded.language",
-                             (int(uid), lng), commit=True)
-        elif lng == "":
-            for v in (int(uid), uid):
-                await execute_db(bot, "DELETE FROM user_settings WHERE user_id=?", (v,), commit=True)
-        if form.get("digest"):
-            await execute_db(bot, "INSERT OR IGNORE INTO digest_subscribers (user_id) VALUES (?)", (uid,), commit=True)
-        else:
-            await execute_db(bot, "DELETE FROM digest_subscribers WHERE user_id=?", (uid,), commit=True)
-        qs_, qe_ = _num(form.get("qs")), _num(form.get("qe"))
-        quiet = bool(form.get("quiet")) and qs_ is not None and qe_ is not None \
-            and 0 <= qs_ < 24 and 0 <= qe_ < 24 and qs_ != qe_
-        await ACC.set_prefs(bot, uid, rsvp_reminder=1 if form.get("rsvp") else 0,
-                            intros=1 if form.get("intros") else 0,
-                            quiet_start=qs_ if quiet else None, quiet_end=qe_ if quiet else None)
-        raise _konto_back(req, "saved", "einstellungen")
-
-    if act == "blacklist/neu":
-        from utils.availability import load_shop_data
-        sid = str(form.get("shop") or "")
-        if sid in await load_shop_data(bot):
-            await execute_db(bot, "INSERT OR IGNORE INTO user_shop_blacklist (user_id, shop_id) VALUES (?, ?)",
-                             (uid, sid), commit=True)
-        raise _konto_back(req, "saved", "einstellungen")
-
-    if act == "blacklist/entfernen":
-        await execute_db(bot, "DELETE FROM user_shop_blacklist WHERE user_id=? AND shop_id=?",
-                         (uid, str(form.get("shop") or "")), commit=True)
-        raise _konto_back(req, "deleted", "einstellungen")
-
-    if act == "schlagwort/neu":
-        from cogs.offer_alerts import _plain, MAX_KEYWORDS
-        cnt = await execute_db(bot, "SELECT COUNT(*) AS n FROM offer_keywords WHERE user_id=?", (uid,), fetch=True)
-        have = cnt[0]["n"] if cnt else 0
-        added = []
-        for part in re.split(r"[;,]", form.get("kw") or ""):
-            raw = part.strip()
-            kw = _plain(raw)
-            if not (2 <= len(kw) <= 80) or have >= MAX_KEYWORDS:
-                continue
-            rc = await execute_db(bot, "INSERT OR IGNORE INTO offer_keywords (user_id, keyword, keyword_raw) "
-                                       "VALUES (?,?,?)", (uid, kw, raw), commit=True)
-            if rc:
-                have += 1
-                added.append((kw, raw))
-        cog = bot.cogs.get("OfferAlerts") if hasattr(bot, "cogs") else None
-        if cog and added:
-            async def _bf():
-                try:
-                    user = bot.get_user(int(uid)) or await bot.fetch_user(int(uid))
-                    for kw, raw in added:
-                        await cog._backfill(user, uid, kw, raw)
-                except Exception as e:
-                    logger.info("👤 Konto: Rückblick für Schlagworte fehlgeschlagen: %s", e)
-            asyncio.create_task(_bf())
-        raise _konto_back(req, "kw_added", "einstellungen", n=len(added))
-
-    if act == "schlagwort/entfernen":
-        await execute_db(bot, "DELETE FROM offer_keywords WHERE user_id=? AND keyword=?",
-                         (uid, str(form.get("kw") or "")), commit=True)
-        await execute_db(bot, "DELETE FROM quiet_offer_queue WHERE user_id=? AND keyword=?",
-                         (uid, str(form.get("kw") or "")), commit=True)
-        raise _konto_back(req, "deleted", "einstellungen")
-
-    # ── Schwarmflug-Alarm ─────────────────────────────────────────────────────
-    if act == "schwarm/neu":
-        from utils import swarm as SW
-        if str(form.get("taxon") or "") == "*":            # PN beim Saisonstart
-            await execute_db(bot, "INSERT OR IGNORE INTO swarm_alerts (user_id, taxon, country, region) "
-                                  "VALUES (?,?,?,?)", (uid, "*", "", ""), commit=True)
-            raise _konto_back(req, "sw_added", "schwarmflug")
-        taxa = SW.parse_taxa(str(form.get("taxon") or "")[:60])
-        if not taxa:
-            raw = str(form.get("taxon") or "").strip().split()
-            g = SW._genus_of(raw[0]) if raw else None
-            taxa = [{"genus": g, "species": None}] if g else []
-        where = str(form.get("where") or "")
-        c, _, r = where.partition("-")
-        ok_where = where == "" or (c in geo.all_regions() and (not r or r in geo.all_regions()[c]))
-        cnt = await execute_db(bot, "SELECT COUNT(*) AS n FROM swarm_alerts WHERE user_id=?", (uid,), fetch=True)
-        if not taxa or not ok_where or (cnt and cnt[0]["n"] >= 20):
-            raise _konto_back(req, "sw_bad", "schwarmflug")
-        tx = taxa[0]
-        taxon = tx["genus"] + (" " + tx["species"] if tx.get("species") else "")
-        await execute_db(bot, "INSERT OR IGNORE INTO swarm_alerts (user_id, taxon, country, region) VALUES (?,?,?,?)",
-                         (uid, taxon, c, "" if c == "li" else r), commit=True)
-        raise _konto_back(req, "sw_added", "schwarmflug")
-
-    if act == "schwarm/prognose":
-        lv = str(form.get("level") or "")
-        if lv not in ("off", "rare", "normal", "often"):
-            raise _konto_back(req, "error", "schwarmflug")
-        await execute_db(bot, "INSERT INTO fc_pref (user_id, level) VALUES (?,?) ON CONFLICT(user_id) "
-                              "DO UPDATE SET level=excluded.level", (uid, lv), commit=True)
-        raise _konto_back(req, "fc_saved", "schwarmflug")
-
-    if act == "schwarm/entfernen":
-        await execute_db(bot, "DELETE FROM swarm_alerts WHERE user_id=? AND taxon=? AND country=? AND region=?",
-                         (uid, str(form.get("taxon") or ""), str(form.get("country") or ""),
-                          str(form.get("region") or "")), commit=True)
-        raise _konto_back(req, "deleted", "schwarmflug")
-
-    # ── Termine & Kalender ────────────────────────────────────────────────────
-    if act == "termin/absagen":
-        await execute_db(bot, "DELETE FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
-                         (_num(form.get("eid")), str(form.get("occ") or "")[:10], uid), commit=True)
-        raise _konto_back(req, "rsvp_removed", "termine")
-
-    if act == "kalender/neu":
-        await ACC.ics_salt(bot, uid, rotate=True)
-        raise _konto_back(req, "ics_new", "termine")
-
-    # ── Karte ─────────────────────────────────────────────────────────────────
-    if act == "karte/tags":
-        have = await execute_db(bot, "SELECT 1 FROM map_entries WHERE user_id=?", (uid,), fetch=True)
-        if have:
-            tags = [c for c in form.getall("tag", []) if map_tags.is_valid(c)]
-            await execute_db(bot, "DELETE FROM map_entry_tags WHERE user_id=?", (uid,), commit=True)
-            for c in dict.fromkeys(tags):
-                await execute_db(bot, "INSERT OR IGNORE INTO map_entry_tags (user_id, tag_code) VALUES (?,?)",
-                                 (uid, c), commit=True)
-        raise _konto_back(req, "saved", "karte")
-
-    if act == "karte/loeschen":
-        for sql in ("DELETE FROM map_entry_tags WHERE user_id=?", "DELETE FROM map_entry_regions WHERE user_id=?",
-                    "DELETE FROM map_entries WHERE user_id=?"):
-            await execute_db(bot, sql, (uid,), commit=True)
-        raise _konto_back(req, "map_deleted", "karte")
-
-    # ── iNaturalist ───────────────────────────────────────────────────────────
-    if act in ("inat/start", "inat/pruefen", "inat/trennen"):
-        from utils import inat as I
-        from utils.localization import l10n
-        if act == "inat/trennen":
-            await I.unlink(bot, uid)
-            raise _konto_back(req, "inat_unlinked", "inat")
-        if act == "inat/start":
-            login = (form.get("login") or "").strip().lstrip("@")
-            if not I.LOGIN_RE.match(login):
-                return await _konto_page(req, uid, flash=_MD_STRIP.sub("", l10n.get("inat_link_bad_login", lang)))
-            await I.start_link(bot, uid, login)
-            raise _konto_back(req, "inat_code", "inat")
-        status, u = await I.verify_link(bot, uid)
-        if status == "ok":
-            st = await I.user_stats(bot, uid)
-            msg = l10n.get("inat_link_ok", lang, login=u["login"], obs=st["obs"], species=st["species"])
-        else:
-            msg = l10n.get(f"inat_link_{status}", lang)
-        return await _konto_page(req, uid, flash=_MD_STRIP.sub("", msg))
-
-    # ── Sitzungen & Datenschutz ───────────────────────────────────────────────
-    if act == "abmelden":
-        await ACC.set_prefs(bot, uid, logout_before=ACC.now_epoch())
-        resp = web.HTTPSeeOther(f"/konto?lang={lang}&m=logout")
-        resp.del_cookie(_MEMBER_COOKIE)
-        resp.del_cookie(_ADMIN_COOKIE)
-        logger.info("👤 Konto: überall abgemeldet (%s)", uid)
-        raise resp
-
-    if act == "loeschen":
-        area = str(form.get("area") or "")
-        if area == "all" and not form.get("sure"):
-            raise _konto_back(req, "error", "daten")
-        if area != "all" and area not in ACC.AREAS:
-            raise _konto_back(req, "error", "daten")
-        await ACC.delete_area(bot, uid, area)
-        raise _konto_back(req, "area_deleted", "daten")
-
-    raise web.HTTPNotFound()
+    handler = _KONTO_ACTIONS.get(act)
+    if handler is None:
+        raise web.HTTPNotFound()
+    return await handler(req, form, uid, lang, bot, act)
 
 
 def _konto_check_now(bot, uid, species, regions, excluded) -> None:

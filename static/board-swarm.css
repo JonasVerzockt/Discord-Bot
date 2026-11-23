@@ -1,0 +1,45 @@
+/* static/board-swarm.css – aus web/templates/schwarmflug.html ausgelagert (5.1.0). Eingebunden per
+   <link> an derselben Stelle wie früher der <style>-Block (gleiche Reihenfolge der Regeln). */
+
+ .swgrid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
+ .swgrid>*{min-width:0} @media(max-width:860px){.swgrid{grid-template-columns:1fr}}
+ @media(max-width:700px){ #swmap{height:420px !important}}
+ #swmap{height:520px;border-radius:10px;border:1px solid #21262d;background:#0f141a}
+ .leaflet-container{background:#0f141a}
+ .leaflet-bar a,.leaflet-bar a:hover{background:#161b22;color:#e6edf3;border-bottom-color:#30363d}
+ .leaflet-control-attribution{background:#161b22cc !important;color:#8b949e} .leaflet-control-attribution a{color:#58a6ff}
+ .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#161b22;color:#e6edf3;border:1px solid #30363d}
+ .leaflet-popup-content a{color:#58a6ff} a.leaflet-popup-close-button{color:#8b949e}
+ .now{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+ .now span{background:#3fb95018;border:1px solid #3fb95055;border-radius:20px;padding:3px 10px;font-size:13px}
+ .now span i{color:#e6edf3} .now b{color:#3fb950}
+ .swlegend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:#8b949e;margin-top:6px;align-items:center}
+ .swlegend i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+ .swt td,.swt th{font-size:13px;padding:5px 6px} .swt th{color:#8b949e;font-weight:600;font-size:12px}
+ .bars{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;align-items:end;height:22px;min-width:90px}
+ .bars div{background:#3fb950;border-radius:2px;min-height:2px}
+ .feed{max-height:520px;overflow:auto;scrollbar-width:thin;scrollbar-color:#30363d transparent}
+ .feed .it{padding:7px 4px;border-bottom:1px solid #21262d;font-size:13px}
+ .feed .it .w{color:#8b949e;font-size:12px}
+ .mlock{background:#1f6feb14;border:1px dashed #1f6feb88;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px}
+ .twobox{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:700px){.twobox{grid-template-columns:1fr}}
+ select.gsel{width:auto;padding:4px 8px;font-size:13px}
+ .tl{display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap}
+ .tl input[type=range]{flex:1;min-width:160px;padding:0;accent-color:#3fb950}
+ .tl .lbl{font-size:13px;color:#c9d1d9;min-width:170px}
+ .idf{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+ .idf>div{flex:1;min-width:130px} .idf label{margin:0 0 3px}
+ .cand{display:grid;grid-template-columns:minmax(140px,1.2fr) 3fr 60px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #21262d;font-size:13px}
+ .cand .bar{height:10px;background:#21262d;border-radius:5px;overflow:hidden} .cand .bar i{display:block;height:100%;background:#3fb950}
+ .cand .why{grid-column:1/-1;color:#8b949e;font-size:12px;margin-top:-2px}
+ .fctabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+ .fctabs a{border:1px solid #30363d;border-radius:20px;padding:3px 10px;font-size:13px}
+ .fctabs a.on{border-color:#E69F00;color:#e6edf3;background:#E69F0022}
+ #fcmap{height:420px;border-radius:10px;border:1px solid #21262d;background:#0f141a}
+ .fcl .it{padding:6px 2px;border-bottom:1px solid #21262d;font-size:13px}
+ .lv{display:inline-block;font-size:11px;border-radius:20px;padding:0 7px;margin-left:4px;color:#0d1117;font-weight:600}
+ .lv1{background:#F0E442} .lv2{background:#E69F00} .lv3{background:#D55E00;color:#fff}
+ @media(max-width:700px){ #fcmap{height:340px !important}}
+ .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+ .pbar{height:8px;background:#21262d;border-radius:4px;overflow:hidden;margin-top:3px} .pbar i{display:block;height:100%;background:#58a6ff;transition:width .6s}
+ .sbanner{background:#3fb95018;border:1px solid #3fb95066;border-radius:10px;padding:10px 14px;margin-bottom:12px}

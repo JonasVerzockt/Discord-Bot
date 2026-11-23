@@ -1,0 +1,8 @@
+/* static/board-help.css – aus web/templates/hilfe.html ausgelagert (5.1.0). Eingebunden per
+   <link> an derselben Stelle wie früher der <style>-Block (gleiche Reihenfolge der Regeln). */
+.hp-cmd{padding:7px 0;border-bottom:1px solid #161b22} .hp-ex{color:#8b949e;font-size:13px;margin-top:2px}
+.hp-ex code,.hp-cmd code{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:0 5px}
+.hp-card{background:#0f141a;border:1px solid #21262d;border-radius:10px;padding:12px 14px}
+.hp-card h4{margin:0 0 6px} .hp-card p{margin:0 0 6px;font-size:14px}
+.hp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+details.hp-faq{border-bottom:1px solid #21262d;padding:8px 0} details.hp-faq summary{cursor:pointer;font-weight:600}

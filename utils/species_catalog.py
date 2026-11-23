@@ -30,7 +30,6 @@ Robust: fehlt die Datei, meldet available()=False und check() liefert
 status="unavailable" → Aufrufer lassen die Eingabe dann unverändert durch
 (kein Feature-Bruch, bevor die Liste erzeugt wurde).
 """
-import os
 import json
 import logging
 from pathlib import Path

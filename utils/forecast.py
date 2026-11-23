@@ -309,7 +309,6 @@ def _pos(h: dict) -> dict:
 def day_features(h: dict, day: str) -> dict | None:
     """Merkmale eines Tages um 17 Uhr aus einer Open-Meteo-Stundenreihe (Europe/Berlin).
     Fehlende Variablen (z. B. Boden in alten Jahren) bleiben None und werden beim Lernen ersetzt."""
-    times = h.get("time") or []
     pos = _pos(h)
     key = f"{day}T17:00"
     if key not in pos:

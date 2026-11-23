@@ -70,6 +70,20 @@ def _rate(key: str, limit: int, window: int) -> bool:
     q.append(now); return True
 
 
+def salt_problem(salt: bytes | None = None) -> str | None:
+    """Prüft den HMAC-Schlüssel (BOARD_HASH_SALT). None = in Ordnung, sonst der Grund.
+
+    Mit dem öffentlich bekannten Platzhalter (oder einem zu kurzen Wert) könnte jeder, der
+    den Quellcode kennt, Admin-Cookies und CSRF-Tokens selbst signieren."""
+    from config import BOARD_HASH_SALT_MIN_LEN, BOARD_HASH_SALT_PLACEHOLDER
+    s = BOARD_HASH_SALT if salt is None else salt
+    if not s or s == BOARD_HASH_SALT_PLACEHOLDER.encode():
+        return "BOARD_HASH_SALT ist nicht gesetzt (Platzhalter aktiv)"
+    if len(s) < BOARD_HASH_SALT_MIN_LEN:
+        return f"BOARD_HASH_SALT ist zu kurz ({len(s)} Zeichen, mindestens {BOARD_HASH_SALT_MIN_LEN})"
+    return None
+
+
 def _hmac(*parts: str) -> str:
     # HMAC-SHA3-512 mit geheimem Salt als Schlüssel (IPs werden nie roh gespeichert).
     return hmac.new(BOARD_HASH_SALT, "|".join(parts).encode(), hashlib.sha3_512).hexdigest()

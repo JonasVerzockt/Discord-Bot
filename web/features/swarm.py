@@ -49,7 +49,6 @@ async def h_swarm_admin(req):
     if not _is_admin(req):
         raise web.HTTPFound(f"/admin/login?lang={lang}")
     from config import SWARM_CHANNEL_ID
-    from utils import geo
     bot = req.app["bot"]
     unclear = [r for r in await SWB.S.rows(bot, include_indoor=True, scope="unclear") if not r["indoor"]]
     ch = bot.get_channel(SWARM_CHANNEL_ID) if SWARM_CHANNEL_ID else None

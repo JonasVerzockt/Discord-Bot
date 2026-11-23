@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `5.0.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `5.1.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -68,7 +68,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 
 ## Voraussetzungen
 
-- Python 3.11+
+- Python 3.13 (getestet mit 3.13; die festen Paketversionen in `requirements.txt` brauchen mindestens 3.12)
 - Discord-Bot-Token ([discord.com/developers](https://discord.com/developers/applications)) mit aktivierten Intents: **Message Content**, **Server Members**, **Reactions**
 - Google Service Account JSON für Sheets-Zugriff (`service_account.json`)
 - Anthropic API Key für Claude Haiku (KI-Parser)
@@ -1163,7 +1163,9 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── service_account.json     # Google Service Account (nicht im Git)
 ├── .env                     # Umgebungsvariablen (nicht im Git)
 ├── .env.example             # Vorlage
-├── requirements.txt
+├── requirements.txt         # Laufzeit-Pakete, exakt gepinnt (getestete Versionen)
+├── requirements-dev.txt     # zusätzlich für Tests (pytest, openpyxl, pyflakes)
+├── .github/workflows/tests.yml  # automatische Tests auf GitHub (Push/Pull Request)
 ├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db,
 │                            #   shops_data.json, shop_mapping.csv, species_profiles.json, plz_dach.csv
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
@@ -1260,7 +1262,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   │                        #   static.py (/static, Favicon), partners.py (Partner-Daten)
 │   ├── features/            # je Bereich ein Modul: feedback, status, stats, species, shops, rueckblick,
 │   │                        #   chat, login, map, events, help, account (Mein Konto), swarm, legal
-│   └── templates/           # Jinja2-Templates (*.html)
+│   └── templates/           # Jinja2-Templates (*.html); Stylesheets liegen in static/board*.css
 │
 ├── tests/                   # Prüf-Werkzeuge (siehe Abschnitt „Tests“)
 │
@@ -1272,6 +1274,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 └── static/                  # self-hosted Assets (kein CDN)
     ├── chart.umd.js, chartjs-chart-treemap.min.js  # Chart.js (siehe README_chartjs.txt)
     ├── stats.js, map_stats.js   # Statistik-Seite und Karten-Statistik
+    ├── board.css            # Grundlayout aller Board-Seiten (+ board-map/-konto/-swarm/-help/-chat.css je Seite)
     ├── favicon.png, favicon.gif, apple-touch-icon.png
     ├── map.js               # Halter-Karte: Leaflet-Frontend (Choropleth/Pins/Liste/Events)
     ├── leaflet.js, leaflet.css          # vom Bot geladen (utils/map_geodata.py)
@@ -1286,23 +1289,22 @@ Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geo
 
 ## Tests
 
-Für Umbauten gibt es Prüf-Werkzeuge, die **ohne Discord-Login** und ohne Internet laufen.
-Die Test-Werkzeuge stehen bewusst **nicht** in `requirements.txt` (der Auto-Deploy würde sie sonst
-auf den Server installieren) – nur dort installieren, wo getestet wird:
+Für Umbauten gibt es Prüf-Werkzeuge, die **ohne Discord-Login, ohne Google Sheets und ohne Internet** laufen.
+Die Test-Werkzeuge stehen in `requirements-dev.txt` (nicht in `requirements.txt` – der Auto-Deploy würde sie sonst auf den Server installieren):
 
 ```bash
-pip install pytest openpyxl pyflakes
+pip install -r requirements-dev.txt
 ```
 
 ```bash
-python -m pytest tests/
+python tests/static_check.py && python -m pytest tests/
 ```
 
-`openpyxl` wird nur für Tests mit Excel-Export benötigt (siehe unten), `pyflakes` für die statische
-Prüfung (`python -m pyflakes web utils cogs`).
+**Automatisch auf GitHub:** Der Workflow [`.github/workflows/tests.yml`](.github/workflows/tests.yml) führt beides bei jedem Push auf `beta`/`main` und bei jedem Pull Request aus (Python 3.13, exakt die gepinnten Versionen). **Roter Haken am Pull Request `beta` → `main` = nicht mergen**, sonst zieht der Auto-Deploy den kaputten Stand auf den Server.
 
-- **`tests/test_basics.py`** – lädt alle Cogs, rendert jede Board-Seite (keine 5xx), prüft Templates und die Board-Übersetzungen (gleiche Schlüssel in de/en/eo).
-- **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) lassen sich mit `--compare` vergleichen; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
+- **`tests/static_check.py`** – pyflakes über den gesamten Code: Syntaxfehler, undefinierte Namen, unbenutzte Importe/Variablen. Einziger ignorierter Fehlalarm: Texte in py-cord-Optionen (`discord.Option(...)` als Parameter-Annotation).
+- **`tests/test_*.py`** – pytest: alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen sowie Unit-Tests für Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte).
+- **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) vergleicht `--compare`; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
 - **`tests/command_tree_snapshot.py`** – schreibt alle Slash-Befehle (Optionen, Choices, Übersetzungen), Listener und Task-Loops als JSON – zum Vergleich vor/nach einer Änderung.
 
 Mit echten Shop-Bewertungen/Warnungen testen: Excel-Export des Google Sheets angeben – er wird **nur gelesen** und gehört **nicht** ins Repo (`*.xlsx` ist in `.gitignore`):
@@ -1426,7 +1428,7 @@ Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam
 | `BOARD_ADMIN_IDS` | weitere Discord-IDs mit Admin-Rechten im Board | kommagetrennt; Login über Discord (`BOARD_OAUTH_*` nötig) |
 | `BOARD_OWNER_ID` | Discord-User-ID für die Einreichungs-DM | leer/0 = DM wird übersprungen (nur Log) |
 | `BOARD_DB_FILE` | eigene DB-Datei | Standard `board.db` im Projektordner |
-| `BOARD_HASH_SALT` | Salt fürs IP-Hashing | in Produktion setzen (keine Roh-IP gespeichert) |
+| `BOARD_HASH_SALT` | Geheimer Schlüssel für alle Board-Signaturen (IP-Hashes, Admin-/Mitglieder-Cookies, CSRF, Captcha) | **Pflicht**, mind. 16 Zeichen – mit Platzhalter oder zu kurzem Wert startet das Board **nicht** (Fehler im Log). Erzeugen: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `BOARD_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | „Login mit Discord“ (Mitglieder und Admins) | ohne Werte kein Login |
 | `BOARD_AI_CHAT` | KI-Chat-Fenster für eingeloggte Mitglieder | `true` |
 | `BOARD_AI_CHAT_PER_MIN` / `_PER_HOUR` | Nachrichtenlimit je Mitglied | `5` / `40` |

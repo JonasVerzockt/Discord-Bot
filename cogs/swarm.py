@@ -1078,7 +1078,7 @@ class Swarm(commands.Cog):
             f"Lerndaten: {got} Punkt-Jahre geladen, {pend} offen",
             f"Modelle: {mods['model']} gelernt, {mods['rule']} Regeln",
             f"Vorhersage: {res.get('pred', 0)} Einträge" + (f" ({res['skipped']})" if res.get("skipped") else ""),
-            f"Open-Meteo heute: " + (", ".join(f"{k} {v:g}" for k, v in bud.items()) or "0"),
+            "Open-Meteo heute: " + (", ".join(f"{k} {v:g}" for k, v in bud.items()) or "0"),
             f"Dauer: {time.monotonic() - t0:.0f} s"]))
         await ctx.followup.send(embed=e, ephemeral=True)
 
