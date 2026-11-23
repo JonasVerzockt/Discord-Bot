@@ -1,5 +1,7 @@
 # ── Credentials & Secrets ──────────────────────────────────────────────────────
 .env
+# Kopien/Backups der .env (z. B. tools/env_sync.py: .env.new, .env.bak-<Zeit>; Editor: .env.save)
+.env.*
 service_account.json
 token.json
 credentials.json
@@ -68,6 +70,10 @@ Thumbs.db
 static/leaflet.js
 static/leaflet.css
 static/*.geojson
+static/leaflet.markercluster.js
+static/MarkerCluster.css
+static/MarkerCluster.Default.css
+static/map_cities.json
 
 # ── Lokale Planung / Notizen (NICHT tracken – nur lokal auf der Platte) ────────
 dev-notes/
