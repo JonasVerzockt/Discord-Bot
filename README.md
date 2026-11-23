@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `5.2.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `5.2.1` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -199,14 +199,20 @@ ANTCHECK_VERIFY_SSL=false
 # GRABBER_TIMEOUT=600
 
 # ── Datenbank-Backup (täglich 03:30, utils/backup.py) ──────────────────
-# BACKUP_ENABLED=true          # false = keine Backups
-# BACKUP_DIR=data/backups      # Zielordner (Standard: <DATA_DIRECTORY>/backups)
-# BACKUP_KEEP_DAYS=7           # Aufbewahrung in Tagen (1–7, mehr ist nicht möglich)
-# BACKUP_MIN_FREE_GB=2         # so viel muss NACH dem Backup frei bleiben, sonst wird übersprungen
+# false = keine Backups
+# BACKUP_ENABLED=true
+# Zielordner (Standard: <DATA_DIRECTORY>/backups)
+# BACKUP_DIR=data/backups
+# Aufbewahrung in Tagen (1–7, mehr ist nicht möglich)
+# BACKUP_KEEP_DAYS=7
+# so viel muss NACH dem Backup frei bleiben, sonst wird übersprungen
+# BACKUP_MIN_FREE_GB=2
 
 # ── Auto-Deploy (update.py, liest diese Werte aus der .env) ─────────────
-# UPDATE_PREFLIGHT=true        # Vorabprüfung vor dem Neustart (bei Fehler: Rollback, kein Neustart)
-# UPDATE_NOTIFY_DM=true        # DM an BOARD_OWNER_ID, wenn ein Update abgelehnt wurde
+# Vorabprüfung vor dem Neustart (bei Fehler: Rollback, kein Neustart)
+# UPDATE_PREFLIGHT=true
+# DM an BOARD_OWNER_ID, wenn ein Update abgelehnt wurde
+# UPDATE_NOTIFY_DM=true
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────
 # Kanal-ID in dem der Bot auf @-Erwaehnung reagiert.
@@ -239,7 +245,8 @@ AI_CHAT_USER_DAILY_BUDGET_USD=0.10
 # AI_CHAT_PROMPT_CACHE=true
 # AI_CHAT_MAX_HISTORY_TURNS=10
 # AI_CHAT_CONVERSATION_TTL_HOURS=24
-AI_CHAT_PUBLIC=false              # true = KI-Befehle in /help anzeigen und KI öffentlich zugänglich
+# true = KI-Befehle in /help anzeigen und KI öffentlich zugänglich
+AI_CHAT_PUBLIC=false
 
 # ── Command-Log (Moderation) ──────────────────────────────────
 # Kanal-ID für das gebündelte Befehls-Nutzungsprotokoll (leer/0 = kein
@@ -312,12 +319,18 @@ DISCOUNT_CHANNEL_ID=123456789012345678
 # MAP_ENABLED=false
 # Guild-ID für Mitgliedschaftsprüfung (Login) + Auto-Löschung bei Austritt:
 # MAP_GUILD_ID=123456789012345678
-# MAP_JITTER_METERS=3000      # fester Pin-Versatz (±, aus user_id geseedet)
-# MAP_MAX_ZOOM=10             # max. Zoom (Stadt/Umland, keine Straßenebene)
-# MAP_REMIND_MONTHS=12        # Jahres-Bestätigung: erinnern
-# MAP_DELETE_MONTHS=24        # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
-# MAP_GEODATA_AUTO=false      # Bot lädt/konvertiert Geodaten selbst (Leaflet + GeoJSON/CSV)
-# MAP_GEODATA_REFRESH_DAYS=30 # Intervall der Selbst-Aktualisierung
+# fester Pin-Versatz (±, aus user_id geseedet)
+# MAP_JITTER_METERS=3000
+# max. Zoom (Stadt/Umland, keine Straßenebene)
+# MAP_MAX_ZOOM=10
+# Jahres-Bestätigung: erinnern
+# MAP_REMIND_MONTHS=12
+# löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
+# MAP_DELETE_MONTHS=24
+# Bot lädt/konvertiert Geodaten selbst (Leaflet + GeoJSON/CSV)
+# MAP_GEODATA_AUTO=false
+# Intervall der Selbst-Aktualisierung
+# MAP_GEODATA_REFRESH_DAYS=30
 # Discord-OAuth2 ("Login mit Discord", nur Scope identify) – Secrets NICHT committen:
 # BOARD_OAUTH_CLIENT_ID=
 # BOARD_OAUTH_CLIENT_SECRET=
@@ -349,6 +362,10 @@ PYTHONUNBUFFERED=1
 # AI_CHAT_TOOLS=true
 # AI_CHAT_TOOL_ROUNDS=3
 ```
+
+**Eigene `.env` an die Vorlage angleichen:** `python3 tools/env_sync.py` schreibt eine `.env.new` mit Aufbau, Abschnitten und Kommentaren aus `.env.example` und **deinen Werten** aus der `.env` (zeichengenau). Was bei dir gesetzt ist, steht **aktiv** in der neuen Datei – auch wenn es in der Vorlage nur auskommentiert ist. Nicht gesetzte Variablen bleiben auskommentiert, unbekannte landen in einem Prüf-Abschnitt am Ende; das Skript prüft, dass sich die wirksame Konfiguration nicht ändert, und gibt **nur Variablennamen, nie Werte** aus. Passt alles: `python3 tools/env_sync.py --write` (legt vorher `.env.bak-<Zeit>` an), dann den Bot neu starten.
+
+> **Keine Kommentare hinter Werten:** Der Dienst liest die `.env` über systemd (`EnvironmentFile=`). Kommentare gehören in eine **eigene Zeile** davor – `env_sync.py` warnt bei verdächtigen Werten.
 
 Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV`, `SERVICE`, `UPDATE_PREFLIGHT` und `UPDATE_NOTIFY_DM` liest nur `update.py` (aus der Umgebung oder der `.env`); die ersten vier werden in `aam-bot-update.service` gesetzt.
 
@@ -1301,7 +1318,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── tests/                   # Prüf-Werkzeuge (siehe Abschnitt „Tests“)
 │
 ├── tools/
-│   └── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
+│   ├── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
+│   └── env_sync.py          # eigene .env in Aufbau/Reihenfolge von .env.example bringen (Werte bleiben)
 │
 ├── legal/                   # Rechtsseiten: nur *.example.* im Git, echte Dateien nur auf dem Server
 │
@@ -1339,7 +1357,7 @@ python tests/static_check.py && python -m pytest tests/
 **Automatisch auf GitHub:** Der Workflow [`.github/workflows/tests.yml`](.github/workflows/tests.yml) führt beides bei jedem Push auf `beta`/`main` und bei jedem Pull Request aus (Python 3.13, exakt die gepinnten Versionen). **Roter Haken am Pull Request `beta` → `main` = nicht mergen**, sonst zieht der Auto-Deploy den kaputten Stand auf den Server.
 
 - **`tests/static_check.py`** – pyflakes über den gesamten Code: Syntaxfehler, undefinierte Namen, unbenutzte Importe/Variablen. Einziger ignorierter Fehlalarm: Texte in py-cord-Optionen (`discord.Option(...)` als Parameter-Annotation).
-- **`tests/test_*.py`** – pytest (100 Tests): alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen; Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte); Benachrichtigungen (Verfügbarkeit nach Region/Gattung/Blacklist/CH, Grund von Preisänderungen, Bestand, Preis-Ampel); Rabattcode-Prüfung (KI-Antwort durch feste Antwort ersetzt); Auto-Deploy mit echten Git-Repos (Rollback, abgelehnte Commits, DM).
+- **`tests/test_*.py`** – pytest (110 Tests): alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen; Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte); Benachrichtigungen (Verfügbarkeit nach Region/Gattung/Blacklist/CH, Grund von Preisänderungen, Bestand, Preis-Ampel); Rabattcode-Prüfung (KI-Antwort durch feste Antwort ersetzt); Auto-Deploy mit echten Git-Repos (Rollback, abgelehnte Commits, DM).
 - **`tests/deploy_check.py`** – die Vorabprüfung, die `update.py` auf dem Server vor jedem Neustart ausführt (nur Laufzeit-Pakete nötig).
 - **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) vergleicht `--compare`; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
 - **`tests/command_tree_snapshot.py`** – schreibt alle Slash-Befehle (Optionen, Choices, Übersetzungen), Listener und Task-Loops als JSON – zum Vergleich vor/nach einer Änderung.
