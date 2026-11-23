@@ -144,7 +144,8 @@ async def h_swarm_fix(req):
     await R.set_override(req.app[BOT_KEY], mid, str(form.get("place") or "")[:160].strip(), c if where else "",
                          "" if c == "li" else r, str(form.get("taxa") or "")[:200].strip(), s[0] if s else "")
     await R.apply_override(req.app[BOT_KEY], mid)
-    raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}&ok={mid}#m{mid}")
+    mid_n = int(mid)                             # nur Ziffern (oben geprüft) → als Zahl weitergeben
+    raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}&ok={mid_n}#m{mid_n}")
 
 
 async def h_swarm_names(req):

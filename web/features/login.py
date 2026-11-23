@@ -43,6 +43,30 @@ from web.features.map import _map_asset_v, _map_lang_redirect
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
 
+# Rücksprungziel nach dem Discord-Login – SERVERSEITIG unter dem zufälligen, signierten
+# OAuth-state gemerkt (nicht im Cookie): So landet kein Nutzerwert in einem Set-Cookie-Header.
+# Kurzlebig (wie der state-Cookie) und in der Größe begrenzt; geht bei einem Bot-Neustart
+# während des Logins verloren → dann Rücksprung auf die Karte (wie ohne Ziel).
+_NEXT_TTL = 600
+_NEXT_MAX = 2000
+_pending_next: dict[str, tuple[str, float]] = {}
+
+
+def _remember_next(state: str, nxt: str) -> None:
+    now = time.time()
+    for k in [k for k, (_, exp) in _pending_next.items() if exp < now]:
+        del _pending_next[k]
+    if len(_pending_next) >= _NEXT_MAX:                       # Notbremse gegen Fluten
+        for k in sorted(_pending_next, key=lambda k: _pending_next[k][1])[:len(_pending_next) // 2]:
+            del _pending_next[k]
+    _pending_next[state] = (nxt, now + _NEXT_TTL)
+
+
+def _pop_next(state: str) -> str:
+    nxt, exp = _pending_next.pop(state, ("", 0.0))
+    return nxt if exp >= time.time() else ""
+
+
 async def h_map_login(req):
     lang = pick_lang(req)
     if not (BOARD_OAUTH_CLIENT_ID and BOARD_OAUTH_REDIRECT_URI):
@@ -61,9 +85,8 @@ async def h_map_login(req):
     resp.set_cookie(_OAUTH_STATE_COOKIE, f"{state}.{_hmac('oauthstate', state)}",
                     max_age=600, httponly=True, samesite="Lax")
     if nxt:
-        resp.set_cookie(_LOGIN_NEXT_COOKIE, nxt, max_age=600, httponly=True, samesite="Lax")
-    else:
-        resp.del_cookie(_LOGIN_NEXT_COOKIE)
+        _remember_next(state, nxt)
+    resp.del_cookie(_LOGIN_NEXT_COOKIE)          # Alt-Cookie früherer Versionen aufräumen
     raise resp
 
 
@@ -110,7 +133,7 @@ async def h_map_callback(req):
         resp.del_cookie(_OAUTH_STATE_COOKIE)
         raise resp
     exp = int(time.time()) + _MEMBER_TTL
-    nxt = _login_next(req.cookies.get(_LOGIN_NEXT_COOKIE, ""))
+    nxt = _login_next(_pop_next(state))        # state ist oben bereits geprüft (HMAC)
     resp = (web.HTTPFound(_safe_local_redirect(f"{nxt}?lang={lang}", "/map"))
             if nxt else _map_lang_redirect("/map", lang))
     resp.del_cookie(_OAUTH_STATE_COOKIE)
