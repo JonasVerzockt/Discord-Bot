@@ -31,7 +31,7 @@ from aiohttp import web
 from utils import account as ACC
 from utils.board_i18n import pick_lang
 from config import (
-    BOARD_ADMIN_IDS, BOARD_AI_CHAT, BOARD_HASH_SALT, BOARD_OAUTH_CLIENT_ID,
+    BOARD_ADMIN_IDS, BOARD_AI_CHAT, BOARD_HASH_SALT, BOARD_OAUTH_CLIENT_ID, BOARD_PUBLIC_URL,
     BOARD_OAUTH_REDIRECT_URI, BOARD_OWNER_ID, MAP_ENABLED, MAP_GUILD_ID,
 )
 from utils.web_keys import BOT_KEY
@@ -57,6 +57,14 @@ def _captcha_ok(form) -> bool:
     except (TypeError, ValueError):
         return False
     return bool(sig) and hmac.compare_digest(sig, _hmac("captcha", val))
+# Cookies mit „Secure“ setzen (Browser sendet sie dann nur über HTTPS), sobald das Board
+# öffentlich per HTTPS erreichbar ist. Bewusst aus BOARD_PUBLIC_URL statt req.secure: hinter
+# dem Reverse-Proxy (TLS endet dort) sieht der Bot nur http. Lokal über http bleibt es aus.
+def _https_url(url: str) -> bool:
+    return (url or "").strip().lower().startswith("https://")
+
+
+COOKIE_SECURE = _https_url(BOARD_PUBLIC_URL)
 _ADMIN_COOKIE, _VOTER_COOKIE = "board_admin", "board_vid"
 
 _hits: dict[str, list] = defaultdict(list)

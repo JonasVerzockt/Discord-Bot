@@ -133,3 +133,34 @@ def test_swarm_fix_redirect_contains_only_number(monkeypatch):
                          cookies=BS._cookies("admin"), allow_redirects=False)
         assert r.status == 303 and r.headers["Location"] == "/admin/schwarmflug?lang=de&ok=1234#m1234"
     _run(flow)
+
+
+def test_session_cookies_are_secure_over_https(monkeypatch):
+    """Board öffentlich per HTTPS (Test-Umgebung: https://board.example) → alle Sitzungs-Cookies
+    tragen „Secure“, „HttpOnly“ und „SameSite=Lax“."""
+    import web.features.login as L
+    from web.core.security import COOKIE_SECURE
+    assert COOKIE_SECURE is True
+    _fake_discord(monkeypatch, L)
+
+    async def flow(c):
+        r = await c.get("/map/login?lang=de&next=/konto", allow_redirects=False)
+        state = parse_qs(urlparse(r.headers["Location"]).query)["state"][0]
+        login_cookies = r.headers.getall("Set-Cookie", [])
+        r2 = await c.get(f"/map/callback?lang=de&code=abc&state={state}",
+                         cookies={"board_oauth_state": r.cookies["board_oauth_state"].value},
+                         allow_redirects=False)
+        return login_cookies + r2.headers.getall("Set-Cookie", [])
+    headers = _run(flow)
+    set_ = [h for h in headers if h.split("=", 1)[0] in ("board_oauth_state", "board_member")
+            and not h.split("=", 1)[1].startswith('""')]
+    assert {h.split("=", 1)[0] for h in set_} == {"board_oauth_state", "board_member"}
+    for h in set_:
+        low = h.lower()
+        assert "secure" in low and "httponly" in low and "samesite=lax" in low, h
+
+
+def test_cookie_secure_rule():
+    from web.core.security import _https_url
+    assert _https_url("https://board.example") and _https_url(" HTTPS://x ")
+    assert not _https_url("http://127.0.0.1:8080") and not _https_url("")
