@@ -30,6 +30,7 @@ from utils.board_i18n import pick_lang, translate
 from config import BOARD_AI_CHAT_PER_HOUR, BOARD_AI_CHAT_PER_MIN
 
 from web.core.security import _chat_uid, _member_csrf, _rate
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -59,7 +60,7 @@ async def h_chat_models(req):
     uid = _chat_uid(req)
     if not uid:
         return web.json_response({"error": "login"}, status=403)
-    models, pre = await asyncio.to_thread(_chat_models, req.app["bot"], uid, pick_lang(req))
+    models, pre = await asyncio.to_thread(_chat_models, req.app[BOT_KEY], uid, pick_lang(req))
     return web.json_response({"models": models, "preselect": pre},
                              headers={"Cache-Control": "private, no-store"})
 
@@ -102,7 +103,7 @@ async def h_chat_send(req):
     if len(msg) > cfg.AI_CHAT_MAX_INPUT_CHARS:
         return web.json_response({"answer": l10n.get(
             "ai_msg_too_long", lang, length=f"{len(msg):,}", max=f"{cfg.AI_CHAT_MAX_INPUT_CHARS:,}")})
-    models, pre = await asyncio.to_thread(_chat_models, req.app["bot"], uid, lang)
+    models, pre = await asyncio.to_thread(_chat_models, req.app[BOT_KEY], uid, lang)
     prev = await asyncio.to_thread(_owned_conv, uid, body.get("conv"))
     model = body.get("model") if body.get("model") in {m["id"] for m in models} else pre
     if prev:                                       # Fortsetzung: Modell des Verlaufs

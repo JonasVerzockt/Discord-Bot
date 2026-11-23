@@ -28,6 +28,7 @@ from utils.board_i18n import pick_lang, translate
 
 from web.core.render import _render
 from web.core.security import _aam_member, _login_url, _member_name
+from utils.web_keys import BOT_KEY
 
 
 _YR_CACHE: dict = {}
@@ -40,7 +41,7 @@ async def h_rueckblick(req):
     from utils.localization import l10n
     lang = pick_lang(req)
     ry = YR.review_year()
-    fy = await YR.first_year(req.app["bot"])
+    fy = await YR.first_year(req.app[BOT_KEY])
     years = list(range(ry, fy - 1, -1))
     raw_year = req.match_info.get("year")
     if not YR.is_open() and not raw_year:
@@ -62,14 +63,14 @@ async def h_rueckblick(req):
     if hit and time.time() - hit[0] < 1800:
         d = hit[1]
     else:
-        d = await YR.community(req.app["bot"], year)
+        d = await YR.community(req.app[BOT_KEY], year)
         _YR_CACHE[year] = (time.time(), d)
     names = {dom: sh["name"] for dom, sh in (await asyncio.to_thread(dirx.all_shops)).items()}
     # Persönlicher Teil: nur für eingeloggte AAM-Mitglieder, nie gecacht, nur eigene Daten.
     me = None
     uid = _aam_member(req)
     if uid:
-        me = await YR.personal(req.app["bot"], uid, year)
+        me = await YR.personal(req.app[BOT_KEY], uid, year)
         me["name"] = _member_name(req.app, uid) or ""
         me["has"] = bool(me["commands"] or me["achievements"] or me["reviews"]
                          or me["notifications"] or me["watches"] or me["tracked"]

@@ -34,6 +34,7 @@ from config import BOARD_PUBLIC_URL
 from web.core.render import _eur_fmt, _konto_flash, _render
 from web.core.security import _aam_member, _hmac, _ip, _login_url, _member_csrf, _rate
 from web.features.swarm import _SW_MONTHS
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -84,7 +85,7 @@ async def _star_ctx(req, name: str) -> dict:
     back = req.path
     if not uid:
         return {"uid": None, "login": _login_url(req), "back": back}
-    w = await _my_watches(req.app["bot"], uid)
+    w = await _my_watches(req.app[BOT_KEY], uid)
     genus = name.split()[0]
     return {"uid": uid, "csrf": _member_csrf(uid), "back": back,
             "watched": normalize_species_name(name).lower() in w,
@@ -122,9 +123,9 @@ async def _finder(req, idx: dict, lang: str) -> dict:
         return out
     ch_ids = set()
     if land == "chd":
-        ch_ids = {str(r["shop_id"]) for r in await execute_db(req.app["bot"],
+        ch_ids = {str(r["shop_id"]) for r in await execute_db(req.app[BOT_KEY],
                   "SELECT shop_id FROM ch_delivery_shops", fetch=True) or []}
-    watched = await _my_watches(req.app["bot"], uid) if uid else set()
+    watched = await _my_watches(req.app[BOT_KEY], uid) if uid else set()
 
     def shop_ok(dom):
         if not land:
@@ -165,7 +166,7 @@ async def h_inat(req):
     """Öffentliche Artenliste der iNat-Statistik (nur Summen, keine Namen)."""
     from utils import inat as I
     lang = pick_lang(req)
-    d = await I.community_species(req.app["bot"])
+    d = await I.community_species(req.app[BOT_KEY])
     groups: dict = {}
     for x in d["taxa"]:
         note = translate(lang, "inat_row_note", n=x["obs"], y=x["first"]) if x["first"] else ""
@@ -186,7 +187,7 @@ async def h_art_card(req):
     if not sp:
         raise web.HTTPNotFound()
     trend = await asyncio.to_thread(dirx.price_trend, sp, 12)
-    prof = await SEA.profile(req.app["bot"], sp["key"])
+    prof = await SEA.profile(req.app[BOT_KEY], sp["key"])
     url = (BOARD_PUBLIC_URL.split("://", 1)[-1] + f"/art/{dirx.slug(sp['name'])}") if BOARD_PUBLIC_URL else ""
     png = await asyncio.to_thread(species_card.render, sp, trend, lang, prof,
                                   SEA.MONTHS_SHORT.get(lang, SEA.MONTHS_SHORT["de"]), url)
@@ -228,13 +229,13 @@ async def h_art(req):
     from utils.localization import l10n
     sig = await asyncio.to_thread(PS.signals, [o["pid"] for o in instock])
     seas = None
-    sprof = await SEA.profile(req.app["bot"], sp["key"])
+    sprof = await SEA.profile(req.app[BOT_KEY], sp["key"])
     if sprof:
         seas = {"h": l10n.get("season_h", lang), "text": SEA.describe(sprof, lang),
                 "months": sprof["months"], "names": SEA.MONTHS.get(lang, SEA.MONTHS["de"]),
                 "short": SEA.MONTHS_SHORT.get(lang, SEA.MONTHS_SHORT["de"])}
     star = await _star_ctx(req, sp["name"])
-    swarm = await SWB.art_box(req.app["bot"], sp["name"], lang)
+    swarm = await SWB.art_box(req.app[BOT_KEY], sp["name"], lang)
     resp = _render(req, "art", title=sp["name"], sp=sp, offers=offers, instock=instock, star=star,
                    swarm=swarm, sw_short=[m[:3] for m in _SW_MONTHS.get(lang, _SW_MONTHS["de"])],
                    flash=_konto_flash(req),

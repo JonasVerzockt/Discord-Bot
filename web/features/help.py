@@ -31,6 +31,7 @@ from config import MAP_GUILD_ID
 
 from web.core.render import _render
 from web.core.security import _aam_member, _hmac, _ip, _is_admin, _rate
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -115,7 +116,7 @@ _INTRO_TTL = 365 * 86400
 def _member_joined(app, uid):
     """Beitrittsdatum zum AAM-Server (live von Discord, nicht gespeichert)."""
     try:
-        g = app["bot"].get_guild(MAP_GUILD_ID) if MAP_GUILD_ID else None
+        g = app[BOT_KEY].get_guild(MAP_GUILD_ID) if MAP_GUILD_ID else None
         m = g.get_member(int(uid)) if g else None
         ja = getattr(m, "joined_at", None)
         return ja.astimezone(BERLIN).date() if ja else None
@@ -163,7 +164,7 @@ async def h_intro(req):
     day, seen = IN.parse_cookie(req.cookies.get(_INTRO_COOKIE, ""))
     if day == tday:
         return none                                  # heute schon ein Intro gesehen
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     cands: list[dict] = []
     if uid:
         try:

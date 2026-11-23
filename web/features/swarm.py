@@ -33,6 +33,7 @@ from web.core.security import (
     _aam_member, _admin_session, _csrf_ok, _csrf_token, _hmac, _ip, _is_admin, _login_url,
     _rate,
 )
+from utils.web_keys import BOT_KEY
 
 
 _SW_MONTHS = {"de": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
@@ -49,7 +50,7 @@ async def h_swarm_admin(req):
     if not _is_admin(req):
         raise web.HTTPFound(f"/admin/login?lang={lang}")
     from config import SWARM_CHANNEL_ID
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     unclear = [r for r in await SWB.S.rows(bot, include_indoor=True, scope="unclear") if not r["indoor"]]
     ch = bot.get_channel(SWARM_CHANNEL_ID) if SWARM_CHANNEL_ID else None
     gid = getattr(getattr(ch, "guild", None), "id", None)
@@ -121,7 +122,7 @@ async def h_swarm_status(req):
     lang = pick_lang(req)
     if not _rate("swst:" + _hmac("swst", _ip(req)), 30, 60):
         raise web.HTTPTooManyRequests()
-    prog = await SWB.progress(req.app["bot"], lambda key, **kw: translate(lang, key, **kw))
+    prog = await SWB.progress(req.app[BOT_KEY], lambda key, **kw: translate(lang, key, **kw))
     return web.json_response(prog, headers={"Cache-Control": "no-store"})
 
 
@@ -140,9 +141,9 @@ async def h_swarm_fix(req):
     if not mid or (where and c not in geo.all_regions()):
         raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}")
     s = _admin_session(req)
-    await R.set_override(req.app["bot"], mid, str(form.get("place") or "")[:160].strip(), c if where else "",
+    await R.set_override(req.app[BOT_KEY], mid, str(form.get("place") or "")[:160].strip(), c if where else "",
                          "" if c == "li" else r, str(form.get("taxa") or "")[:200].strip(), s[0] if s else "")
-    await R.apply_override(req.app["bot"], mid)
+    await R.apply_override(req.app[BOT_KEY], mid)
     raise web.HTTPSeeOther(f"/admin/schwarmflug?lang={lang}&ok={mid}#m{mid}")
 
 
@@ -155,7 +156,7 @@ async def h_swarm_names(req):
     if not _csrf_ok(req, form):
         raise web.HTTPForbidden(text="bad csrf")
     raw, label, act = (str(form.get(k) or "")[:200] for k in ("raw", "label", "act"))
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     cond = "raw_label=? AND label=? AND taxon_check IN ('typo', 'fixed')"
     back = f"/admin/schwarmflug?lang={lang}"
     if act == "all_ok":
@@ -208,7 +209,7 @@ async def h_swarm(req):
     def art_slug(name):
         hit = known.get(name.lower())
         return dirx.slug(hit) if hit and dirx else None
-    ctx = await SWB.page(req.app["bot"], req.query.get("z", ""), (req.query.get("g") or "").strip()[:40],
+    ctx = await SWB.page(req.app[BOT_KEY], req.query.get("z", ""), (req.query.get("g") or "").strip()[:40],
                          bool(uid), lang, art_slug, _SW_MONTHS.get(lang, _SW_MONTHS["de"]),
                          lambda key, **kw: translate(lang, key, **kw), q=dict(req.query))
     resp = _render(req, "schwarmflug", title=translate(lang, "sw_h"), login_url=_login_url(req), **ctx)

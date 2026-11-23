@@ -1,0 +1,28 @@
+# Dependabot: schlägt wöchentlich Updates der festen Paketversionen vor – als Pull Request
+# auf beta. Die CI (.github/workflows/tests.yml) testet jeden Vorschlag automatisch; erst nach
+# grünem Test und Merge beta → main kommt eine neue Version auf den Server.
+version: 2
+updates:
+  - package-ecosystem: "pip"          # requirements.txt + requirements-dev.txt
+    directory: "/"
+    target-branch: "beta"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Pakete"
+    groups:
+      # Kleine Updates (Fehlerbehebungen) gesammelt in EINEM Pull Request
+      kleine-updates:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"   # actions/checkout, actions/setup-python
+    directory: "/"
+    target-branch: "beta"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "CI"

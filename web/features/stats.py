@@ -28,6 +28,7 @@ from utils import shop_stats
 from config import SHOPS_DATA_FILE, VERSION
 
 from web.core.render import _render, STATIC_DIR
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -253,7 +254,7 @@ async def h_stats(req):
     usage = None
     try:
         from utils import usage_stats
-        usage = await usage_stats.collect(req.app["bot"])
+        usage = await usage_stats.collect(req.app[BOT_KEY])
     except Exception as e:
         logger.warning("📈 Nutzungsstatistik nicht verfügbar: %s", e)
     resp = _render(req, "stats", title=translate(lang, "nav_stats"), data=data, l10n=l10n, usage=usage,

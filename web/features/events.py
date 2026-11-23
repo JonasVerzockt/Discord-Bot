@@ -31,6 +31,7 @@ from config import BOARD_PUBLIC_URL
 
 from utils.map_events import _event_local, _event_next, _isoparse
 from web.core.security import _aam_member, _hmac, _map_rate_ok, _member_csrf, _member_name, _rate
+from utils.web_keys import BOT_KEY
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -40,7 +41,7 @@ from web.core.security import _aam_member, _hmac, _map_rate_ok, _member_csrf, _m
 
 
 async def _approved_events(app):
-    rows = await execute_db(app["bot"],
+    rows = await execute_db(app[BOT_KEY],
         "SELECT * FROM map_events WHERE status='approved'", fetch=True) or []
     out = []
     for r in rows:
@@ -63,7 +64,7 @@ async def _rsvp_info(app, keys, me):
     if not keys:
         return out
     oldest = min(k[1] for k in keys)
-    rows = await execute_db(app["bot"],
+    rows = await execute_db(app[BOT_KEY],
         "SELECT event_id, occ_date, user_id FROM map_event_rsvp WHERE occ_date >= ? "
         "ORDER BY created_at", (oldest,), fetch=True) or []
     for r in rows:
@@ -127,13 +128,13 @@ async def h_map_event_rsvp(req):
         eid = int(req.match_info["eid"])
     except (KeyError, ValueError):
         raise web.HTTPNotFound()
-    rows = await execute_db(req.app["bot"],
+    rows = await execute_db(req.app[BOT_KEY],
         "SELECT * FROM map_events WHERE id=? AND status='approved'", (eid,), fetch=True) or []
     nxt = _event_next(rows[0]) if rows else None
     if not nxt:
         raise web.HTTPNotFound()
     occ = _occ_date(nxt)
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     have = await execute_db(bot,
         "SELECT 1 FROM map_event_rsvp WHERE event_id=? AND occ_date=? AND user_id=?",
         (eid, occ, str(uid)), fetch=True)
@@ -280,7 +281,7 @@ def _ics_build(req, rows, feed: bool = True, name: str | None = None, source: st
 
 async def h_map_events_ics(req):
     """Abonnierbarer ICS-Feed aller freigegebenen Events."""
-    rows = await execute_db(req.app["bot"],
+    rows = await execute_db(req.app[BOT_KEY],
         "SELECT * FROM map_events WHERE status='approved' ORDER BY start_at", fetch=True) or []
     return web.Response(body=_ics_build(req, rows, feed=True),
                         headers={"Content-Type": "text/calendar; charset=utf-8",
@@ -296,7 +297,7 @@ async def h_map_event_ics(req):
         eid = int(req.match_info["eid"])
     except (KeyError, ValueError):
         raise web.HTTPNotFound()
-    rows = await execute_db(req.app["bot"],
+    rows = await execute_db(req.app[BOT_KEY],
         "SELECT * FROM map_events WHERE id=? AND status='approved'", (eid,), fetch=True) or []
     if not rows:
         raise web.HTTPNotFound()

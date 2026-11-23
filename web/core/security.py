@@ -34,6 +34,7 @@ from config import (
     BOARD_ADMIN_IDS, BOARD_AI_CHAT, BOARD_HASH_SALT, BOARD_OAUTH_CLIENT_ID,
     BOARD_OAUTH_REDIRECT_URI, BOARD_OWNER_ID, MAP_ENABLED, MAP_GUILD_ID,
 )
+from utils.web_keys import BOT_KEY
 
 
 def _make_captcha() -> tuple[str, str]:
@@ -59,10 +60,29 @@ def _captcha_ok(form) -> bool:
 _ADMIN_COOKIE, _VOTER_COOKIE = "board_admin", "board_vid"
 
 _hits: dict[str, list] = defaultdict(list)
+# Aufräumen: Schlüssel (u. a. je IP-Hash) würden sonst bis zum Neustart im Speicher bleiben.
+# Entfernt werden nur Schlüssel, deren letzter Eintrag älter ist als das größte jemals
+# verwendete Zeitfenster – für die Limits sind sie dann garantiert bedeutungslos.
+_SWEEP_EVERY = 300                       # höchstens alle 5 Minuten
+_sweep_state = {"last": 0.0, "max_window": 0}
+
+
+def _sweep_hits(now: float) -> int:
+    cutoff = now - _sweep_state["max_window"]
+    stale = [k for k, q in _hits.items() if not q or q[-1] < cutoff]
+    for k in stale:
+        del _hits[k]
+    _sweep_state["last"] = now
+    return len(stale)
 
 
 def _rate(key: str, limit: int, window: int) -> bool:
-    now = time.time(); q = _hits[key]
+    now = time.time()
+    if window > _sweep_state["max_window"]:
+        _sweep_state["max_window"] = window
+    if now - _sweep_state["last"] >= _SWEEP_EVERY:
+        _sweep_hits(now)
+    q = _hits[key]
     while q and q[0] < now - window:
         q.pop(0)
     if len(q) >= limit:
@@ -153,7 +173,7 @@ def _chat_uid(req) -> str | None:
     if not BOARD_AI_CHAT:
         return None
     try:
-        if "AiChatCog" not in req.app["bot"].cogs:
+        if "AiChatCog" not in req.app[BOT_KEY].cogs:
             return None
     except Exception:
         return None
@@ -253,7 +273,7 @@ def _member_name(app, uid):
     None, wenn die Person nicht (mehr) Mitglied ist."""
     if not MAP_GUILD_ID:
         return None
-    bot = app["bot"]
+    bot = app[BOT_KEY]
     g = bot.get_guild(MAP_GUILD_ID)
     if not g:
         return None

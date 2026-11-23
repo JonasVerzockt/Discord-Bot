@@ -44,6 +44,7 @@ from web.features.events import _ics_build, _naive
 from web.features.shops import _all_shops_safe
 from web.features.species import _BACK_RE
 from web.features.swarm import _fc_on, _sw_regions, _sw_where, _swarm_on
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -80,7 +81,7 @@ async def _konto_page(req, uid, flash: str = "", form: dict | None = None, open_
     from utils.availability import load_shop_data, strip_html
     from utils.localization import l10n
     lang = pick_lang(req)
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     d = await ACC.collect(bot, uid, lang)
     shop_data = await load_shop_data(bot)
     shops = sorted(((sid, sd.get("name") or sid) for sid, sd in shop_data.items()), key=lambda x: x[1].lower())
@@ -554,7 +555,7 @@ async def h_konto_post(req):
             if hmac.compare_digest(str(form.get("csrf", "")), _member_csrf(former)) \
                     and form.get("area") == "all" and form.get("sure") \
                     and _rate("konto:" + _hmac("konto", former), 40, 300):
-                await ACC.delete_area(req.app["bot"], former, "all")
+                await ACC.delete_area(req.app[BOT_KEY], former, "all")
                 resp = web.HTTPSeeOther(f"/konto?lang={lang}&m=left_deleted")
                 resp.del_cookie(_MEMBER_COOKIE)
                 resp.del_cookie(_ADMIN_COOKIE)
@@ -566,7 +567,7 @@ async def h_konto_post(req):
         raise web.HTTPForbidden(text="bad csrf")
     if not _rate("konto:" + _hmac("konto", uid), 40, 300):
         raise web.HTTPTooManyRequests(text="rate limited")
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     act = req.match_info["action"]
     # Löschen nur mit freigeschaltetem Schalter „Löschen freischalten“ (Seite oben).
     if (act in _KONTO_DANGER or (act == "benachrichtigung" and form.get("do") == "delete")) \
@@ -594,7 +595,7 @@ async def _konto_notif_add(req, uid, form):
     from utils.availability import load_shop_data, expand_regions, species_exists
     from utils import species_catalog
     lang = pick_lang(req)
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     T = lambda key, **kw: translate(lang, key, **kw)
     kind = "genus" if form.get("kind") == "genus" else "species"
     name = " ".join((form.get("name") or "").split())[:80]
@@ -651,7 +652,7 @@ async def h_konto_export(req):
         raise web.HTTPSeeOther(f"/konto?lang={pick_lang(req)}")
     if not _rate("kontoexp:" + _hmac("kontoexp", uid), 5, 300):
         raise web.HTTPTooManyRequests(text="rate limited")
-    data = await ACC.export_user(req.app["bot"], uid)
+    data = await ACC.export_user(req.app[BOT_KEY], uid)
     body = json.dumps(data, ensure_ascii=False, indent=2, default=str).encode("utf-8")
     return web.Response(body=body, headers={
         "Content-Type": "application/json; charset=utf-8",
@@ -668,7 +669,7 @@ async def h_konto_ics(req):
     if not (uid.isdigit() and cur and hmac.compare_digest(cur, salt)):
         raise web.HTTPNotFound()
     since = (datetime.now(BERLIN) - timedelta(days=30)).strftime("%Y-%m-%d")
-    rows = await execute_db(req.app["bot"],
+    rows = await execute_db(req.app[BOT_KEY],
         "SELECT r.occ_date, e.* FROM map_event_rsvp r JOIN map_events e ON e.id=r.event_id "
         "WHERE r.user_id=? AND r.occ_date>=? AND e.status='approved' ORDER BY r.occ_date",
         (uid, since), fetch=True) or []

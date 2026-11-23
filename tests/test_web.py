@@ -79,3 +79,29 @@ def test_board_refuses_placeholder_salt(monkeypatch):
         await cog._start()
         return cog.runner
     assert asyncio.run(run()) is None
+
+
+def test_rate_limit_behaviour_and_cleanup(monkeypatch):
+    """Rate-Limit greift wie bisher; veraltete Schlüssel werden aufgeräumt, aktuelle nie."""
+    import web.core.security as sec
+    clock = {"t": 1_000_000.0}
+    monkeypatch.setattr(sec.time, "time", lambda: clock["t"])
+    monkeypatch.setattr(sec, "_hits", sec.defaultdict(list))
+    monkeypatch.setattr(sec, "_sweep_state", {"last": clock["t"], "max_window": 0})
+    # Limit 3 pro 60 s
+    assert [sec._rate("vote:a", 3, 60) for _ in range(4)] == [True, True, True, False]
+    clock["t"] += 61
+    assert sec._rate("vote:a", 3, 60) is True               # Fenster abgelaufen -> wieder frei
+    # Ein langes Fenster (1 h) und viele kurzlebige Besucher
+    sec._rate("submit:x", 3, 3600)
+    for i in range(1000):
+        sec._rate(f"vote:ip{i}", 30, 60)
+    assert len(sec._hits) == 1002
+    clock["t"] += 400                                         # > 5 min: Aufräumen fällig
+    sec._rate("vote:neu", 30, 60)
+    assert "submit:x" in sec._hits                            # 1-h-Fenster noch relevant -> bleibt
+    # konservativ: noch innerhalb des größten genutzten Fensters (1 h) -> nichts entfernt
+    assert sum(k.startswith("vote:ip") for k in sec._hits) == 1000
+    clock["t"] += 3700                                         # alles älter als das größte Fenster
+    sec._rate("vote:später", 30, 60)
+    assert set(sec._hits) == {"vote:später"}

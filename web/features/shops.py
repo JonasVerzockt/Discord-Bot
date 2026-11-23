@@ -28,6 +28,7 @@ from utils.currency import ensure_rates
 from web.core.partners import _load_partners
 from web.core.render import _FILTER_JS, _render
 from web.core.security import _aam_member, _login_url
+from utils.web_keys import BOT_KEY
 
 
 async def h_shops(req):
@@ -65,8 +66,8 @@ async def h_shop(req):
     rv = reviews.get(dom)
     member = _aam_member(req)
     ctx = dict(sh=sh, rv=rv, member=bool(member), partner=dirx.partner_of(dom),
-               delivery=await dirx.delivery_of(req.app["bot"], dom),
-               codes=await dirx.active_codes(req.app["bot"], dom),
+               delivery=await dirx.delivery_of(req.app[BOT_KEY], dom),
+               codes=await dirx.active_codes(req.app[BOT_KEY], dom),
                country=country_name(lang, sh["country"]) if sh.get("country") else "",
                login_url="" if member else _login_url(req), filter_js=_FILTER_JS,
                warns=[], years_labels=[], years_avg=[], years_n=[], dist_labels=[], dist_n=[])

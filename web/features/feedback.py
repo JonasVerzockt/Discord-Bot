@@ -38,6 +38,7 @@ from web.core.security import (
     _ADMIN_COOKIE, _admin_guard, _admin_ids, _admin_login_url, _csrf_token, _hmac, _ip,
     _is_admin, _is_member, _rate, _safe_local_redirect, _VOTER_COOKIE,
 )
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -81,7 +82,7 @@ async def h_board(req):
     # 'Erledigt'-Karten tragen eine Version -> nach Version absteigend (neueste oben);
     # alle anderen Spalten haben keine Version ((0,0,0,0)) und bleiben so bei id DESC.
     items.sort(key=lambda c: (_ver_key(c.get("version") or ""), c.get("id") or 0), reverse=True)
-    overall, sections = await _collect_health(req.app, lang)
+    overall, sections = await _collect_health(req.app[BOT_KEY], lang)
     flash = flash_text(lang, req.query.get("m", ""), n=req.query.get("n", ""), s=req.query.get("s", ""))
     resp = _render(req, "board", title=translate(lang, "nav_board"), items=items, cols=PUBLIC_COLS,
                    overall=overall, sections=sections, version=VERSION,
@@ -361,7 +362,7 @@ async def h_import(req):
 
 async def notify_owner(app, sub: dict) -> None:
     """Private DM an den Owner bei neuer Einreichung. Kein Crash, wenn OWNER_ID/Bot fehlt."""
-    bot = app.get("bot")
+    bot = app.get(BOT_KEY)
     if not BOARD_OWNER_ID or bot is None:
         logger.warning("🔔 Neue Board-Einreichung #%s (%s) – Owner-DM übersprungen "
                        "(BOARD_OWNER_ID nicht gesetzt).", sub["id"], sub["type"])

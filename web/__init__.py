@@ -46,11 +46,12 @@ from web.features.species import h_art, h_art_card, h_art_index, h_inat
 from web.features.stats import h_stats
 from web.features.status import h_incident_note, h_status_detail, h_status_json
 from web.features.swarm import h_swarm, h_swarm_admin, h_swarm_fix, h_swarm_names, h_swarm_status
+from utils.web_keys import BOT_KEY
 
 
 def build_app(bot) -> web.Application:
     app = web.Application(client_max_size=1024*1024)
-    app["bot"] = bot
+    app[BOT_KEY] = bot
     app.add_routes([
         web.get("/", h_board), web.get("/favicon.ico", h_favicon),
         web.get("/stats", h_stats), web.get("/static/{name}", h_static),

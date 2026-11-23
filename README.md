@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `5.1.0` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `5.2.0` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -198,6 +198,16 @@ ANTCHECK_VERIFY_SSL=false
 # Max. Laufzeit in Sekunden für den manuellen Grabber-Abruf per /wartung (Standard: 600)
 # GRABBER_TIMEOUT=600
 
+# ── Datenbank-Backup (täglich 03:30, utils/backup.py) ──────────────────
+# BACKUP_ENABLED=true          # false = keine Backups
+# BACKUP_DIR=data/backups      # Zielordner (Standard: <DATA_DIRECTORY>/backups)
+# BACKUP_KEEP_DAYS=7           # Aufbewahrung in Tagen (1–7, mehr ist nicht möglich)
+# BACKUP_MIN_FREE_GB=2         # so viel muss NACH dem Backup frei bleiben, sonst wird übersprungen
+
+# ── Auto-Deploy (update.py, liest diese Werte aus der .env) ─────────────
+# UPDATE_PREFLIGHT=true        # Vorabprüfung vor dem Neustart (bei Fehler: Rollback, kein Neustart)
+# UPDATE_NOTIFY_DM=true        # DM an BOARD_OWNER_ID, wenn ein Update abgelehnt wurde
+
 # ── KI-Chat-Bot ───────────────────────────────────────────────
 # Kanal-ID in dem der Bot auf @-Erwaehnung reagiert.
 AI_CHAT_CHANNEL_IDS=123456789012345678
@@ -292,7 +302,9 @@ DISCOUNT_CHANNEL_ID=123456789012345678
 # BOARD_AI_CHAT=true
 # BOARD_AI_CHAT_PER_MIN=5
 # BOARD_AI_CHAT_PER_HOUR=40
-# Salt fürs IP-Hashing (in Produktion setzen; keine Roh-IP wird gespeichert):
+# PFLICHT bei BOARD_ENABLED=true: geheimer Schlüssel für alle Board-Signaturen (IP-Hashes,
+# Admin-/Mitglieder-Cookies, CSRF, Captcha). Mindestens 16 Zeichen – mit Platzhalter oder zu kurzem
+# Wert startet das Board NICHT. Erzeugen: python3 -c "import secrets; print(secrets.token_hex(32))"
 # BOARD_HASH_SALT=ein-langes-zufaelliges-salt
 
 # ── Halter-Karte (Map-Feature) ────────────────────────────────────────────────
@@ -315,6 +327,21 @@ DISCOUNT_CHANNEL_ID=123456789012345678
 # Ausgabe sofort flushen (empfohlen für Logs in Docker/systemd)
 PYTHONUNBUFFERED=1
 
+# ── Schwarmflug-Radar ─────────────────────────────────────────────────────────
+# Kanal mit den Schwarmflug-Meldungen (wird gelesen, nicht beschrieben außer ✅). Leer/0 = aus.
+# SWARM_CHANNEL_ID=
+# KI-Modell nur für Meldungen ohne erkennbare Art (Standard: wie REVIEW_PARSER_MODEL)
+# SWARM_PARSER_MODEL=
+# Orte, die nicht in der PLZ-Liste stehen, über OpenStreetMap Nominatim auflösen (1 Anfrage/s, gecacht)
+# SWARM_OSM_GEOCODING=true
+# Wetter zur Flugzeit stündlich nachtragen (Open-Meteo, gerundete Koordinate + Datum, Daten CC BY 4.0)
+# SWARM_WEATHER=true
+# Schwarmflug-Prognose (März bis Oktober, Open-Meteo) und Post im Schwarmflug-Kanal bei sehr guten Chancen
+# SWARM_FORECAST=true
+# SWARM_FORECAST_POST=true
+# Höchstens so viele Open-Meteo-Aufrufe am Tag für alles zusammen (freie API: unter 10.000)
+# SWARM_OM_DAILY=8500
+
 # ── Jahresrückblick ───────────────────────────────────────────────────────────
 # Kanal für den Community-Rückblick am 31.12. um 23:00 (Berliner Zeit). Leer/0 = kein Post.
 # YEAR_REVIEW_CHANNEL_ID=
@@ -323,7 +350,7 @@ PYTHONUNBUFFERED=1
 # AI_CHAT_TOOL_ROUNDS=3
 ```
 
-Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV` und `SERVICE` liest nur `update.py`; sie werden in `aam-bot-update.service` gesetzt.
+Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV`, `SERVICE`, `UPDATE_PREFLIGHT` und `UPDATE_NOTIFY_DM` liest nur `update.py` (aus der Umgebung oder der `.env`); die ersten vier werden in `aam-bot-update.service` gesetzt.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
@@ -363,7 +390,11 @@ Für den Dauerbetrieb liegen drei systemd-Unit-Vorlagen im Repo:
 | `aam-bot-update.service` | Oneshot-Auto-Deploy – führt `update.py` aus (siehe unten). |
 | `aam-bot-update.timer` | Löst `aam-bot-update.service` alle 5 Minuten aus (`OnUnitActiveSec=5min`). |
 
-**`update.py`** prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben). Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`).
+**`update.py`** prüft `origin/main` auf neue Commits, zieht sie per Fast-Forward, installiert bei geänderter `requirements.txt` die Abhängigkeiten im venv nach und startet den `aam-bot`-Dienst neu. Gibt es nichts Neues, passiert nichts; **uncommittete lokale Änderungen brechen den Deploy ab** (werden nie überschrieben).
+
+**Sicherheitsnetz:** Vor dem Neustart läuft eine **Vorabprüfung** (`tests/deploy_check.py`: alles kompilierbar, alle Cogs laden, Web-Oberfläche + Templates, Sprachdateien – offline, ohne die echten Daten anzufassen, ca. 3 s). Schlägt sie oder die Paket-Installation fehl, wird **auf den vorherigen Commit zurückgesetzt** (inkl. der vorherigen Paketversionen) und **nicht neu gestartet** – der Bot läuft mit dem alten Stand weiter. Der abgelehnte Commit wird in `data/.update_rejected` gemerkt und nicht alle 5 Minuten neu versucht; erst ein neuer Commit auf `main` löst den nächsten Versuch aus. Optional kommt eine **DM an den Owner** (`BOARD_OWNER_ID`, gesendet mit `DISCORD_TOKEN` aus der `.env`) – bei Ablehnung und bei fehlgeschlagenem Neustart.
+
+Überschreibbar per Umgebungsvariable: `REPO_DIR`, `BRANCH`, `SERVICE`, `VENV` (Defaults: `/opt/discord-bot`, `main`, `aam-bot`, `<REPO_DIR>/.venv`), `UPDATE_PREFLIGHT` (Vorabprüfung, Default `true`), `UPDATE_NOTIFY_DM` (DM bei Problemen, Default `true`).
 
 Installation (einmalig, als root):
 
@@ -1024,6 +1055,7 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 | Shop-Ratings-Sync | alle 48 Stunden | Liest AAM-Bewertungen aus Google Sheet „Händler A-Z": erst Domain-Exact-Match, dann Fuzzy-Fallback ≥81 % |
 | Abgelaufene Benachrichtigungen | täglich | Markiert Benachrichtigungen >365 Tage als `expired` und sendet Abschluss-DM |
 | DB VACUUM + ANALYZE | wöchentlich | Optimiert die SQLite-Datenbank |
+| Datenbank-Backup | täglich 03:30 (Berliner Zeit) | Sichert `antcheckbot.db`, `board.db` und `price_history.db` per SQLite-Backup-API (konsistent auch während geschrieben wird, danach `quick_check`) nach `data/backups/JJJJ-MM-TT/`. **Höchstens 7 Tage** werden behalten. Läuft **nur, wenn danach mindestens 2 GB frei bleiben** (vorher geschätzt, nachher geprüft) – sonst übersprungen und als gelbe Kachel auf der Statusseite gemeldet. Manuell: `/wartung aktion:Hintergrund-Jobs`. Wiederherstellen: Bot stoppen, gewünschte Datei aus dem Tagesordner nach `data/` kopieren, Bot starten. |
 | Bot-Status | alle 2 Minuten | Rotierender Discord-Status mit Ameisen-Sprüchen (20 Quotes), jeweils mit der Bot-Version davor (z. B. `v0.1.0 · …`) |
 | AI-Chat Konversations-Cleanup | alle 6 Stunden | Löscht abgelaufene Konversationshistorien (>24h TTL) |
 | AI-Chat Shop-Daten-Refresh | alle 6 Stunden | Liest die Tabs „Übersicht", „Händler A-Z", „Prüfung" (Kategorien) und „Close" (inaktive Shops) aus Google Sheet und aktualisiert den System-Prompt-Anhang |
@@ -1156,7 +1188,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── main.py                  # Einstiegspunkt – lädt alle Cogs (inkl. Guild-Lock)
 ├── config.py                # Zentrale Konfiguration + Umgebungsvariablen
 ├── grabber.py               # AntCheck API → shops_data.json + price_history.db
-├── update.py                # Auto-Deploy (git pull + venv-pip + Dienst-Neustart)
+├── update.py                # Auto-Deploy (git pull + venv-pip + Vorabprüfung + Neustart/Rollback)
 ├── aam-bot.service          # systemd: Bot-Dienst (main.py)
 ├── aam-bot-update.service   # systemd: Oneshot-Auto-Deploy (update.py)
 ├── aam-bot-update.timer     # systemd: löst den Auto-Deploy alle 5 Min aus
@@ -1166,7 +1198,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── requirements.txt         # Laufzeit-Pakete, exakt gepinnt (getestete Versionen)
 ├── requirements-dev.txt     # zusätzlich für Tests (pytest, openpyxl, pyflakes)
 ├── .github/workflows/tests.yml  # automatische Tests auf GitHub (Push/Pull Request)
-├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db,
+├── .github/dependabot.yml   # wöchentliche Update-Vorschläge für die festen Paketversionen (auf beta)
+├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db, backups/,
 │                            #   shops_data.json, shop_mapping.csv, species_profiles.json, plz_dach.csv
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
 ├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
@@ -1238,6 +1271,7 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── price_tracking_views.py  # Preis-Tracking: Discord-Auswahlmenüs/Buttons
 │   ├── map_store.py         # Halter-Karte: Datenzugriff (Einträge, Regionen, Zusagen, Events)
 │   ├── map_events.py        # Halter-Karte: Termin-Logik (RRULE, nächstes Vorkommen, Ende)
+│   ├── backup.py            # tägliches SQLite-Backup (max. 7 Tage, ≥ 2 GB Reserve)
 │   ├── shop_stats.py        # Auswertungen für die Statistik-Seite
 │   ├── usage_stats.py       # Nutzungsstatistik (Monatssummen, ohne Admin-Befehle)
 │   ├── directory.py         # Daten für /art und /shop (Angebote, Bewertungen, Lieferzeit)
@@ -1300,10 +1334,13 @@ pip install -r requirements-dev.txt
 python tests/static_check.py && python -m pytest tests/
 ```
 
+**Paket-Updates:** Weil `requirements.txt` feste Versionen enthält, schlägt **Dependabot** (`.github/dependabot.yml`) jeden Montag neue Versionen als Pull Request auf `beta` vor; die CI testet sie automatisch. Grün + gemergt → kommt mit dem nächsten Merge nach `main` auf den Server.
+
 **Automatisch auf GitHub:** Der Workflow [`.github/workflows/tests.yml`](.github/workflows/tests.yml) führt beides bei jedem Push auf `beta`/`main` und bei jedem Pull Request aus (Python 3.13, exakt die gepinnten Versionen). **Roter Haken am Pull Request `beta` → `main` = nicht mergen**, sonst zieht der Auto-Deploy den kaputten Stand auf den Server.
 
 - **`tests/static_check.py`** – pyflakes über den gesamten Code: Syntaxfehler, undefinierte Namen, unbenutzte Importe/Variablen. Einziger ignorierter Fehlalarm: Texte in py-cord-Optionen (`discord.Option(...)` als Parameter-Annotation).
-- **`tests/test_*.py`** – pytest: alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen sowie Unit-Tests für Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte).
+- **`tests/test_*.py`** – pytest (100 Tests): alle Cogs laden, jede Board-Seite/-Aktion ohne Serverfehler, Templates, Übersetzungen; Kernlogik (Grabber-Artnamen, Arten-Matching, Termine, Sicherheit, Währungen, Texte); Benachrichtigungen (Verfügbarkeit nach Region/Gattung/Blacklist/CH, Grund von Preisänderungen, Bestand, Preis-Ampel); Rabattcode-Prüfung (KI-Antwort durch feste Antwort ersetzt); Auto-Deploy mit echten Git-Repos (Rollback, abgelehnte Commits, DM).
+- **`tests/deploy_check.py`** – die Vorabprüfung, die `update.py` auf dem Server vor jedem Neustart ausführt (nur Laufzeit-Pakete nötig).
 - **`tests/board_snapshot.py`** – ruft alle Board-Seiten (Gast/Mitglied/Admin × de/en/eo) und rund 50 Formular-Aktionen auf und speichert Antworten + Datenbankinhalt. Zwei Snapshots (vor/nach einer Änderung) vergleicht `--compare`; „0 Unterschiede“ heißt: sichtbares Verhalten unverändert.
 - **`tests/command_tree_snapshot.py`** – schreibt alle Slash-Befehle (Optionen, Choices, Übersetzungen), Listener und Task-Loops als JSON – zum Vergleich vor/nach einer Änderung.
 

@@ -26,6 +26,7 @@ from utils.timez import berlin_from_utc_naive, now_berlin
 from utils.board_i18n import pick_lang
 from config import VERSION
 
+from utils.web_keys import BOT_KEY
 from utils.health import _collect_health, _system_metrics
 from web.core.render import _render
 from web.core.security import _admin_guard, _csrf_token, _safe_local_redirect
@@ -34,7 +35,7 @@ from web.core.security import _admin_guard, _csrf_token, _safe_local_redirect
 async def h_status_json(req):
     """Nur die Health-Daten als JSON – fürs 5-Sekunden-Polling des Status-Bereichs
     (der Rest der Seite wird NICHT neu geladen)."""
-    overall, sections = await _collect_health(req.app, pick_lang(req))
+    overall, sections = await _collect_health(req.app[BOT_KEY], pick_lang(req))
     return web.json_response(
         {"overall": overall, "version": VERSION, "sections": sections,
          "metrics": _system_metrics(), "generated": now_berlin("%H:%M:%S")},
@@ -47,7 +48,7 @@ async def h_status_detail(req):
     'nicht OK'-Phasen; Admins können je Vorfall eine Notiz hinterlegen."""
     key = req.match_info["key"]
     try:
-        _, sections = await _collect_health(req.app, pick_lang(req))
+        _, sections = await _collect_health(req.app[BOT_KEY], pick_lang(req))
         current = next((c for sec in sections for c in sec["checks"] if c["name"] == key), None)
     except Exception:
         current = None

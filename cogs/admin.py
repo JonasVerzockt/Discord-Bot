@@ -79,7 +79,7 @@ class AdminCog(commands.Cog, name="Admin"):
         e = discord.Embed(title=l10n.get("health_title", lang), color=ADMIN_COLOR)
         try:
             from utils.health import _collect_health
-            overall, sections = await _collect_health({"bot": self.bot}, lang)
+            overall, sections = await _collect_health(self.bot, lang)
             e.description = f"{icon.get(overall[0], '❔')} **{overall[1]}**"
             for sec in sections:
                 checks = sec["checks"]
@@ -112,6 +112,7 @@ class AdminCog(commands.Cog, name="Admin"):
         ("Shop-Bewertungen synchronisieren",        "Tasks",         "sync_shop_ratings"),
         ("Alte Benachrichtigungen entfernen",       "Tasks",         "expire_old_notifications"),
         ("DB-Optimierung (VACUUM)",                 "Tasks",         "optimize_db"),
+        ("Datenbank-Backup (max. 7 Tage)",          "Tasks",         "backup_databases"),
         ("Bot-Statusanzeige aktualisieren",         "Tasks",         "update_bot_status"),
         ("Entfallene Varianten (Sammel-DM)",        "PriceTracking", "flush_removed_variants"),
         ("Command-Log schreiben",                   "CommandLog",    "flush_log"),

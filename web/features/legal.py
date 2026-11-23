@@ -29,6 +29,7 @@ from config import BOARD_OWNER_ID
 from web.core.partners import _load_partners, _PARTNER_CT, LEGAL_DIR, PARTNER_DIR
 from web.core.render import _render
 from web.core.security import _captcha_ok, _ip, _make_captcha, _rate
+from utils.web_keys import BOT_KEY
 
 logger = logging.getLogger("cogs.board")   # Name wie vor dem Umbau (Log-Filter/-Auswertung)
 
@@ -38,7 +39,7 @@ _LEGAL_PAGES = {"impressum", "datenschutz", "partner", "gewinnspiel"}
 
 async def _send_contact_dm(app, message: str, name: str, email: str, tel: str) -> bool:
     """Kontaktformular-Nachricht als Discord-DM an den Owner (BOARD_OWNER_ID)."""
-    bot = app.get("bot")
+    bot = app.get(BOT_KEY)
     if not BOARD_OWNER_ID or bot is None:
         logger.warning("✉️ Kontaktformular: BOARD_OWNER_ID/Bot fehlt – Nachricht verworfen.")
         return False

@@ -33,6 +33,7 @@ from web.core.security import (
     _aam_member, _contact_url, _hmac, _map_rate_ok, _member_csrf, _member_name,
 )
 from web.features.events import _approved_events, _ics_calendar_url, _occ_date, _rsvp_info
+from utils.web_keys import BOT_KEY
 
 
 _DACH = ("de", "at", "ch", "li")
@@ -80,7 +81,7 @@ async def h_map(req):
 
 async def _map_extras_for(app, uids=None):
     """„Auch aktiv in“-Regionen: {user_id: [(Land, Regionscode, Name), …]} (nur Mitglieder-Ansichten)."""
-    rows = await execute_db(app["bot"],
+    rows = await execute_db(app[BOT_KEY],
         "SELECT user_id, country, region_code FROM map_entry_regions", fetch=True) or []
     allr = geo.all_regions()
     out: dict = {}
@@ -97,7 +98,7 @@ async def _map_tags_for(app, uids):
     """tag_codes je user_id (dict uid->list)."""
     if not uids:
         return {}
-    rows = await execute_db(app["bot"],
+    rows = await execute_db(app[BOT_KEY],
         "SELECT user_id, tag_code FROM map_entry_tags", fetch=True) or []
     out: dict = {}
     for r in rows:
@@ -127,7 +128,7 @@ async def h_map_regions(req):
     """ÖFFENTLICH: nur aggregierte Zahlen (keine Identitäten)."""
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     # ALLE Opt-in-Einträge zählen (auch U18 anonym) – die Zahlen sind aggregiert und
     # enthalten keine Identitäten. Einzel-Pins/-Liste bleiben getrennt auf show_entry=1.
     rows = await execute_db(bot,
@@ -190,7 +191,7 @@ async def h_map_pins(req):
         raise web.HTTPTooManyRequests(text="rate limited")
     if not _aam_member(req):
         raise web.HTTPForbidden(text="login required")
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     rows = await execute_db(bot,
         "SELECT user_id, country, region_code, region_name, first_name, show_name, contact_ok, coarse, "
         "lat_fuzzed, lon_fuzzed FROM map_entries WHERE show_entry=1 "
@@ -228,7 +229,7 @@ async def h_map_list(req):
     """Mitglieder: Einzel-Einträge (DACH + International). Öffentlich: nur Länder-Zahlen."""
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     member = bool(_aam_member(req))
     if not member:
         # Öffentlich: nur Länder-Zahlen (alle Opt-in-Einträge inkl. U18 anonym).
@@ -288,7 +289,7 @@ async def h_map_stats(req):
     Unter-18-Einträge (show_entry=0) zählen nur in den Gesamtsummen mit."""
     if not _map_rate_ok(req):
         raise web.HTTPTooManyRequests(text="rate limited")
-    bot = req.app["bot"]
+    bot = req.app[BOT_KEY]
     lang = pick_lang(req)
     me = _aam_member(req)
     member = bool(me)

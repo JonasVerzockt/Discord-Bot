@@ -354,13 +354,12 @@ def _inat_tile() -> dict:
                 detail=f"letzter erfolgreicher Abruf {berlin_from_utc_naive(ok, '%Y-%m-%d %H:%M:%S')}")
 
 
-async def _collect_health(app, lang: str = "de"):
+async def _collect_health(bot, lang: str = "de"):
     """Sammelt alle Health-Checks in Sektionen (Kern · In-Bot-Jobs · externe Cronjobs).
     Jeder Check ist gekapselt (ein Fehler bricht die Seite nicht ab). state ∈ ok|warn|down|off;
     'off' (grau) = bewusst deaktiviert/optional und zählt NICHT gegen den Gesamtstatus.
     Rückgabe: (overall, sections). Lokalisiert werden Gesamt-Ampel + Sektions-Titel/-Notizen;
     die einzelnen Kachel-Namen/-Details bleiben Deutsch (dienen als stabile Vorfall-Schlüssel)."""
-    bot = app.get("bot")
 
     # ── Sektion 1: Kern (Verbindung, Datenbanken, Feature-Flags) ──────────────
     core: list[dict] = []
@@ -401,6 +400,11 @@ async def _collect_health(app, lang: str = "de"):
     # ── Sektion 2: Hintergrund-Jobs IM Bot-Prozess (discord.ext.tasks) ────────
     jobs = [_pipeline_tile(bot)] + [_job_tile(bot, c, a, lbl, crit, note)
                                     for (c, a, lbl, crit, note) in _BOT_JOBS]
+    try:
+        from utils.backup import health_tile as _backup_tile
+        jobs.append(_backup_tile())
+    except Exception as e:
+        jobs.append(dict(name="Datenbank-Backup", state="warn", detail=str(e)[:80]))
 
     # ── Sektion 3: EXTERNE Cronjobs (laufen als Nutzer 'aam', nicht im Bot) ───
     cron = [
@@ -429,7 +433,7 @@ async def _record_incidents(bot) -> None:
     (warn/down) bzw. schließen (ok/off → ended_at). Wird minütlich vom Monitor-Loop
     aufgerufen. 'off' (grau/deaktiviert) zählt wie OK (kein Vorfall)."""
     try:
-        _, sections = await _collect_health({"bot": bot})
+        _, sections = await _collect_health(bot)
     except Exception as e:
         logger.warning("⚠️ Incident-Monitor: Health-Erhebung fehlgeschlagen: %s", e)
         return
