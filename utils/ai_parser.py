@@ -30,6 +30,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from config import REVIEW_PARSER_MODEL
+from utils.ai_compat import thinking_off, max_tokens_for, text_of
 
 load_dotenv()
 
@@ -46,7 +47,11 @@ produkte→semikolon-sep.
 geld_ausgegeben→Produktpreis ohne €/Versand als Zahl, null wenn unklar
 bewertung→0-10 (X/10=X, X/5=X×2, cap 10), null wenn unklar
 positiv→positive Aspekte semikolon-sep., ""=keine
-negativ→Kritikpunkte semikolon-sep., ""=keine"""
+negativ→Kritikpunkte semikolon-sep., ""=keine
+lieferzeit_tage→Kalendertage von Bestellung bis Ankunft als ganze Zahl (Wochentage relativ zum Datum
+  auflösen, z.B. "Dienstag bestellt, Freitag da"=3, "am nächsten Tag"=1); null, wenn nicht genannt.
+  Ebenfalls null, wenn die Dauer nicht am Shop lag: vereinbart späterer Versand, Vorbestellung,
+  Versandpause wegen Hitze/Kälte/Urlaub, Abholung oder Übergabe auf einer Messe"""
 
 # JSON-Schema für Structured Outputs: garantiert valides, vollständiges JSON
 # (alle Felder present, korrekte Typen) -> keine Parse-Fehler/Retries mehr.
@@ -62,9 +67,10 @@ _REVIEW_SCHEMA = {
         "bewertung":       {"type": ["number", "null"]},
         "positiv":         {"type": "string"},
         "negativ":         {"type": "string"},
+        "lieferzeit_tage": {"type": ["integer", "null"]},
     },
     "required": ["datum", "benutzername", "shop_name", "shop_typ", "produkte",
-                 "geld_ausgegeben", "bewertung", "positiv", "negativ"],
+                 "geld_ausgegeben", "bewertung", "positiv", "negativ", "lieferzeit_tage"],
     "additionalProperties": False,
 }
 
@@ -83,16 +89,26 @@ def parse_with_ai(content: str, shop: str, date: str) -> dict:
     """
     resp = _ai.messages.create(
         model=REVIEW_PARSER_MODEL,
-        max_tokens=400,
+        max_tokens=max_tokens_for(REVIEW_PARSER_MODEL, 400),
+        **thinking_off(REVIEW_PARSER_MODEL),   # neuere Modelle denken sonst standardmäßig mit
         messages=[{"role": "user", "content": _PROMPT.format(
             shop_name=shop, date=date, message=content
         )}],
         output_config={"format": {"type": "json_schema", "schema": _REVIEW_SCHEMA}},
     )
-    text = resp.content[0].text.strip()
+    text = text_of(resp).strip()               # ThinkingBlock (ohne .text) überspringen
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
     return json.loads(text)
+
+
+def delivery_days(value) -> int | None:
+    """Plausible Lieferzeit (0–60 Kalendertage) oder None."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    return v if 0 <= v <= 60 else None
 
 
 def build_row(parsed: dict) -> list:

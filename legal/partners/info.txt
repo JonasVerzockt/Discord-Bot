@@ -1,0 +1,1 @@
+Die Logos liefert dein Server selbst aus, es werden also keine fremden Server geladen. Erlaubt sind nur PNG, JPG und WebP. SVG ist ausgeschlossen, weil solche Dateien Skripte enthalten können.

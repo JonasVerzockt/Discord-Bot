@@ -108,7 +108,7 @@ INITIAL_COGS = [
     "cogs.shop_mapping",      # /shopmap set|list|remove (Review-CSV: Shop-Text → URL)
     "cogs.tasks",             # Background tasks (alle 5 Min, stündlich, täglich, wöchentlich)
     "cogs.ai_chat",           # KI-Chat-Bot (AI_CHAT_CHANNEL_IDS + @-Erwähnung)
-    "cogs.inat_tracker",      # iNaturalist-Links → Google Sheets
+    "cogs.inat_tracker",      # iNaturalist-Statistik: /inat_verknuepfen /inat_statistik
     "cogs.price_tracking",    # /track_price /my_price_tracking /untrack_price + stündl. Preischeck
     "cogs.price_history",     # /price_history (Preisverlauf-Chart mit Bestpreis-Marker)
     "cogs.price_targets",     # /set_target (Zielpreis-Alerts)
@@ -117,12 +117,18 @@ INITIAL_COGS = [
     "cogs.achievements",      # /achievements + Erfolge-Freischaltung/DM-Ping
     "cogs.sells",             # /sells – Preisvergleich einer Art/Gattung über alle Shops
     "cogs.offers",            # /offers – alle lagernden Angebote eines Shops
+    "cogs.directory",         # /art (Artensteckbrief) /shop (Händlerseite)
+    "cogs.year_review",       # /rueckblick + Jahresrückblick-Post am 31.12. um 23 Uhr
     "cogs.custom_commands",   # /info – benutzerdefinierte Text-Befehle (Info-Einträge)
     "cogs.offer_alerts",      # /offer_alert – Schlagwort-Alerts für den Angebote-Kanal
     "cogs.chat_export",       # /export_chat – Channel als JSON exportieren (Admin)
+    "cogs.swarm",             # Schwarmflug-Radar: liest SWARM_CHANNEL_ID, /schwarmflug, Alarm-PNs
+    "cogs.bewerten",          # /bewerten – Bewertung nach Vorlage ausfüllen, Text zum Kopieren
+    "cogs.account",           # /konto + PN-Verlauf + Konto-Einstellungen (Ruhezeiten, Sitzungen)
     "cogs.board",             # Öffentliches Feedback-Board (aiohttp, eigene DB) – nur wenn BOARD_ENABLED
     "cogs.map",               # Halter-Karte: /map_join /map_remove /map_tags /event_add – nur wenn MAP_ENABLED
     "cogs.map_tasks",         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup – nur wenn MAP_ENABLED
+    "cogs.admin_groups",      # MUSS als letztes: /bot /review /codes_admin /info_admin /event_admin /wartung
 ]
 
 

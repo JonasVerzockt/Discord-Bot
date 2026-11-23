@@ -394,6 +394,92 @@ CREATE TABLE IF NOT EXISTS user_events (
 CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events (user_id);
 
 -- Befehls-Nutzungsprotokoll (Moderation); Kanal-Posts separat, DB-Retention per Cleanup
+-- Lieferzeit je Bewertung (Kalendertage Bestellung → Ankunft), aus dem Review-Text.
+-- shop = Domain wie in der Bewertungstabelle (clean_shop_name).
+CREATE TABLE IF NOT EXISTS review_delivery (
+    message_id   TEXT PRIMARY KEY,
+    shop         TEXT NOT NULL,
+    days         INTEGER,             -- NULL = keine Angabe (bereits ausgewertet)
+    review_date  TEXT,                -- YYYY-MM-DD
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_review_delivery_shop ON review_delivery (shop);
+
+-- Wer hat welche Bewertung geschrieben – NUR für den persönlichen Rückblick (/rueckblick,
+-- nur für die Person selbst sichtbar). Die Bewertungstabelle (Sheet) bleibt anonym.
+-- rating NULL = Bewertung keiner Tabellenzeile zugeordnet.
+CREATE TABLE IF NOT EXISTS review_authors (
+    message_id   TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL,
+    review_date  TEXT NOT NULL,       -- YYYY-MM-DD
+    shop         TEXT NOT NULL DEFAULT '',
+    rating       REAL
+);
+CREATE INDEX IF NOT EXISTS idx_review_authors_user ON review_authors (user_id, review_date);
+
+-- iNaturalist-Statistik (ersetzt den früheren Wettbewerb mit Google-Tabelle).
+-- Bestätigte Verknüpfung Discord-Konto ↔ iNat-Konto (/inat_verknuepfen, Code im iNat-Profil).
+CREATE TABLE IF NOT EXISTS inat_accounts (
+    discord_id    TEXT PRIMARY KEY,
+    inat_user_id  INTEGER NOT NULL UNIQUE,
+    inat_login    TEXT NOT NULL,
+    verified_at   TEXT NOT NULL
+);
+-- Offene Verknüpfungs-Codes (1 Stunde gültig).
+CREATE TABLE IF NOT EXISTS inat_link_codes (
+    discord_id  TEXT PRIMARY KEY,
+    inat_login  TEXT NOT NULL,
+    code        TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+-- Gepostete Beobachtungen. Gezählt wird nur, wenn inat_user_id zum verknüpften Konto passt.
+CREATE TABLE IF NOT EXISTS inat_obs (
+    obs_id        INTEGER PRIMARY KEY,
+    discord_id    TEXT NOT NULL,
+    message_id    TEXT,
+    posted_at     TEXT NOT NULL,          -- UTC
+    inat_user_id  INTEGER,
+    observed_on   TEXT,                   -- YYYY-MM-DD laut iNat
+    taxon_id      INTEGER,
+    taxon_name    TEXT,
+    taxon_rank    TEXT,
+    ancestors     TEXT,                   -- JSON-Liste der Vorfahren-IDs
+    is_ant        INTEGER NOT NULL DEFAULT 0,
+    missing       INTEGER NOT NULL DEFAULT 0,   -- 1 = bei iNat gelöscht/nicht gefunden
+    checked_at    TEXT                    -- NULL = noch nicht von der API geprüft
+);
+CREATE INDEX IF NOT EXISTS idx_inat_obs_user ON inat_obs (discord_id);
+CREATE TABLE IF NOT EXISTS inat_posted_months (
+    month      TEXT PRIMARY KEY,          -- YYYY-MM, verhindert Doppel-Posts
+    posted_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Saison-Verfügbarkeit: je Tag und Art die Zahl der Shops mit lagerndem Angebot
+-- (Maximum über die stündlichen Läufe des Tages). species_key '*' markiert, dass der
+-- Tag erfasst wurde (fehlende Art an so einem Tag = 0 Shops).
+CREATE TABLE IF NOT EXISTS species_stock_daily (
+    day          TEXT NOT NULL,       -- YYYY-MM-DD (Berlin)
+    species_key  TEXT NOT NULL,       -- kanonischer Artname, klein
+    shops        INTEGER NOT NULL,
+    PRIMARY KEY (day, species_key)
+);
+CREATE INDEX IF NOT EXISTS idx_species_stock_key ON species_stock_daily (species_key, day);
+
+-- Jahresrückblick: bereits gepostete Jahre (verhindert Doppel-Posts nach Neustart).
+CREATE TABLE IF NOT EXISTS year_review_posted (
+    year       INTEGER PRIMARY KEY,
+    posted_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Öffentliche Nutzungsstatistik: Monatssummen (überdauern die Command-Log-Retention).
+-- metric: 'calls' | 'users' | 'cmd:<befehl>'; nur Befehle für alle (keine Admin-Befehle).
+CREATE TABLE IF NOT EXISTS usage_monthly (
+    month   TEXT    NOT NULL,      -- YYYY-MM
+    metric  TEXT    NOT NULL,
+    value   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (month, metric)
+);
+
 CREATE TABLE IF NOT EXISTS command_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     TEXT,
@@ -492,6 +578,15 @@ CREATE TABLE IF NOT EXISTS map_entry_tags (
     PRIMARY KEY (user_id, tag_code)
 );
 
+-- „Auch aktiv in“: bis zu 2 weitere Regionen (nur Bundesland/Kanton, kein Ort), z. B. für Pendler.
+-- Nur für 18+-Einträge; wird mit dem Karteneintrag gelöscht.
+CREATE TABLE IF NOT EXISTS map_entry_regions (
+    user_id     TEXT NOT NULL,
+    country     TEXT NOT NULL,
+    region_code TEXT NOT NULL,
+    PRIMARY KEY (user_id, country, region_code)
+);
+
 -- Events / Messen / Treffpunkte: ÖFFENTLICH, nicht personenbezogen.
 -- status: pending | approved | rejected. rrule = iCal-RRULE (optional, für Serien).
 CREATE TABLE IF NOT EXISTS map_events (
@@ -515,12 +610,273 @@ CREATE TABLE IF NOT EXISTS map_events (
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Teilnahme an Events ("Ich gehe hin", über Discord-Login auf der Karte). Pro Vorkommen
+-- (occ_date = Datum des Termins, bei Serien das jeweilige Vorkommen). Wird 30 Tage nach dem
+-- Termin, beim Server-Austritt und beim Löschen des Events entfernt.
+CREATE TABLE IF NOT EXISTS map_event_rsvp (
+    event_id   INTEGER NOT NULL,
+    occ_date   TEXT    NOT NULL,              -- JJJJ-MM-TT (Berliner Zeit)
+    user_id    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (event_id, occ_date, user_id)
+);
+
+-- Termin-Erinnerung: bereits verschickte Erinnerungen (je Vorkommen und Person nur einmal).
+CREATE TABLE IF NOT EXISTS map_rsvp_reminded (
+    event_id  INTEGER NOT NULL,
+    occ_date  TEXT    NOT NULL,
+    user_id   TEXT    NOT NULL,
+    sent_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (event_id, occ_date, user_id)
+);
+
+-- ── Mein Konto (Board /konto) ────────────────────────────────────────────────
+-- Persönliche Einstellungen, die nur das Konto betreffen. Fehlende Zeile = Standard.
+-- quiet_start/quiet_end: Ruhezeit in vollen Stunden (Berlin), NULL = aus.
+-- logout_before: Board-Sitzungen, die vor diesem Zeitpunkt (Unix) begonnen haben, sind ungültig.
+-- ics_salt: Teil des geheimen Links zum persönlichen Kalender (neu erzeugen = alter Link ungültig).
+CREATE TABLE IF NOT EXISTS user_prefs (
+    user_id        TEXT PRIMARY KEY,
+    rsvp_reminder  INTEGER NOT NULL DEFAULT 1,
+    quiet_start    INTEGER,
+    quiet_end      INTEGER,
+    logout_before  INTEGER NOT NULL DEFAULT 0,
+    ics_salt       TEXT,
+    intros         INTEGER NOT NULL DEFAULT 1,   -- Intros beim Öffnen des Boards (1 = an)
+    ach_seen_at    TEXT,                         -- Erfolge bis hier schon per Intro gefeiert (UTC)
+    milestones     TEXT,                         -- schon gefeierte Meilensteine, z. B. "inat10,rev100"
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Verlauf: was der Bot dir zuletzt per PN geschickt hat (nur Vorschau, 30 Tage, max. 50 je Person).
+CREATE TABLE IF NOT EXISTS dm_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id  TEXT NOT NULL,
+    sent_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    preview  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_dm_log_user ON dm_log (user_id, sent_at);
+-- Angebots-Alerts, die während der persönlichen Ruhezeit anfielen (danach zugestellt).
+CREATE TABLE IF NOT EXISTS quiet_offer_queue (
+    user_id     TEXT NOT NULL,
+    message_id  TEXT NOT NULL,
+    keyword     TEXT NOT NULL,
+    keyword_raw TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, message_id, keyword)
+);
+
+-- ── Schwarmflug-Radar (Meldungen aus dem Schwarmflug-Kanal, utils/swarm.py) ──
+-- Je Meldung und Taxon eine Zeile. Öffentlich nur Taxon, Datum und Region; place/lat/lon
+-- und author_id nur für eingeloggte Mitglieder bzw. Datenauskunft.
+CREATE TABLE IF NOT EXISTS swarm_reports (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id   TEXT NOT NULL,
+    author_id    TEXT,
+    posted_at    TEXT NOT NULL,          -- UTC
+    flight_date  TEXT NOT NULL,          -- YYYY-MM-DD (Berlin)
+    flight_time  TEXT,                   -- HH:MM oder NULL
+    genus        TEXT NOT NULL,
+    species      TEXT,
+    qualifier    TEXT NOT NULL DEFAULT '',
+    label        TEXT NOT NULL,
+    country      TEXT NOT NULL DEFAULT '',
+    region       TEXT NOT NULL DEFAULT '',
+    place        TEXT NOT NULL DEFAULT '',
+    lat          REAL,
+    lon          REAL,
+    geo_src      TEXT,                   -- plz | osm | NULL
+    temp_c       REAL,
+    wind         TEXT,
+    weather      TEXT,
+    indoor       INTEGER NOT NULL DEFAULT 0,
+    protected    TEXT,
+    source       TEXT NOT NULL DEFAULT 'rule',   -- rule | ai | follow
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Wetter zur Flugzeit (Open-Meteo, utils/weather.py); w_state: NULL offen, 1 ok, -1 nicht möglich
+    w_temp       REAL,
+    w_hum        REAL,                   -- relative Luftfeuchte %
+    w_press      REAL,                   -- Luftdruck auf Meereshöhe hPa
+    w_wind       REAL,                   -- Wind 10 m km/h
+    w_cloud      REAL,                   -- Bewölkung %
+    w_rain24     REAL,                   -- Niederschlag in den 24 h davor, mm
+    w_state      INTEGER,
+    w_src        TEXT,                   -- ifs | hf | fc (Quelle des nachgetragenen Wetters)
+    raw_label    TEXT,                   -- Art wie gemeldet (vor Abgleich mit der Artenliste)
+    taxon_check  TEXT,                   -- ok | fixed | unknown | ai | nolist
+    UNIQUE (message_id, label)
+);
+CREATE INDEX IF NOT EXISTS idx_swarm_date ON swarm_reports (flight_date);
+CREATE INDEX IF NOT EXISTS idx_swarm_genus ON swarm_reports (genus, species);
+CREATE TABLE IF NOT EXISTS swarm_scanned (
+    message_id TEXT PRIMARY KEY,
+    status     TEXT NOT NULL,             -- ok | none
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Schwarmflug-Alarm (Mein Konto): Gattung oder Art, optional nur eine Region.
+CREATE TABLE IF NOT EXISTS swarm_alerts (
+    user_id    TEXT NOT NULL,
+    taxon      TEXT NOT NULL,             -- "Lasius" oder "Lasius niger"
+    country    TEXT NOT NULL DEFAULT '',
+    region     TEXT NOT NULL DEFAULT '',  -- '' = überall
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, taxon, country, region)
+);
+CREATE TABLE IF NOT EXISTS swarm_alert_sent (
+    user_id    TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    sent_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, message_id)
+);
+-- Einstellungen des Schwarmflug-Radars (z. B. ach_since: ab wann Meldungen für Erfolge zählen).
+CREATE TABLE IF NOT EXISTS swarm_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+-- Korrektur von Hand (Admin), gilt bis die Nachricht in Discord bearbeitet wird.
+CREATE TABLE IF NOT EXISTS swarm_override (
+    message_id TEXT PRIMARY KEY,
+    place      TEXT NOT NULL DEFAULT '',
+    country    TEXT NOT NULL DEFAULT '',
+    region     TEXT NOT NULL DEFAULT '',
+    taxa       TEXT NOT NULL DEFAULT '',
+    set_by     TEXT,
+    set_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Saisonstart je Jahr (erste Meldung im Freien), für Intro, Banner, PN und Erfolg.
+CREATE TABLE IF NOT EXISTS swarm_season (
+    year        INTEGER PRIMARY KEY,
+    message_id  TEXT NOT NULL,
+    author_id   TEXT,
+    label       TEXT NOT NULL,
+    country     TEXT NOT NULL DEFAULT '',
+    region      TEXT NOT NULL DEFAULT '',
+    flight_date TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- ── Schwarmflug-Prognose (utils/forecast.py, Wetter von Open-Meteo) ──────────
+-- Tagesbudget je Zweck (forecast | weather | train), Einheit = Open-Meteo-Aufrufe (gewichtet).
+CREATE TABLE IF NOT EXISTS om_budget (
+    day     TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    used    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, purpose)
+);
+-- Prognosepunkte: 35-km-Gitter über DACH + Fundort-Hotspots (0,1°-Zellen mit ≥ 3 Meldungen).
+CREATE TABLE IF NOT EXISTS fc_points (
+    key      TEXT PRIMARY KEY,           -- "lat,lon" auf 2 Nachkommastellen
+    lat      REAL NOT NULL,
+    lon      REAL NOT NULL,
+    country  TEXT NOT NULL DEFAULT '',
+    region   TEXT NOT NULL DEFAULT '',
+    kind     TEXT NOT NULL,              -- grid | hot
+    n        INTEGER NOT NULL DEFAULT 0, -- Meldungen in der Zelle (nur hot)
+    train    INTEGER NOT NULL DEFAULT 0, -- 1 = Lernpunkt (Wetter ganzer Saisons)
+    active   INTEGER NOT NULL DEFAULT 1
+);
+-- Lerndaten: Tageswerte je Lernpunkt (Wetter um 17 Uhr + Tageshöchstwert), alle Saisontage.
+CREATE TABLE IF NOT EXISTS fc_train (
+    key    TEXT NOT NULL,
+    date   TEXT NOT NULL,
+    temp REAL, hum REAL, dew REAL, rain24 REAL, rain48 REAL, rain72 REAL, dp12 REAL, wind REAL,
+    cloud REAL, rad REAL, tmax REAL, soil_t REAL, soil_m REAL,
+    src    TEXT NOT NULL DEFAULT 'ifs',   -- ifs (Historical Weather) | hf (Historical Forecast, feiner)
+    PRIMARY KEY (key, date)
+);
+CREATE TABLE IF NOT EXISTS fc_train_done (
+    key  TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    src  TEXT NOT NULL DEFAULT 'ifs',
+    PRIMARY KEY (key, year)
+);
+-- Verlauf der Trefferquote je Lernlauf (Vergleich mit dem Vorjahr auf dem Board)
+CREATE TABLE IF NOT EXISTS fc_model_hist (
+    taxon      TEXT NOT NULL,
+    trained_at TEXT NOT NULL DEFAULT (datetime('now')),
+    auc REAL, hit_hi REAL, hit_base REAL, n_pos INTEGER
+);
+-- Gelernte Modelle je Gattung/Art (oder Regel, solange zu wenig Daten).
+CREATE TABLE IF NOT EXISTS fc_models (
+    taxon      TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,            -- model | rule
+    params     TEXT NOT NULL,            -- JSON
+    auc        REAL,
+    hit_hi     REAL,                     -- Anteil Tage mit Meldung bei hoher Chance (Test-Jahre)
+    hit_base   REAL,                     -- Anteil Tage mit Meldung insgesamt (Test-Jahre)
+    n_pos      INTEGER,
+    n_obs      INTEGER,
+    trained_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Karten aus den Lerndaten (nach jedem Lernlauf neu berechnet):
+-- Flugwetter-Kalender: je Taxon, Lernpunkt und Kalenderwoche Zahl der Tage und davon „gutes Flugwetter“ (Stufe ≥ 2)
+CREATE TABLE IF NOT EXISTS fc_climate (
+    taxon TEXT NOT NULL,
+    key   TEXT NOT NULL,
+    week  INTEGER NOT NULL,
+    days  INTEGER NOT NULL,
+    good  INTEGER NOT NULL,
+    PRIMARY KEY (taxon, key, week)
+);
+-- Gelernt gegen gemeldet: je Taxon und Lernpunkt Tage mit „sehr gut“, davon mit Meldung im Umkreis, Meldetage
+CREATE TABLE IF NOT EXISTS fc_eval (
+    taxon TEXT NOT NULL,
+    key   TEXT NOT NULL,
+    days  INTEGER NOT NULL,
+    n_hi  INTEGER NOT NULL,
+    n_hit INTEGER NOT NULL,
+    n_rep INTEGER NOT NULL,
+    PRIMARY KEY (taxon, key)
+);
+-- Vorhersage je Punkt, Tag und Taxon (nur Stufe ≥ 1). level: 1 möglich, 2 gut, 3 sehr gut.
+CREATE TABLE IF NOT EXISTS fc_pred (
+    key    TEXT NOT NULL,
+    day    TEXT NOT NULL,
+    taxon  TEXT NOT NULL,
+    p      REAL NOT NULL,
+    level  INTEGER NOT NULL,
+    h_from INTEGER, h_to INTEGER,
+    temp   REAL,
+    run_at TEXT NOT NULL,
+    PRIMARY KEY (key, day, taxon)
+);
+CREATE INDEX IF NOT EXISTS idx_fc_pred_day ON fc_pred (day, taxon);
+CREATE TABLE IF NOT EXISTS fc_runs (
+    day  TEXT NOT NULL,
+    slot INTEGER NOT NULL,
+    at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (day, slot)
+);
+-- Prognose-PN (Mein Konto): off | rare | normal | often (ohne Eintrag: rare)
+CREATE TABLE IF NOT EXISTS fc_pref (
+    user_id TEXT PRIMARY KEY,
+    level   TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fc_sent (
+    user_id TEXT NOT NULL,
+    day     TEXT NOT NULL,
+    PRIMARY KEY (user_id, day)
+);
+CREATE TABLE IF NOT EXISTS fc_posts (
+    day        TEXT PRIMARY KEY,
+    message_id TEXT
+);
+-- Ortsauflösung (eigene PLZ-Daten bzw. OpenStreetMap Nominatim), auch Fehlschläge.
+CREATE TABLE IF NOT EXISTS geocode_cache (
+    query      TEXT PRIMARY KEY,
+    lat        REAL,
+    lon        REAL,
+    country    TEXT,
+    region     TEXT,
+    src        TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Perf: heiße Abfragen ohne PK/UNIQUE-Abdeckung
 CREATE INDEX IF NOT EXISTS idx_notifications_status   ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_map_entries_country    ON map_entries (country);
 CREATE INDEX IF NOT EXISTS idx_map_entry_tags_tag     ON map_entry_tags (tag_code);
 CREATE INDEX IF NOT EXISTS idx_map_events_status      ON map_events (status);
 CREATE INDEX IF NOT EXISTS idx_map_events_start       ON map_events (start_at);
+CREATE INDEX IF NOT EXISTS idx_map_event_rsvp_user    ON map_event_rsvp (user_id);
 CREATE INDEX IF NOT EXISTS idx_offer_keywords_user    ON offer_keywords (user_id);
 CREATE INDEX IF NOT EXISTS idx_discount_codes_author  ON discount_codes (author);
 CREATE INDEX IF NOT EXISTS idx_ai_chat_budget_user    ON ai_chat_budget (user_id);
@@ -536,6 +892,9 @@ _EU_COUNTRIES = [
 
 # Spalten-Migrationen für bestehende DBs: (Tabelle, Spalte, DDL)
 _MIGRATIONS = [
+    ("swarm_reports",  "raw_label",       "ALTER TABLE swarm_reports ADD COLUMN raw_label TEXT"),
+    ("swarm_reports",  "taxon_check",     "ALTER TABLE swarm_reports ADD COLUMN taxon_check TEXT"),
+    ("swarm_reports",  "w_src",           "ALTER TABLE swarm_reports ADD COLUMN w_src TEXT"),
     ("shops",          "url_override",    "ALTER TABLE shops ADD COLUMN url_override TEXT DEFAULT NULL"),
     ("discount_codes", "status_override", "ALTER TABLE discount_codes ADD COLUMN status_override TEXT"),
     ("user_price_tracking", "target_price", "ALTER TABLE user_price_tracking ADD COLUMN target_price REAL"),
@@ -545,6 +904,9 @@ _MIGRATIONS = [
     ("map_entries",         "show_name",     "ALTER TABLE map_entries ADD COLUMN show_name INTEGER NOT NULL DEFAULT 1"),
     ("map_events",          "exdates",       "ALTER TABLE map_events ADD COLUMN exdates TEXT"),
     ("map_entries",         "coarse",        "ALTER TABLE map_entries ADD COLUMN coarse INTEGER NOT NULL DEFAULT 0"),
+    ("user_prefs",          "intros",        "ALTER TABLE user_prefs ADD COLUMN intros INTEGER NOT NULL DEFAULT 1"),
+    ("user_prefs",          "ach_seen_at",   "ALTER TABLE user_prefs ADD COLUMN ach_seen_at TEXT"),
+    ("user_prefs",          "milestones",    "ALTER TABLE user_prefs ADD COLUMN milestones TEXT"),
 ]
 
 

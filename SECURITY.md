@@ -42,9 +42,12 @@ aktualisieren.
 
 - Der Bot-Code (`main.py`, `cogs/`, `utils/`, `grabber.py`) und dessen Umgang mit
   Eingaben, Berechtigungen und Daten.
-- Das **Feedback-Board** (`cogs/board.py`, Webdienst): z. B. Authentifizierung
-  (Admin-Login), CSRF, XSS, Injection, unzureichende Zugriffskontrolle, Umgehung
-  der Moderations-Queue, IP-/Daten-Leaks.
+- Das **Board** (`cogs/board.py`, Webdienst): z. B. Authentifizierung
+  („Login mit Discord“ für Mitglieder und Admins), CSRF, XSS, Injection,
+  unzureichende Zugriffskontrolle, Umgehung der Moderations-Queue, IP-/Daten-Leaks,
+  Zugriff auf fremde persönliche Daten (Rückblick, KI-Chat-Verläufe).
+- Der **KI-Chat** (Discord und Board): z. B. Umgehung von Budget- und Rate-Limits
+  oder Zugriff auf fremde Gesprächsverläufe.
 - Umgang mit **Secrets/Konfiguration** (versehentliches Loggen/Ausgeben von Tokens,
   Schlüsseln, Roh-IPs o. Ä.).
 - Umgehung der **Server-Bindung (Guild-Lock)** oder der Rechte-/Kanal-Checks.
@@ -52,7 +55,7 @@ aktualisieren.
 **Außerhalb des Geltungsbereichs** (bitte anderswo/anders behandeln):
 
 - Schwachstellen in **Drittanbietern** (Discord, Anthropic, Google, AntCheck,
-  Strato, Let's Encrypt, PyPI-Pakete) → bitte direkt beim jeweiligen Anbieter melden
+  iNaturalist, Wikipedia, GBIF, Strato, Let's Encrypt, PyPI-Pakete) → bitte direkt beim jeweiligen Anbieter melden
   (Dependency-Lücken siehe unten).
 - Die **individuelle Serverkonfiguration** eines Selbst-Hosters (nginx, Proxmox,
   Firewall, TLS-Setup) – das liegt in dessen Verantwortung.
@@ -69,7 +72,9 @@ aktualisieren.
   blockiert (siehe `main.py`).
 - **Feedback-Board** (falls aktiviert): Bindung nur an `127.0.0.1` (Reverse-Proxy +
   HTTPS davor), **Moderations-Queue** (nichts öffentlich ohne Freigabe),
-  **Honeypot** und **Rate-Limits**, **CSRF-Schutz** auf Admin-Aktionen,
+  **Honeypot** und **Rate-Limits**, Admin- und Mitglieder-Login nur über Discord
+  (OAuth2, Scope `identify`, Zugriffstoken wird nicht gespeichert; signierte Cookies),
+  **CSRF-Schutz** auf Admin- und Mitglieder-Aktionen (auch KI-Chat),
   **Jinja2-Autoescape** gegen XSS, **HMAC-SHA3-512-gehashte IPs** (keine Roh-IP;
   geheimes Salt via `BOARD_HASH_SALT`).
 - **Moderations-Log:** sensible Parameterwerte werden im Befehls-Log ausgeblendet.
@@ -80,7 +85,7 @@ Der Bot ist **AGPL-3.0** – jede/r darf ihn forken und selbst betreiben (dann m
 **eigenem** Bot-Token und **eigener** Instanz). Wer selbst hostet, sollte:
 
 - **Eigene, starke Zufalls-Secrets** setzen und **nie committen**: `DISCORD_TOKEN`,
-  `ANTHROPIC_API_KEY`, `ANTCHECK_API_KEY`, `BOARD_ADMIN_TOKEN`, `BOARD_HASH_SALT`
+  `ANTHROPIC_API_KEY`, `ANTCHECK_API_KEY`, `BOARD_OAUTH_CLIENT_SECRET`, `BOARD_HASH_SALT`
   (z. B. `openssl rand -hex 32` bzw. `python3 -c "import secrets;print(secrets.token_hex(32))"`).
 - **Dateirechte** eng setzen: `.env` und `service_account.json` auf `600`
   (`-rw-------`).

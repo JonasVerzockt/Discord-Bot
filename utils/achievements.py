@@ -75,6 +75,12 @@ ACHIEVEMENTS = [
     Ach("code_bringer_2","🏷️", False, "community", lambda s: (s["codes"], 5)),
     Ach("code_bringer_3","🏷️", False, "community", lambda s: (s["codes"], 15)),
     Ach("ai_first",    "🤖", False, "community", lambda s: (min(s["ai_used"], 1), 1)),
+    Ach("inat_10",     "🔬", False, "community", lambda s: (s["inat_species"], 10)),
+    Ach("inat_25",     "🔬", False, "community", lambda s: (s["inat_species"], 25)),
+    Ach("inat_50",     "🔬", False, "community", lambda s: (s["inat_species"], 50)),
+    Ach("swarm_first", "🪽", False, "community", lambda s: (min(s["swarm_reports"], 1), 1)),
+    Ach("swarm_10",    "🪽", False, "community", lambda s: (s["swarm_reports"], 10)),
+    Ach("swarm_taxa",  "🧭", False, "community", lambda s: (s["swarm_taxa"], 5)),
     # Aktivität / Nutzung
     Ach("regular",      "📅", False, "usage", lambda s: (s["distinct_days"], 7)),
     Ach("marathon",     "🏃", False, "usage", lambda s: (s["max_per_day"], 15)),
@@ -89,6 +95,7 @@ ACHIEVEMENTS = [
     Ach("early_bird",  "🌅", True,  "hidden",    lambda s: (1 if s["early"] else 0, 1)),
     Ach("helpseeker",  "🆘", True,  "hidden",    lambda s: (1 if s["help_used"] else 0, 1)),
     Ach("oops",        "🙈", True,  "hidden",    lambda s: (1 if s["had_error"] else 0, 1)),
+    Ach("swarm_opener","🎉", True,  "hidden",    lambda s: (min(s["swarm_opener"], 1), 1)),
     # Meta (wird gesondert berechnet, check bekommt s["_visible_unlocked"]/s["_visible_total"])
     Ach("all_visible", "🐜", True,  "hidden",    lambda s: (s["_visible_unlocked"], s["_visible_total"])),
 ]
@@ -147,6 +154,24 @@ async def gather_stats(bot, user_id: str, username: str | None = None) -> dict:
     s["digest"]          = await _count(bot, "SELECT COUNT(*) FROM digest_subscribers WHERE user_id=?", (uid,))
     s["codes"]           = (await _count(bot, "SELECT COUNT(*) FROM discount_codes WHERE author=?", (username,))) if username else 0
     s["ai_used"]         = await _count(bot, "SELECT COUNT(*) FROM ai_chat_budget WHERE user_id=?", (uid,))
+    try:                                     # iNat: gefundene Arten insgesamt (nur verknüpft + eigene)
+        from utils.inat import user_stats as _inat_stats
+        s["inat_species"] = (await _inat_stats(bot, uid))["species"]
+    except Exception:
+        s["inat_species"] = 0
+
+    # Schwarmflug-Kanal (utils/swarm.py): eigene Meldungen, verschiedene Arten, Saison eröffnet.
+    # Gezählt werden nur Meldungen ab dem Einschalten (swarm_meta.ach_since), keine alten Posts.
+    try:
+        since = "(SELECT value FROM swarm_meta WHERE key='ach_since')"
+        s["swarm_reports"] = await _count(bot, "SELECT COUNT(DISTINCT message_id) FROM swarm_reports "
+                                               f"WHERE author_id=? AND indoor=0 AND posted_at >= {since}", (uid,))
+        s["swarm_taxa"] = await _count(bot, "SELECT COUNT(DISTINCT genus || ' ' || species) FROM swarm_reports "
+                                            "WHERE author_id=? AND species IS NOT NULL AND indoor=0 "
+                                            f"AND posted_at >= {since}", (uid,))
+        s["swarm_opener"] = await _count(bot, "SELECT COUNT(*) FROM swarm_season WHERE author_id=?", (uid,))
+    except Exception:
+        s["swarm_reports"] = s["swarm_taxa"] = s["swarm_opener"] = 0
 
     ev_rows = await execute_db(bot, "SELECT event, ts FROM user_events WHERE user_id=?", (uid,), fetch=True) or []
     cmd_set, night, early, target_hit = set(), False, False, False

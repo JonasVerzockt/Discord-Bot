@@ -38,7 +38,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", str(BASE_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bot-Version – wird im Discord-Status vor den Sprüchen angezeigt (Schema x.y.z).
-VERSION = "3.0.4"
+VERSION = "4.2.4"
 
 # Discord
 DISCORD_TOKEN     = os.getenv("DISCORD_TOKEN")
@@ -74,7 +74,7 @@ ACCUMULATION_DELAY = int(os.getenv("ACCUMULATION_DELAY", "8"))
 # Anthropic (Review-Bot + KI-Chat)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # Modell für die KI-Extraktion der Reviews (günstiges Haiku für strukturierte Parserei).
-REVIEW_PARSER_MODEL = os.getenv("REVIEW_PARSER_MODEL", "claude-haiku-4-5-20251001")
+REVIEW_PARSER_MODEL = os.getenv("REVIEW_PARSER_MODEL", "claude-haiku-5-5")
 
 # ── Rabattcode-Tracker ────────────────────────────────────────────────────────
 # Kanäle, in denen Rabattcodes gepostet werden (leer = Feature inaktiv).
@@ -93,7 +93,7 @@ for _cid in [
     if _cid and _cid not in DISCOUNT_CHANNEL_IDS:
         DISCOUNT_CHANNEL_IDS.append(_cid)
 # Modell für die Code-Extraktion (günstiges Haiku für strukturierte Parserei).
-DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-4-5-20251001")
+DISCOUNT_PARSER_MODEL = os.getenv("DISCOUNT_PARSER_MODEL", "claude-haiku-5-5")
 # Bild-Analyse: gepostete Screenshots/Flyer/Werbung ebenfalls per Vision auf
 # Rabattcodes prüfen (Standard an). Nur Datei-Anhänge, keine verlinkten Bilder.
 DISCOUNT_VISION_ENABLED = os.getenv("DISCOUNT_VISION_ENABLED", "true").lower() == "true"
@@ -130,13 +130,13 @@ OFFER_QUIET_START_HOUR = int(os.getenv("OFFER_QUIET_START_HOUR", "23"))
 OFFER_QUIET_END_HOUR   = int(os.getenv("OFFER_QUIET_END_HOUR", "9"))
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────────────────────
-# Modell für den Chat (Standard: claude-haiku-4-5-20251001)
-AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-4-5-20251001")
+# Modell für den Chat (Standard: claude-haiku-5-5)
+AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "claude-haiku-5-5")
 # Im Modell-Dropdown mit 👍 als Empfehlung markiertes Modell – unabhängig von der
 # Vorauswahl (AI_CHAT_MODEL / zuletzt gewählt). Leer = keine Empfehlung anzeigen.
-AI_CHAT_RECOMMENDED_MODEL = os.getenv("AI_CHAT_RECOMMENDED_MODEL", "claude-sonnet-5")
+AI_CHAT_RECOMMENDED_MODEL = os.getenv("AI_CHAT_RECOMMENDED_MODEL", "claude-sonnet-5-5")
 # Modell für die Stufe-2-Shop-Relevanz-Klassifikation (günstiges Haiku).
-AI_CHAT_CLASSIFY_MODEL = os.getenv("AI_CHAT_CLASSIFY_MODEL", "claude-haiku-4-5-20251001")
+AI_CHAT_CLASSIFY_MODEL = os.getenv("AI_CHAT_CLASSIFY_MODEL", "claude-haiku-5-5")
 
 # Kanal-ID in dem der Bot auf ALLE Nachrichten reagiert (eine ID).
 # Zusaetzlich reagiert der Bot immer auf @-Erwaehnung in jedem Kanal.
@@ -162,6 +162,27 @@ AI_CHAT_BUDGET_OUTPUT_RATIO = float(os.getenv("AI_CHAT_BUDGET_OUTPUT_RATIO", "0.
 # Reply-Fortsetzungen (aktive Gespraeche), wo Folge-Turns den Cache lesen.
 # Kalte Einzelfragen bleiben ungecacht. false = Caching komplett aus.
 AI_CHAT_PROMPT_CACHE = os.getenv("AI_CHAT_PROMPT_CACHE", "true").lower() == "true"
+# Werkzeuge (Tool Use): der Chat fragt Angebote, Preise, Shops und Codes selbst ab.
+AI_CHAT_TOOLS = os.getenv("AI_CHAT_TOOLS", "true").lower() == "true"
+# Höchstens so viele Werkzeug-Runden pro Frage (jede Runde = ein weiterer API-Aufruf).
+AI_CHAT_TOOL_ROUNDS = int(os.getenv("AI_CHAT_TOOL_ROUNDS", "3"))
+
+# Jahresrückblick: Kanal für den Post am 31.12. um 23 Uhr (Berliner Zeit). 0 = kein Post.
+YEAR_REVIEW_CHANNEL_ID = int(os.getenv("YEAR_REVIEW_CHANNEL_ID", "0") or "0")
+
+# Schwarmflug-Radar: Kanal mit den Schwarmflug-Meldungen (0 = Funktion aus).
+SWARM_CHANNEL_ID = int(os.getenv("SWARM_CHANNEL_ID", "0") or "0")
+# KI-Modell für Freitext-Meldungen ohne Vorlage (Standard wie der Review-Parser).
+SWARM_PARSER_MODEL = os.getenv("SWARM_PARSER_MODEL", REVIEW_PARSER_MODEL)
+# Ortsauflösung über OpenStreetMap Nominatim (nur der Ortsname wird übertragen).
+SWARM_OSM_GEOCODING = os.getenv("SWARM_OSM_GEOCODING", "true").lower() in ("1", "true", "yes")
+# Wetter zur Flugzeit nachtragen (Open-Meteo, nur gerundete Koordinate und Datum werden übertragen).
+SWARM_WEATHER = os.getenv("SWARM_WEATHER", "true").lower() in ("1", "true", "yes")
+# Schwarmflug-Prognose (Open-Meteo-Vorhersage + gelerntes Modell), Post im Schwarmflug-Kanal
+SWARM_FORECAST = os.getenv("SWARM_FORECAST", "true").lower() in ("1", "true", "yes")
+SWARM_FORECAST_POST = os.getenv("SWARM_FORECAST_POST", "true").lower() in ("1", "true", "yes")
+# Tagesbudget Open-Meteo gesamt (freie API: < 10.000/Tag); Rest bleibt als Puffer frei.
+SWARM_OM_DAILY = int(os.getenv("SWARM_OM_DAILY", "8500") or "8500")
 
 # Wie lange wird eine Konversation gespeichert (Stunden)
 AI_CHAT_CONVERSATION_TTL_HOURS = int(os.getenv("AI_CHAT_CONVERSATION_TTL_HOURS", "24"))
@@ -178,12 +199,22 @@ BOARD_BIND        = os.getenv("BOARD_BIND", "127.0.0.1")   # nur lokal binden ->
 BOARD_PORT        = int(os.getenv("BOARD_PORT", "8080"))
 # Öffentliche URL (für Links/Anzeige); darf zunächst leer sein.
 BOARD_PUBLIC_URL  = os.getenv("BOARD_PUBLIC_URL", "").strip().rstrip("/")
-# Owner-Login-Token (Pflicht wenn aktiviert) + Discord-User-ID für die Owner-DM
-# (darf zunächst leer/0 sein -> dann nur Log-Hinweis statt DM).
-BOARD_ADMIN_TOKEN = os.getenv("BOARD_ADMIN_TOKEN", "")
+# Optionaler Discord-Einladungslink (https://discord.gg/…) für den Kasten „Mitmachen“
+# auf der Karte. Leer = Button wird nicht angezeigt.
+DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL", "").strip()
+# Discord-User-ID des Owners: Owner-DMs (Einreichungen, Alarme) UND Admin-Login im
+# Board (über „Login mit Discord“, kein Token mehr). Optional weitere Admin-IDs,
+# kommagetrennt. BOARD_ADMIN_TOKEN wird nicht mehr verwendet.
 BOARD_OWNER_ID    = int(os.getenv("BOARD_OWNER_ID", "0") or "0")
+BOARD_ADMIN_IDS: list[int] = [int(x) for x in os.getenv("BOARD_ADMIN_IDS", "").replace(" ", "").split(",")
+                              if x.isdigit()]
 # Eigene, separate DB-Datei (nicht die Haupt-Bot-DB).
 BOARD_DB_FILE     = os.getenv("BOARD_DB_FILE", str(DATA_DIR / "board.db"))
+# KI-Chat als schwebendes Fenster auf dem Board (nur eingeloggte AAM-Mitglieder,
+# gleiches Tagesbudget wie im Discord). Grenzen je Mitglied: Nachrichten pro Minute/Stunde.
+BOARD_AI_CHAT          = os.getenv("BOARD_AI_CHAT", "true").lower() == "true"
+BOARD_AI_CHAT_PER_MIN  = int(os.getenv("BOARD_AI_CHAT_PER_MIN", "5"))
+BOARD_AI_CHAT_PER_HOUR = int(os.getenv("BOARD_AI_CHAT_PER_HOUR", "40"))
 # Salt für IP-Hashing (keine Roh-IP gespeichert). In Produktion setzen!
 BOARD_HASH_SALT   = os.getenv("BOARD_HASH_SALT", "change-me-board-salt").encode()
 

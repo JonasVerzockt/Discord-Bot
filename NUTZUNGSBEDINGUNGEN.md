@@ -13,9 +13,13 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - **Bewertungs-Bot** – erkennt Shop-Bewertungen im dafür vorgesehenen Kanal, wertet sie automatisch mit KI aus und trägt sie in eine gemeinschaftliche Bewertungsübersicht ein.
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops und benachrichtigt Mitglieder per Direktnachricht, sobald eine gesuchte Art verfügbar ist. Preise werden in der Originalwährung des Shops angezeigt, inklusive automatischer EUR-Umrechnung.
 - **Preis-Tracking** – beobachtet auf Wunsch einzelne Produkte dauerhaft und informiert per Direktnachricht, sobald sich deren Preis verändert. Die Auswahl erfolgt interaktiv über Shop- und Produkt-Menüs im Discord. Preisdaten stammen aus der lokalen `price_history.db`, die vom Grabber-Skript befüllt wird. Alternativ kann über "Alle Shops beobachten" eine gesamte Art oder Gattung shopübergreifend beobachtet werden – der Bot benachrichtigt dann bei Preisänderungen. Neue Produkte werden automatisch in die Beobachtung aufgenommen, lösen aber keine separate DM aus (dafür gibt es die Verfügbarkeitsbenachrichtigung via `/notification`).
-- **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Anthropic Claude) auf @-Erwähnung. Das Antwortmodell ist pro Anfrage über ein Auswahl-Menü wählbar (Haiku 4.5, Sonnet 5, Opus 4.8 oder Fable 5). Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen, das verwendete Modell sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
-- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks im dafür vorgesehenen Kanal innerhalb eines definierten Zeitfensters. Vor dem Eintragen wird geprüft ob der Link bereits vorhanden ist und ob die Beobachtung zur Überfamilie Formicoidea (Ameisen) gehört – nur dann wird sie in ein Google Sheet eingetragen. Dabei werden Discord-Username, Anzeigename auf dem Server, der Link und das Datum erfasst. Bei nicht erreichbarer API wird automatisch alle 5 Minuten erneut versucht. Nach jeweils 15 eingetragenen Beobachtungen postet der Bot – nach einer kurzen Wartezeit von 5 Minuten, um kurz aufeinanderfolgende Einträge zu bündeln – automatisch ein aktuelles Ranking-Bild (aus dem Übersicht-Tab des Sheets) im Channel; das Bild trägt einen Zeitstempel des Datenstands, damit erkennbar ist, welche danach geposteten Links noch nicht enthalten sind. Durch das Schreiben von `Rangliste` im Channel kann das Ranking-Bild jederzeit manuell abgerufen werden (maximal einmal alle 3 Stunden).
+- **AI-Chat-Bot** – beantwortet Fragen im dafür vorgesehenen Kanal mit KI (Anthropic Claude) auf @-Erwähnung. Das Antwortmodell ist pro Anfrage über ein Auswahl-Menü wählbar (Haiku 5.5, Sonnet 5.5, Opus 5.5 oder Fable 5.1). Alle Nachrichten in diesem Kanal werden an die Anthropic API weitergeleitet. Jede Antwort enthält automatisch einen Disclaimer mit Hinweis auf die Unverbindlichkeit der KI-Aussagen, das verwendete Modell sowie die tatsächlichen Anfragekosten. Die KI antwortet in der eingestellten Sprache des Users (Deutsch, Englisch oder Esperanto). *(aktuell nicht öffentlich verfügbar im AAM Discord)*
+- **KI-Chat auf dem Board** – die KI steht eingeloggten Mitgliedern des AAM-Servers als Chatfenster auf board.jonasants.de zur Verfügung (Login mit Discord). Im AAM-Discord selbst ist der KI-Chat derzeit nicht freigeschaltet. Es gibt ein Tagesbudget je Person und insgesamt. Deine Nachrichten werden zur Beantwortung an die Anthropic API übermittelt; der Gesprächsverlauf wird zusammen mit deiner Discord-ID gespeichert, damit Folgefragen möglich sind, und nach Ablauf der Speicherfrist (Standard 24 Stunden) automatisch gelöscht. Bilder und Dateien können dort nicht hochgeladen werden.
+- **iNat-Statistik** – zählt im dafür vorgesehenen Kanal gepostete iNaturalist-Beobachtungen von Ameisen (Überfamilie Formicoidea). Gezählt werden nur eigene Beobachtungen: Dafür verknüpfst du einmalig dein iNaturalist-Konto per `/inat_verknuepfen` (Nachweis über einen kurzen Code, den du vorübergehend in die Bio deines iNat-Profils schreibst). Je Person werden Beobachtungen und gefundene Arten gezählt, im laufenden Jahr und insgesamt. `/inat_statistik` zeigt deine eigenen Zahlen, `Statistik` im Kanal das Treppchen (Arten im laufenden Jahr), am 1. jedes Monats postet der Bot es selbst. Bestimmungen werden bei iNaturalist regelmäßig neu abgerufen (für Beobachtungen der letzten 6 Monate). Wer einen Post löscht, entfernt damit auch die zugehörigen Beobachtungen; `/inat_trennen` löst die Verknüpfung. Es gibt keinen Wettbewerb und keine Preise.
 - **Rabattcode-Tracker** – liest im dafür vorgesehenen Kanal alle Nachrichten und extrahiert per KI (Claude Haiku) Rabattcodes inkl. Shop, Rabatthöhe und Gültigkeitszeitraum. Codes werden auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) erkannt. Jede Nachricht wird dabei nur einmal an die KI übermittelt; beim Start wird der gesamte Kanalverlauf einmalig verarbeitet. Über `/codes` rufen Mitglieder die aktuell gültigen Codes ab. Abgelaufene Codes werden automatisch ausgeblendet. **Alle** Textnachrichten sowie Bild-Anhänge dieses Kanals werden zur Auswertung an die Anthropic API übermittelt.
+- **Artensteckbriefe und Händlerseiten** – `/art` und `/shop` (und die gleichnamigen Board-Seiten) zeigen Angebote, Preise, Preisverlauf mit Preis-Ampel, Saison-Verfügbarkeit, Community-Bewertungen, durchschnittliche Lieferzeit und Rabattcodes. Dafür werden keine zusätzlichen Daten über dich gespeichert; Kurzbeschreibungen (Wikipedia) und Verbreitungsdaten (GBIF) ruft der Server selbst ab.
+- **Jahresrückblick** – vom 1. November bis 31. Januar zeigt `/rueckblick` deinen persönlichen Rückblick (nur für dich sichtbar), am 31.12. postet der Bot einen Community-Rückblick mit Summen. Frühere Jahre bleiben abrufbar. Grundlage sind die Daten, die der Bot ohnehin speichert (siehe unten).
+- **Schwarmflug-Radar** – wertet die Meldungen im Schwarmflug-Kanal aus (Art, Datum, Uhrzeit, Ort, Wetter) und zeigt sie auf board.jonasants.de/schwarmflug als Karte, Saisonverlauf, Steckbriefe, Jahresvergleich, Bestimmungshilfe und Prognose. Es gibt kein neues Formular; `/schwarmflug_vorlage` hilft nur beim Ausfüllen der Vorlage, gepostet wird weiter selbst. Auf Wunsch PN-Alarm je Art und Region sowie Prognose am Vorabend.
 - **Feedback-Board** *(optional)* – ein öffentlich einsehbares Ideen- und Bug-Board (eigener Webdienst). Jede/r kann – auch anonym ohne Account – Fehler, Feature-Wünsche und Ideen zum Bot einreichen und bestehende Einträge hochvoten. Einreichungen werden vor der Veröffentlichung geprüft (Moderation).
 
 ### Nutzung
@@ -26,6 +30,7 @@ Der Bot kombiniert mehrere Funktionen für die AAM-Community:
 - Missbrauch (gefälschte Bewertungen, Spam, Umgehung von Einschränkungen) kann zum Ausschluss vom Server führen.
 - Der AI-Chat-Bot ist im AAM Discord aktuell nicht öffentlich zugänglich. Sobald er aktiviert wird, gilt: Im KI-Chat-Kanal werden **alle** Nachrichten an die Anthropic API übermittelt. Bitte keine sensiblen personenbezogenen Daten in diesem Kanal teilen.
 - Im Rabattcode-Kanal werden **alle** Textnachrichten sowie Bild-Anhänge zur automatischen Code-Erkennung an die Anthropic API übermittelt. Bitte auch dort keine sensiblen personenbezogenen Daten teilen.
+- Im Schwarmflug-Kanal wertet der Bot **alle** Nachrichten automatisch aus. Meldungen, die er nicht selbst lesen kann (keine Vorlage, unklarer Ort oder unbekannter Artname), schickt er an die Anthropic API, zusammen mit deinen zwei vorherigen eigenen Nachrichten im Kanal als Zusammenhang. Gib im Ort bitte nur an, was du teilen möchtest (z. B. Stadt oder Landkreis statt Adresse); genaue Orte sehen nur eingeloggte Mitglieder.
 
 ### Feedback-Board (öffentliches Ideen-/Bug-Board)
 
@@ -54,9 +59,9 @@ Diese Regeln gelten für die optionale Halter-Karte und die Termin-/Event-Ebene,
 **Halter-Karte:**
 
 - Die Teilnahme ist **freiwillig** (Opt-in über `/map_join`) und jederzeit widerrufbar (`/map_remove`).
-- Es wird nur ein **grober** Standort angezeigt (Land bzw. aus der PLZ abgeleitete, **zufällig verschobene** Näherung – kein genauer Ort/keine Adresse). Auf Wunsch wird statt der PLZ nur ein **grobes PLZ-Gebiet** genutzt (die letzten zwei Ziffern entfallen, der Pin liegt in der Mitte des Gebiets). Bitte trage **keine** genauen oder sensiblen Standortdaten und **keinen Nachnamen** ein (es ist ohnehin nur ein optionaler Vorname vorgesehen).
+- Es wird nur ein **grober** Standort angezeigt (Land bzw. aus der PLZ abgeleitete, **zufällig verschobene** Näherung – kein genauer Ort/keine Adresse). Auf Wunsch wird statt der PLZ nur ein **grobes PLZ-Gebiet** genutzt (die letzten zwei Ziffern entfallen, der Pin liegt in der Mitte des Gebiets). Auch dann gibst du deine **vollständige PLZ** ein; sie wird nur geprüft und **nicht gespeichert**. Bitte trage **keine** genauen oder sensiblen Standortdaten und **keinen Nachnamen** ein (es ist ohnehin nur ein optionaler Vorname vorgesehen).
 - Einzelne Einträge sehen nur angemeldete Server-Mitglieder; öffentlich sind nur aggregierte Zahlen. Wer angibt, **unter 18** zu sein, wird nicht einzeln angezeigt.
-- Mit dem Eintrag erklärst du dich einverstanden, dass dein (gefuzzter) Standort, ein optionaler Vorname und selbst gewählte Schlagworte so angezeigt werden. Kontaktaufnahme erfolgt über Discord.
+- Mit dem Eintrag erklärst du dich einverstanden, dass dein (gefuzzter) Standort, ein optionaler Vorname, selbst gewählte Schlagworte und optionale weitere Regionen („Auch aktiv in“) so angezeigt werden. Kontaktaufnahme erfolgt über Discord.
 - Der Eintrag wird **automatisch gelöscht**, wenn du den Server verlässt, und du wirst **jährlich** um Bestätigung gebeten; ohne Reaktion wird der Eintrag im nächsten Zyklus gelöscht.
 
 **Termine/Events:**
@@ -64,6 +69,8 @@ Diese Regeln gelten für die optionale Halter-Karte und die Termin-/Event-Ebene,
 - Vorschläge dürfen **alle** einreichen (`/event_add`); sie erscheinen **erst nach Freigabe** durch den Betreiber.
 - Erlaubt sind nur **öffentliche** Veranstaltungen mit **öffentlichem Veranstaltungsort** – **keine privaten Wohnadressen**. Keine rechtswidrigen, irreführenden oder werblichen Fremdinhalte.
 - Der Betreiber darf Vorschläge **ohne Angabe von Gründen ablehnen, bearbeiten oder löschen**; ein Anspruch auf Veröffentlichung besteht nicht.
+
+- **Termin-Erinnerung:** Hast du bei einem Termin „Ich gehe hin“ gewählt, schickt dir der Bot am Vortag um 18 Uhr eine Erinnerung per Direktnachricht. Gespeichert wird nur, dass die Erinnerung verschickt wurde (Termin, Datum, Discord-ID; nach 30 Tagen gelöscht). Ziehst du die Zusage zurück, kommt keine Erinnerung.
 
 ### Haftung
 
@@ -91,8 +98,10 @@ Jonas Beier
 | Inhalte von Bewertungsnachrichten | Automatische Auswertung per KI | Google Sheets (DE) |
 | Discord-IDs von Shop-Accounts | Zuordnung Shop-Name zu Discord-Account | Lokale CSV-Datei auf dem Server |
 | Discord Message-IDs | Vermeidung von Doppeleinträgen | Lokale SQLite-Datenbank auf dem Server |
+| Discord-ID der verfassenden Person je Bewertung (mit Datum, Shop, Note) | Nur für den persönlichen Jahresrückblick (`/rueckblick`, nur für dich selbst sichtbar) | Lokale SQLite-Datenbank auf dem Server |
+| Lieferzeit je Bewertung (Kalendertage) | Durchschnittliche Lieferzeit je Shop | Lokale SQLite-Datenbank auf dem Server |
 
-Bewertungen werden **anonym** gespeichert – Benutzernamen der bewertenden Mitglieder werden nicht erfasst.
+Die gemeinschaftliche Bewertungsübersicht bleibt **anonym** – Benutzernamen der bewertenden Mitglieder werden dort nicht erfasst. Die Zuordnung Bewertung zu Discord-ID wird nirgends öffentlich angezeigt und beim Löschen der Bewertungsnachricht mitgelöscht.
 
 #### AntCheck-Bot
 
@@ -140,16 +149,16 @@ Aktuelle Preisdaten werden aus `price_history.db` gelesen – einer separaten Da
 
 **Nicht** gespeichert werden: Nutzernamen oder der Nachrichtentext selbst außerhalb des Gesprächsverlaufs.
 
-#### iNat-Tracker
+#### iNat-Statistik
 
 | Daten | Zweck | Speicherort |
 |-------|-------|-------------|
-| Discord-Username (z.B. jonasverzockt) | Zuordnung der Beobachtung zur einsendenden Person | Google Sheets (separates Sheet) |
-| Anzeigename auf dem Server (display_name) | Leserliche Zuordnung im Sheet | Google Sheets (separates Sheet) |
-| iNaturalist-Beobachtungslink | Kern-Inhalt der Erfassung | Google Sheets (separates Sheet) |
-| Datum der Nachricht (Berliner Zeit) | Zeitliche Zuordnung | Google Sheets (separates Sheet) |
+| Discord-ID mit verknüpftem iNaturalist-Benutzernamen und iNat-Nutzer-ID | Nur eigene Beobachtungen zählen | Lokale SQLite-Datenbank auf dem Server |
+| Verknüpfungs-Code (1 Stunde gültig) | Nachweis, dass das iNat-Konto dir gehört | Lokale SQLite-Datenbank auf dem Server |
+| Gepostete Beobachtungs-ID mit Discord-ID, Nachrichten-ID und Postzeitpunkt | Zählung und Doppel-Erkennung | Lokale SQLite-Datenbank auf dem Server |
+| Von iNaturalist abgerufen: Beobachtungsdatum, Besitzer (iNat-Nutzer-ID), Bestimmung (Taxon, Rang) | Zählung von Beobachtungen und Arten | Lokale SQLite-Datenbank auf dem Server |
 
-Links werden nur innerhalb des konfigurierten Zeitfensters erfasst. Die Daten werden ausschließlich im Google Sheet gespeichert – lokal auf dem Server werden keine iNat-Tracker-Daten abgelegt.
+Abgerufen werden nur öffentlich einsehbare Daten über die iNaturalist-API; Fundorte werden nicht gespeichert. Löschst du deinen Post im Kanal, werden die zugehörigen Beobachtungen entfernt. Die Verknüpfung löst du jederzeit per `/inat_trennen`. Im öffentlichen Treppchen erscheinen nur dein Anzeigename auf dem Server und deine Zahlen. Die öffentliche Artenliste im Board (`/inat`) zeigt nur Summen je Art (Anzahl Beobachtungen, Erstfund-Jahr), keine Namen.
 
 #### Rabattcode-Tracker
 
@@ -189,6 +198,22 @@ Die Anmeldung erfolgt freiwillig per `/digest` und ist jederzeit per `/digest ac
 
 Die Nutzung ist freiwillig (`/offer_alert add`) und jederzeit widerrufbar (`/offer_alert remove` bzw. ✅ auf einer Alert-PN). Der Bot liest dafür den Angebote-Kanal (ohnehin von Discord gespeicherte Nachrichten); dauerhaft gespeichert werden nur die Schlagworte und Nachrichten-IDs (Dedup), keine fremden Nachrichtsinhalte.
 
+#### Schwarmflug-Radar
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Aus Nachrichten im Schwarmflug-Kanal: Nachrichten-ID, Discord User-ID, Zeitpunkt, Art/Gattung, Flugdatum und -uhrzeit, Temperatur, Wind, Wetter, Region, Ortstext und daraus ermittelte Koordinate | Karte, Saisonverlauf und Steckbriefe auf `/schwarmflug` | Lokale SQLite-Datenbank auf dem Server |
+| Ortstext (ohne Name/ID), nur wenn er nicht in der lokalen PLZ-Liste steht | Koordinate ermitteln (OpenStreetMap Nominatim, Ergebnis wird gespeichert) | OpenStreetMap Foundation (UK) |
+| Text von Meldungen ohne Vorlage bzw. mit unklarem Ort oder unbekanntem Artnamen, dazu die zwei vorherigen eigenen Nachrichten im Kanal (ohne Namen) | Auswertung bzw. Klärung per KI | Anthropic API (USA) |
+| Geschätzte Heimatregion: nur wenn eine Meldung gar keinen Ort hat, wird die Region übernommen, aus der mindestens 3 deiner früheren Meldungen und davon mindestens 60 % stammen (nur Region, nie ein Punkt, als „≈“ gekennzeichnet) | Meldung trotzdem einer Region zuordnen | Lokale SQLite-Datenbank auf dem Server |
+| Korrekturen durch Admins (Ort, Region, Art) mit Discord User-ID des Admins und Zeitpunkt; bestätigte oder verworfene Artnamen | Unklare Meldungen von Hand klären | Lokale SQLite-Datenbank, bis die Nachricht in Discord bearbeitet oder gelöscht wird |
+| Schwarmflug-Alarm: Art/Gattung + Region, bereits gemeldete Nachrichten-IDs (12 h); optional PN zum Saisonstart (je Jahr vermerkt) | PN, wenn die Art in der Region fliegt bzw. die Saison beginnt | Lokale SQLite-Datenbank auf dem Server |
+| Auf ca. 10 km gerundete Koordinate + Datum (ohne Name/ID/Ortstext) | Wetter zur Flugzeit nachtragen | Open-Meteo (OpenMeteo GmbH, Schweiz), Ergebnis lokal gespeichert |
+| Feste Rasterpunkte und Gebietsmitten (ohne Personenbezug) | Wettervorhersage und vergangenes Wetter für die Schwarmflug-Prognose | Open-Meteo (OpenMeteo GmbH, Schweiz) |
+| Stufe der Prognose-PN, Tage mit verschickter Prognose-PN | Vorwarnung am Vorabend | Lokale SQLite-Datenbank auf dem Server |
+
+Öffentlich sind nur Zahlen und Wetterwerte je Region (Wetterwerte erst ab 3 Meldungen), Steckbriefe, Jahresvergleiche, die letzten Meldungen ohne Ort und ohne Namen sowie die festen 35-km-Rasterpunkte der Prognose (Lerndaten-Karte, Flugwetter-Kalender). Genaue Orte, Orte mit vielen Meldungen (Hotspots) und Links zur Nachricht sehen nur eingeloggte Server-Mitglieder. Bearbeiten oder Löschen der Nachricht in Discord passt die Auswertung an bzw. löscht sie. In „Mein Konto“ (Bereich „Schwarmflug“) werden Alarme gelöscht und eigene Meldungen ohne ID und Ort anonymisiert.
+
 #### Erfolge (Achievements)
 
 | Daten | Zweck | Speicherort |
@@ -204,9 +229,19 @@ Erfolge sind rein persönlich (nur per `/achievements` für dich selbst sichtbar
 |-------|-------|-------------|
 | Discord User-ID + Anzeigename, genutzter Befehl (Slash-Befehle + bekannte Text-Trigger wie `!hilfe`), Parameter, Kanal, Server, Zeitstempel, Erfolg/Fehler | Moderations- und Missbrauchskontrolle (nachvollziehen, wer welche Bot-Funktionen nutzt) | Lokale SQLite-Datenbank + optional ein Mod-only-Discord-Kanal |
 
-Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/command_log` (nach User-ID, optional Zeitfenster) abfragen.
+Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachrichtsinhalte. **Sensible Parameterwerte** (z. B. `user_id` bei `/bot export`) werden **ausgeblendet**. Der Mod-Kanal ist nur für Moderator:innen sichtbar; die dort geposteten Übersichten bleiben zur Nachvollziehbarkeit dauerhaft bestehen. Moderator:innen können das Protokoll zusätzlich gezielt per Admin-Befehl `/bot protokoll` (nach User-ID, optional Zeitfenster) abfragen.
 
 **Channel-Export (`/export_chat`, nur Admin):** Zur Moderation/Archivierung können Administrator:innen einen Kanalverlauf (optional in einem Datumsbereich) als JSON exportieren. Dabei werden ausschließlich **ohnehin von Discord gespeicherte** Nachrichtendaten (Autor, Zeit, Inhalt, Anhänge/Links, Reaktionen usw.) einmalig ausgelesen und dem/der aufrufenden Admin als **ephemere Datei** bereitgestellt – es entsteht **keine** dauerhafte zusätzliche Speicherung im Bot. Die Funktion ist Admins vorbehalten und auf den gebundenen Server beschränkt.
+
+#### Mein Konto (Board `/konto`) und PN-Verlauf
+
+| Daten | Zweck | Speicherort |
+|-------|-------|-------------|
+| Discord User-ID + Einstellungen aus „Mein Konto“ (Termin-Erinnerung an/aus, Ruhezeit, Zeitpunkt „überall abmelden“, zufälliger Schlüssel für den persönlichen Kalender-Link, Intros an/aus, bis wann Erfolge und Meilensteine per Intro gefeiert wurden) | Deine Einstellungen umsetzen | Lokale SQLite-Datenbank auf dem Server |
+| Discord User-ID + Zeitpunkt und **kurze Vorschau** (max. 160 Zeichen) jeder PN, die der Bot von sich aus an dich schickt | PN-Verlauf in „Mein Konto“ | Lokale SQLite-Datenbank, **30 Tage**, höchstens die letzten 50 |
+| Angebots-Treffer während deiner Ruhezeit (Nachrichten-ID, Schlagwort) | Nach der Ruhezeit zustellen | Lokale SQLite-Datenbank, bis zur Zustellung |
+
+Antworten in einem PN-Gespräch (z. B. KI-Chat) werden nicht in den Verlauf aufgenommen. In „Mein Konto“ kannst du alle Daten als JSON herunterladen und je Bereich oder vollständig löschen.
 
 #### Feedback-Board (optional)
 
@@ -222,15 +257,21 @@ Es werden **nur Befehlsnutzungen** protokolliert, **keine** beliebigen Nachricht
 
 #### Anthropic (KI-Verarbeitung)
 
-Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft den Bewertungs-Bot (Shop-Bewertungen), den AI-Chat-Bot (alle Nachrichten im AI-Kanal) sowie den Rabattcode-Tracker (alle Textnachrichten im Rabattcode-Kanal). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
+Nachrichteninhalte werden zur automatischen Auswertung an die Anthropic API (USA) übermittelt und dort **nicht dauerhaft gespeichert**. Dies betrifft den Bewertungs-Bot (Shop-Bewertungen), den AI-Chat-Bot (alle Nachrichten im AI-Kanal sowie im KI-Chat auf dem Board) sowie den Rabattcode-Tracker (alle Textnachrichten im Rabattcode-Kanal) und das Schwarmflug-Radar (Meldungen ohne Vorlage bzw. mit unklarem Ort oder Artnamen, siehe oben). Anthropic verarbeitet Daten auf Basis von Standardvertragsklauseln (SCC) gemäß Art. 46 DSGVO.  
+Anthropic verarbeitet diese Daten als Auftragsverarbeiter auf Grundlage seines Auftragsverarbeitungsvertrags (Data Processing Addendum, https://www.anthropic.com/legal/data-processing-addendum); die Übermittlung in die USA erfolgt auf Grundlage der darin enthaltenen EU-Standardvertragsklauseln.  
 → Datenschutz: https://www.anthropic.com/privacy
 
 Gesprächsverläufe werden lokal für **maximal 24 Stunden** zwischengespeichert (für Konversationsgedächtnis) und danach automatisch gelöscht.
 
 #### Google (Tabellenspeicherung)
 
-Ausgewertete Bewertungen und iNat-Daten werden in Google Sheets (Deutschland) gespeichert.  
+Ausgewertete Bewertungen werden in Google Sheets (Deutschland) gespeichert.  
 → Datenschutz: https://policies.google.com/privacy
+
+#### iNaturalist
+
+Für die iNat-Statistik ruft der Bot öffentliche Daten zu geposteten Beobachtungen und zum verknüpften Profil über die iNaturalist-API ab (iNaturalist, USA). Dabei wird keine Discord-Information an iNaturalist übermittelt.  
+→ Datenschutz: https://www.inaturalist.org/pages/privacy
 
 #### Währungskurse (Frankfurter API + fawazahmed0-Fallback)
 
@@ -239,7 +280,17 @@ Zur EUR-Umrechnung von Preisen werden aktuelle Wechselkurse von `api.frankfurter
 
 #### Halter-Karte (optional, Opt-in)
 
-Nur bei aktiver Teilnahme (`/map_join`): gespeichert werden deine **Discord-Nutzer-ID**, ein **grober Standort** (Land bzw. aus der PLZ abgeleitete, zufällig verschobene Näherungs-Koordinate – keine genaue Adresse; auf Wunsch nur die Mitte des groben PLZ-Gebiets), optional ein **Vorname**, selbst gewählte Schlagworte sowie Einwilligungs-/Bestätigungszeitpunkte. Der **Discord-Anzeigename wird nicht gespeichert**, sondern nur für angemeldete Mitglieder live aus der ID aufgelöst (euer Server-Anzeigename). Öffentlich sind ausschließlich **aggregierte Zahlen** je Region/Land (U18 werden dabei nur anonym mitgezählt, ohne Einzel-Anzeige). Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), jederzeit widerrufbar (`/map_remove`). Auto-Löschung bei Server-Austritt; jährliche Bestätigung (ohne Reaktion Löschung im nächsten Zyklus). Für den Mitglieder-Login „Login mit Discord" (OAuth2, nur Scope `identify`) wird die Discord-ID geprüft; das Zugriffstoken wird nicht gespeichert. Freigegebene Termine/Events werden öffentlich angezeigt (nur öffentliche Veranstaltungsorte). Kartengrundlage/Attribution: © geoBoundaries (CC BY 4.0), © GeoNames (CC BY 4.0), Leaflet.
+Nur bei aktiver Teilnahme (`/map_join`): gespeichert werden deine **Discord-Nutzer-ID**, ein **grober Standort** (Land bzw. aus der PLZ abgeleitete, zufällig verschobene Näherungs-Koordinate – keine genaue Adresse; auf Wunsch nur die Mitte des groben PLZ-Gebiets; die eingegebene vollständige PLZ wird nicht gespeichert, nur Bundesland/Kanton und die ersten zwei PLZ-Ziffern), optional ein **Vorname**, auf Wunsch die Freigabe „Kontakt über Discord“ (angemeldete Mitglieder sehen dann einen Link auf dein Discord-Profil inkl. Discord-Nutzer-ID), selbst gewählte Schlagworte, optional bis zu zwei weitere Bundesländer/Kantone („Auch aktiv in“, nur die Region, nur für angemeldete Mitglieder sichtbar) sowie Einwilligungs-/Bestätigungszeitpunkte. Der **Discord-Anzeigename wird nicht gespeichert**, sondern nur für angemeldete Mitglieder live aus der ID aufgelöst (euer Server-Anzeigename). Öffentlich sind ausschließlich **aggregierte Zahlen** je Region/Land (U18 werden dabei nur anonym mitgezählt, ohne Einzel-Anzeige). Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), jederzeit widerrufbar (`/map_remove`). Auto-Löschung bei Server-Austritt; jährliche Bestätigung (ohne Reaktion Löschung im nächsten Zyklus). Für den Mitglieder-Login „Login mit Discord" (OAuth2, nur Scope `identify`) wird die Discord-ID geprüft; das Zugriffstoken wird nicht gespeichert. Freigegebene Termine/Events werden öffentlich angezeigt (nur öffentliche Veranstaltungsorte). Bei „Ich gehe hin“ wird deine Discord-Nutzer-ID mit Termin und Datum gespeichert; angemeldete Mitglieder sehen deinen Anzeigenamen in der Teilnehmerliste. Löschung 30 Tage nach dem Termin bzw. beim Server-Austritt, Rückzug jederzeit möglich. Kartengrundlage/Attribution: © geoBoundaries (CC BY 4.0), © GeoNames (CC BY 4.0), Leaflet.
+
+#### Open-Meteo (Wetterdaten)
+
+Für das Schwarmflug-Radar ruft der Bot Wetterdaten bei Open-Meteo ab (OpenMeteo GmbH, Schweiz). Übertragen werden nur auf etwa 10 km gerundete Koordinaten und Datumsangaben, keine Namen, IDs oder Ortstexte. Die Anfragen kommen vom Server des Bots, nicht aus deinem Browser. Laut Open-Meteo werden Webserver-Logs nach 90 Tagen gelöscht. Wetterdaten: CC BY 4.0.  
+→ Bedingungen und Datenschutz: https://open-meteo.com/en/terms
+
+#### OpenStreetMap Nominatim (Ortssuche)
+
+Steht ein Ort aus einer Schwarmflug-Meldung nicht in der lokalen Ortsliste, sucht der Bot die Koordinate über Nominatim der OpenStreetMap Foundation. Übertragen wird nur der Ortstext, ohne Name oder ID; die Anfrage kommt vom Server des Bots, höchstens eine pro Sekunde, und jedes Ergebnis wird lokal gespeichert, damit derselbe Ort nicht erneut gesucht wird. Die OSMF speichert Daten laut eigener Erklärung im Vereinigten Königreich und in den Niederlanden.  
+→ Datenschutz: https://osmfoundation.org/wiki/Privacy_Policy
 
 #### AntCheck API
 
@@ -266,7 +317,13 @@ Der Bot läuft auf einem Server in **Deutschland** (Strato AG, Berlin).
 - **KI-Ausgaben-Ledger** (User-ID + kumulierte Kosten pro Tag/Woche/Monat/Jahr) und die **zuletzt gewählte Modell-Vorauswahl** werden dauerhaft vorgehalten (dienen der Kostentransparenz und sind nur im persönlichen Datenexport einsehbar); Löschung auf Anfrage.
 - **Rabattcodes** (extrahierte Codes inkl. Quell-Username und Scan-Historie) werden gespeichert, solange sie für die Community relevant sind; eine Bereinigung erfolgt bei Bedarf manuell.
 - **Digest-Anmeldung** (nur User-ID) wird gespeichert, bis du dich per `/digest action:deaktivieren` abmeldest.
+- **iNat-Statistik**: Verknüpfung bis `/inat_trennen`; Beobachtungen, bis du den zugehörigen Post im Kanal löschst; offene Verknüpfungs-Codes verfallen nach 1 Stunde.
 - **Befehls-Nutzungsprotokoll** wird **12 Monate** in der lokalen Datenbank vorgehalten und danach automatisch gelöscht. Diese Dauer ist zweckgebunden für die Moderations- und Missbrauchskontrolle (ein voller Jahreszyklus erlaubt das Nachvollziehen wiederkehrender/saisonaler Muster, Ban-Evasion und später auftauchender Streitfälle) und an gängige Praxis für Moderations-/Audit-Logs angelehnt – sie ist **keine** gesetzlich vorgeschriebene Höchstfrist (die DSGVO nennt keine feste Frist; maßgeblich ist die Speicherbegrenzung nach Art. 5 Abs. 1 lit. e). Im Mod-Kanal gepostete Übersichten bleiben bestehen.
+- **Schwarmflug-Meldungen** bleiben gespeichert, solange die Nachricht im Schwarmflug-Kanal existiert; Bearbeiten passt sie an, Löschen entfernt sie. In „Mein Konto“ (Bereich „Schwarmflug“) lassen sich eigene Meldungen anonymisieren (ohne ID und Ort).
+- **Schwarmflug-Alarme** und die Stufe der Prognose-PN bleiben bis zum Löschen in „Mein Konto“; Merker bereits gemeldeter Nachrichten nur 12 Stunden.
+- **Admin-Korrekturen** zu Schwarmflug-Meldungen gelten, bis die Nachricht in Discord bearbeitet oder gelöscht wird.
+- **Ergebnisse der Ortssuche** (Ortstext → Koordinate, ohne Personenbezug) werden dauerhaft zwischengespeichert.
+- **PN-Verlauf** in „Mein Konto“: 30 Tage, höchstens die letzten 50 PNs je Person.
 - **Technische Hilfsdaten** (Message-IDs, Shop-Zuordnungen) werden bei Bedarf manuell bereinigt.
 
 ### Deine Rechte
@@ -277,6 +334,7 @@ Du hast jederzeit das Recht auf **Auskunft, Berichtigung oder Löschung** deiner
 - Eine Übersicht deiner aktiven Benachrichtigungen und Preis-Tracking-Einträge erhältst du per `/history`.
 - Preis-Tracking-Einträge kannst du selbst per `/untrack_price` entfernen.
 - Eine von dir abgegebene Bewertung kannst du selbst entfernen, indem du deine Bewertungs-Nachricht im Review-Kanal löschst – der Bot leert dann automatisch die zugehörige Zeile in der Bewertungsübersicht.
+- In **„Mein Konto“** im Board (`/konto`, in Discord per `/konto` verlinkt) siehst und änderst du alle deine Daten, lädst sie als JSON herunter und löschst sie je Bereich oder vollständig.
 - Für alle weiteren Anfragen (Auskunft, manuelle Löschung) wende dich an:  
   📧 webmaster@jonasants.de
 

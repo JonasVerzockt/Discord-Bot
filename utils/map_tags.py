@@ -31,13 +31,13 @@ TAG_GROUPS: list[dict] = [
         ("advanced",     {"de": "Fortgeschritten",     "en": "Advanced",         "eo": "Progresinta"}),
         ("expert",       {"de": "Langjährig/Experte",  "en": "Long-time/Expert", "eo": "Spertulo"}),
      ]},
-    {"code": "trade", "label": {"de": "Angebot & Suche", "en": "Offer & Search", "eo": "Oferto & Serĉo"},
-     "tags": [
-        ("offer_colony", {"de": "Biete Ableger/Kolonien", "en": "Offering colonies", "eo": "Ofertas koloniojn"}),
-        ("seek_colony",  {"de": "Suche Ableger/Kolonien", "en": "Looking for colonies", "eo": "Serĉas koloniojn"}),
-        ("swap",         {"de": "Tausch",                 "en": "Swap",              "eo": "Interŝanĝo"}),
-        ("giveaway",     {"de": "Abzugeben (Auflösung)",  "en": "Giving away",       "eo": "Fordonota"}),
-     ]},
+#    {"code": "trade", "label": {"de": "Angebot & Suche", "en": "Offer & Search", "eo": "Oferto & Serĉo"},
+#     "tags": [
+#        ("offer_colony", {"de": "Biete Ableger/Kolonien", "en": "Offering colonies", "eo": "Ofertas koloniojn"}),
+#        ("seek_colony",  {"de": "Suche Ableger/Kolonien", "en": "Looking for colonies", "eo": "Serĉas koloniojn"}),
+#        ("swap",         {"de": "Tausch",                 "en": "Swap",              "eo": "Interŝanĝo"}),
+#        ("giveaway",     {"de": "Abzugeben (Auflösung)",  "en": "Giving away",       "eo": "Fordonota"}),
+#     ]},
     {"code": "comm", "label": {"de": "Bereitschaft / Community", "en": "Availability / Community", "eo": "Preteco / Komunumo"},
      "tags": [
         ("meetups",      {"de": "Offen für Treffen",   "en": "Open to meetups",    "eo": "Malferma al renkontiĝoj"}),
@@ -46,11 +46,11 @@ TAG_GROUPS: list[dict] = [
         ("seek_mentor",  {"de": "Suche Mentor",        "en": "Looking for a mentor","eo": "Serĉas mentoron"}),
         ("carpool",      {"de": "Fahrgemeinschaft zu Treffen", "en": "Carpool to meetups", "eo": "Kunveturado"}),
      ]},
-    {"code": "log", "label": {"de": "Logistik", "en": "Logistics", "eo": "Loĝistiko"},
-     "tags": [
-        ("ship",         {"de": "Versand möglich",     "en": "Shipping possible",  "eo": "Sendado ebla"}),
-        ("local",        {"de": "Nur lokal/Abholung",  "en": "Local/pickup only",  "eo": "Nur loke/preni"}),
-     ]},
+ #   {"code": "log", "label": {"de": "Logistik", "en": "Logistics", "eo": "Loĝistiko"},
+ #    "tags": [
+ #       ("ship",         {"de": "Versand möglich",     "en": "Shipping possible",  "eo": "Sendado ebla"}),
+ #       ("local",        {"de": "Nur lokal/Abholung",  "en": "Local/pickup only",  "eo": "Nur loke/preni"}),
+ #    ]},
     {"code": "focus", "label": {"de": "Schwerpunkt", "en": "Focus", "eo": "Fokuso"},
      "tags": [
         ("native",       {"de": "Heimische Arten",     "en": "Native species",     "eo": "Hejmaj specioj"}),

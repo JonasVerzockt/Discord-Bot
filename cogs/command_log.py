@@ -49,7 +49,7 @@ _SENSITIVE_PARAMS = {"user_id", "user", "text", "code"}
 _HIDDEN = "‹ausgeblendet›"
 
 # Bekannte Text-Trigger (lowercase, exakt) – nur diese werden protokolliert.
-_TEXT_TRIGGERS = {"!help", "!hilfe", "rangliste"}
+_TEXT_TRIGGERS = {"!help", "!hilfe", "rangliste", "statistik"}
 
 _FLUSH_SECONDS = 10          # Sammel-Post-Intervall in den Mod-Kanal
 _MAX_BUFFER    = 1000        # Sicherheitslimit gegen unbegrenztes Wachstum
@@ -99,9 +99,18 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     # ── Parameter aufbereiten ────────────────────────────────────────────────
     @staticmethod
     def _format_params(ctx: discord.ApplicationContext) -> str:
-        opts = getattr(ctx, "selected_options", None) or []
+        opts = list(getattr(ctx, "selected_options", None) or [])
+        # Unterbefehle (/bot export …): verschachtelte Optionen flach auslesen,
+        # damit auch dort sensible Werte zuverlässig ausgeblendet werden.
+        flat = []
+        while opts:
+            o = opts.pop(0)
+            if isinstance(o, dict) and "options" in o and "value" not in o:
+                opts = list(o.get("options") or []) + opts
+                continue
+            flat.append(o)
         parts = []
-        for o in opts:
+        for o in flat:
             try:
                 name = o.get("name")
                 value = o.get("value")
@@ -166,6 +175,16 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
             if msg is None or (getattr(msg, "flags", None) and msg.flags.ephemeral):
                 return
             existing = msg.content or ""
+            if not existing and not (msg.embeds or msg.attachments or msg.components):
+                # Zwischengespeicherte Antwort ohne Inhalt (z. B. nach defer()): frisch holen,
+                # sonst würde die Kopfzeile den eigentlichen Text ersetzen.
+                try:
+                    msg = await ctx.interaction.followup.fetch_message(msg.id)
+                    existing = msg.content or ""
+                except Exception:
+                    return
+                if not existing and not (msg.embeds or msg.attachments or msg.components):
+                    return
             if existing.startswith("-#"):          # schon attribuiert -> nichts tun
                 return
             name = getattr(ctx.author, "display_name", None) or getattr(ctx.author, "name", "?")
@@ -245,6 +264,9 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
     # ── DB-Retention ─────────────────────────────────────────────────────────
     @tasks.loop(hours=24)
     async def cleanup_log(self):
+        # Erst die Monatssummen der öffentlichen Nutzungsstatistik sichern, DANN löschen –
+        # so gehen durch die Retention keine Zahlen verloren.
+        await self._aggregate_usage()
         try:
             days = int(COMMAND_LOG_RETENTION_DAYS)
             rc = await execute_db(
@@ -257,9 +279,17 @@ class CommandLogCog(commands.Cog, name="CommandLog"):
         except Exception as e:
             logger.error("❌ command_log Cleanup fehlgeschlagen: %s", e)
 
+    async def _aggregate_usage(self):
+        try:
+            from utils import usage_stats
+            await usage_stats.aggregate(self.bot)
+        except Exception as e:
+            logger.error("❌ Nutzungsstatistik-Aggregation fehlgeschlagen: %s", e)
+
     @cleanup_log.before_loop
     async def _before_cleanup(self):
         await self.bot.wait_until_ready()
+        await self._aggregate_usage()                    # sofort nach dem Start einmal füllen
         await asyncio.sleep(align_delay_seconds(3600))   # Start auf die nächste volle Stunde
 
 

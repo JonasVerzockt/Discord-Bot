@@ -48,8 +48,7 @@ HINWEIS zur Batch API:
   zu 24 Stunden. Sie ist damit für interaktive Discord-Bots NICHT geeignet.
 
 Quellen Preise:
-  https://www.anthropic.com/claude/haiku
-  https://www.anthropic.com/news/claude-haiku-4-5
+  https://platform.claude.com/docs/en/about-claude/pricing
 """
 
 import json
@@ -62,46 +61,71 @@ import anthropic
 
 import config as cfg
 from utils.localization import l10n
+from utils.ai_compat import thinking_off, max_tokens_for, text_of
 
 logger = logging.getLogger(__name__)
 
-# ── Preise pro Modell (Stand: Juni 2026) ──────────────────────────────────────
-# Quelle: https://docs.anthropic.com/en/docs/about-claude/pricing
+# ── Preise pro Modell (Stand: Oktober 2026) ───────────────────────────────────
+# Quelle: https://platform.claude.com/docs/en/about-claude/pricing
+#         https://platform.claude.com/docs/en/models/overview
 # Format: (input_usd_per_token, output_usd_per_token)
+_M = 1_000_000
 _MODEL_PRICES: dict[str, tuple[float, float]] = {
-    # Haiku
-    "claude-haiku-4-5-20251001": (1.00 / 1_000_000,  5.00 / 1_000_000),
-    "claude-haiku-4-5":          (1.00 / 1_000_000,  5.00 / 1_000_000),
-    # Sonnet
-    "claude-sonnet-4-5":         (3.00 / 1_000_000, 15.00 / 1_000_000),
-    "claude-sonnet-4-6":         (3.00 / 1_000_000, 15.00 / 1_000_000),
-    "claude-sonnet-5":           (3.00 / 1_000_000, 15.00 / 1_000_000),
-    # Opus 4.5+ (neue Preisstruktur: $5/$25)
-    "claude-opus-4-5":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    "claude-opus-4-6":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    "claude-opus-4-7":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    "claude-opus-4-8":           (5.00 / 1_000_000, 25.00 / 1_000_000),
-    # Fable 5 (Top-Tier, $10/$50 lt. offizieller Preisliste)
-    "claude-fable-5":            (10.00 / 1_000_000, 50.00 / 1_000_000),
-    # Opus 4.1 (deprecated) + Opus 4 (retired) – alte Preisstruktur: $15/$75
-    "claude-opus-4-1":           (15.00 / 1_000_000, 75.00 / 1_000_000),
-    "claude-opus-4":             (15.00 / 1_000_000, 75.00 / 1_000_000),
+    # ── Aktuelle Generation ──
+    "claude-haiku-5-5":          (0.10 / _M,  0.50 / _M),   # bis 100k Prompt-Tokens (s. u.)
+    "claude-sonnet-5-5":         (2.00 / _M, 10.00 / _M),
+    "claude-opus-5-5":           (4.00 / _M, 20.00 / _M),
+    "claude-fable-5-1":          (10.00 / _M, 50.00 / _M),
+    # ── Vorgaenger (falls noch per .env gesetzt) ──
+    "claude-haiku-4-5-20251001": (1.00 / _M,  5.00 / _M),
+    "claude-haiku-4-5":          (1.00 / _M,  5.00 / _M),
+    "claude-sonnet-4-5":         (3.00 / _M, 15.00 / _M),
+    "claude-sonnet-4-6":         (3.00 / _M, 15.00 / _M),
+    "claude-sonnet-5":           (2.00 / _M, 10.00 / _M),
+    "claude-opus-4-5":           (5.00 / _M, 25.00 / _M),
+    "claude-opus-4-6":           (5.00 / _M, 25.00 / _M),
+    "claude-opus-4-7":           (5.00 / _M, 25.00 / _M),
+    "claude-opus-4-8":           (5.00 / _M, 25.00 / _M),
+    "claude-fable-5":            (10.00 / _M, 50.00 / _M),
+    "claude-opus-4-1":           (15.00 / _M, 75.00 / _M),
+    "claude-opus-4":             (15.00 / _M, 75.00 / _M),
+}
+
+# Haiku 5.5: Prompts ueber 100.000 Tokens kosten mehr ($0.50 / $2.50 pro Mio.).
+_LONG_PROMPT_THRESHOLD = 100_000
+_LONG_PROMPT_PRICES: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.50 / _M, 2.50 / _M),
+}
+
+# Cache-Read-Faktor (Anteil des Input-Preises). Standard 0.10; neuere Modelle guenstiger.
+_CACHE_READ_FACTOR: dict[str, float] = {
+    "claude-fable-5-1":  0.025,
+    "claude-opus-5-5":   0.05,
+    "claude-sonnet-5-5": 0.05,
 }
 
 
-def prices_for(model: str) -> tuple[float, float]:
-    """Preis (Input, Output) pro Token für ein Modell. Fallback ueber Namensfamilie
-    (konservativ = teureres Niveau), damit der Budget-Check nie zu niedrig schaetzt."""
+def prices_for(model: str, prompt_tokens: int = 0) -> tuple[float, float]:
+    """Preis (Input, Output) pro Token für ein Modell. ``prompt_tokens`` = gesamte
+    Prompt-Laenge (fuer Modelle mit Long-Prompt-Aufschlag, z. B. Haiku 5.5).
+    Fallback ueber Namensfamilie (konservativ = teureres Niveau), damit der
+    Budget-Check nie zu niedrig schaetzt."""
     m = (model or "").lower()
+    if prompt_tokens > _LONG_PROMPT_THRESHOLD and m in _LONG_PROMPT_PRICES:
+        return _LONG_PROMPT_PRICES[m]
     if m in _MODEL_PRICES:
         return _MODEL_PRICES[m]
     if "fable" in m or "mythos" in m:
-        return (10.00 / 1_000_000, 50.00 / 1_000_000)
+        return (10.00 / _M, 50.00 / _M)
     if "opus" in m:
-        return (5.00 / 1_000_000, 25.00 / 1_000_000)
+        return (5.00 / _M, 25.00 / _M)
     if "sonnet" in m:
-        return (3.00 / 1_000_000, 15.00 / 1_000_000)
-    return (1.00 / 1_000_000, 5.00 / 1_000_000)
+        return (3.00 / _M, 15.00 / _M)
+    return (1.00 / _M, 5.00 / _M)
+
+
+def cache_read_factor(model: str) -> float:
+    return _CACHE_READ_FACTOR.get((model or "").lower(), 0.10)
 
 
 # Preis des in der .env konfigurierten Standardmodells (Default, wenn kein Modell
@@ -174,16 +198,16 @@ async def _classify_shop_haiku(message: str) -> dict:
         client = _get_client()
         response = await client.messages.create(
             model=_HAIKU_CLASSIFY_MODEL,
-            max_tokens=5,
+            max_tokens=max_tokens_for(_HAIKU_CLASSIFY_MODEL, 5),
             system=_CLASSIFY_SYSTEM,
             messages=[{"role": "user", "content": message}],
+            **thinking_off(_HAIKU_CLASSIFY_MODEL),   # sonst frisst Thinking die 5 Tokens -> leere Antwort
         )
-        answer = "".join(
-            block.text for block in response.content if hasattr(block, "text")
-        ).strip().upper()
+        answer = text_of(response).strip().upper()
+        p_in, p_out = prices_for(_HAIKU_CLASSIFY_MODEL, response.usage.input_tokens)
         cost = (
-            response.usage.input_tokens  * _HAIKU_PRICE_IN
-            + response.usage.output_tokens * _HAIKU_PRICE_OUT
+            response.usage.input_tokens  * p_in
+            + response.usage.output_tokens * p_out
         )
         needs_shop = answer.startswith("JA")
         logger.debug(
@@ -228,14 +252,15 @@ def calculate_cost(usage, model: str | None = None) -> float:
     ungecachten Tokens (Cache-Write/Read werden separat gefuehrt).
     ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
-    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
+    model = model or cfg.AI_CHAT_MODEL
     cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
     cache_read  = getattr(usage, "cache_read_input_tokens", 0) or 0
     regular_in  = getattr(usage, "input_tokens", 0) or 0
+    price_in, price_out = prices_for(model, regular_in + cache_write + cache_read)
     return (
         regular_in   * price_in
-        + cache_write * price_in * 1.25   # 5-Min-Cache-Write-Aufschlag
-        + cache_read  * price_in * 0.10   # Cache-Read (10 % des Input-Preises)
+        + cache_write * price_in * 1.25                      # 5-Min-Cache-Write-Aufschlag
+        + cache_read  * price_in * cache_read_factor(model)  # Cache-Read (modellabhaengig)
         + usage.output_tokens * price_out
     )
 
@@ -249,11 +274,12 @@ def estimate_cost(input_chars: int, history_chars: int = 0, num_images: int = 0,
     Bilder: ~1500 Token pro Bild (konservativer Schaetzwert).
     ``model`` bestimmt den Preis (Default: konfiguriertes Modell).
     """
-    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL)
     # Konservative Schaetzung: laengsten verfügbaren Prompt nehmen
     system_tokens = max((len(p) for p in cfg.AI_CHAT_SYSTEM_PROMPTS.values()), default=0) / 3.5
     input_tokens  = (input_chars + history_chars) / 3.5
     image_tokens  = num_images * 1500
+    price_in, price_out = prices_for(model or cfg.AI_CHAT_MODEL,
+                                     int(system_tokens + input_tokens + image_tokens))
     return (
         (system_tokens + input_tokens + image_tokens) * price_in
         + cfg.AI_CHAT_MAX_OUTPUT_TOKENS               * price_out
@@ -588,7 +614,7 @@ async def chat(
 ) -> dict:
     """
     Sendet eine Nachricht an das konfigurierte Claude-Modell.
-    Standard: claude-haiku-4-5 – aktuell: claude-sonnet-4-6 (siehe .env / config.py).
+    Standard: AI_CHAT_MODEL (siehe .env / config.py).
 
     Ablauf:
       1. Eingabe validieren (Laenge)
@@ -695,16 +721,21 @@ async def chat(
         if shop_data else
         base_prompt
     )
+    tools = None
+    if cfg.AI_CHAT_TOOLS:
+        from utils.ai_tools import TOOLS, SYSTEM_HINT
+        tools = TOOLS
+        system_prompt += "\n\n" + SYSTEM_HINT
 
     # 5. Pre-Budget-Check mit EXAKTER Token-Zählung (count_tokens); Fallback auf
     #    die Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist. Output
     #    wird konservativ mit dem Maximum angesetzt.
-    price_in, price_out = prices_for(model)
     # Output realistisch ansetzen (Antworten liegen meist unter dem Maximum) statt
     # immer das Maximum -> vermeidet stark ueberhoehte Schaetzungen / Fehl-Blocks.
     est_output_tokens = cfg.AI_CHAT_MAX_OUTPUT_TOKENS * cfg.AI_CHAT_BUDGET_OUTPUT_RATIO
     input_tokens = await count_input_tokens(model, system_prompt, messages)
     if input_tokens is not None:
+        price_in, price_out = prices_for(model, input_tokens)
         estimated = input_tokens * price_in + est_output_tokens * price_out + precheck_cost
     else:
         estimated = estimate_cost(len(user_message), history_chars, num_images, model) + precheck_cost
@@ -731,14 +762,50 @@ async def chat(
         }]
     else:
         system_param = system_prompt
+    tool_cost = 0.0
+    tool_calls = 0
     try:
         client   = _get_client()
+        call_messages = list(messages)
+        extra = {"tools": tools} if tools else {}
         response = await client.messages.create(
             model=model,
             max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
             system=system_param,
-            messages=messages,
+            messages=call_messages,
+            **extra,
         )
+        # Werkzeug-Runden: Modell fragt Daten an → ausführen → Ergebnis zurückgeben.
+        rounds = 0
+        while tools and response.stop_reason == "tool_use" and rounds <= cfg.AI_CHAT_TOOL_ROUNDS:
+            from utils.ai_tools import run_tool
+            round_cost = calculate_cost(response.usage, model)
+            tool_cost += round_cost
+            rounds += 1
+            results = []
+            for block in response.content:
+                if getattr(block, "type", "") == "tool_use":
+                    tool_calls += 1
+                    out = await run_tool(block.name, dict(block.input or {}))
+                    logger.info(f"[AI-Chat] Werkzeug {block.name}({block.input}) → {len(out)} Zeichen")
+                    results.append({"type": "tool_result", "tool_use_id": block.id, "content": out})
+            call_messages = call_messages + [
+                {"role": "assistant",
+                 "content": [b.model_dump(mode="json", exclude_none=True) for b in response.content]},
+                {"role": "user", "content": results},
+            ]
+            last = rounds >= cfg.AI_CHAT_TOOL_ROUNDS
+            if not last:
+                ok_more, _ = check_budget(user_id, round_cost + tool_cost, user_lang)
+                last = not ok_more
+            response = await client.messages.create(
+                model=model,
+                max_tokens=cfg.AI_CHAT_MAX_OUTPUT_TOKENS,
+                system=system_param,
+                messages=call_messages,
+                tools=tools,
+                **({"tool_choice": {"type": "none"}} if last else {}),
+            )
 
     except anthropic.RateLimitError:
         logger.warning("[AI-Chat] Rate-Limit erreicht")
@@ -768,7 +835,7 @@ async def chat(
     ) or l10n.get("ai_no_answer", user_lang)
 
     # 8. Tatsächliche Kosten tracken (gewaehltes Modell + Haiku-Precheck falls vorhanden)
-    actual_cost = calculate_cost(response.usage, model) + precheck_cost
+    actual_cost = calculate_cost(response.usage, model) + precheck_cost + tool_cost
     add_cost(user_id, actual_cost)
 
     logger.info(
@@ -779,6 +846,7 @@ async def chat(
         f"cache_h={getattr(response.usage, 'cache_read_input_tokens', 0)}t "
         f"cost=${actual_cost:.6f}"
         + (f" (inkl. Haiku-Precheck ${precheck_cost:.6f})" if precheck_cost else "")
+        + (f" · {tool_calls} Werkzeug-Aufrufe (${tool_cost:.6f})" if tool_calls else "")
     )
 
     # 9. Aktualisierte History (wird vom Cog nach bot.reply() gespeichert)

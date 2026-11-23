@@ -73,13 +73,13 @@ def _bar(pct: float, width: int = 10) -> str:
 # Reihenfolge: billig -> teuer. Farbe signalisiert die Kostenstufe.
 # tier_key/desc_key sind l10n-Schluessel (uebersetzt in de/en/eo).
 AI_MODELS = [
-    {"id": "claude-haiku-4-5-20251001", "label": "Haiku 4.5", "emoji": "🟢",
+    {"id": "claude-haiku-5-5",  "label": "Haiku 5.5",  "emoji": "🟢",
      "tier_key": "ai_tier_very_cheap",     "desc_key": "ai_model_desc_haiku"},
-    {"id": "claude-sonnet-5",           "label": "Sonnet 5", "emoji": "🟡",
+    {"id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "emoji": "🟡",
      "tier_key": "ai_tier_cheap",          "desc_key": "ai_model_desc_sonnet"},
-    {"id": "claude-opus-4-8",           "label": "Opus 4.8", "emoji": "🟠",
+    {"id": "claude-opus-5-5",   "label": "Opus 5.5",   "emoji": "🟠",
      "tier_key": "ai_tier_expensive",      "desc_key": "ai_model_desc_opus"},
-    {"id": "claude-fable-5",            "label": "Fable 5",  "emoji": "🔴",
+    {"id": "claude-fable-5-1",  "label": "Fable 5.1",  "emoji": "🔴",
      "tier_key": "ai_tier_very_expensive", "desc_key": "ai_model_desc_fable"},
 ]
 _AI_MODELS_BY_ID = {m["id"]: m for m in AI_MODELS}
@@ -91,8 +91,8 @@ def _resolve_model_meta(model_id: str) -> dict:
     if model_id in _AI_MODELS_BY_ID:
         return _AI_MODELS_BY_ID[model_id]
     m = (model_id or "").lower()
-    for key, mid in (("fable", "claude-fable-5"), ("opus", "claude-opus-4-8"),
-                     ("sonnet", "claude-sonnet-5"), ("haiku", "claude-haiku-4-5-20251001")):
+    for key, mid in (("fable", "claude-fable-5-1"), ("opus", "claude-opus-5-5"),
+                     ("sonnet", "claude-sonnet-5-5"), ("haiku", "claude-haiku-5-5")):
         if key in m:
             return _AI_MODELS_BY_ID[mid]
     return AI_MODELS[0]  # Fallback: guenstigstes Modell
@@ -451,6 +451,10 @@ class AiChatCog(commands.Cog):
             # gewaehltes Modell des Users, sonst .env-Standard. Nach 60 s ohne
             # Auswahl läuft es automatisch mit der Vorauswahl.
             preselect = get_user_model(message.author.id) or cfg.AI_CHAT_MODEL
+            # Alte gespeicherte Wahl (z. B. claude-opus-4-8) auf das aktuelle
+            # Modell derselben Familie abbilden (z. B. claude-opus-5-5).
+            if preselect not in _AI_MODELS_BY_ID:
+                preselect = _resolve_model_meta(preselect)["id"]
             view = ModelSelectView(
                 message.author.id, preselect, lang, timeout=60,
                 available=self._available_models,

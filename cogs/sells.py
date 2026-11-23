@@ -157,7 +157,6 @@ class SellsCog(commands.Cog, name="Sells"):
             default=False,
         ),
     ):
-        await ctx.defer()
         lang   = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         query  = species.strip()
         search = normalize_species_name(query)
@@ -165,11 +164,14 @@ class SellsCog(commands.Cog, name="Sells"):
 
         # Namensprüfung gegen die Artenliste (außer bei force): bei Synonym/
         # Tippfehler/unbekannt Hinweis + korrekte Schreibweise, dann abbrechen.
+        # VOR defer(): nach einem öffentlichen defer() wird die erste Folgeantwort
+        # öffentlich (ephemeral wird ignoriert) und der Hinweis war nicht nur für dich.
         if not force:
             _msg = species_catalog.validation_message(species_catalog.check(query), lang)
             if _msg:
-                await ctx.followup.send(_msg, ephemeral=True)
+                await ctx.respond(_msg, ephemeral=True)
                 return
+        await ctx.defer()
 
         await ensure_rates()
         shop_data = await load_shop_data(self.bot)
@@ -224,6 +226,7 @@ class SellsCog(commands.Cog, name="Sells"):
                     if not (p.get("in_stock") and p.get("is_active")):
                         continue
                     off.setdefault(key, []).append({
+                        "pid":         p.get("id"),
                         "shop_name":   shop.get("name", "?"),
                         "country":     scountry,
                         "rating":      shop.get("average_rating"),
@@ -266,6 +269,14 @@ class SellsCog(commands.Cog, name="Sells"):
             await ctx.followup.send(l10n.get("sells_no_stock", lang, query=query))
             return
 
+        # Preis-Ampel: jedes Angebot gegen seinen eigenen Preis der letzten 12 Monate.
+        from utils import price_signal as PS
+        try:
+            sig = await asyncio.to_thread(
+                PS.signals, [o["pid"] for lst in offers.values() for o in lst])
+        except Exception:
+            sig = {}
+
         # Baut die Zeilen EINES Angebots (Shop-Header + Warnungen + Titel + Link +
         # Preiszeilen). Leere Liste = kein echter Preis (Angebot überspringen).
         def _offer_block(o) -> list[str]:
@@ -294,8 +305,11 @@ class SellsCog(commands.Cog, name="Sells"):
                     "warn_shop_line", lang,
                     emoji=warn_emoji(w["level"]), level=w["level"], text=w["text"],
                 ))
+            mark = PS.EMOJI.get(sig.get(o.get("pid")), "")
             if o["title"]:
-                lines.append(o["title"])
+                lines.append(f"{mark} {o['title']}" if mark else o["title"])
+            elif mark:
+                lines.append(mark)
             if o.get("url"):
                 lines.append(l10n.get("sells_product_link", lang, url=o["url"]))
             lines.extend(price_lines)
@@ -353,6 +367,8 @@ class SellsCog(commands.Cog, name="Sells"):
             parts.append(f"***{display.get(sp, sp)}***")
             parts.append(l10n.get("sells_source", lang))
             parts.append(l10n.get("sells_disclaimer", lang))
+            if any(sig.get(o.get("pid")) for o in offers.get(sp, [])):
+                parts.append(f"-# {l10n.get('price_sig_legend', lang)}")
             parts.extend(species_blocks[sp])
             parts.append("")
 

@@ -1,6 +1,6 @@
 # AAM Discord Bot
 
-**Aktuelle Version:** `3.0.4` · Lizenz: AGPL-3.0-or-later
+**Aktuelle Version:** `4.2.4` · Lizenz: AGPL-3.0-or-later
 
 > ### 💖 Projekt unterstützen
 > Der Bot und der Server, auf dem er läuft, werden **privat finanziert**. Wenn dir das Projekt gefällt und du die **Serverkosten** und Weiterentwicklung unterstützen möchtest, freue ich mich sehr über eine kleine Spende:
@@ -12,8 +12,8 @@ Modularer Discord-Bot für die **Ameisen an die Macht**-Community. Kombiniert me
 - **AntCheck-Bot** – überwacht die Verfügbarkeit von Ameisenarten bei Online-Shops via AntCheck API und benachrichtigt User per DM sobald eine gesuchte Art verfügbar ist; Preise werden in der jeweiligen Währung inklusive EUR-Umrechnungshinweis angezeigt
 - **Preis-Tracking** – beobachtet Preise einzelner Produkte und informiert per DM sobald sich ein Preis ändert; interaktive Auswahl über Shop → Produkt → Bestätigen. Alternativ: **Arten-Beobachtung** für eine ganze Art oder Gattung shopübergreifend – benachrichtigt bei Preisänderungen (Neuerscheinungen werden still in die Beobachtung aufgenommen, aber nicht separat gemeldet – dafür gibt es `/notification`)
 - **Rabattcode-Tracker** – sammelt automatisch Rabattcodes aus einem Discord-Kanal (KI-Extraktion via Claude Haiku), erkennt sie auch in geposteten **Bildern** (Screenshots, Flyer, Shop-Werbung) per Vision und stellt die aktuell gültigen Codes per `/codes` bereit
-- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit **wählbarem Claude-Modell** (Haiku 4.5 / Sonnet 5 / Opus 4.8 / Fable 5 per Dropdown), inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
-- **iNat-Tracker** – erkennt iNaturalist-Beobachtungslinks in einem konfigurierten Kanal innerhalb eines definierten Zeitfensters und trägt sie automatisch (Discord-ID, Anzeigename, Link, Datum) in ein separates Google Sheet ein
+- **AI-Chat-Bot** – beantwortet Fragen im konfigurierten AI-Kanal auf @-Erwähnung mit **wählbarem Claude-Modell** (Haiku 5.5 / Sonnet 5.5 / Opus 5.5 / Fable 5.1 per Dropdown), inkl. Konversationsgedächtnis (per Discord-Reply), Tagesbudget-Kontrolle und Shop-Wissen aus dem AAM Google Sheet *(im AAM Discord aktuell nicht öffentlich verfügbar)*
+- **iNat-Statistik** – zählt im iNat-Kanal gepostete iNaturalist-Ameisenbeobachtungen je Person (Beobachtungen und gefundene Arten, Jahr und gesamt). Nur eigene Beobachtungen mit per `/inat_verknuepfen` bestätigtem iNat-Konto zählen. Treppchen auf Abruf (`Statistik`) und monatlich.
 - **Erfolge** – sammelbare Achievements (sichtbare + versteckte), abrufbar per `/achievements` mit Fortschritt und DM-Ping beim Freischalten – **ohne Rollen**, rein persönlich
 - **Feedback-Board** *(optional, standardmäßig aus)* – öffentliches Ideen-/Bug-Board als eigener Webdienst im Bot-Prozess (aiohttp, **eigene DB**): jeder darf **anonym einreichen** und hochvoten (Moderations-Queue), der Owner bekommt bei jeder neuen Einreichung eine **private DM**
 
@@ -51,7 +51,7 @@ Wird der Bot-Account auf einen **fremden** Server eingeladen, funktioniert dort 
 10. [Wochen-Digest](#wochen-digest)
 11. [Rabattcode-Tracker](#rabattcode-tracker)
 12. [AI-Chat-Bot](#ai-chat-bot)
-13. [iNat-Tracker](#inat-tracker)
+13. [iNat-Statistik](#inat-statistik)
 14. [Erfolge](#erfolge)
 15. [Feedback-Board](#feedback-board)
 16. [Slash Commands](#slash-commands)
@@ -119,105 +119,208 @@ pip install -r requirements.txt
 Kopiere `.env.example` nach `.env` und fülle alle Pflichtfelder aus:
 
 ```env
+# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+
 # ── Discord ───────────────────────────────────────────────────
+# Bot-Token aus discord.com/developers/applications
 DISCORD_TOKEN=dein_token_hier
-REVIEW_CHANNEL_ID=123456789012345678      # Kanal für Shopbewertungen
-# ALLOWED_GUILD_ID=375031723601297409     # Guild-Lock: Bot läuft NUR auf diesem Server (Default: AAM); eigene Instanz -> eigene ID + eigener Token
+
+# ID des Kanals in dem Shopbewertungen gepostet werden
+REVIEW_CHANNEL_ID=123456789012345678
+
+# ── Sicherheit: Guild-Lock ────────────────────────────────────
+# Der Bot arbeitet AUSSCHLIESSLICH auf diesem einen Server; fremde Server
+# werden automatisch verlassen und Befehle dort blockiert (siehe main.py).
+# Standard ist die offizielle AAM-Server-ID. Für eine EIGENE Instanz auf die
+# eigene Server-ID setzen (und einen eigenen Bot-Token verwenden!).
+# ALLOWED_GUILD_ID=375031723601297409
 
 # ── Anthropic (KI-Parser) ─────────────────────────────────────
+# Von https://console.anthropic.com → API Keys
 ANTHROPIC_API_KEY=sk-ant-...
-# REVIEW_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Review-Extraktion
-# ACCUMULATION_DELAY=8                     # Sek. warten, um geteilte Review-Nachrichten zusammenzuführen
+# Modell für die KI-Extraktion der Reviews (Standard: claude-haiku-5-5)
+# REVIEW_PARSER_MODEL=claude-haiku-5-5
+# Wartezeit in Sekunden, bevor eine Review verarbeitet wird – damit geteilte
+# Nachrichten desselben Users zusammengeführt werden (Standard: 8)
+# ACCUMULATION_DELAY=8
 
 # ── Google Sheets ─────────────────────────────────────────────
+# Die ID aus der Sheets-URL:
+# https://docs.google.com/spreadsheets/d/<HIER>/edit
 GOOGLE_SPREADSHEET_ID=deine_spreadsheet_id_hier
 
-# ── Ameisen-Artenliste (AntCat) ───────────────────────────────
-# SPECIES_CATALOG_FILE=/pfad/zum/bot/data/ant_species.json   # AntCat-Artenliste (optional, Standard data/ant_species.json; erzeugen mit tools/build_ant_species.py)
+# ── Datenordner ───────────────────────────────────────────────
+# Zentraler Ordner für ALLE Laufzeitdaten (DBs, shops_data.json, price_history.db,
+# shop_mapping.csv, ant_species.json). Standard: <Projektordner>/data
+# Vorhandene Dateien im alten Root-Layout werden beim Start automatisch hierher
+# migriert. DATA_DIR=. behält das alte Layout (alles im Projektordner).
+# DATA_DIR=/pfad/zum/bot/data
 
-# ── AntCheck API ──────────────────────────────────────────────
+# Ordner für die Bot-Logdateien (bot_log_YYYYMMDD.log). Standard: <Projektordner>/logs
+# Bestehende Logs im Root werden beim Start automatisch hierher verschoben.
+# Auf /var/log nur zeigen lassen, wenn der Bot-User dort schreiben darf.
+# LOG_DIR=/opt/discord-bot/logs
+
+# ── AntCheck / Shop-Daten ─────────────────────────────────────
+# Nur setzen, wenn shops_data.json/price_history.db woanders liegen sollen als in
+# DATA_DIR. Standard: = DATA_DIR
+# DATA_DIRECTORY=/pfad/zum/bot/data
+# Datenbank-Datei des Bots (Standard: DATA_DIR/antcheckbot.db)
+# DB_FILE=/pfad/zum/bot/data/antcheckbot.db
+
+# Optionaler direkter Pfad zur shops_data.json
+# Standard: DATA_DIRECTORY/shops_data.json
+# SHOPS_DATA_FILE=/pfad/zum/bot/shops_data.json
+
+# Ameisen-Artenliste (AntCat) für Namensprüfung/Kanonisierung – optional.
+# Erzeugen mit:  python3 tools/build_ant_species.py  (schreibt data/ant_species.json)
+# Fehlt die Datei, ist die Namensprüfung inaktiv (Eingaben werden unverändert
+# akzeptiert). Nur setzen, wenn die Datei woanders liegt als data/ant_species.json:
+# SPECIES_CATALOG_FILE=/pfad/zum/bot/data/ant_species.json
+
+# AntCheck API Key (Pflicht fuer den Grabber)
 ANTCHECK_API_KEY=dein_api_key_hier
+
+# AntCheck API Basis-URL
 ANTCHECK_API_URL=https://antcheck.info
-ANTCHECK_VERIFY_SSL=false                 # false bei self-signed Zertifikat
-# ANTCHECK_TIMEOUT=30                      # Timeout pro API-Anfrage in Sek. (Grabber)
-# ANTCHECK_RETRIES=3                       # Anzahl Wiederholungen bei API-Fehlern
-# ANTCHECK_RETRY_DELAY=5                   # Wartezeit zwischen Wiederholungen in Sek.
+
+# SSL-Zertifikat pruefen (auf false setzen bei self-signed cert)
+ANTCHECK_VERIFY_SSL=false
+
+# Wie viele Versuche bei API-Fehlern (Standard: 3)
+# ANTCHECK_RETRIES=3
+# Timeout pro API-Anfrage in Sekunden (Grabber, Standard: 30)
+# ANTCHECK_TIMEOUT=30
+# Wartezeit zwischen Wiederholungen in Sekunden (Grabber, Standard: 5)
+# ANTCHECK_RETRY_DELAY=5
 
 # ── KI-Chat-Bot ───────────────────────────────────────────────
-AI_CHAT_CHANNEL_IDS=123456789012345678   # Kanal-ID, in dem der Bot antwortet
-AI_CHAT_DAILY_BUDGET_USD=0.50            # Gesamtes Tagesbudget (alle User)
-AI_CHAT_USER_DAILY_BUDGET_USD=0.10       # Pro-User-Tagesbudget
-# AI_CHAT_MODEL=claude-haiku-4-5-20251001          # Chat-Modell
-# AI_CHAT_CLASSIFY_MODEL=claude-haiku-4-5-20251001 # Modell für die Shop-Relevanz-Klassifikation
-AI_CHAT_PUBLIC=false                     # true = KI-Befehle in /help zeigen + KI öffentlich zugänglich
-# AI_CHAT_MAX_INPUT_CHARS=1500             # Max. Eingabezeichen pro Anfrage
-# AI_CHAT_MAX_OUTPUT_TOKENS=800            # Max. Output-Tokens pro Antwort
-# AI_CHAT_MAX_HISTORY_TURNS=10             # Gespeicherte Gesprächsrunden pro Konversation
-# AI_CHAT_CONVERSATION_TTL_HOURS=24        # Aufbewahrung einer Konversation in Stunden
-# AI_CHAT_RECOMMENDED_MODEL=claude-sonnet-5   # im Modell-Dropdown mit 👍 empfohlen (leer = keine Empfehlung)
-# AI_CHAT_BUDGET_OUTPUT_RATIO=0.5          # Anteil der max. Output-Tokens für die Budget-Schätzung (0.5 realistisch, 1.0 = Maximum)
+# Kanal-ID in dem der Bot auf @-Erwaehnung reagiert.
+AI_CHAT_CHANNEL_IDS=123456789012345678
+
+# Standard-/Vorauswahl-Modell für den KI-Chat (Standard: claude-haiku-5-5).
+# Bei @Bot erscheint ein Dropdown mit 4 Modellen (billig->teuer):
+#   claude-haiku-5-5 (Sehr günstig) · claude-sonnet-5-5 (Günstig) ·
+#   claude-opus-5-5 (Teuer) · claude-fable-5-1 (Sehr teuer)
+# Dieses Modell ist im Dropdown vorausgewählt und wird nach 60 s ohne Auswahl genutzt.
+# AI_CHAT_MODEL=claude-haiku-5-5
+# Im Dropdown mit 👍 als Empfehlung markiertes Modell (unabhängig von der Vorauswahl).
+# Leer lassen = keine Empfehlung anzeigen.
+# AI_CHAT_RECOMMENDED_MODEL=claude-sonnet-5-5
+# Modell für die Stufe-2-Shop-Relevanz-Klassifikation (Standard: claude-haiku-5-5)
+# AI_CHAT_CLASSIFY_MODEL=claude-haiku-5-5
+
+# Tages-Budgets in USD (Reset taeglich 00:00 UTC)
+AI_CHAT_DAILY_BUDGET_USD=0.50
+AI_CHAT_USER_DAILY_BUDGET_USD=0.10
+
+# Limits pro Anfrage
+# AI_CHAT_MAX_INPUT_CHARS=1500
+# AI_CHAT_MAX_OUTPUT_TOKENS=800
+# Anteil der max. Output-Tokens für die Budget-VORAB-Schätzung (0.5 = realistisch,
+# 1.0 = immer Maximum/sehr konservativ). Ist-Kosten werden danach exakt abgerechnet.
+# AI_CHAT_BUDGET_OUTPUT_RATIO=0.5
+# Prompt-Caching (5-Min) für System+Shop-Präfix – nur bei Reply-Fortsetzungen
+# (aktive Gespräche); spart Tokens bei Mehr-Turn-Chats. false = ganz aus.
+# AI_CHAT_PROMPT_CACHE=true
+# AI_CHAT_MAX_HISTORY_TURNS=10
+# AI_CHAT_CONVERSATION_TTL_HOURS=24
+AI_CHAT_PUBLIC=false              # true = KI-Befehle in /help anzeigen und KI öffentlich zugänglich
+
+# ── Command-Log (Moderation) ──────────────────────────────────
+# Kanal-ID für das gebündelte Befehls-Nutzungsprotokoll (leer/0 = kein
+# Kanal-Post; das DB-Log läuft trotzdem).
+# MOD_LOG_CHANNEL_ID=123456789012345678
+# Aufbewahrung der Log-Zeilen in der DB in Tagen (Standard: 365)
+# COMMAND_LOG_RETENTION_DAYS=365
 
 # ── Schlagwort-Alerts für den Angebote-Kanal (/offer_alert) ───
-# OFFER_CHANNEL_ID=543512785171251201      # Überwachter Angebote-Kanal (leer/0 = Feature inaktiv)
-# OFFER_ALERT_DELAY_MIN=60                 # Team-Review-Puffer in Minuten
-# OFFER_BACKFILL_DAYS=90                   # Rückblick beim ersten Hinterlegen eines Schlagworts (Tage)
-# OFFER_SOLD_EMOTE_ID=577904916006174741   # Custom-Emote-ID für „verkauft“ (Text/Reaktion)
-# OFFER_QUIET_START_HOUR=23                # Nachtruhe Beginn (Berlin); START==END = aus
-# OFFER_QUIET_END_HOUR=9                   # Nachtruhe Ende (Berlin)
+# Überwachter Angebote-Kanal (leer/0 = Feature inaktiv).
+# OFFER_CHANNEL_ID=543512785171251201
+# Prüf-Puffer: Angebote jünger als so viele Minuten werden NICHT gemeldet (Team-Review).
+# OFFER_ALERT_DELAY_MIN=60
+# Rückblick beim einmaligen Backfill nach dem Hinterlegen eines Schlagworts (Tage).
+# OFFER_BACKFILL_DAYS=90
+# Custom-Emote-ID, mit der „verkauft" markiert wird (Text/Reaktion).
+# OFFER_SOLD_EMOTE_ID=577904916006174741
+# Nachtruhe (Berlin): in [START, END) gepostete Angebote werden erst nach Fenster-Ende
+# gemeldet. Standard 23–9 Uhr; START==END schaltet die Nachtruhe aus.
+# OFFER_QUIET_START_HOUR=23
+# OFFER_QUIET_END_HOUR=9
 
 # ── Rabattcode-Tracker ────────────────────────────────────────
-DISCOUNT_CHANNEL_ID=123456789012345678   # Kanal mit Rabattcodes (leer/0 = inaktiv)
-# DISCOUNT_CHANNEL_ID_2=234567890123456789          # optionaler 2. Rabattcode-Kanal
-# DISCOUNT_CHANNEL_IDS=111...,222...                # alternativ mehrere kommagetrennt (wird zusammengeführt)
-# DISCOUNT_PARSER_MODEL=claude-haiku-4-5-20251001   # Modell für die Code-Extraktion
-# DISCOUNT_VISION_ENABLED=true             # Bilder (Screenshots/Flyer) auf Codes prüfen
-# DISCOUNT_VISION_MAX_IMAGES=4             # Max. Bilder pro Nachricht an die Vision-API
-# DISCOUNT_VISION_MAX_BYTES=4000000        # Max. Bildgröße in Bytes (4 MB)
+# Kanäle, in denen Rabattcodes gepostet werden (leer/0 = Feature inaktiv).
+DISCOUNT_CHANNEL_ID=123456789012345678
+# Optional ein ZWEITER Kanal, der ebenfalls nach Rabattcodes gelesen wird:
+# DISCOUNT_CHANNEL_ID_2=234567890123456789
+# Alternativ beliebig viele Kanäle kommagetrennt (wird mit den beiden oben
+# zusammengeführt und dedupliziert):
+# DISCOUNT_CHANNEL_IDS=123456789012345678,234567890123456789
+# Modell für die Code-Extraktion (Standard: claude-haiku-5-5)
+# DISCOUNT_PARSER_MODEL=claude-haiku-5-5
+# Bild-Analyse: gepostete Screenshots/Flyer per Vision auf Codes prüfen
+# (Standard: true). Nur Datei-Anhänge, keine verlinkten Bilder.
+# DISCOUNT_VISION_ENABLED=true
+# Max. Anzahl Bilder pro Nachricht an die Vision-API (Standard: 4)
+# DISCOUNT_VISION_MAX_IMAGES=4
+# Max. Bildgröße in Bytes; größere werden übersprungen (Standard: 4000000 = 4 MB)
+# DISCOUNT_VISION_MAX_BYTES=4000000
 
-# ── Command-Log (Moderation, optional) ────────────────────────
-# MOD_LOG_CHANNEL_ID=123456789012345678    # Mod-only-Kanal fürs Befehls-Log (leer/0 = kein Kanal-Post)
-# COMMAND_LOG_RETENTION_DAYS=365           # DB-Aufbewahrung der Log-Zeilen (Tage)
-
-# ── iNaturalist-Tracker (optional) ────────────────────────────
-# Wenn gesetzt: Bot triggert das Google Apps Script nach jedem 5. iNat-Eintrag
-# INAT_WEBAPP_URL=https://script.google.com/macros/s/DEINE_DEPLOYMENT_ID/exec
-# INAT_WEBAPP_SECRET=dein-geheimes-token-hier   # muss mit BOT_TRIGGER_SECRET im Apps Script übereinstimmen
-
-# ── Feedback-Board (öffentliches Ideen-/Bug-Board, optional) ──
-# Standardmäßig AUS. Läuft im Bot-Prozess (aiohttp), eigene DB. Reverse-Proxy/HTTPS davor.
+# ── Feedback-Board (öffentliches Ideen-/Bug-Board, eigener Webdienst) ──────────
+# Standardmäßig AUS. Erst aktivieren, wenn eingerichtet (Reverse-Proxy/HTTPS davor).
 # BOARD_ENABLED=false
-# BOARD_BIND=127.0.0.1                     # nur lokal binden (Caddy/nginx macht HTTPS)
+# Nur lokal binden – Caddy/nginx macht HTTPS und die öffentliche Domain:
+# BOARD_BIND=127.0.0.1
 # BOARD_PORT=8080
-# BOARD_PUBLIC_URL=                        # öffentliche URL (für Links/DM) – darf leer bleiben
-# BOARD_ADMIN_TOKEN=                       # Owner-Login-Token (Pflicht wenn aktiv)
-# BOARD_OWNER_ID=                          # Discord-User-ID für die Einreichungs-DM (leer/0 = übersprungen)
-# BOARD_DB_FILE=/opt/discord-bot/board.db  # eigene DB-Datei (getrennt von der Haupt-DB)
-# BOARD_HASH_SALT=ein-langes-zufaelliges-salt   # IP-Hashing (keine Roh-IP gespeichert)
+# Öffentliche URL (für Links/DM-Hinweis) – darf zunächst LEER bleiben:
+# BOARD_PUBLIC_URL=
+# Discord-Einladungslink für den Kasten „Mitmachen“ auf der Karte (leer = kein Button):
+# DISCORD_INVITE_URL=https://discord.gg/xxxxxxx
+# Deine Discord-User-ID: Owner-DMs (Einreichungen, Alarme) UND Admin-Login im Board.
+# Der Admin-Login läuft über „Login mit Discord“ (BOARD_OAUTH_* und MAP_GUILD_ID nötig),
+# ein Token gibt es nicht mehr.
+# BOARD_OWNER_ID=
+# Optional weitere Discord-IDs mit Admin-Rechten im Board, kommagetrennt:
+# BOARD_ADMIN_IDS=
+# Eigene DB-Datei fürs Board (getrennt von der Haupt-Bot-DB):
+# BOARD_DB_FILE=/opt/discord-bot/board.db
+# KI-Chat als Fenster auf dem Board (nur eingeloggte AAM-Mitglieder, gleiches Budget wie Discord):
+# BOARD_AI_CHAT=true
+# BOARD_AI_CHAT_PER_MIN=5
+# BOARD_AI_CHAT_PER_HOUR=40
+# Salt fürs IP-Hashing (in Produktion setzen; keine Roh-IP wird gespeichert):
+# BOARD_HASH_SALT=ein-langes-zufaelliges-salt
 
-# ── Halter-Karte (optional) ───────────────────────────────────
-# Standardmäßig AUS. Benötigt das aktivierte Feedback-Board (gemeinsamer Webdienst).
+# ── Halter-Karte (Map-Feature) ────────────────────────────────────────────────
+# Standardmäßig AUS. DACH-Karte + International als Liste.
 # MAP_ENABLED=false
-# MAP_GUILD_ID=123456789012345678          # Guild für Mitgliedschaftsprüfung + Auto-Löschung
-# MAP_JITTER_METERS=3000                   # fester Pin-Versatz (±, aus user_id geseedet)
-# MAP_MAX_ZOOM=10                          # max. Zoom (Stadt/Umland, keine Straßenebene)
-# MAP_REMIND_MONTHS=12                     # Jahres-Bestätigung: erinnern
-# MAP_DELETE_MONTHS=24                     # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
-# MAP_GEODATA_AUTO=false                   # Bot stellt Geodaten selbst bereit & hält sie aktuell
-# MAP_GEODATA_REFRESH_DAYS=30              # Intervall der Selbst-Aktualisierung
+# Guild-ID für Mitgliedschaftsprüfung (Login) + Auto-Löschung bei Austritt:
+# MAP_GUILD_ID=123456789012345678
+# MAP_JITTER_METERS=3000      # fester Pin-Versatz (±, aus user_id geseedet)
+# MAP_MAX_ZOOM=10             # max. Zoom (Stadt/Umland, keine Straßenebene)
+# MAP_REMIND_MONTHS=12        # Jahres-Bestätigung: erinnern
+# MAP_DELETE_MONTHS=24        # löschen bei Nicht-Reaktion (voller Zweit-Zyklus)
+# MAP_GEODATA_AUTO=false      # Bot lädt/konvertiert Geodaten selbst (Leaflet + GeoJSON/CSV)
+# MAP_GEODATA_REFRESH_DAYS=30 # Intervall der Selbst-Aktualisierung
 # Discord-OAuth2 ("Login mit Discord", nur Scope identify) – Secrets NICHT committen:
 # BOARD_OAUTH_CLIENT_ID=
 # BOARD_OAUTH_CLIENT_SECRET=
 # BOARD_OAUTH_REDIRECT_URI=https://board.jonasants.de:4443/map/callback
 
-# ── Pfade (optional) ──────────────────────────────────────────
-DATA_DIRECTORY=/opt/discord-bot          # Wo shops_data.json abgelegt wird
-# SHOPS_DATA_FILE=/pfad/zu/shops_data.json  # Voller Pfad-Override (statt DATA_DIRECTORY)
-
 # ── Python ────────────────────────────────────────────────────
+# Ausgabe sofort flushen (empfohlen für Logs in Docker/systemd)
 PYTHONUNBUFFERED=1
+
+# ── Jahresrückblick ───────────────────────────────────────────────────────────
+# Kanal für den Community-Rückblick am 31.12. um 23:00 (Berliner Zeit). Leer/0 = kein Post.
+# YEAR_REVIEW_CHANNEL_ID=
+# KI-Chat-Werkzeuge (Angebote, Preise, Shops, Codes abfragen) und max. Runden pro Frage:
+# AI_CHAT_TOOLS=true
+# AI_CHAT_TOOL_ROUNDS=3
 ```
 
-Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block enthält alle unterstützten Variablen; dieselbe Liste steht auch in `.env.example`.
+Alle auskommentierten Variablen haben sinnvolle Defaults und müssen nur gesetzt werden, wenn sie angepasst werden sollen. Der obige Block entspricht `.env.example` und enthält alle unterstützten Variablen. Ausnahmen: `REPO_DIR`, `BRANCH`, `VENV` und `SERVICE` liest nur `update.py`; sie werden in `aam-bot-update.service` gesetzt.
 
 Lege außerdem die Google Service Account Datei als `service_account.json` im Projektordner ab (wird in `.gitignore` ignoriert).
 
@@ -368,7 +471,7 @@ Der Review-Bot überwacht den konfigurierten `REVIEW_CHANNEL_ID` auf neue Shopbe
 | 🟡 | Shop nicht erkannt oder Parse-Fehler |
 | 🔴 | Retry fehlgeschlagen |
 
-**Retry-Mechanismus:** Wenn eine Bewertung 🟡 bekommt, wird der unbekannte Shop-Identifier in `shop_mapping.csv` eingetragen (leer). Der Admin ordnet die korrekte URL per **`/shopmap set identifier:<Shop-Text> url:<domain>`** zu – das aktualisiert die CSV **und** den Live-Cache. Danach die 🟡-Reaktion anklicken (oder `/reprocess`), und die Bewertung wird verarbeitet. *(Alternativ die CSV direkt bearbeiten – das erfordert aber einen Bot-Neustart, da sie sonst nur beim Start bzw. über `/shopmap` neu eingelesen wird.)*
+**Retry-Mechanismus:** Wenn eine Bewertung 🟡 bekommt, wird der unbekannte Shop-Identifier in `shop_mapping.csv` eingetragen (leer). Der Admin ordnet die korrekte URL per **`/shopmap set identifier:<Shop-Text> url:<domain>`** zu – das aktualisiert die CSV **und** den Live-Cache. Danach die 🟡-Reaktion anklicken (oder `/review neu_verarbeiten`), und die Bewertung wird verarbeitet. *(Alternativ die CSV direkt bearbeiten – das erfordert aber einen Bot-Neustart, da sie sonst nur beim Start bzw. über `/shopmap` neu eingelesen wird.)*
 
 > **Hinweis:** `/shopmap` (Review-Auflösung, Shop-Text → URL, CSV) ist etwas anderes als `/shopmapping` (externer Name → interne AntCheck-Shop-ID, DB). Für ein 🟡 ist **`/shopmap`** das richtige.
 
@@ -378,7 +481,7 @@ Beim Start gleicht der Bot automatisch die letzten **90 Tage** Discord-History m
 - Nachrichten die im Sheet stehen aber noch nicht gemappt sind → Mapping wird nachgetragen, Bot lernt den Shop automatisch
 - Nachrichten die noch nicht im Sheet stehen → werden neu verarbeitet
 
-Manuell auslösbar per `/rescan`.
+Manuell auslösbar per `/wartung aktion:Bewertungen abgleichen`.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -550,7 +653,7 @@ Liest in einem oder mehreren konfigurierten Kanälen Nachrichten, extrahiert per
 
 **Kurzlink-Auflösung:** Geteilte Kurzlinks (`share.google`, `bit.ly`, `goo.gl`, `t.co`, …) und Google-Weiterleitungen (`…/url?q=`) werden beim Speichern automatisch zur echten Shop-Adresse aufgelöst und um Tracking-Parameter (`srsltid`, `utm_*`, `gclid`, …) bereinigt – aus `https://share.google/Ctvpg…` wird so z. B. `https://www.estheticants.com/`. Normale Links lösen keinen Netzwerk-Aufruf aus (sie werden nur von Tracking-Parametern befreit); Auflösungen werden zwischengespeichert.
 
-**Manuelle Steuerung:** Admins können mit `/codes_set <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_date <code> <gueltig_bis> [gueltig_ab] [shop]` lässt sich das Gültigkeitsdatum eines Codes nachträglich anpassen (Datum als `JJJJ-MM-TT` oder `TT.MM.JJJJ`, `-` löscht das Datum). Mit `/codes_rescan` lässt sich der Kanal nach noch nicht gescannten Nachrichten durchsuchen (bereits Gescanntes wird übersprungen). Ein kompletter Neuaufbau erfolgt bewusst nicht per Befehl – dafür die Tabellen `discount_codes`/`discount_scanned` manuell leeren.
+**Manuelle Steuerung:** Admins können mit `/codes_admin setzen <code> <status>` einen Code übersteuern – `valid` (immer gültig), `invalid` (immer ausgeblendet) oder `auto` (zurück zur Datumslogik); optional auf einen `shop` begrenzt. Mit `/codes_admin datum <code> <gueltig_bis> [gueltig_ab] [shop]` lässt sich das Gültigkeitsdatum eines Codes nachträglich anpassen (Datum als `JJJJ-MM-TT` oder `TT.MM.JJJJ`, `-` löscht das Datum). Mit `/wartung aktion:Rabattcodes scannen` lässt sich der Kanal nach noch nicht gescannten Nachrichten durchsuchen (bereits Gescanntes wird übersprungen). Ein kompletter Neuaufbau erfolgt bewusst nicht per Befehl – dafür die Tabellen `discount_codes`/`discount_scanned` manuell leeren.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -564,7 +667,7 @@ Admins können beliebig viele benannte Text-Bausteine („Info-Einträge") anleg
 - **Sichtbarkeit je Eintrag:** `nur_admin:true` → nur Admins dürfen den Eintrag nutzen, die Antwort ist dann **ephemer** (nur für den Aufrufer); für normale User ist ein solcher Eintrag **komplett unsichtbar** (Autocomplete, Liste und Direktaufruf verraten seine Existenz nicht). Öffentliche Einträge sind **für alle sichtbar**.
 - **Ausgabeform automatisch:** ab **1000 Zeichen** als Embed (fasst bis ~4000 Zeichen), darunter als reiner Text.
 - **Sicherheit:** Ausgaben mit `allowed_mentions=none` – aus dem Text kann kein `@everyone`/Rollen-Ping ausgelöst werden. Anlegen/Ändern/Löschen ist Admins vorbehalten.
-- **Technik:** Bewusst **keine** zur Laufzeit registrierten Slash-Commands (Discord-100er-Limit, Namensregeln) – ein einziger `/info`-Command mit Autocomplete bedient alle Einträge aus der Tabelle `custom_commands`. Verwaltung: `/info_add`, `/info_edit`, `/info_remove`, `/info_raw`, Übersicht: `/info_list`.
+- **Technik:** Bewusst **keine** zur Laufzeit registrierten Slash-Commands (Discord-100er-Limit, Namensregeln) – ein einziger `/info`-Command mit Autocomplete bedient alle Einträge aus der Tabelle `custom_commands`. Verwaltung: `/info_admin anlegen`, `/info_admin bearbeiten`, `/info_admin löschen`, `/info_admin quelltext`, Übersicht: `/info_list`.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -613,86 +716,38 @@ Nutzt denselben Service Account und dieselbe Spreadsheet-ID wie der Review-Bot �
 
 | Modell | Kostenstufe | Beschreibung |
 |--------|-------------|--------------|
-| 🟢 Haiku 4.5 (`claude-haiku-4-5-20251001`) | Sehr günstig | Schnellste · Niedrigste Kosten |
-| 🟡 Sonnet 5 (`claude-sonnet-5`) | Günstig | Alltagsaufgaben · Schreiben · Kosteneffizient |
-| 🟠 Opus 4.8 (`claude-opus-4-8`) | Teuer | Komplexe Projekte · Agenten · Programmierung |
-| 🔴 Fable 5 (`claude-fable-5`) | Sehr teuer | Leistungsstärkste · Recherche · Mehrtägige Aufgaben |
+| 🟢 Haiku 5.5 (`claude-haiku-5-5`) | Sehr günstig ($0.10 / $0.50) | Am schnellsten · Niedrigste Kosten · Hohes Volumen |
+| 🟡 Sonnet 5.5 (`claude-sonnet-5-5`) | Günstig ($2 / $10) | Alltagsaufgaben · Schreiben · Kosteneffizient |
+| 🟠 Opus 5.5 (`claude-opus-5-5`) | Teuer ($4 / $20) | Komplexe Projekte · Agenten · Programmieren |
+| 🔴 Fable 5.1 (`claude-fable-5-1`) | Sehr teuer ($10 / $50) | Am leistungsfähigsten · Recherche · Mehrtägige Aufgaben |
 
-Das in `AI_CHAT_MODEL` gesetzte Modell (bzw. die **zuletzt vom User gewählte** Wahl) wird in der Liste mit **⭐** hervorgehoben – aber bewusst **nicht** als Discord-Default vorangeklickt (sonst löst ein Klick darauf kein Event aus und man müsste auf den Timeout warten). Nach **60 s ohne Auswahl** läuft die Anfrage automatisch mit dieser ⭐-Vorauswahl. Zusätzlich wird – **unabhängig** von der Vorauswahl – das empfohlene Modell mit **👍** markiert (Standard **Sonnet 5**, konfigurierbar per `AI_CHAT_RECOMMENDED_MODEL`; leer = keine Empfehlung). Beim **Antworten (Reply)** auf eine Bot-Nachricht wird **dasselbe Modell** wie in der Ursprungsantwort genutzt (kein erneutes Dropdown). Am Ende jeder Antwort steht im Footer, **welches Modell** geschrieben hat und dessen Kostenstufe, z. B. `🤖 Sonnet 5 · 🟡 Günstig · 💰 $0.0021`. Alle Modelle stehen allen Nutzern im Rahmen des normalen Tagesbudgets frei zur Verfügung; teurere Modelle verbrauchen es schneller. Übersteigt die **geschätzte Anfrage** das (globale oder persönliche) Tagesbudget, wird die Anfrage **nicht** ausgeführt – stattdessen erhält der User einen Hinweis mit einer **Preisübersicht aller Modelle** und der Bitte, es mit einem **günstigeren Modell** oder **morgen** erneut zu versuchen. Die Budget-Vorprüfung nutzt den **`count_tokens`-Endpoint** für eine exakte Input-Token-Schätzung (Fallback: Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist). Für den Output wird nicht das Maximum, sondern ein realistischer Anteil davon angesetzt (`AI_CHAT_BUDGET_OUTPUT_RATIO`, Standard `0.5`), damit die Schätzung nicht stark überhöht ausfällt und Anfragen unnötig blockt; die **tatsächlichen** Kosten werden danach exakt abgerechnet. Beim Start ermittelt der Bot außerdem per **`GET /v1/models`**, welche Modelle der API-Key freigeschaltet hat, und **blendet nicht verfügbare Modelle** im Dropdown aus (schlägt der Abruf fehl, werden alle vier angezeigt). Die Stufe-2-Klassifikation (Shop-Relevanz) läuft separat über `AI_CHAT_CLASSIFY_MODEL` (Standard Haiku), der Review-Parser über `REVIEW_PARSER_MODEL`.
+Das in `AI_CHAT_MODEL` gesetzte Modell (bzw. die **zuletzt vom User gewählte** Wahl) wird in der Liste mit **⭐** hervorgehoben – aber bewusst **nicht** als Discord-Default vorangeklickt (sonst löst ein Klick darauf kein Event aus und man müsste auf den Timeout warten). Nach **60 s ohne Auswahl** läuft die Anfrage automatisch mit dieser ⭐-Vorauswahl. Zusätzlich wird – **unabhängig** von der Vorauswahl – das empfohlene Modell mit **👍** markiert (Standard **Sonnet 5.5**, konfigurierbar per `AI_CHAT_RECOMMENDED_MODEL`; leer = keine Empfehlung). Beim **Antworten (Reply)** auf eine Bot-Nachricht wird **dasselbe Modell** wie in der Ursprungsantwort genutzt (kein erneutes Dropdown). Am Ende jeder Antwort steht im Footer, **welches Modell** geschrieben hat und dessen Kostenstufe, z. B. `🤖 Sonnet 5.5 · 🟡 Günstig · 💰 $0.0021`. Alle Modelle stehen allen Nutzern im Rahmen des normalen Tagesbudgets frei zur Verfügung; teurere Modelle verbrauchen es schneller. Übersteigt die **geschätzte Anfrage** das (globale oder persönliche) Tagesbudget, wird die Anfrage **nicht** ausgeführt – stattdessen erhält der User einen Hinweis mit einer **Preisübersicht aller Modelle** und der Bitte, es mit einem **günstigeren Modell** oder **morgen** erneut zu versuchen. Die Budget-Vorprüfung nutzt den **`count_tokens`-Endpoint** für eine exakte Input-Token-Schätzung (Fallback: Zeichen-Heuristik, falls der Endpoint nicht erreichbar ist). Für den Output wird nicht das Maximum, sondern ein realistischer Anteil davon angesetzt (`AI_CHAT_BUDGET_OUTPUT_RATIO`, Standard `0.5`), damit die Schätzung nicht stark überhöht ausfällt und Anfragen unnötig blockt; die **tatsächlichen** Kosten werden danach exakt abgerechnet. Beim Start ermittelt der Bot außerdem per **`GET /v1/models`**, welche Modelle der API-Key freigeschaltet hat, und **blendet nicht verfügbare Modelle** im Dropdown aus (schlägt der Abruf fehl, werden alle vier angezeigt). Die Stufe-2-Klassifikation (Shop-Relevanz) läuft separat über `AI_CHAT_CLASSIFY_MODEL` (Standard Haiku), der Review-Parser über `REVIEW_PARSER_MODEL`.
 
-**Kosten:** Die Preistabelle kennt u. a. `claude-sonnet-5` zum Standardtarif ($3/Mio. Input, $15/Mio. Output, ohne Einführungsrabatt). Adaptives Denken muss nicht separat berechnet werden – Denk-Tokens werden als Output-Tokens abgerechnet und sind über `response.usage.output_tokens` bereits in den Kosten enthalten.
-
-[↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
-
----
-
-## iNat-Tracker
-
-Erkennt iNaturalist-Beobachtungslinks in einem Discord-Kanal und schreibt sie in ein separates Google Sheet – gedacht für Community-Events mit zeitlich begrenzter Erfassung.
-
-**Funktionsweise:**
-- Überwacht den konfigurierten `INAT_CHANNEL_ID` auf Nachrichten mit iNaturalist-Links (mit oder ohne `www.`)
-- Akzeptiert sowohl `http://` als auch `https://`-Links – schreibt immer `https`
-- Verarbeitet nur Nachrichten innerhalb des konfigurierten Zeitfensters (`INAT_START` – `INAT_END`, Berliner Zeit)
-- Vor dem Eintragen werden zwei Prüfungen durchgeführt:
-  1. **Duplikat-Check:** Ist der Link bereits in Spalte D vorhanden? → ignorieren (wird geloggt)
-  2. **Taxon-Check via iNaturalist API:** Gehört die Beobachtung zur Überfamilie Formicoidea (`taxon_id=1269340`)? → sonst ignorieren (wird geloggt)
-- Reagiert mit ✅ wenn mindestens ein Link eingetragen wurde
-- Ist die iNaturalist API nicht erreichbar: ⏳-Reaktion + automatischer Retry alle 5 Minuten bis die API antwortet; bei Erfolg wird ⏳ durch ✅ ersetzt
-- Spalte C im Sheet wird bewusst nicht beschrieben (wird von der Tabelle selbst befüllt)
-
-**Ranking-Snapshot:**
-
-Nach jeweils `INAT_SNAPSHOT_EVERY` (Standard: 15) neu eingetragenen Beobachtungen liest der Bot den Tab `INAT_UEBERSICHT` (Standard: `Übersicht`, Spalten **A = Rang, B = Name, C = Anzahl Arten**, Kopfzeile in Zeile 1) und rendert daraus **lokal mit matplotlib** eine farbige Treppchen-Grafik (Top 3 in Gold/Silber/Bronze, Platz 4+ als Tabelle), die er im Channel postet. Es wird **kein** Google-PNG-Export mehr verwendet – das Bild entsteht komplett im Bot, daher keine flakigen Export-Fehler. Bei **Gleichstand** (gleiche Artenzahl) teilen sich mehrere Personen denselben Rang und dieselbe Treppchen-Stufe (Competition-Ranking: 1, 1, 3, …). Nach dem Erreichen der Schwelle wartet der Bot zunächst `INAT_SNAPSHOT_DEBOUNCE` Sekunden (Standard: 300 = 5 Min) auf weitere Links – **jeder** weitere Link setzt diesen Timer zurück, sodass kurz aufeinanderfolgende Einträge gebündelt werden und kein Link mitten im Prozess verloren geht. **Sobald der Post tatsächlich startet, wird er nicht mehr abgebrochen** – Links, die genau während des Postens eingehen, lösen stattdessen direkt danach einen weiteren (Follow-up-)Snapshot aus.
-
-Ablauf:
-1. **Debounce:** Ab Erreichen der Schwelle `INAT_SNAPSHOT_DEBOUNCE` Sekunden (Standard: 300) auf weitere Links warten; jeder neue Link setzt den Timer zurück. Erst nach dieser Ruhezeit geht es weiter. (Ein manueller `Rangliste`-Trigger überspringt diesen Schritt.)
-2. Warten bis Spalte Z2 im Übersicht-Tab leer ist (evtl. läuft noch ein anderer Job)
-3. Apps Script via Web App triggern (falls `INAT_WEBAPP_URL` konfiguriert)
-4. 5 Sekunden warten damit das Script Z2 auf `block` setzen kann
-5. Warten bis Z2 **stabil leer** ist (mehrfach hintereinander leer, nicht nur einmal) – max. `INAT_Z2_TIMEOUT` Sekunden (Standard: 600). Damit wird **nie** während einer laufenden Validierung gerendert.
-6. Daten `A1:C` lesen, lokal als Treppchen-PNG (matplotlib) rendern und im Channel posten. Die Bild-Caption enthält den **Datenschnitt-Zeitstempel** (`🕒 Stand: TT.MM.JJJJ HH:MM:SS`) – so ist erkennbar, dass Links, die **nach** diesem Zeitpunkt gepostet wurden, in diesem Bild noch nicht enthalten sind. Schlägt das Rendern fehl, wird das Ranking als **Text-Tabelle** (bzw. als `ranking.txt`, falls zu lang) mit demselben Zeitstempel gepostet – die Rangliste geht also nie verloren.
-
-Das Z2-Flag (`block`) wird vom Apps Script gesetzt solange es rechnet und gelöscht wenn es fertig ist – der Bot wartet geduldig.
-
-**Manueller Trigger:** Schreibt jemand im iNat-Channel exakt `Rangliste` (nur dieses Wort), wird der Snapshot-Prozess sofort ausgelöst – unabhängig vom Eintrags-Zähler, aber nur **innerhalb des konfigurierten Zeitfensters** (`INAT_START`–`INAT_END`). Cooldown: 3 Stunden (⏱️-Reaktion wenn zu früh). Ein laufender Debounce-Puffer wird dabei abgebrochen und sofort gepostet; läuft bereits ein Post, wird der manuelle Trigger ignoriert (kein doppelter Post).
-
-**Sheet-Struktur (Rohdaten-Tab):**
-
-| Spalte | Inhalt |
-|--------|--------|
-| A | Discord Username (z.B. `jonasverzockt`) |
-| B | Anzeigename auf dem Server (display_name) |
-| C | *(leer – vom Sheet selbst befüllt)* |
-| D | iNaturalist-Link (`https://www.inaturalist.org/observations/ID`) |
-| E | Datum (Berliner Zeit, `DD.MM.YYYY`) |
-
-**Konfiguration** (ganz oben in `cogs/inat_tracker.py`):
-
-```python
-INAT_CHANNEL_ID      = 123456789012345678       # zu überwachender Kanal
-INAT_SHEET_ID        = "DEINE_GOOGLE_SHEET_ID"  # separates Sheet (nicht das Review-Sheet)
-INAT_WORKSHEET       = "Rohdaten"               # Tab mit den Rohdaten
-INAT_UEBERSICHT      = "Übersicht"              # Tab mit dem Ranking (für Snapshot)
-INAT_START           = "2026-06-05 00:00"       # Zeitfenster Beginn (Berliner Zeit)
-INAT_END             = "2026-10-30 20:00"       # Zeitfenster Ende (Berliner Zeit)
-INAT_SNAPSHOT_EVERY  = 15                       # Snapshot nach jeweils N Einträgen
-INAT_SNAPSHOT_DEBOUNCE = 300                    # Nach Schwelle N Sek. auf weitere Links warten (Debounce)
-INAT_Z2_TIMEOUT      = 600                      # Max. Wartezeit auf Z2-Freigabe (Sekunden)
-```
-
-Über `.env` optional:
-
-```env
-INAT_WEBAPP_URL=https://script.google.com/macros/s/.../exec   # Apps Script Web App URL
-INAT_WEBAPP_SECRET=dein-secret                                  # Muss mit BOT_TRIGGER_SECRET im Script übereinstimmen
-```
-
-Der Service Account (`service_account.json`) muss auch für das iNat-Sheet als Bearbeiter eingetragen sein (der Bot schreibt in den Rohdaten-Tab und liest den Übersicht-Tab). Die benötigten Scopes (`spreadsheets` und `drive.readonly`) sind in `cogs/inat_tracker.py` hinterlegt.
+**Kosten:** Preise in USD pro Mio. Tokens (Input / Output), Stand Oktober 2026 laut [Anthropic-Preisliste](https://platform.claude.com/docs/en/about-claude/pricing). Haiku 5.5 kostet bei Prompts über 100.000 Tokens $0.50 / $2.50 – das wird bei Schätzung und Abrechnung berücksichtigt. Cache-Reads kosten bei Opus 5.5 und Sonnet 5.5 0,05×, bei Fable 5.1 0,025× des Input-Preises (sonst 0,1×). Ältere Modell-IDs bleiben in der Preistabelle, falls sie per `.env` gesetzt sind; eine gespeicherte alte Nutzerwahl wird im Dropdown automatisch auf das neue Modell derselben Familie umgestellt. Adaptives Denken muss nicht separat berechnet werden – Denk-Tokens werden als Output-Tokens abgerechnet und sind über `response.usage.output_tokens` bereits in den Kosten enthalten.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
 ---
+
+## iNat-Statistik
+
+Dauerhafte Statistik für den iNaturalist-Kanal (`INAT_CHANNEL_ID` in `cogs/inat_tracker.py`). Der frühere Wettbewerb mit Google-Tabelle, Apps Script, Zeitfenster und Countdown ist vollständig entfernt; alles liegt jetzt in der Bot-Datenbank (`utils/inat.py`).
+
+**Ablauf**
+- Wer einen Beobachtungslink (`inaturalist.org/observations/<id>`, mit oder ohne `www.`) postet, wird mit Discord-ID, Nachrichten-ID und Zeitpunkt in `inat_obs` gemerkt. Doppelte Links werden ignoriert.
+- Der Bot holt per iNaturalist-API (bis 200 IDs je Anfrage, eigener User-Agent) Besitzer, Beobachtungsdatum und Bestimmung. Nur Taxa unterhalb von Formicoidea (`1269340`) zählen.
+- **Gezählt** wird nur, wenn die Beobachtung dem per `/inat_verknuepfen` bestätigten iNat-Konto der postenden Person gehört. Posts vor der Verknüpfung zählen nachträglich automatisch mit; fremde Beobachtungen nie.
+- Reaktionen: ✅ gezählt · 🆕 neue Art für dich · 🌟 neu für die Community · 🔗 Konto noch nicht verknüpft (einmaliger Hinweis, löscht sich nach 90 s) · ❌ fremde Beobachtung · ⏳ iNat nicht erreichbar (stündlicher Nachholversuch, danach werden die Reaktionen gesetzt).
+- **Arten** wie früher in der Tabelle: verschiedene Taxa; grobe Bestimmungen (Gattung, Untergattung, Tribus, Unterfamilie, Familie) zählen nur, wenn die Person darin noch keine genauere Bestimmung hat. **Jahr** = Beobachtungsdatum.
+- Bestimmungen werden täglich um 04:17 neu abgerufen, aber nur für Posts der letzten 6 Monate (`REFRESH_DAYS`).
+- Post gelöscht → zugehörige Beobachtungen werden entfernt.
+
+**Verknüpfung (`/inat_verknuepfen login:<name>`)**: Der Bot nennt einen Code (`AAM-XXXXXX`, 1 h gültig), den man vorübergehend in die **Bio** des iNat-Profils schreibt; Button „Jetzt prüfen“ bzw. `/inat_verknuepfen` ohne Namen prüft ihn über die öffentliche API. Die Bio liefert nur die API v2 (`/v2/users/<id>?fields=description`), die API v1 kennt das Feld nicht; Beobachtungen kommen über v1. Ein iNat-Konto kann nur mit einem Discord-Konto verknüpft sein. `/inat_trennen` löst die Verknüpfung.
+
+**Anzeige**: `/inat_statistik [jahr]` (nur für dich: Jahr und gesamt, Platz, gefundene Arten). `Statistik` (oder `Rangliste`) im Kanal postet das Treppchen-Bild des laufenden Jahres (höchstens alle 3 Stunden). Am 1. jedes Monats postet der Bot es automatisch, am 1. Januar den Endstand des Vorjahres. Erfolge bei 10/25/50 Arten, Zeile im persönlichen Jahresrückblick.
+
+**Artenliste im Board**: `/inat` zeigt alle je von der Community gefundenen Arten (nach Gattung einklappbar, Beobachtungen und Erstfund-Jahr je Art, nur Summen, keine Namen); verlinkt im Footer und im Rückblick.
+
 
 ## Erfolge
 
@@ -764,33 +819,48 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/info_list` | – | Verfügbare Info-Einträge auflisten (Admins sehen auch admin-only Einträge, markiert mit 🔒). | `/info_list` |
 | `/digest` | `action` (`aktivieren`/`deaktivieren`/`status`) | Meldet dich für den **wöchentlichen Digest per DM** an oder ab: größte Preisstürze der Woche, neue Arten, neue Shops. Nur angemeldete User bekommen die DM (montags). | `/digest action:aktivieren` |
 | `/offer_alert` | Gruppe: `add schlagwort:<…>` (mehrere **kommagetrennt**), `list`, `remove`, `check` (🔒 Admin) | **Schlagwort-Alerts für den Angebote-Kanal.** Hinterlege Begriffe (Arten *oder* Beliebiges) – mehrere Schlagworte in einem `add` mit Komma/Semikolon trennen (ein Begriff *mit Leerzeichen* bleibt ein Schlagwort). Artnamen werden **synonym-bewusst** gematcht (AntCat, wie bei `/sells`), sodass z. B. „Camponotus ligniperdus" auch „…ligniperda" findet. Lange PN-Trefferlisten werden automatisch in mehrere Nachrichten (≤ 4000 Zeichen) aufgeteilt; passt ein Angebot dazu, kommt eine **PN mit Link**. Beim `add` werden **einmalig** noch offene Angebote der letzten `OFFER_BACKFILL_DAYS` (Standard 90) Tage gebündelt gemeldet; danach neue Posts, die älter als der Team-Review-Puffer (`OFFER_ALERT_DELAY_MIN`, Standard 60 min) sind. **Nachtruhe:** Angebote, die in der Nachtruhe (`OFFER_QUIET_START_HOUR`–`OFFER_QUIET_END_HOUR`, Berlin, Standard **23–9 Uhr**) gepostet werden, werden zurückgehalten und erst nach Fenster-Ende gemeldet. **Admin-Pause:** reagiert ein Team-/Mod-Mitglied (Manage Messages) mit **⏸️ (`:pause_button:`)** auf ein Angebot, wird es zurückgehalten, solange die Reaktion gesetzt ist. Der **Backfill** beim Einrichten überspringt per **⏸️ pausierte** Angebote; wird er **während** der Nachtruhe ausgelöst, lässt er zusätzlich – analog zum 60-min-Puffer – die Angebote der **gerade laufenden Nacht** weg (nachts gepostete Angebote *früherer* Tage sind normal dabei; wird tagsüber ausgelöst, gibt es keinen Nacht-Cut). Als **verkauft** markierte Positionen (`:sold:`-Emote im Text, `~~durchgestrichen~~`, „verkauft/reserviert/…") werden **pro Zeile und pro Nachricht** aussortiert; eine `:sold:`-**Reaktion** zählt dabei nur, wenn sie vom **Autor** oder einem Mitglied mit **„Nachrichten verwalten"** (Team/Mod) stammt – Reaktionen beliebiger Mitglieder werden ignoriert. Auf jede Alert-PN: **✅** = erledigt (Schlagwort entfernen) · **🔄** = weiter suchen. `check` listet Admins alle aktuell als verfügbar erkannten Angebote (Prüfung). | `/offer_alert add schlagwort:Lasius niger` |
+| `/bewerten` | `shop` (Pflicht, Vorschläge aus den bekannten Shops, Freitext erlaubt) | Bewertung nach der Community-Vorlage ausfüllen: zwei Formulare (Discord erlaubt höchstens 5 Felder je Formular), Note als Freitext 0 bis 10 (z. B. `7,5`), Vorschau, dann kommt der fertige Text als eigene Nachricht ohne Codeblock (am Handy per „Text kopieren“ direkt übernehmbar, am PC markieren). Leere Felder bleiben mit Überschrift stehen, damit jede Bewertung gleich aussieht. **Der Bot postet nichts und speichert nichts**; du postest den Text selbst im Bewertungskanal, der Bewertungs-Bot verarbeitet ihn wie jede andere Bewertung. Wie alle User-Befehle nur im Bot-Kanal. | `/bewerten shop:antstore.net` |
+| `/konto` | – | Schickt dir (nur für dich sichtbar) den Link zu deiner Kontoseite im Board: alles, was der Bot zu dir gespeichert hat, ansehen, ändern, herunterladen und löschen. Siehe [Mein Konto](#mein-konto-konto). | `/konto` |
 | `/achievements` | – | Zeigt deine Erfolge: freigeschaltete (✅ mit Datum), in Arbeit (Fortschrittsbalken) und versteckte (🔒 `???`, bis freigeschaltet). Beim Freischalten kommt eine dezente DM. Keine Rollen, nur für dich sichtbar. | `/achievements` |
 | `/offers` | `shop` (Shopname, auch Teilname; Pflicht) | Listet **alle lagernden Angebote eines Shops** (Quelle: antcheck.info). Öffentliche Ausgabe, pro Produkt die Varianten-Einzelpreise (Original + EUR), Länderflagge, **AAM-Bewertung** (falls vorhanden), Shop-Link + **Produktlink** je Angebot. Bei mehreren Treffern werden die Shops zum Eingrenzen gelistet. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Ausgabe als Embed(s). | `/offers shop:Antstore` |
 | `/sells` | `species` (Art/Gattung, auch Teilname; Pflicht), `country` (optional, Ländercode), `force` (optional) | Vergleicht **lagernde Angebote** einer Art/Gattung über alle Shops (Quelle: antcheck.info). Öffentliche Ausgabe, gruppiert nach Art → Shop mit Länderflagge und **AAM-Bewertung** (falls vorhanden), **pro Variante** der Preis in Originalwährung + EUR-Umrechnung (Fallback auf Produkt-Preisspanne, falls keine Varianten vorliegen), plus **Produktlink** je Angebot. Bei mehreren Treffern Hinweis, für welche Arten es Angebote gibt. Optional per Ländercode filterbar. Angebote mit **0 €/unbekanntem Preis** werden ausgeblendet; bei einem **Community-Warnhinweis** erscheint ein ⚠️ beim Shop. Die Gruppierung nach Art erfolgt **case-insensitiv** (Groß-/Kleinschreibung egal), sodass reine Schreibweise-Varianten desselben Artnamens nicht mehrere Gruppen bilden. Als Land ist auch **`eu`** möglich – das wird (wie bei `/notification`) automatisch auf **alle EU-Ländercodes** aufgelöst; bei `eu` bleibt die Gruppierung nach Shop-Region erhalten (nur bei genau einem Land entfällt die Regions-Unterüberschrift). Ist die Suche ein **Binomen** (Gattung + Art), werden zudem alle Treffer unter dieser einen Art gebündelt – auch abweichend benannte Bundle-/Varianten-Angebote (z. B. „Bundle Offer – …", „… 2 koninginnen met broed") erscheinen so als Unterpunkte statt als eigene „Arten". Wird **kein Land** angegeben, werden die Angebote je Art zusätzlich **nach Shop-Region** (Land) gruppiert, mit einer Regions-Unterüberschrift (Flagge + Ländername). Der eingegebene Name wird gegen die **Artenliste** geprüft (siehe unten); `force: True` überspringt das. Ist die Artenliste vorhanden, nutzt die Gattungs-/Teilsuche zusätzlich das Grabber-Feld `canonical_species`: Angebote werden dann nach dem **akzeptierten Artnamen** gruppiert und **Synonyme shopübergreifend vereinheitlicht** – eine Suche nach dem akzeptierten Namen findet auch synonym benannte Angebote. Ausgabe als Embed(s). | `/sells species:aethiops` |
-| `/map_join` | – (geführt) | **Halter-Karte (Opt-in, nur wenn `MAP_ENABLED`).** Geführter Ablauf, nur für dich sichtbar: 1) Auswahlmenüs für **Land** (DE/AT/CH/LI/anderes) und **Alter** (18+ / unter 18) sowie freiwillige **Optionen** (Mehrfachauswahl): **anonym anzeigen**, **Kontakt über Discord anbieten** (Standard: aus) und **nur grobes PLZ-Gebiet** (letzte zwei Ziffern weg: DE 3, AT/CH/LI 2 Ziffern; Pin in der Mitte aller PLZ des Gebiets, auf der Karte **pink** statt blau). 2) Button **Zustimmen und weiter** (= Einwilligung) öffnet ein Formular für **PLZ** (DACH) bzw. **Länderkürzel** (anderes Land) und optional **Vorname** (kein Nachname). Unbekannte PLZ (nicht im GeoNames-Datensatz oder falsche Länge) werden abgelehnt. 3) Danach direkt die **Tag-Auswahl**. Gespeichert wird nur ein **grober** Standort (aus der PLZ abgeleitete, **zufällig verschobene** Näherung, keine genaue Adresse). Der Discord-Name wird **nicht gespeichert**. DACH → gefuzzter Pin (nur für eingeloggte Mitglieder sichtbar), sonst Listeneintrag. Wer **unter 18** angibt, erscheint **nicht einzeln**, sondern nur in der anonymen Regionszählung. | `/map_join` |
+| `/map_join` | – (geführt) | **Halter-Karte (Opt-in, nur wenn `MAP_ENABLED`).** Geführter Ablauf, nur für dich sichtbar: 1) Auswahlmenüs für **Land** (DE/AT/CH/LI/anderes) und **Alter** (18+ / unter 18) sowie freiwillige **Optionen** (Mehrfachauswahl): **anonym anzeigen**, **Kontakt über Discord anbieten** (Standard: aus; zeigt eingeloggten Mitgliedern im Pin und in der Liste einen Button „Auf Discord kontaktieren“, der das Discord-Profil über die User-ID öffnet) und **nur grobes PLZ-Gebiet** (letzte zwei Ziffern weg: DE 3, AT/CH/LI 2 Ziffern; Pin in der Mitte aller PLZ des Gebiets, auf der Karte **pink** statt blau; die **vollständige PLZ** wird trotzdem abgefragt, nur zur Prüfung und Gebietsermittlung genutzt und **nicht gespeichert**). 2) Button **Zustimmen und weiter** (= Einwilligung) öffnet ein Formular für **PLZ** (DACH) bzw. **Länderkürzel** (anderes Land) und optional **Vorname** (kein Nachname). Unbekannte PLZ (nicht im GeoNames-Datensatz oder falsche Länge) werden abgelehnt. 3) Danach direkt die **Tag-Auswahl**. Gespeichert wird nur ein **grober** Standort (aus der PLZ abgeleitete, **zufällig verschobene** Näherung, keine genaue Adresse). Der Discord-Name wird **nicht gespeichert**. DACH → gefuzzter Pin (nur für eingeloggte Mitglieder sichtbar), sonst Listeneintrag. Wer **unter 18** angibt, erscheint **nicht einzeln**, sondern nur in der anonymen Regionszählung. | `/map_join` |
 | `/map_tags` | – | Setzt/ändert die selbst gewählten **Schlagworte** (fester Katalog, Mehrfachauswahl) für den eigenen Karteneintrag. | `/map_tags` |
 | `/map_confirm` | – | Bestätigt, dass der eigene Karteneintrag **noch aktuell** ist (setzt die jährliche Bestätigung zurück). | `/map_confirm` |
 | `/map_remove` | – | Löscht den **eigenen** Karteneintrag vollständig (Selbstbedienung, jederzeit). | `/map_remove` |
-| `/event_add` | – (geführt) | Schlägt einen **Termin/Event** für die Karte vor (alle dürfen einreichen). Geführter Ablauf: 1) Formular mit **Titel**, **Datum** (`TT.MM.JJJJ`), **Ort** (Pflicht) sowie Uhrzeit und Beschreibung (optional). 2) Auswahlmenüs für **Art** (Börse/Messe, Treffen, Shop-Event, Workshop/Vortrag, Exkursion, Sonstiges), **Wiederholung** (einmalig/wöchentlich/monatlich/jährlich) und **Land**; Button **Weitere Angaben** für PLZ (Kartenpunkt in DACH), Enddatum (mehrtägig) und Link. 3) **Einreichen**. Erscheint **erst nach Freigabe** durch einen Admin (Betreiber bekommt eine PN). Nur **öffentliche** Veranstaltungsorte, keine Privatadressen. Wiederholungen werden als iCal-RRULE gespeichert (auch im ICS-Feed `/map/events.ics`). | `/event_add` |
+| `/event_add` | – (geführt) | Schlägt einen **Termin/Event** für die Karte vor (alle dürfen einreichen). Geführter Ablauf: 1) Formular mit **Titel**, **Datum** (`TT.MM.JJJJ`), **Ort** (Pflicht) sowie Uhrzeit und Beschreibung (optional). 2) Auswahlmenüs für **Art** (Börse/Messe, Treffen, Shop-Event, Workshop/Vortrag, Exkursion, Sonstiges), **Wiederholung** (einmalig/wöchentlich/monatlich/jährlich) und **Land**; Button **Weitere Angaben** für PLZ (Kartenpunkt in DACH), Enddatum (mehrtägig) und **Endzeit** (`HH:MM`; nur mit Startzeit, ohne Enddatum gilt der Starttag) und Link. 3) **Einreichen**. Erscheint **erst nach Freigabe** durch einen Admin (Betreiber bekommt eine PN). Nur **öffentliche** Veranstaltungsorte, keine Privatadressen. Wiederholungen werden als iCal-RRULE gespeichert (auch im ICS-Feed `/map/events.ics`). | `/event_add` |
+| `/art` / `/sells`: Preis-Ampel & Saison | – | **Preis-Ampel:** jedes lagernde Angebot wird mit seinem **eigenen** Preis der letzten 12 Monate verglichen (gleiche Koloniegröße, gleiche Währung; `utils/price_signal.py`): 🟢 unteres Drittel der Spanne, 🟡 Mitte, 🔴 oberes Drittel. Keine Ampel bei weniger als 90 Tagen Historie oder ohne nennenswerte Preisbewegung (< 5 % bzw. 0,50). Angezeigt in `/sells`, `/art` und auf Art- und Händlerseite im Board. **Saison:** die Daten-Pipeline erfasst stündlich je Art die Zahl der Shops mit lagerndem Angebot (`species_stock_daily`, Maximum pro Tag; `utils/season.py`). Sobald ein volles Jahr erfasst ist, zeigen `/art` und die Artseite, in welchen Monaten die Art meist lagernd ist (Monat zählt ab 50 % der Tage, ganzjährig ab 80 % in jedem Monat). | – |
+| KI-Chat auf dem Board | – | Schwebendes Chatfenster (💬 unten rechts) auf allen Board-Seiten außer der Karte, **nur für eingeloggte AAM-Mitglieder** (Login mit Discord). Gleiche KI, Werkzeuge, Modellauswahl und gleiches Tagesbudget wie im Discord; Folgefragen im laufenden Gespräch, „Neues Gespräch“ setzt zurück. Verläufe in `ai_chat_history` mit `channel_id = -1`, Löschung nach `AI_CHAT_CONVERSATION_TTL_HOURS`. Nur Text, keine Bilder. Schutz: CSRF-Token, Begrenzung `BOARD_AI_CHAT_PER_MIN`/`BOARD_AI_CHAT_PER_HOUR` je Mitglied, abschaltbar mit `BOARD_AI_CHAT=false`. Endpunkte `/chat/models`, `/chat/send` (im nginx-Proxy freigeben). | – |
+| `/inat_verknuepfen` | `login` (dein iNat-Name; leer = offenen Code prüfen) | Verknüpft dein iNaturalist-Konto: Der Bot nennt einen Code (1 h gültig), den du vorübergehend in die Bio deines iNat-Profils schreibst, dann „Jetzt prüfen“. Erst danach zählen deine Beobachtungen im iNat-Kanal, auch frühere Posts. | `/inat_verknuepfen login:jonas_ants` |
+| `/inat_statistik` | `jahr` (optional) | Deine iNat-Statistik, nur für dich sichtbar: Beobachtungen und Arten im Jahr und insgesamt, dein Platz, gefundene Arten. | `/inat_statistik` |
+| `/inat_trennen` | – | Löst die iNat-Verknüpfung; deine Posts zählen dann nicht mehr. | `/inat_trennen` |
+| `/schwarmflug` | `zeitraum` (optional: 48 Stunden, 1 Woche, 1 Monat; Standard 48 Stunden) | Was im gewählten Zeitraum im Schwarmflug-Kanal gemeldet wurde (Art und Regionen, höchstens 15 Arten, danach Hinweis auf die Karte), mit Link zum Schwarmflug-Radar. Nur für dich sichtbar. | `/schwarmflug zeitraum:1 Woche` |
+| `/schwarmflug_vorlage` | `art` (Pflicht, Vorschläge), `region` (optional, Vorschläge) | Meldung nach der angepinnten Vorlage ausfüllen wie `/bewerten`: Teil 1 (Art, Datum und Uhrzeit, Ort, Temperatur, Wind), optional Teil 2 (Wetter, geschützt ja/nein, Zusatzinformationen), Vorschau, dann kommt die fertige Vorlage als eigene Nachricht ohne Codeblock zum Kopieren. Die Region wird als Rollen-Erwähnung eingesetzt. Der Bot postet nichts selbst. | `/schwarmflug_vorlage art:Lasius niger region:Bayern` |
+| `/art` › „Als Bild posten“ | – | Unter jeder `/art`-Antwort ein Button, der eine **Artenkarte** (PNG: Preise heute/vor 3/vor 12 Monaten, Preisverlauf, Saison, Board-Link) in den Kanal postet. Dieselbe Karte gibt es auf der Artseite im Board als Download (`/art/<Art>/karte.png`, `utils/species_card.py`). | – |
+| `/rueckblick` | `jahr` (optional) | Persönlicher **Jahresrückblick** (nur für dich sichtbar): eigene Bewertungen, Befehle, Benachrichtigungen, Erfolge. Nur vom **1. November bis 31. Januar** verfügbar (im Januar für das Vorjahr); außerhalb kommt ein Hinweis mit einem Ameisen-Fakt samt Quelle (`utils/ant_facts.py`). Abgeschlossene Jahre bleiben das ganze Jahr über abrufbar (`/rueckblick jahr:…`, auf dem Board als Kacheln, auch auf der Hinweisseite). Die Board-Seite `/rueckblick` folgt demselben Zeitfenster, zeigt ältere Jahre als Kacheln und eingeloggten Mitgliedern oben zusätzlich ihren persönlichen Teil. Am 31.12. um 23 Uhr postet der Bot den Community-Rückblick in `YEAR_REVIEW_CHANNEL_ID`. | `/rueckblick jahr:2026` |
 | `/help` | – | Befehlsübersicht (lokalisiert in der eingestellten Sprache). Der **User-Teil ist immer öffentlich** im Kanal sichtbar. Der **Admin-Abschnitt** wird nur Mitgliedern mit „Nachrichten verwalten"/„Administrator" gezeigt und kommt separat **ephemer** (nur für sie sichtbar), damit er nicht öffentlich gepostet wird. *(`!help` als Textbefehl kann nicht ephemer antworten und zeigt daher nur den öffentlichen User-Teil.)* | `/help` |
 
 ### Nur Admin / Nachrichten verwalten
 
 > Diese Befehle werden im Discord-Befehlsmenü (`/`) **nur Mitgliedern mit dem Recht „Nachrichten verwalten" oder „Administrator" angezeigt** – für normale Mitglieder tauchen sie gar nicht erst auf. Umgesetzt über Discords `default_member_permissions`; zusätzlich prüft weiterhin der interne Check `admin_or_manage_messages()` bei jeder Ausführung (die Sichtbarkeit ist nur ein Discord-*Default* und könnte serverseitig überschrieben werden). Zur einheitlichen Kennzeichnung tragen alle Admin-Befehle das Präfix **`🔒 [Admin]`** in ihrer Beschreibung. Discord bietet keine Möglichkeit, die Reihenfolge im Menü selbst festzulegen (immer alphabetisch) – durch das Ausblenden stören sie normale Nutzer aber ohnehin nicht mehr.
 
+Die meisten Admin-Befehle sind zu **Gruppen** zusammengefasst, damit das Befehlsmenü übersichtlich bleibt (Discord erlaubt höchstens 100 Befehle): `/bot …` (Status, System, Statistik, Nutzer, Protokoll, Export, Angebote), `/review …` (offen, test, neu_verarbeiten), `/codes_admin …`, `/info_admin …`, `/event_admin …` sowie `/wartung aktion:…` für die einmal anzustoßenden Wartungsläufe. Umgesetzt in `cogs/admin_groups.py` (wird als letztes Cog geladen; die Befehle selbst bleiben unverändert in ihren Cogs und werden nur umgehängt).
+
 | Befehl | Parameter | Beschreibung | Beispiel |
 |--------|-----------|--------------|----------|
+| `/wartung` | `aktion` (Hintergrund-Jobs / Shop-Daten / Karte / Bewertungen abgleichen / Rabattcodes scannen) | Wartungsläufe in **einem** Befehl: entspricht den früheren Einzelbefehlen `/run_jobs`, `/reloadshops`, `/map_refresh`, `/rescan` und `/codes_rescan` (Details siehe die jeweiligen Zeilen unten). „Karte“ erscheint nur mit `MAP_ENABLED`. | `/wartung aktion:Hintergrund-Jobs` |
 | `/startup` | `language` (`de`/`en`/`eo`), `channel` (optional) | Bot-Kanal und Sprache für diesen Server festlegen. Muss einmalig pro Server aufgerufen werden. Ohne `channel` sind Befehle in allen Kanälen erlaubt. | `/startup language:de channel:#ameisen-bot` |
-| `/status` | – | Zeigt die Anzahl der Bewertungen im Google Sheet, die Zahl der verarbeiteten Reviews und die ausstehenden (🟡) Nachrichten. | `/status` |
-| `/pending` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. | `/pending` |
-| `/test` | `text` | KI-Parser mit einem frei eingegebenen Bewertungstext testen (ohne Sheet-Eintrag). Zeigt das von der KI extrahierte JSON. | `/test text:🛒 Shop: Antstore, Messor barbarus, 9/10` |
-| `/rescan` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. | `/rescan` |
-| `/reprocess` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). | `/reprocess ids:1176542880 1176542995` |
-| `/export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). | `/export user_id:123456789012345678` |
+| `/bot status` | – | Zeigt die Anzahl der Bewertungen im Google Sheet, die verarbeiteten Reviews und die ausstehenden (🟡) Nachrichten, dazu eine **Gesundheits-Übersicht** (dieselben Checks wie die Status-Seite des Boards: Discord, Datenbanken, KI-Chat, iNaturalist-API, Hintergrund-Jobs, Cronjobs; nur Auffälligkeiten einzeln) und die Größe der Datenbanken. | `/bot status` |
+| `/review offen` | – | Listet alle ausstehenden Nachrichten mit Message-ID, Grund und kurzem Nachrichtenausschnitt. | `/review offen` |
+| `/review test` | `text` | KI-Parser mit einem frei eingegebenen Bewertungstext testen (ohne Sheet-Eintrag). Zeigt das von der KI extrahierte JSON. | `/review test text:🛒 Shop: Antstore, Messor barbarus, 9/10` |
+| `/wartung aktion:Bewertungen abgleichen` | – | Gleicht die letzten 90 Tage Discord-History manuell mit dem Google Sheet ab. Nützlich nach manuellen Sheet-Korrekturen oder Bot-Ausfällen. | `/wartung aktion:Bewertungen abgleichen` |
+| `/review neu_verarbeiten` | `ids` (Leerzeichen- oder kommagetrennte Message-IDs) | Bewertungsnachricht(en) neu verarbeiten. Mehrere IDs werden zu einem einzigen Sheet-Eintrag zusammengeführt (für geteilte Nachrichten). | `/review neu_verarbeiten ids:1176542880 1176542995` |
+| `/bot export` | `user_id` (optional) | Ohne Parameter: alle DB-Tabellen als JSON-Datei (Admin-Debug, max. 500 Zeilen/Tabelle). Mit `user_id`: alle gespeicherten Daten des Users als JSON per DM (DSGVO-Auskunft). | `/bot export user_id:123456789012345678` |
+| `/rueckblick_post` | `posten` (Ja/Nein) | Community-Jahresrückblick als Vorschau anzeigen oder sofort in `YEAR_REVIEW_CHANNEL_ID` posten (sonst automatisch am 31.12. um 23 Uhr). | `/rueckblick_post posten:False` |
 | `/export_chat` | `channel` (ID, Pflicht), `von`/`bis` (`JJJJ-MM-TT`, optional, `bis` inklusive), `reaktionen_detail` (optional, Standard aus) | Exportiert einen **kompletten Channel/Thread** (optional im Datumsbereich) als **umfangreiche JSON** und liefert sie als **Datei-Download in der ephemeren Antwort**. Erfasst pro Nachricht Autor, Zeitstempel (erstellt/bearbeitet), Inhalt, **Anhänge inkl. Bild-Links**, Embeds, Sticker, **Reaktionen** (Emoji + Anzahl; mit `reaktionen_detail:true` auch **wer** reagiert hat – langsam bei großen Channels), Antwort-/Referenzbezug, Mentions und Thread-Info. Ohne Zeitraum wird **alles** exportiert. Bei Überschreitung des Server-Upload-Limits wird automatisch **gzip** komprimiert (`.json.gz`). Nicht abrufbar (Discord-API): gelöschte Nachrichten, frühere Bearbeitungsversionen, „gelesen von". | `/export_chat channel:123… von:2026-07-01 bis:2026-07-31` |
-| `/stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/stats` |
-| `/system` | – | Systemstatus: **laufende Bot-Version**, Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/system` |
-| `/reloadshops` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). | `/reloadshops` |
+| `/bot stats` | – | Benachrichtigungsstatistiken: aktive, abgeschlossene, abgelaufene und gelöschte Benachrichtigungen sowie die Top-5-gesuchten Arten. | `/bot stats` |
+| `/bot system` | – | Systemstatus: **laufende Bot-Version**, Uptime, Server-/Nutzerzahl, DB-Integrität, Gesamtzahl Benachrichtigungen, Alter der `shops_data.json`, Latenz, CPU- und RAM-Auslastung, Betriebssystem. | `/bot system` |
+| `/wartung aktion:Shop-Daten` | – | `shops_data.json` sofort neu einlesen und DB aktualisieren (ohne `average_rating` und `url_override` zu überschreiben). | `/wartung aktion:Shop-Daten` |
 | `/uncanonical` | – | Listet alle **Nicht-Merch-Angebote ohne `canonical_species`** (Artname weder exakt noch per Tippfehler-Fallback der Artenliste zuordenbar – also unbekannte Arten oder Tippfehler > 1 Editierschritt). Je Artname gebündelt mit Anzahl und betroffenen Shops; lange Listen als `uncanonical.txt`. Hilft, Datenlücken/Shop-Tippfehler aufzuspüren. | `/uncanonical` |
 | `/shopmapping add` | `external`, `shop_id` | Externen Shopnamen (z.B. aus Discord-Review) dauerhaft einer internen Shop-ID zuordnen. | `/shopmapping add external:Antstore.de shop_id:2` |
 | `/shopmapping show` | – | Alle gespeicherten Shop-Name-Mappings anzeigen. | `/shopmapping show` |
@@ -800,27 +870,26 @@ Zusätzlich gibt es **versteckte Erfolge**, die erst beim Freischalten in `/achi
 | `/shopurl list` | – | Alle aktiven URL-Overrides anzeigen. | `/shopurl list` |
 | `/ai_reset` | `user` (optional) | KI-Chat Budget für einen bestimmten User oder global (alle User) zurücksetzen. Ohne `user`-Angabe wird das globale Budget zurückgesetzt. | `/ai_reset user:@Mitglied` |
 | `/ai_prompt` | – | Aktuell geladenen System-Prompt des KI-Chats anzeigen – in der eingestellten Sprache des ausführenden Users. | `/ai_prompt` |
-| `/codes_set` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_set code:ANT10 status:valid shop:Antstore` |
-| `/codes_date` | `code`, `gueltig_bis` (`JJJJ-MM-TT`/`TT.MM.JJJJ` oder `-` zum Löschen), `gueltig_ab` (optional), `shop` (optional) | Gültigkeitsdatum eines Rabattcodes nachträglich anpassen (z. B. wenn die KI ein Enddatum falsch/gar nicht erkannt hat). Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_date code:ANT10 gueltig_bis:31.12.2026` |
-| `/codes_edit` | `code` (Ziel), optional: `neuer_code`, `neuer_shop`, `shop_url`, `rabatt`, `mindestbestellwert`, `gueltig_ab`, `gueltig_bis`, `dauerhaft`, `status`, `shop` (Ziel-Filter) | **Beliebige** Felder eines Rabattcodes in einem Befehl anpassen (Obermenge von `/codes_set` + `/codes_date`). Nur die angegebenen Optionen werden geändert; Textfelder lassen sich mit `-` leeren, Datumsfelder mit `-` löschen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_edit code:ANT10 rabatt:15% mindestbestellwert:50€ gueltig_bis:31.12.2026 dauerhaft:false` |
-| `/codes_fix_links` | – | Einmal-Migration: löst Kurzlinks in **bereits gespeicherten** Codes zur echten Shop-URL auf und entfernt Tracking-Parameter. Idempotent (bereits saubere Links bleiben unverändert). | `/codes_fix_links` |
-| `/codes_rescan` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/codes_rescan` |
-| `/info_add` | `name`, `beschreibung` (optional), `nur_admin` (optional) | Info-Eintrag anlegen. Der Text wird in einem **mehrzeiligen Popup (Modal)** eingegeben – Markdown/Zeilenumbrüche werden 1:1 übernommen. `beschreibung` erscheint als Hinweis in der `/info`-Autocomplete (als `name — Beschreibung`). `nur_admin:true` = nur für Admins nutzbar (Antwort dann ephemer). Ausgabe automatisch als Embed ab 1000 Zeichen. | `/info_add name:regeln beschreibung:Serverregeln` |
-| `/info_edit` | `name` (Autocomplete), `nur_admin` (optional) | Info-Eintrag bearbeiten (Text im Modal, vorausgefüllt; Nur-Admin-Flag optional ändern). | `/info_edit name:regeln` |
-| `/info_remove` | `name` (Autocomplete) | Info-Eintrag löschen. | `/info_remove name:regeln` |
-| `/info_raw` | `name` (Autocomplete) | Quelltext eines Info-Eintrags als Codeblock anzeigen (ephemer). | `/info_raw name:regeln` |
-| `/command_log` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/command_log user_id:123456789012345678 period:1d` |
-| `/run_jobs` | – | Stößt **alle Hintergrund-Jobs einmalig sofort** an (unabhängig vom Zeitplan) und meldet je Job Erfolg/Fehler + Dauer (ephemeral). Nützlich direkt nach Deploy/Neustart, um nicht auf den nächsten uhr-ausgerichteten Lauf zu warten. Umfasst u. a. die Daten-Pipeline (Shop-Reload → Preis → Arten), Verfügbarkeits-Check, Shop-Bewertungs-Sync, DB-Optimierung, Command-Log-Flush/-Cleanup und die KI-Chat-Wartung. **Ausgenommen** ist bewusst der Wochen-Digest (fester Montags-Versand). | `/run_jobs` |
-| `/known_users` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/known_users` |
+| `/codes_admin setzen` | `code`, `status` (`valid` / `invalid` / `auto`), `shop` (optional) | Einen Rabattcode manuell als **immer gültig**, **ungültig** oder zurück auf **automatisch** (Datumslogik) setzen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert, sonst nur die des angegebenen Shops. | `/codes_admin setzen code:ANT10 status:valid shop:Antstore` |
+| `/codes_admin datum` | `code`, `gueltig_bis` (`JJJJ-MM-TT`/`TT.MM.JJJJ` oder `-` zum Löschen), `gueltig_ab` (optional), `shop` (optional) | Gültigkeitsdatum eines Rabattcodes nachträglich anpassen (z. B. wenn die KI ein Enddatum falsch/gar nicht erkannt hat). Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_admin datum code:ANT10 gueltig_bis:31.12.2026` |
+| `/codes_admin bearbeiten` | `code` (Ziel), optional: `neuer_code`, `neuer_shop`, `shop_url`, `rabatt`, `mindestbestellwert`, `gueltig_ab`, `gueltig_bis`, `dauerhaft`, `status`, `shop` (Ziel-Filter) | **Beliebige** Felder eines Rabattcodes in einem Befehl anpassen (Obermenge von `/codes_admin setzen` + `/codes_admin datum`). Nur die angegebenen Optionen werden geändert; Textfelder lassen sich mit `-` leeren, Datumsfelder mit `-` löschen. Ohne `shop` werden alle Einträge mit diesem Code aktualisiert. | `/codes_admin bearbeiten code:ANT10 rabatt:15% mindestbestellwert:50€ gueltig_bis:31.12.2026 dauerhaft:false` |
+| `/wartung aktion:Rabattcodes scannen` | – | Rabattcode-Kanal nach noch nicht gescannten Nachrichten durchsuchen (z. B. nachdem der Bot offline war). Bereits gescannte Nachrichten werden übersprungen. | `/wartung aktion:Rabattcodes scannen` |
+| `/info_admin anlegen` | `name`, `beschreibung` (optional), `nur_admin` (optional) | Info-Eintrag anlegen. Der Text wird in einem **mehrzeiligen Popup (Modal)** eingegeben – Markdown/Zeilenumbrüche werden 1:1 übernommen. `beschreibung` erscheint als Hinweis in der `/info`-Autocomplete (als `name — Beschreibung`). `nur_admin:true` = nur für Admins nutzbar (Antwort dann ephemer). Ausgabe automatisch als Embed ab 1000 Zeichen. | `/info_admin anlegen name:regeln beschreibung:Serverregeln` |
+| `/info_admin bearbeiten` | `name` (Autocomplete), `nur_admin` (optional) | Info-Eintrag bearbeiten (Text im Modal, vorausgefüllt; Nur-Admin-Flag optional ändern). | `/info_admin bearbeiten name:regeln` |
+| `/info_admin löschen` | `name` (Autocomplete) | Info-Eintrag löschen. | `/info_admin löschen name:regeln` |
+| `/info_admin quelltext` | `name` (Autocomplete) | Quelltext eines Info-Eintrags als Codeblock anzeigen (ephemer). | `/info_admin quelltext name:regeln` |
+| `/bot protokoll` | `user_id` (Pflicht), `period` (optional: `1m`/`1h`/`1d`/`1w`) | Befehls-Nutzungsprotokoll eines Users aus der `command_log`-DB anzeigen (jüngste zuerst, max. 100, ephemeral). Ohne `period` alle vorhandenen Einträge (im Rahmen der 12-Monats-Retention), sonst nur das Zeitfenster. Sensible Parameter bleiben ausgeblendet. | `/bot protokoll user_id:123456789012345678 period:1d` |
+| `/wartung aktion:Hintergrund-Jobs` | – | Stößt **alle Hintergrund-Jobs einmalig sofort** an (unabhängig vom Zeitplan) und meldet je Job Erfolg/Fehler + Dauer (ephemeral). Nützlich direkt nach Deploy/Neustart, um nicht auf den nächsten uhr-ausgerichteten Lauf zu warten. Umfasst u. a. die Daten-Pipeline (Shop-Reload → Preis → Arten), Verfügbarkeits-Check, Shop-Bewertungs-Sync, DB-Optimierung, Command-Log-Flush/-Cleanup und die KI-Chat-Wartung. **Ausgenommen** ist bewusst der Wochen-Digest (fester Montags-Versand). | `/wartung aktion:Hintergrund-Jobs` |
+| `/bot nutzer` | – | Listet **alle Nutzer, die den Bot je genutzt haben** (ID → Name), ephemeral. Quelle ist die Union **aller** User-Tabellen (Einstellungen, Benachrichtigungen, Preis-/Arten-Beobachtungen, KI-Chat, Erfolge, Digest, Command-Log u. a.) – nicht nur das Command-Log. Namen werden über den Server-Cache bzw. die Discord-API aufgelöst; wer den Server verlassen hat, wird als solcher markiert, nicht mehr auflösbare IDs entsprechend. | `/bot nutzer` |
 | `/shopmap set` | `identifier`, `url` | Ordnet einen Shop-Text aus einer Bewertung einer Shop-URL zu (schreibt `shop_mapping.csv`, aktualisiert den Live-Cache) → löst ein 🟡 auf. | `/shopmap set identifier:Home of Insects url:home-of-insects.com` |
 | `/shopmap list` | – | Alle Shop-Zuordnungen anzeigen (inkl. noch offener). | `/shopmap list` |
 | `/shopmap remove` | `identifier` | Eine Shop-Zuordnung entfernen. | `/shopmap remove identifier:Home of Insects` |
-| `/event_pending` | – | **Halter-Karte:** offene Event-Vorschläge (Status `pending`) mit ID auflisten (ephemeral). | `/event_pending` |
-| `/event_approve` | `event_id` | **Halter-Karte:** einen eingereichten Termin **freigeben** (erscheint danach öffentlich auf der Karte/im ICS-Feed). | `/event_approve event_id:3` |
-| `/event_reject` | `event_id` | **Halter-Karte:** einen eingereichten Termin **ablehnen**. | `/event_reject event_id:3` |
-| `/event_exclude` | `event_id`, `date` (`JJJJ-MM-TT`) | **Halter-Karte:** bei einem **Serien-Termin** ein einzelnes Vorkommen **absagen** (EXDATE; wirkt auf Karte, Agenda und ICS-Feed). | `/event_exclude event_id:3 date:2026-12-06` |
-| `/event_edit` | `event_id` (Ziel), optional: `title`, `date`, `time` (`-`=ganztägig), `end_date` (`-`=löschen), `location`, `country`, `plz`, `url` (`-`), `etype`, `recurring`, `description` (`-`), `status` | **Halter-Karte:** beliebige Felder eines eingereichten/aktiven Events anpassen (nur angegebene ändern; Koordinaten/Wiederholung werden bei Bedarf neu berechnet). | `/event_edit event_id:3 time:- location:Messe Dornbirn status:approved` |
-| `/map_refresh` | – | **Halter-Karte:** Geodaten (Leaflet, geoBoundaries-Umrisse, GeoNames-PLZ) sofort neu laden. | `/map_refresh` |
+| `/event_admin offen` | – | **Halter-Karte:** offene Event-Vorschläge (Status `pending`) mit ID auflisten (ephemeral). | `/event_admin offen` |
+| `/event_admin freigeben` | `event_id` | **Halter-Karte:** einen eingereichten Termin **freigeben** (erscheint danach öffentlich auf der Karte/im ICS-Feed). | `/event_admin freigeben event_id:3` |
+| `/event_admin ablehnen` | `event_id`, optional `reason` | **Halter-Karte:** einen eingereichten Termin **ablehnen**; die einreichende Person bekommt eine PN (mit Grund, falls angegeben). | `/event_admin ablehnen event_id:3 reason:Doppelt` |
+| `/event_admin absagen` | `event_id`, `date` (`JJJJ-MM-TT`) | **Halter-Karte:** bei einem **Serien-Termin** ein einzelnes Vorkommen **absagen** (EXDATE; wirkt auf Karte, Agenda und ICS-Feed). | `/event_admin absagen event_id:3 date:2026-12-06` |
+| `/event_admin bearbeiten` | `event_id` (Ziel), optional: `title`, `date`, `time` (`-`=ganztägig), `end_date` (`-`=löschen), `end_time` (`HH:MM`, `-`=löschen), `location`, `country`, `plz`, `url` (`-`), `etype`, `recurring`, `description` (`-`), `status` | **Halter-Karte:** beliebige Felder eines eingereichten/aktiven Events anpassen (nur angegebene ändern; Koordinaten/Wiederholung werden bei Bedarf neu berechnet). | `/event_admin bearbeiten event_id:3 time:- location:Messe Dornbirn status:approved` |
+| `/wartung aktion:Karte` | – | **Halter-Karte:** Geodaten (Leaflet, geoBoundaries-Umrisse, GeoNames-PLZ) sofort neu laden. | `/wartung aktion:Karte` |
 
 ### Beispiele für umfangreiche Befehle
 
@@ -860,7 +929,7 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 → Gattung statt Einzelart: Beobachtung greift für alle Camponotus-Produkte.
 ```
 
-**`/codes` & `/codes_set` – Rabattcodes**
+**`/codes` & `/codes_admin setzen` – Rabattcodes**
 
 ```text
 /codes
@@ -869,13 +938,13 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 /codes show_expired:true
 → Zusätzlich abgelaufene (⌛) und manuell deaktivierte (🚫) Codes.
 
-/codes_set code:ANT10 status:valid
+/codes_admin setzen code:ANT10 status:valid
 → Markiert ANT10 in ALLEN Shops als dauerhaft gültig (ohne shop = alle Einträge).
 
-/codes_set code:ANT10 status:invalid shop:Antstore
+/codes_admin setzen code:ANT10 status:invalid shop:Antstore
 → Nur den Eintrag bei Antstore ungültig setzen.
 
-/codes_set code:ANT10 status:auto
+/codes_admin setzen code:ANT10 status:auto
 → Zurück auf automatische Datumslogik (Gültigkeit nach Enddatum).
 ```
 
@@ -956,7 +1025,7 @@ Die Befehle mit vielen Optionen hier mit mehreren typischen Aufrufen und der jew
 | Wochen-Digest | montags 09:00 (Berliner Zeit) | DM an Opt-in-Abonnenten: Preisstürze (7 Tage), neue Arten & neue Shops |
 | Halter-Karte: Wartung | täglich (nur `MAP_ENABLED`) | Gleicht Karteneinträge gegen die Guild-Mitgliedschaft ab (entfernt Ausgetretene) und steuert die **jährliche Bestätigung**: nach `MAP_REMIND_MONTHS` Erinnerungs-PN, nach `MAP_DELETE_MONTHS` ohne Reaktion Löschung + Info-PN |
 | Halter-Karte: Event-Cleanup | täglich (nur `MAP_ENABLED`) | Entfernt vergangene **Einmal-Events** (ohne RRULE); Serien bleiben bis zu ihrem Ende |
-| Halter-Karte: Geodaten-Refresh | alle `MAP_GEODATA_REFRESH_DAYS` Tage (nur `MAP_GEODATA_AUTO`) | Lädt via `utils/map_geodata.py` **vollautomatisch** Leaflet, die GeoJSON-Umrisse (geoBoundaries ADM1) und baut `data/plz_dach.csv` aus den GeoNames-PLZ-Dumps; danach wird der PLZ-Datensatz neu geladen. Kein externes Tool/cron nötig. Manuell: `/map_refresh` (Admin). |
+| Halter-Karte: Geodaten-Refresh | alle `MAP_GEODATA_REFRESH_DAYS` Tage (nur `MAP_GEODATA_AUTO`) | Lädt via `utils/map_geodata.py` **vollautomatisch** Leaflet, die GeoJSON-Umrisse (geoBoundaries ADM1) und baut `data/plz_dach.csv` aus den GeoNames-PLZ-Dumps; danach wird der PLZ-Datensatz neu geladen. Kein externes Tool/cron nötig. Manuell: `/wartung aktion:Karte` (Admin). |
 
 > Zusätzlich löscht ein `on_member_remove`-Listener den Karteneintrag **sofort**, wenn jemand den Server verlässt.
 
@@ -1051,7 +1120,21 @@ SQLite-Datei (in `data/`), wird beim Start automatisch angelegt. Wichtige Tabell
 | `custom_commands` | Benutzerdefinierte Info-Einträge (`/info`): Name, Inhalt (Markdown), admin_only, as_embed, Ersteller, Aufrufzähler |
 | `map_entries` | **Halter-Karte:** Opt-in-Einträge – Discord-User-ID, Land, Region/PLZ-Präfix, **gefuzzte** Koordinate (NULL außerhalb DACH), optionaler **Vorname** (Discord-Name wird NICHT gespeichert), `coarse` (1 = Pin in der Mitte des groben PLZ-Gebiets), `show_entry` (0 = nur anonyme Zählung, z. B. U18), Einwilligungs-/Bestätigungs-Zeitstempel |
 | `map_entry_tags` | **Halter-Karte:** selbst gewählte Schlagworte je User (fester Katalog) |
+| `map_entry_regions` | **Halter-Karte:** „Auch aktiv in“ – bis zu 2 weitere Bundesländer/Kantone je User (nur 18+, nur Region, kein Ort) |
 | `map_events` | **Halter-Karte:** eingereichte Termine/Events (Titel, Zeit, Ort, Koordinate, `rrule`, Status `pending`/`approved`/`rejected`) |
+| `map_rsvp_reminded` | Termin-Erinnerung: bereits verschickte Erinnerungs-PNs (je Vorkommen und Person einmal; nach 30 Tagen gelöscht) |
+| `user_prefs` | **Mein Konto:** Termin-Erinnerung an/aus, Ruhezeit (volle Stunden, Berlin), Zeitpunkt „überall abmelden“, geheimer Teil des persönlichen Kalender-Links, Intros an/aus und bis wann Erfolge/Meilensteine schon gefeiert wurden. Fehlende Zeile = Standard |
+| `dm_log` | **Mein Konto:** PN-Verlauf, nur eine kurze Vorschau je PN (30 Tage, höchstens 50 je Person, täglich aufgeräumt) |
+| `quiet_offer_queue` | **Mein Konto:** Angebots-Alerts, die während der persönlichen Ruhezeit anfielen und danach zugestellt werden |
+| `map_event_rsvp` | **Halter-Karte:** „Ich gehe hin“ je Termin-Vorkommen (Discord-ID, Datum; Löschung 30 Tage nach dem Termin) |
+| `offer_keywords`, `offer_alert_seen`, `offer_alert_msgs`, `offer_cursor`, `offer_deferred` | `/offer_alert`: Schlagworte je User, bereits gemeldete Angebote, gesendete PNs, Scan-Fortschritt, verschobene Meldungen |
+| `review_delivery` | Lieferzeit je Bewertung (Kalendertage) für die Ø-Lieferzeit je Shop |
+| `review_authors` | Discord-ID der verfassenden Person je Bewertung – nur für den persönlichen Rückblick |
+| `year_review_posted` | Bereits gepostete Community-Jahresrückblicke (kein Doppel-Post) |
+| `usage_monthly` | Öffentliche Nutzungsstatistik: Monatssummen ohne Admin-Befehle |
+| `species_stock_daily` | Saison-Verfügbarkeit: Zahl der Shops mit lagernder Art je Tag |
+| `inat_accounts`, `inat_link_codes` | iNat-Statistik: bestätigte Verknüpfung Discord ↔ iNat, offene Verknüpfungs-Codes (1 h) |
+| `inat_obs`, `inat_posted_months` | iNat-Statistik: gepostete Beobachtungen mit Bestimmung, bereits gepostete Monats-Treppchen |
 
 ### `price_history.db` (Grabber-Datenbank, read-only für den Bot)
 
@@ -1076,10 +1159,8 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── .env                     # Umgebungsvariablen (nicht im Git)
 ├── .env.example             # Vorlage
 ├── requirements.txt
-├── shops_data.json          # Von grabber.py erzeugt (nicht im Git)
-├── antcheckbot.db           # SQLite Bot-Datenbank (nicht im Git)
-├── price_history.db         # SQLite Preishistorie – vom Grabber befüllt (nicht im Git)
-├── shop_mapping.csv         # Manuelles Shop-Mapping (nicht im Git)
+├── data/                    # Laufzeitdaten (nicht im Git): antcheckbot.db, board.db, price_history.db,
+│                            #   shops_data.json, shop_mapping.csv, species_profiles.json, plz_dach.csv
 ├── ai_chat_system_prompt_de.txt  # System-Prompt Deutsch
 ├── ai_chat_system_prompt_en.txt  # System-Prompt Englisch
 ├── ai_chat_system_prompt_eo.txt  # System-Prompt Esperanto
@@ -1087,28 +1168,35 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 ├── cogs/
 │   ├── server_settings.py   # /startup + allowed_channel/admin_or_manage_messages Decorators
 │   ├── reviews.py           # Review-Bot: on_message, on_edit, on_reaction, Reconcile
-│   ├── admin.py             # /status /pending /test /rescan /reprocess /export /known_users
+│   ├── admin.py             # /bot status|export|nutzer, /review offen|test|neu_verarbeiten, Wartung: Jobs/Abgleich
 │   ├── user_settings.py     # /usersetting language / blacklist / shop_list
 │   ├── notifications.py     # /notification /delete_notifications /history /testnotification
 │   ├── price_tracking.py    # /track_price /my_price_tracking /untrack_price + Preis-Check Task
 │   ├── price_history.py     # /price_history: Preisverlauf-Chart (matplotlib) + Bestpreis-Marker
 │   ├── price_targets.py     # /set_target: Zielpreis-Alerts (pro Tracking wählbar)
-│   ├── stats.py             # /stats /system /help
-│   ├── shop_admin.py        # /reloadshops /shopmapping /shopurl /ch_delivery
+│   ├── stats.py             # /bot stats, /bot system, /help
+│   ├── shop_admin.py        # /shopmapping /shopurl /ch_delivery, Wartung: Shop-Daten
 │   ├── shop_mapping.py      # /shopmap: Review-CSV Shop-Text → URL (löst 🟡)
 │   ├── tasks.py             # Alle Hintergrundaufgaben
 │   ├── ai_chat.py           # KI-Chat-Bot: on_message, /ai_status, /ai_reset, /ai_prompt
-│   ├── inat_tracker.py      # iNat-Tracker: iNaturalist-Links → Google Sheets
-│   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes /codes_rescan
+│   ├── inat_tracker.py      # iNat-Statistik: /inat_verknuepfen /inat_statistik /inat_trennen, Treppchen
+│   ├── discount_codes.py    # Rabattcode-Tracker: Haiku-Parsing + /codes, /codes_admin, Wartung: Rabattcodes scannen
 │   ├── digest.py            # /digest + wöchentlicher DM-Digest (Preisstürze, neue Arten/Shops)
 │   ├── achievements.py      # /achievements + Erfolge-Freischaltung (Listener, DM-Ping)
+│   ├── account.py           # /konto + PN-Verlauf-Hook + Konto-Einstellungen laden
+│   ├── bewerten.py          # /bewerten: Bewertung nach Vorlage ausfüllen, Text zum Kopieren
 │   ├── command_log.py       # Befehls-Nutzungsprotokoll (Mod-Kanal + DB)
 │   ├── sells.py             # /sells: Preisvergleich einer Art/Gattung über alle Shops
 │   ├── offers.py            # /offers: alle lagernden Angebote eines Shops
 │   ├── custom_commands.py   # /info: benutzerdefinierte Text-Befehle (Info-Einträge)
-│   ├── board.py             # Feedback-Board + Halter-Karte (/map, OAuth, JSON-APIs, ICS)
-│   ├── map.py               # Halter-Karte: /map_join /map_tags /map_confirm /map_remove /event_* (nur MAP_ENABLED)
-│   └── map_tasks.py         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup (nur MAP_ENABLED)
+│   ├── offer_alerts.py      # /offer_alert: Schlagwort-Alerts für den Angebote-Kanal
+│   ├── chat_export.py       # /export_chat: Kanal als JSON exportieren (Admin)
+│   ├── directory.py         # /art (Artensteckbrief) und /shop (Händlerseite)
+│   ├── year_review.py       # /rueckblick + Community-Rückblick am 31.12. um 23 Uhr
+│   ├── board.py             # Board: Feedback, Halter-Karte, Statistik, Arten/Shops, Rückblick, KI-Chat, Mein Konto, OAuth
+│   ├── map.py               # Halter-Karte: /map_join /map_tags /map_confirm /map_remove /event_add, /event_admin … (nur MAP_ENABLED)
+│   ├── map_tasks.py         # Halter-Karte: Prune/Jahres-Bestätigung/Event-Cleanup (nur MAP_ENABLED)
+│   └── admin_groups.py      # Admin-Gruppen /bot /review /codes_admin /info_admin /event_admin + /wartung (lädt als letztes)
 │
 ├── utils/
 │   ├── db.py                # SQLite-Helfer (execute_db, init_db, Schema)
@@ -1134,20 +1222,42 @@ Wird vom Grabber geschrieben und vom Bot nur gelesen. Enthält `product_price_hi
 │   ├── text_chunks.py       # Text-Chunking-Helfer (lange Nachrichten aufteilen)
 │   ├── timez.py             # Zeit-/Zeitzonen-Helfer (Berlin/UTC)
 │   ├── localization.py      # Lokalisierungssystem (de/en/eo)
-│   └── logging_setup.py     # Rotating File Handler
+│   ├── logging_setup.py     # Rotating File Handler
+│   ├── ai_compat.py         # Modell-Unterschiede der Claude-API (Thinking, max_tokens)
+│   ├── ai_tools.py          # Werkzeuge des KI-Chats (Arten, Angebote, Preise, Shops, Codes)
+│   ├── board_i18n.py        # Texte der Board-Seiten (de/en/eo)
+│   ├── shop_stats.py        # Auswertungen für die Statistik-Seite
+│   ├── usage_stats.py       # Nutzungsstatistik (Monatssummen, ohne Admin-Befehle)
+│   ├── directory.py         # Daten für /art und /shop (Angebote, Bewertungen, Lieferzeit)
+│   ├── species_profile.py   # Kurzsteckbrief: Wikipedia + GBIF (mit Cache)
+│   ├── price_signal.py      # Preis-Ampel (Angebot vs. eigener 12-Monats-Preis)
+│   ├── season.py            # Saison-Verfügbarkeit je Art
+│   ├── year_review.py       # Zahlen für den Jahresrückblick + Zeitfenster
+│   ├── ant_facts.py         # Ameisen-Fakten mit Quellen (Rückblick-Winterruhe)
+│   ├── account.py           # Mein Konto: Einstellungen, Ruhezeit, PN-Verlauf, Export, Löschen
+│   ├── intro.py             # Anlass-Intros: welcher Anlass gerade dran ist
+│   └── inat.py              # iNat-Statistik: API, Verknüpfung, Zählung
 │
 ├── locales/
 │   ├── de.json              # Deutsch
 │   ├── en.json              # English
 │   └── eo.json              # Esperanto
 │
-└── static/                  # self-hosted Assets (kein CDN): Chart.js, stats.js
+├── tools/
+│   └── build_ant_species.py     # Artenliste aus AntCat neu aufbauen (gelegentlich)
+│
+├── legal/                   # Rechtsseiten: nur *.example.* im Git, echte Dateien nur auf dem Server
+│
+└── static/                  # self-hosted Assets (kein CDN)
+    ├── chart.umd.js, chartjs-chart-treemap.min.js  # Chart.js (siehe README_chartjs.txt)
+    ├── stats.js, map_stats.js   # Statistik-Seite und Karten-Statistik
+    ├── favicon.png, favicon.gif, apple-touch-icon.png
     ├── map.js               # Halter-Karte: Leaflet-Frontend (Choropleth/Pins/Liste/Events)
     ├── leaflet.js, leaflet.css          # vom Bot geladen (utils/map_geodata.py)
     └── *_bundeslaender.geojson, …       # GeoJSON-Umrisse (vom Bot geladen)
 ```
 
-Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geoBoundaries-Umrisse + GeoNames-PLZ → `data/plz_dach.csv`), gesteuert vom Task in `cogs/map_tasks.py` bzw. manuell per `/map_refresh`. Kein `tools/`-Script nötig.
+Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geoBoundaries-Umrisse + GeoNames-PLZ → `data/plz_dach.csv`), gesteuert vom Task in `cogs/map_tasks.py` bzw. manuell per `/wartung aktion:Karte`. Kein `tools/`-Script nötig.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -1157,7 +1267,7 @@ Die Karten-Geodaten besorgt der Bot selbst über **`utils/map_geodata.py`** (geo
 
 Der Bot ist vollständig dreisprachig (**de** / **en** / **eo**). Die eingestellte Sprache gilt für **alle** User-sichtbaren Ausgaben: Slash-Command-Antworten, DMs (Verfügbarkeit, Preis-Tracking, Feedback), KI-Chat-Antworten und die Rabattcode-Ausgaben.
 
-Zusätzlich sind im Discord-Befehlsmenü für **de/en** lokalisiert: die **Befehls- und Gruppenbeschreibungen** selbst (Basistext Englisch als Fallback für andere Client-Sprachen, `de` als deutsche Anzeige), die **Parameterbeschreibungen** sowie die wichtigsten **Auswahl-Optionen** (Choices, z. B. bei `/set_target`, `/digest`, `/codes_set`). Diese Texte richten sich nach der **Discord-App-Sprache** des Users – nicht nach `/usersetting language`, da Discord sie selbst rendert. Esperanto ist als Discord-Client-Sprache nicht verfügbar; die eigentlichen Bot-Ausgaben bleiben aber vollständig auch auf eo.
+Zusätzlich sind im Discord-Befehlsmenü für **de/en** lokalisiert: die **Befehls- und Gruppenbeschreibungen** selbst (Basistext Englisch als Fallback für andere Client-Sprachen, `de` als deutsche Anzeige), die **Parameterbeschreibungen** sowie die wichtigsten **Auswahl-Optionen** (Choices, z. B. bei `/set_target`, `/digest`, `/codes_admin setzen`). Diese Texte richten sich nach der **Discord-App-Sprache** des Users – nicht nach `/usersetting language`, da Discord sie selbst rendert. Esperanto ist als Discord-Client-Sprache nicht verfügbar; die eigentlichen Bot-Ausgaben bleiben aber vollständig auch auf eo.
 
 **Sprachauflösung** (in dieser Reihenfolge):
 
@@ -1223,7 +1333,7 @@ Ganz oben auf der Board-Seite steht ein **Status-Dashboard** mit einer Ampel-Üb
 - **🧩 Kern** – **Discord-Verbindung** (online + WebSocket-Latenz), **Haupt- und Board-Datenbank** (`SELECT 1`-Check) sowie **KI-Chat** (aktiv/deaktiviert).
 - **⚙️ Hintergrund-Jobs im Bot** – die `discord.ext.tasks`-Loops des Bot-Prozesses mit Zustand (läuft / gestoppt / fehlerhaft), Intervall und – wo sinnvoll – nächstem Lauf in Berliner Zeit (MEZ/MESZ). Die voneinander abhängigen, datengetriebenen Schritte laufen als **eine stündliche „Daten-Pipeline"**: Shop-Cache-Reload → Preis-Tracking (Produkte) → Preis-Tracking (Arten) nacheinander auf frischen Daten (die Kachel zeigt je Schritt ✓/✗ des letzten Laufs). Separat mit eigenem Timer: Verfügbarkeits-Check (alle 5 min), Sammel-DM entfallener Varianten, Wochen-Digest, Shop-Bewertungs-Sync, Ablauf alter Benachrichtigungen, DB-Optimierung (VACUUM), Bot-Statusanzeige, Command-Log schreiben/aufräumen und die beiden KI-Chat-Wartungsloops.
 
-Alle Intervall-Timer sind **an der Uhr ausgerichtet** statt an der zufälligen Bot-Startzeit: sie starten am nächsten Rasterpunkt (:00 der Stunde bzw. :00/:05/:10 … bei Minuten-Loops), die Daten-Pipeline gezielt um **:05** (kurz nach dem Grabber-Cron um :00). Mit `/run_jobs` lassen sich alle Jobs bei Bedarf einmalig sofort anstoßen.
+Alle Intervall-Timer sind **an der Uhr ausgerichtet** statt an der zufälligen Bot-Startzeit: sie starten am nächsten Rasterpunkt (:00 der Stunde bzw. :00/:05/:10 … bei Minuten-Loops), die Daten-Pipeline gezielt um **:05** (kurz nach dem Grabber-Cron um :00). Mit `/wartung aktion:Hintergrund-Jobs` lassen sich alle Jobs bei Bedarf einmalig sofort anstoßen. Dazu gehört auch der **iNaturalist-Abgleich** (alle Beobachtungen der letzten 6 Monate neu abrufen; am 1. des Monats wird dabei das Treppchen gepostet, falls noch nicht geschehen, nie doppelt). **Kachel iNaturalist-API:** Der stündliche iNat-Job prüft direkt nach dem Start und danach spätestens alle 23 Stunden mit einem kleinen Abruf, ob iNat erreichbar ist, auch wenn es nichts zu zählen gibt. Die Kachel zeigt so immer grün (erreichbar) oder gelb (Fehler) statt grau.
 - **⏰ Externe Cronjobs (als Nutzer `aam`)** – klar getrennt von den In-Bot-Jobs, da sie **nicht** im Bot-Prozess laufen, sondern per Cron. Es sind genau **zwei** Jobs → **zwei** Kacheln: **Grabber** (stündlich, erzeugt in **einem** Lauf sowohl `shops_data.json` als auch `price_history.db` → eine gemeinsame Kachel) und **Artenliste/AntCat-Build** (monatlich, optional). Der Grabber-Status richtet sich nach `shops_data.json` (wird jeden Lauf neu geschrieben, also verlässliches Frische-Signal); `price_history.db` wird nur bei tatsächlichen Preisänderungen fortgeschrieben, der Grabber `touch()`t die Datei aber nach jedem erfolgreichen Lauf – bleibt sie dennoch > 7 Tage zurück, deutet das auf einen Ausfall des Preis-Schritts hin (Kachel wird gelb).
 
 Direkt in der (auch eingeklappt sichtbaren) Kopfzeile stehen neben der Bot-Version drei **Live-Systemmetriken**: **CPU-Load** (Load-Average 1/5/15 min relativ zu den Kernen – aussagekräftiger als ein Momentanwert), **RAM**- und **SSD**-Auslastung, jeweils farbig (grün/gelb/rot) und alle 5 s aktualisiert. Diese Metriken sind reine Anzeige (kein Vorfall-Logging, ohne Einfluss auf den Gesamtstatus). Der Gesamtstatus zeigt „Alles läuft", „Läuft mit Einschränkungen" (gelb) oder „Teilweise ausgefallen" (rot); optionale/deaktivierte Komponenten (grau) zählen nicht gegen den Gesamtstatus. Die Job-Daten stammen direkt aus den `tasks.loop`-Objekten der Cogs (`is_running`/`failed`/`next_iteration`), die Kern-Checks aus der Bot-Instanz bzw. `SELECT 1`-Abfragen.
@@ -1241,7 +1351,7 @@ Der Status-Bereich **aktualisiert sich alle 5 Sekunden von selbst** (JSON-Poll a
 
 ### Moderation (Owner)
 
-Der Owner meldet sich unter `/admin/login` mit dem `BOARD_ADMIN_TOKEN` an und kann dann:
+Der Owner meldet sich unter `/admin/login` über **„Login mit Discord“** an. Zugang haben nur die Discord-IDs aus `BOARD_OWNER_ID` und `BOARD_ADMIN_IDS` (Cookie `board_admin`, 7 Tage, mit CSRF-Schutz). Danach kann er:
 
 - **Queue abarbeiten:** Einreichungen **freigeben** (→ öffentlich), **ablehnen** oder **löschen**.
 - In der Übersicht je Eintrag schnell **Status / Priorität / Komponente / Version** setzen.
@@ -1261,10 +1371,13 @@ Nichts wird ohne Freigabe öffentlich – das ist zugleich der wichtigste **Spam
 | `BOARD_BIND` | Bind-Adresse | `127.0.0.1` (nur lokal; Reverse-Proxy davor) |
 | `BOARD_PORT` | interner Port | `8080` |
 | `BOARD_PUBLIC_URL` | öffentliche URL (für Links/DM) | darf zunächst **leer** bleiben |
-| `BOARD_ADMIN_TOKEN` | Owner-Login-Token | **Pflicht wenn aktiv** – sicheres Secret wählen |
+| `BOARD_ADMIN_IDS` | weitere Discord-IDs mit Admin-Rechten im Board | kommagetrennt; Login über Discord (`BOARD_OAUTH_*` nötig) |
 | `BOARD_OWNER_ID` | Discord-User-ID für die Einreichungs-DM | leer/0 = DM wird übersprungen (nur Log) |
 | `BOARD_DB_FILE` | eigene DB-Datei | Standard `board.db` im Projektordner |
 | `BOARD_HASH_SALT` | Salt fürs IP-Hashing | in Produktion setzen (keine Roh-IP gespeichert) |
+| `BOARD_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | „Login mit Discord“ (Mitglieder und Admins) | ohne Werte kein Login |
+| `BOARD_AI_CHAT` | KI-Chat-Fenster für eingeloggte Mitglieder | `true` |
+| `BOARD_AI_CHAT_PER_MIN` / `_PER_HOUR` | Nachrichtenlimit je Mitglied | `5` / `40` |
 
 ### Starten / Deployen
 
@@ -1273,7 +1386,7 @@ Das Board läuft **im bestehenden `aam-bot`-Dienst** mit – kein zweiter Prozes
 ```bash
 # 1. In der .env setzen (Beispiel):
 #    BOARD_ENABLED=true
-#    BOARD_ADMIN_TOKEN=<langes-zufälliges-secret>
+#    BOARD_OAUTH_CLIENT_ID=… / BOARD_OAUTH_CLIENT_SECRET=… / BOARD_OAUTH_REDIRECT_URI=…
 #    BOARD_HASH_SALT=<langes-zufälliges-salt>
 #    BOARD_OWNER_ID=<deine-discord-user-id>      # optional, für die DM
 #    BOARD_PUBLIC_URL=https://board.example.com  # optional
@@ -1291,7 +1404,112 @@ Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` s
 
 - Bindet nur an `127.0.0.1` – **HTTPS und öffentliche Domain macht der Reverse-Proxy** (Caddy/nginx); der aiohttp-Server wird nie direkt exponiert.
 - **Moderations-Queue** (nichts öffentlich ohne Freigabe), **Honeypot** und **Rate-Limits** gegen Spam, **CSRF-Schutz** auf Admin-Aktionen, **Jinja2-Autoescape** gegen XSS, Frontend **dark-mode-only**.
+- **Mitglieder-Login:** „Login mit Discord“ prüft beim Anmelden, ob die Person auf dem AAM-Server ist. Alle Mitglieder-Bereiche (Karte mit Pins, Liste, Namen und Statistiken, Termin-Zusagen, Mein Konto, KI-Chat, persönlicher Rückblick, Bewertungsdetails, Stern) prüfen das zusätzlich **bei jedem Aufruf** live; wer den Server verlässt, sieht sofort nur noch die öffentliche Ansicht, auch wenn die Sitzung (30 Tage) noch läuft.
 - **Datenschutz:** Es wird **keine Roh-IP** gespeichert – nur ein aus der IP abgeleiteter **HMAC-SHA3-512-Hash** (mit geheimem `BOARD_HASH_SALT` als Schlüssel) zur Spam-Abwehr und Vote-Dedupe. Der optionale Name ist freiwillig und unverifiziert. Details und die **Nutzungsbedingungen fürs Board** stehen in [`NUTZUNGSBEDINGUNGEN.md`](NUTZUNGSBEDINGUNGEN.md).
+
+### Arten-Finder, Stern und Hilfeseite
+
+**Arten-Finder** (auf `/art`, aufklappbar über der Artenliste): filtert nach Gattung, Preisbereich in EUR (günstigstes passendes Angebot, Fremdwährungen umgerechnet), Shop-Land oder „liefert in die Schweiz“ (Shops aus CH plus `/ch_delivery`-Liste) und „nur lagernd“. Die Filter stehen in der URL (`/art?g=Lasius&pmax=30&land=de&stock=1`), Links lassen sich also teilen. Je Treffer: 🔔 öffnet „Mein Konto“ mit vorausgefülltem Benachrichtigungs-Formular (`/konto?nf=<Art>&nr=<Land>` bzw. `ns=1` für Schweiz), ☆ legt eine Arten-Beobachtung an (nur eingeloggt).
+
+**Stern ☆ = Arten-Beobachtung:** Auf jeder Artenseite (und im Finder) legt ☆ sofort eine Arten-Beobachtung an (wie `/track_price` → „alle Shops beobachten“), wahlweise für die Art oder die ganze Gattung; danach steht dort „★ Wird beobachtet“ mit Link zu Mein Konto. Entfernen geht nur in Mein Konto (dort hinter „Löschen freischalten“). Ohne Login führt der Stern zum Discord-Login.
+
+**Hilfeseite `/hilfe`:** alle User-Befehle aus denselben Texten wie `/help` (bleibt automatisch gleich) mit Beispielen, die Board-Funktionen als Kacheln und häufige Fragen, alles durchsuchbar und in de/en/eo. Eingeloggte Admins sehen zusätzlich die Admin-Befehle. Verlinkt im Header und im Footer.
+
+**Reverse-Proxy:** `hilfe` in die Allowlist aufnehmen.
+
+### Schwarmflug-Radar (`/schwarmflug`)
+
+Liest den bestehenden Schwarmflug-Kanal (`SWARM_CHANNEL_ID`), es gibt kein neues Formular. Neue, bearbeitete und gelöschte Nachrichten werden laufend ausgewertet (`cogs/swarm.py`, `utils/swarm.py`):
+
+- **Regeln zuerst (kostenlos):** die Vorlage 🐜 Art · 🕑 Datum u. Uhrzeit · 🌡️ Temperatur · 🌬️ Wind · 🗺️ Ort · 🌧️ Wetter, auch Freitext wie „Lasius niger in @Bayern, 19 Uhr, 26 °C“. Erkennt cf./sp./Gruppe/s. str., Untergattungen (Chthonolasius → Lasius), abgekürzte Gattungen (L. niger), „A/B“-Alternativen, Zimmer-/Becken-Flüge (zählen nicht zur Karte). Stehen „Datum:“ und „Zeit:“ in getrennten Zeilen, werden beide gelesen („30.03.“ + „12:00“). Füllwörter direkt hinter der Gattung („Lasius ist heute geflogen“, „Formica direkt“) werden nie als Artname genommen, Wörter mit Umlaut ebenso nicht.
+- **Kommentare zur eigenen Meldung** zählen nicht doppelt: Nachricht ohne Vorlagenfelder, dieselbe Person, höchstens 3 Stunden nach ihrer Meldung derselben Gattung, ohne eigene Uhrzeit oder Temperatur und ohne genaueren Ort (nur „Deutschland“ oder dieselbe Region) gilt als Kommentar („Das ist mein erster Messor-Flug“). Am echten Kanalverlauf (2019 bis 2026, 3.223 Nachrichten mit Text) erkennen die Regeln in 3.036 Nachrichten eine Art.
+- **KI nur als Rückfall** (`SWARM_PARSER_MODEL`) für Nachrichten ohne erkennbare Art; reine Gespräche werden nicht gezählt.
+- **Region:** aus der erwähnten Regionsrolle, sonst aus dem Ortstext, sonst aus der Ortsauflösung. Nachträge ohne Ort („Ort: Köln“) bzw. Folge-Meldungen ohne Ort übernehmen den Ort der eigenen Meldung kurz davor.
+- **Ortsauflösung** (`utils/geocode.py`): Cache → lokale PLZ-Liste (`data/plz_dach.csv`) → OpenStreetMap Nominatim (`SWARM_OSM_GEOCODING`). Nach der [Nutzungsrichtlinie](https://operations.osmfoundation.org/policies/nominatim/): höchstens 1 Anfrage pro Sekunde (global gesperrt, 1,1 s Abstand), eigener User-Agent, jedes Ergebnis wird gecacht (auch „nicht gefunden“), keine Autovervollständigung, Quellenangabe auf der Seite. Passt das Ergebnis nicht zur Regionsrolle, wird es verworfen.
+- **Klärung (`utils/swarm_resolve.py`):** Arten werden mit der Artenliste (AntCat, `utils/species_catalog.py`) abgeglichen: Synonyme → aktueller Name, Tippfehler nur, wenn das Art-Epitheton allein mindestens 80 % ähnlich ist, gleich anfängt und mindestens 5 Buchstaben hat („flawus“ → *flavus*); ist das Epitheton in einer anderen Gattung gültig („Camponotus scutellaris“), wird nicht umgebogen, sondern die KI klärt mit Kontext; Unbekanntes zählt als „Gattung sp.“; der gemeldete Text steht in `raw_label` (für Mitglieder als ⓘ). Orte: Regionsrolle → Region im Text (auch Landschaften und Regierungsbezirke wie Oberlausitz, Unterfranken, Sylt, Kürzel BW/NRW/MV/OÖ, Tippfehler wie „Rehinland-Pfalz“) → Land außerhalb DACH → PLZ/Ortsliste (auch „LK Onsabrück“, „Nähe Schweinfurt“) → OpenStreetMap in DACH → OpenStreetMap weltweit (Treffer im Ausland = Auslandsmeldung) → „s. o.“ übernimmt den Ort der vorherigen eigenen Meldung → KI mit den zwei vorherigen Nachrichten der Person (Haiku, `SWARM_PARSER_MODEL`; ihr Artvorschlag zählt nur, wenn die Artenliste ihn bestätigt) → Heimatregion (nur ohne jede Ortsangabe, ≥ 3 Meldungen aus derselben Region, ≥ 60 %; nur Regionen, nie Punkt, „≈“). Neue Meldungen laufen die Kette sofort durch, alte im Hintergrund (`geo_loop` alle 5 Min., `resolve_loop` alle 10 Min. bis 30 Nachrichten). Beim ersten Start mit Artenliste werden gespeicherte Arten einmal abgeglichen (`swarm_meta.canon_v1`), nach den strengeren Regeln noch einmal aus dem Originaltext (`canon_v2`, ohne manuell korrigierte Meldungen und KI-Ergebnisse); neue Spalten legt die DB-Migration selbst an. Einmalig wird außerdem der Kanalverlauf nachgebessert (`fix_v1`): als Meldung gezählte Kommentare entfernt, Uhrzeiten aus getrennten Zeilen nachgetragen (Wetter dafür neu).
+- **Admin `/admin/schwarmflug`:** unklare Orte (ohne Zimmerflüge) mit Stand und Korrekturformular (Region, Ort, Art; gilt bis zur Bearbeitung in Discord, `swarm_override`), Liste der Korrekturen und der abgeglichenen Artnamen mit Spalte „Sicherheit“: **sicher** (Synonym laut Artenliste, Füllwort entfernt, KI von der Artenliste bestätigt, von dir bestätigt oder korrigiert) und **vermutet** (Tippfehler, stehen oben). Vermutete mit ✓ bestätigen oder mit ✗ verwerfen (bleibt nur die Gattung), „Alle vermuteten bestätigen“ auf einmal; unbekannte und verworfene Namen über ein Feld korrigieren (nur Namen, die die Artenliste kennt). Gilt bis zur Bearbeitung der Nachricht in Discord.
+- **Admin-Karten:** *Wetter-Abdeckung* (alle Meldungen mit Koordinate, umschaltbar nach Stand: zur Uhrzeit / geschätzte Stunde / offen / nicht abrufbar, oder nach Quelle: Historical Forecast / Vorhersage / Reanalyse, jeweils mit Anzahl; dazu die Zahl der Meldungen nur mit Region) und *Gelernt gegen gemeldet* (je Lernpunkt und Taxon: Tage mit „sehr gut“, davon mit Meldung im Umkreis von 15 km, verglichen mit dem Schnitt aller Tage am Punkt; Tabelle `fc_eval`).
+- **Live-Fortschritt:** Kasten „Datensammlung“ auf /schwarmflug (Orte geprüft, Meldungen geklärt, Wetter, Lerndaten, Open-Meteo heute, Pause bei Limit) mit **Restzeit** („Lerndaten fertig in etwa 17 Tagen, um den 10.12.“; Tag für Tag mit dem Budget des jeweiligen Monats gerechnet, `forecast.learn_eta`), aktualisiert sich alle 10 s über `/schwarmflug/status.json`. Aufklappbar die **Lerndaten-Karte**: jeder Lernpunkt umso grüner, je mehr Jahre geladen sind (Popup mit Anzahl und feiner Quelle); Orte mit vielen Meldungen (◆) nur für Mitglieder.
+- **Jahre:** neben 48 h / 7 Tage / Saison / Alle lässt sich jedes Jahr einzeln wählen (`?z=2023`).
+- **Ausland und unklare Orte:** Ausgewertet (Karte, Steckbriefe, Saisonverlauf, Uhrzeit/Temperatur, Bestimmungshilfe, Jahresvergleich, Prognose, Alarm, Saisonstart) werden nur Meldungen mit Land in DE/AT/CH/LI. Nennt der Ortstext ein anderes Land oder eine bekannte Urlaubsregion (Ländernamen aus Babel/CLDR in de/en/eo plus z. B. Mallorca, Gardasee, Kreta, Dalmatien; „nähe Niederlande“ oder „Grenze zu Tschechien“ zählt nicht), speichert der Bot den Ländercode und fragt keine Ortssuche an. Solche Meldungen stehen in „Neueste Meldungen“ mit 🌍, im Kasten „Aus dem Urlaub“ und im Rückblick als „Meldungen aus dem Ausland“. Meldungen ohne Land und Region (unklarer Ort) sieht nur der Admin unter `/admin/schwarmflug`. Beim Start prüft der Bot vorhandene Meldungen automatisch nach (`reclassify_abroad`), eine Migration von Hand ist nicht nötig. Erfolge zählen weiterhin alle eigenen Meldungen.
+- **Board:** Karte (Regionen + für Mitglieder genaue Punkte je Gattung), Zeitraum 48 h / 7 Tage / Saison / alle, Gattungsfilter, „gerade unterwegs“, Saisonverlauf je Kalenderwoche, Uhrzeit- und Temperaturverteilung, Steckbriefe ab 3 Meldungen, neueste Meldungen. Öffentlich ohne Ort, Namen werden nie gezeigt. Auf jeder Artenseite ein Kasten „Schwarmflüge in der Community“.
+- **Schwarmflug-Alarm:** in „Mein Konto“ Art oder Gattung + Land/Region wählen (max. 20); alle 5 Minuten PN bei neuen Meldungen der letzten 12 Stunden, Ruhezeiten werden beachtet, eigene Meldungen lösen nichts aus.
+- **Was fliegt hier gerade?** (Board, Abschnitt „Bestimmungshilfe“): Tag, Uhrzeit, Region und optional Temperatur eingeben, heraus kommt eine Rangliste der Arten. Gezählt werden nur bis zur Art bestimmte Meldungen (ab 5 je Art) 7 Tage vor und nach dem Kalendertag aus allen Jahren, die gewählte Region dreifach, dann gewichtet nach Uhrzeit (±2 h) und Temperatur (±3 °C). Ausdrücklich nur eine Wahrscheinlichkeit, keine Bestimmung.
+- **Wetter zur Flugzeit** (`utils/weather.py`, `SWARM_WEATHER`): alle 20 Minuten für jede Meldung im Freien **mit Koordinate** (auflösbarer Ort), auch wenn eine Temperatur angegeben ist. Gespeichert in eigenen Spalten (`w_temp`, `w_hum`, `w_press`, `w_wind`, `w_cloud`, `w_rain24`), die Angabe aus der Meldung wird nie überschrieben. Fehlt die Temperatur in der Meldung, zählt der Wetterwert in Steckbrief, Diagramm und Bestimmungshilfe als „geschätzt“ (≈). Ohne Uhrzeit gilt die typische Flugzeit der Art (Median, sonst 17 Uhr), gemittelt über ±2 Stunden. Meldungen nur mit Regionsrolle bekommen kein Wetter (ein Bundesland ist zu groß). Quelle [Open-Meteo](https://open-meteo.com/en/license) (Code AGPLv3, Daten CC BY 4.0, Quellenangabe auf der Seite); übertragen werden nur die auf 0,1° gerundete Koordinate (≈ 10 km) und das Datum, je Ort und Tag einmal, höchstens 100 Abfragen je Lauf mit 1,1 s Abstand, jede Zeile im Log (`🌦️ Wetter-Takt`). Laut Open-Meteo gelten für die freie API 10.000 Aufrufe/Tag, 5.000/Stunde und 600/Minute. Quellen: die letzten 7 Tage Forecast API, ab 2023 die [Historical Forecast API](https://open-meteo.com/en/docs/historical-forecast-api) (archivierte hochauflösende Vorhersagemodelle, dieselben wie die Prognose), davor die [Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) (Standard ECMWF IFS 9 km ab 2017). Außerhalb der Saison (November bis Februar) werden Meldungen ab 2023, die noch mit einer gröberen Quelle nachgetragen wurden, mit der feineren neu abgefragt (Spalte `w_src`). Auch über `/bot jobs` („Schwarmflug · Wetter nachtragen“) startbar. Das Board zeigt je Art bzw. Gattung die mittlere Hälfte von Luftfeuchte, Luftdruck, Wind, Bewölkung und den Anteil mit Regen (ab 1 mm) in den 24 Stunden davor.
+- **Jahresvergleich:** mittlerer Flugtag (Median) je Jahr für die Arten mit mindestens 3 Meldungen in mindestens 3 Jahren.
+- **Zwei Jahre vergleichen:** Jahr A gegen Jahr B, alle Arten, eine Art oder eine ganze Gattung (ab 10 Meldungen). Saisonkurve als **Anteil der Jahresmeldungen** je Woche (die Community ist gewachsen, absolute Zahlen wären nicht vergleichbar), Tabelle mit erster und letzter Meldung, Höhepunkt, Meldungen und mittlerer Temperatur, dazu ein Satz wie „flog 2025 im Mittel 5 Tage früher als 2019“ (Median, bis 2 Tage gilt als gleich, Aussage erst ab 5 Meldungen je Jahr).
+- **Wetter beim Flug je Region:** Karte der Regionen, wählbar Temperatur, Regen in den 24 h davor (Anteil ab 1 mm), Luftfeuchte, Luftdruck, Wind (jeweils Median); der Gattungsfilter der Seite gilt mit. Regionen mit weniger als 3 Meldungen bleiben grau.
+- **Flugwetter-Kalender** (sobald Modelle gelernt sind): je Lernpunkt und Kalenderwoche der Anteil der Tage seit 2019 mit gutem Flugwetter für die gewählte Art (Prognose-Stufe gut oder sehr gut), mit ▶-Zeitraffer. Mittel über alle Jahre, keine Vorhersage. Orte mit vielen Meldungen nur für Mitglieder. Berechnet nach jedem Lernlauf in Tabelle `fc_climate` (`forecast.build_maps`, vektorisiert, liefert dieselben Stufen wie die Prognose).
+- **Zeitraffer:** ▶ unter der Karte spielt die Saison Woche für Woche ab (Regionen und für Mitglieder die Punkte), mit Schieberegler.
+- **Saisonstart** (`swarm_season`): zählt nur, wenn **alles** zutrifft: neue Nachricht (ab dem Einschalten, `swarm_meta.ach_since`, eingelesene alte Posts zählen nicht), im Freien, Region in DE/AT/CH/LI, ab dem **1. März**, nach Regeln erkannt (nicht per KI) und **bestätigt**: eine zweite Person meldet dieselbe Gattung innerhalb von 7 Tagen. Saisonstart ist dann die frühere Meldung. Admins sehen ihn mit `/wartung aktion:saisonstart` und verwerfen einen falschen mit `/swarm_season_reset verwerfen:true` (die Meldung zählt danach nicht mehr, der nächste bestätigte Kandidat wird gesucht). Der Saisonstart zeigt 14 Tage lang einen Hinweis oben auf allen Board-Seiten und einmal ein Intro (`swarmstart<Jahr>`). In „Mein Konto“ lässt sich eine PN zum Saisonstart einschalten (`swarm_alerts.taxon='*'`, höchstens 3 Tage nach dem Start, Ruhezeiten werden beachtet). Meldungen aus dem Urlaub oder ohne Region eröffnen keine Saison.
+- **Erfolge:** 🪽 Erster Schwarm (1 Meldung), 🪽 Schwarmbeobachter (10), 🧭 Artenkenner (5 Arten), versteckt 🎉 Saisoneröffnung. Es zählen **nur neue Meldungen ab dem Einschalten** (`swarm_meta.ach_since`), alte Posts bleiben Statistik. Werden direkt nach einer erkannten Meldung geprüft.
+- **Schwarmflug-Prognose** (`utils/forecast.py`, `SWARM_FORECAST`):
+  - **Punkte:** 35-km-Gitter über DACH (nur innerhalb der Regions-Umrisse aus `static/*.geojson`) plus Fundort-Hotspots (0,1°-Zellen mit mindestens 3 Meldungen, Zellmitte). Wöchentlich neu (Montag 4 Uhr).
+  - **Vorhersage:** März bis Oktober um 6, 9, 12, 15 und 18 Uhr für heute und morgen über die Forecast API (11 Variablen, `past_days=3`), in Paketen zu 100 Orten mit 12 s Pause (Minutengrenze 600). Je Taxon nur an Punkten in Regionen, in denen es schon gemeldet wurde. Zeitfenster = typische Flugstunden der Art, in denen es warm genug und trocken ist.
+  - **Lernen:** Wetter ganzer Saisons (1.3. bis 31.10.) für alle Punkte und Jahre, Hotspots und neueste Jahre zuerst. Ab 2023 aus der Historical Forecast API (gleiche Modelle wie die Prognose), davor aus der Historical Weather API; ältere Quelle wird später durch die feinere ersetzt. Merkmale um 17 Uhr: Temperatur (auch quadratisch), Luftfeuchte, Taupunkt, Regen 24/48/72 h, Luftdruckänderung 12 h, Wind, Bewölkung, Sonnenstrahlung 10 bis 16 Uhr, Bodentemperatur, Bodenfeuchte, Tageshöchstwert, Saisonkurve und Meldeaktivität der Zelle. Flugtag = Meldung des Taxons im Umkreis von 15 km. Je Gattung/Art mit mindestens 40 Flugtagen: logistische Regression mit numpy (L2), übrige Tage als gewichtete Stichprobe (150.000). Sonst Regel aus den Steckbriefen, die höchstens „gut“ erreicht. Gelernt wird im Winter ganztags, in der Saison nur nachts; wöchentlich neu (Montag 3 Uhr) und sobald alle Lerndaten da sind.
+  - **Trefferquote:** die letzten zwei Jahre werden beim Lernen zurückgehalten und nachgerechnet: Trennschärfe (AUC) und „so viel häufiger gab es an Tagen mit sehr guter Chance eine Meldung als im Schnitt“. Auf dem Board unter „Wie gut ist die Prognose?“, mit der Vorversion zum Vergleich (`fc_model_hist`).
+  - **Stufen:** möglich / gut / sehr gut = 70/85/95-%-Quantil der Modellwerte in der Saison.
+  - **Board:** Karte Heute/Morgen (Regionen öffentlich, Gitterpunkte nur für Mitglieder), Art-Auswahl, Liste mit Regionen, Zeitfenster und Temperatur.
+  - **PN am Vorabend** (nach dem 18-Uhr-Lauf bis 21 Uhr) an alle mit Schwarmflug-Alarm, passend zu Art und Region. Stufe in „Mein Konto“: Aus, Selten (sehr gut, Standard), Normal (gut), Oft (möglich). Ruhezeiten werden beachtet, höchstens eine PN pro Tag.
+  - **Post im Schwarmflug-Kanal** am Vorabend nur bei „sehr gut“ (nur gelernte Modelle), höchstens einmal pro Tag (`SWARM_FORECAST_POST`).
+  - **Budget:** gemeinsamer Tageszähler `om_budget` (vorsichtig gezählt: Orte × ⌈Tage/7⌉ × max(1, Variablen/10)): Prognose 5.000, Wetter-Nachtrag 1.500, Lernen 2.000 in der Saison (nur nachts), im Februar 5.000 und von **November bis Januar** `SWARM_OM_DAILY` minus 300 (300 bleiben für den Wetter-Nachtrag), insgesamt höchstens `SWARM_OM_DAILY` (Standard 8.500, die freie API erlaubt unter 10.000). Zusätzlich gemeinsamer Takt je Minute und Stunde (480 bzw. 4.500, davon 900 je Stunde fürs Lernen gesperrt, damit Wetter und Prognose Luft haben). Bei HTTP 429 15 Minuten Pause (Antwort im Log), erst beim dritten 429 am Tag ruht alles bis Mitternacht. Lerndaten laden vor dem Modelltraining; ohne Modelle wird höchstens einmal am Tag neu trainiert; jede Runde schreibt eine Zeile ins Log (`🔮 Prognose-Takt`). Board-Seiten lösen nie eine Abfrage aus. Das erste Lernen aller Punkte und Jahre dauert je nach Punktzahl einige Wochen; bis dahin laufen Regeln bzw. Modelle aus den schon geladenen Daten. Speicherbedarf der Lerndaten: etwa 100 bis 200 MB.
+  - **Admin:** `/wartung aktion:prognose` baut Punkte, lädt ein Stück Lerndaten, lernt neu und rechnet sofort (Budget gilt).
+- **Jahresrückblick:** Abschnitt Schwarmflüge (Meldungen, Arten, Mitglieder, Saisonstart, häufigste Art, Höhepunkt) auf dem Board und im Discord-Post, persönlich die eigenen Meldungen.
+- **Discord:** `/schwarmflug` (was in den letzten 48 Stunden, der letzten Woche oder dem letzten Monat geflogen ist, nur im Bot-Kanal). `/schwarmflug_vorlage` füllt die angepinnte Vorlage des Kanals aus wie `/bewerten`: Art und Region im Befehl, der Rest in zwei Formularen mit Vorschau, danach Hinweis und reine Vorlage als zwei Nachrichten (am Handy kopiert „Text kopieren“ immer die ganze Nachricht). Admin: `/wartung aktion:schwarmflug` liest den ganzen Kanalverlauf ein (bereits Gelesenes wird übersprungen; direkt über `swarm_rescan alle:true ki:true` auch neu bzw. mit KI).
+- **Nach dem Deploy:** `SWARM_CHANNEL_ID` setzen, Bot neu starten, einmal `/wartung aktion:schwarmflug`, danach einmal `/wartung aktion:prognose`. Der Bot braucht im Kanal „Nachrichtenverlauf lesen“ und „Reaktionen hinzufügen“ (✅ auf erkannte neue Meldungen).
+- **Reverse-Proxy:** `schwarmflug` in die Allowlist aufnehmen, z. B. `…|konto|intro\.json|hilfe|schwarmflug|chat/|map(/|$)`.
+
+### Mein Konto (`/konto`)
+
+Eine Seite nur für eingeloggte Mitglieder des AAM-Servers (Login mit Discord wie bei Karte und Rückblick). In Discord führt `/konto` per Link dorthin. Alles gilt sofort, auch in Discord. Daten: `utils/account.py`, Seite: `cogs/board.py`, Bot-Teil: `cogs/account.py`.
+
+| Bereich | Inhalt |
+|---|---|
+| Übersicht | Kacheln (aktive Benachrichtigungen, Produkte, Arten-Beobachtungen, Schlagworte, Termine, Erfolge mit Rang, iNat-Arten und Bewertungen im Jahr) und der eigene KI-Chat-Verbrauch heute in Prozent |
+| Benachrichtigungen | Liste mit Status, **pausieren** (`status='paused'`, wird nicht geprüft), wieder aktivieren, löschen; **neu anlegen** mit gleichen Regeln wie `/notification` (Art/Gattung, Namensvorschläge, Länder inkl. „ganze EU“, nur Schweiz, Ausschlüsse, „trotzdem anlegen“) |
+| Preise | beobachtete Produkte mit **Zielpreis** (zusätzlich / nur Ziel / leer = aus), entfernen; **Produkte suchen und beobachten** (Produkt-Ebene, Varianten weiter per `/track_price`); Arten-Beobachtungen anlegen und entfernen |
+| Einstellungen | Sprache (oder wie der Server), Wochen-Digest, Termin-Erinnerung an/aus, **Ruhezeit**, Shop-Blacklist, Angebots-Schlagworte (inkl. Rückblick wie `/offer_alert add`) |
+| Meine Termine | zugesagte Termine mit Absagen und .ics; **persönlicher Kalender-Feed** `/konto/kalender/<id>/<geheim>.ics` nur mit den eigenen Zusagen (neu erzeugen = alter Link ungültig) |
+| Karte | eigener Eintrag, Tags ändern, Eintrag löschen (Ort und Sichtbarkeit weiter per `/map_join`) |
+| iNaturalist | verknüpfen (Code in der Bio, wie `/inat_verknuepfen`), prüfen, trennen, Statistik und alle gefundenen Arten |
+| Erfolge | alle Erfolge mit Fortschritt, versteckte bleiben verdeckt |
+| Meine Bewertungen | zugeordnete Bewertungen mit Link zur Nachricht (nur für die Person selbst) |
+| PN-Verlauf | Vorschau der PNs, die der Bot von sich aus geschickt hat (Hook auf `Messageable.send`, nur PNs an eine Person, keine Antworten in PN-Gesprächen wie dem KI-Chat) |
+| Datenschutz | **alle Daten als JSON** (`/konto/daten.json`, gleicher Umfang wie `/bot export user_id:`), **Löschen je Bereich oder alles**, **überall abmelden** |
+
+**Nicht mehr auf dem Server:** Wer noch eine gültige Sitzung hat, aber den AAM-Server verlassen hat, sieht auf `/konto` nur noch zwei Möglichkeiten: **wieder beitreten** (Button mit `DISCORD_INVITE_URL`, falls gesetzt) oder **alle Daten löschen** (mit Bestätigungs-Haken; danach wird abgemeldet). Alle anderen Aktionen lehnt der Server ab.
+
+**Löschen freischalten:** Alle Lösch-Aktionen (🗑️ bei Benachrichtigungen und Produkten, ✕ bei Beobachtungen, Blacklist und Schlagworten, Termin absagen, Karteneintrag löschen, der ganze Bereich „Daten löschen“) sind ausgeblendet, bis oben der Schalter „Löschen freischalten“ bestätigt wird (Hinweis auf endgültigen Datenverlust). Der Schalter gilt nur bis zum Neuladen der Seite. Der Server prüft das zusätzlich: ohne den Schalter (`unlock=1` im Formular) wird jede Lösch-Aktion abgelehnt.
+
+**Ruhezeit:** In der gewählten Zeit (volle Stunden, deutsche Zeit) werden Verfügbarkeits-, Preis-, Arten- und Angebots-PNs zurückgehalten und danach zugestellt: Verfügbarkeit und Preise beim nächsten regulären Lauf (Vergleichsbasis bleibt unverändert), Angebote über `quiet_offer_queue` (nur wenn noch offen und das Schlagwort noch existiert), die Sammel-PN entfallener Varianten im nächsten stündlichen Lauf. Wochen-Digest (Montag 9 Uhr) und Termin-Erinnerung (18 Uhr) kommen zur festen Zeit.
+
+**Überall abmelden:** Die Board-Cookies sind zustandslos signiert. Gespeichert wird deshalb nur der Zeitpunkt; Sitzungen (Mitglied und Admin), die davor begonnen haben, gelten nicht mehr.
+
+**Nicht über die Seite löschbar:** Befehlsprotokoll (Moderation, Löschung nach `COMMAND_LOG_RETENTION_DAYS`), das heutige KI-Tagesbudget (Missbrauchsschutz) und eingereichte Termine (öffentlich; die Discord-ID wird beim Löschen entfernt).
+
+**Schutz:** nur eigene Daten (Discord-ID aus der Sitzung), CSRF-Token in jedem Formular, Rate-Limit (40 Aktionen / 5 min, Export 5 / 5 min), `Cache-Control: private, no-store`.
+
+**Reverse-Proxy:** `konto` in die Allowlist aufnehmen (deckt `/konto`, `/konto/<aktion>`, `/konto/daten.json` und `/konto/kalender/…` ab), z. B. `…|rueckblick|inat|konto|intro\.json|hilfe|chat/|map(/|$)`.
+
+### Anlass-Intros
+
+Beim Öffnen einer Board-Seite fragt `static/intro.js` die Route `/intro.json`, ob gerade ein Anlass ansteht, und spielt dann eine kurze Szene (2 bis 3 s, eigene SVG-Ameisen, reines CSS, keine Bibliothek, kein Ton) als Ebene über der Seite. Klick oder Esc überspringt. Bei „Bewegung reduzieren“ im System erscheint nur ein kleines Banner.
+
+| Anlass | Zeitraum (Berlin) |
+|---|---|
+| persönlich (nur eingeloggt): Jahrestag des Server-Beitritts, neuer Erfolg seit dem letzten Intro, Meilensteine 10/25/50 iNat-Arten und 100 Bewertungen | Jahrestag + 2 Tage; sonst beim nächsten Besuch |
+| Neujahr | 31.12. bis 1.1. |
+| Weihnachten | 1. bis 26.12. |
+| Ostern | Karfreitag bis Ostermontag (berechnet) |
+| Halloween + AAM-Server-Geburtstag (seit 31.10.2017) | 31.10. bis 2.11. |
+| Bot-Geburtstag (seit 22.06.2026) | 22. bis 24.6., ab 2027 |
+| Jahresrückblick | 1.11. bis 31.1. (mit Link) |
+| Schwarmflug-Saison | 1.7. bis 31.8. (Quellen: [AntWiki, Lasius niger](https://www.antwiki.org/wiki/Lasius_niger), [Natural History Museum](https://www.nhm.ac.uk/discover/when-why-winged-ants-swarm-nuptial-flight.html)) |
+| Frühlingsanfang | 20.3. bis 10.4. |
+
+**Regeln:** Vorrang persönlich vor Feiertag vor Saison. Jeder Anlass kommt je Jahr nur einmal und höchstens ein Intro pro Tag (Cookie `board_intro`: Tag des letzten Intros und gesehene Anlässe, 1 Jahr). Beim ersten Besuch wird bei Erfolgen und Meilensteinen nur der Ist-Stand gemerkt, Altes wird nicht nachgefeiert (`user_prefs.ach_seen_at`, `user_prefs.milestones`). Abschalten in „Mein Konto“ (`user_prefs.intros`). Admins testen jede Szene mit `?intro=<szene>` an einer beliebigen Seite (`newyear`, `xmas`, `easter`, `aam`, `botbday`, `yearreview`, `swarm`, `spring`, `join`, `ach`, `inat`, `reviews`). Auswahl: `utils/intro.py`.
+
+**Reverse-Proxy:** `intro.json` in die Allowlist aufnehmen; `static/intro.js` deckt `static/` schon ab.
 
 [↑ Zum Inhaltsverzeichnis](#inhaltsverzeichnis)
 
@@ -1301,17 +1519,17 @@ Beim ersten aktivierten Start legt das Board seine Tabellen in `BOARD_DB_FILE` s
 
 Optionale, **datenschutzfreundliche** Karte, auf der sich Community-Mitglieder freiwillig eintragen können, um ungefähr zu sehen, wer in der Nähe ist – plus eine öffentliche Termin-/Event-Ebene (Börsen/Treffen). Standardmäßig **aus** (`MAP_ENABLED=false`).
 
-**Datenschutz-Prinzipien:** Opt-in; nur **grober** Standort (Land + aus der PLZ abgeleitete, **zufällig verschobene** Näherungs-Koordinate, kein genauer Ort/Adresse); der **Discord-Name wird nicht gespeichert**, sondern live aus der ID aufgelöst (euer **Server-Anzeigename**/Nick), auf Wunsch ganz **ausblendbar**; optional nur ein **Vorname** (kein Nachname); **Kontakt** nur, wenn aktiv erlaubt (Standard: aus); optional nur **grobes PLZ-Gebiet** (letzte zwei Ziffern weg, Pin in der Gebietsmitte, eigene Pin-Farbe). Unbekannte PLZ werden abgelehnt. Alle Nutzertexte werden auf der Kartenseite HTML-maskiert, Event-Links nur mit `http(s)://`. Öffentlich sind nur **aggregierte Zahlen** je Region/Land – einzelne Pins und die Halter-Liste sehen nur über **„Login mit Discord"** angemeldete Server-Mitglieder. **Unter 18** → keine Einzel-Anzeige, aber **anonyme Mitzählung** in den Regionszahlen. **Auto-Löschung bei Server-Austritt**, jederzeit selbst löschbar (`/map_remove`) und **jährliche Bestätigung** (ohne Reaktion Löschung im nächsten Zyklus).
+**Datenschutz-Prinzipien:** Opt-in; nur **grober** Standort (Land + aus der PLZ abgeleitete, **zufällig verschobene** Näherungs-Koordinate, kein genauer Ort/Adresse); der **Discord-Name wird nicht gespeichert**, sondern live aus der ID aufgelöst (euer **Server-Anzeigename**/Nick), auf Wunsch ganz **ausblendbar**; optional nur ein **Vorname** (kein Nachname); **Kontakt** nur, wenn aktiv erlaubt (Standard: aus; dann sehen eingeloggte Mitglieder einen Link auf das Discord-Profil, der die Discord-User-ID enthält); optional nur **grobes PLZ-Gebiet** (letzte zwei Ziffern weg, Pin in der Gebietsmitte, eigene Pin-Farbe; die vollständige PLZ wird auch hier eingegeben, aber nur geprüft und **nicht gespeichert**). Gespeichert werden generell nie die volle PLZ, sondern nur Bundesland/Kanton, die ersten zwei PLZ-Ziffern und die verschobene Koordinate. Unbekannte PLZ werden abgelehnt. Alle Nutzertexte werden auf der Kartenseite HTML-maskiert, Event-Links nur mit `http(s)://`. Öffentlich sind nur **aggregierte Zahlen** je Region/Land – einzelne Pins und die Halter-Liste sehen nur über **„Login mit Discord"** angemeldete Server-Mitglieder. **Unter 18** → keine Einzel-Anzeige, aber **anonyme Mitzählung** in den Regionszahlen. **Auto-Löschung bei Server-Austritt**, jederzeit selbst löschbar (`/map_remove`) und **jährliche Bestätigung** (ohne Reaktion Löschung im nächsten Zyklus).
 
 **Geografie:** Karte nur für **DACH** (DE/AT/CH/LI, GeoJSON-Choropleth, umschaltbar Bundesland ⇄ PLZ-Gebiet); wer außerhalb lebt, erscheint in einer **Liste** neben der Karte. Karte rein als Vektor/GeoJSON mit **Leaflet** (self-hosted, keine externen Tiles).
 
-**Befehle:** `/map_join` (geführt per Auswahlmenüs und Formular: Land, 18+, Namensanzeige, Kontakt, Einwilligung per Button, dann PLZ/Vorname und Tags), `/map_tags` (Schlagworte), `/map_confirm`, `/map_remove`. Events: `/event_add` (geführt per Formular und Auswahlmenüs; alle dürfen einreichen → Betreiber bekommt eine **PN** zur Freigabe), Admin: `/event_pending` · `/event_approve` · `/event_reject` · `/event_edit` (beliebige Felder anpassen) · `/event_exclude` (einzelnen Serientermin absagen); `/map_refresh` lädt die Geodaten sofort neu. Termine zusätzlich als **ICS-Feed** `/map/events.ics` (Wiederholungen via iCal-RRULE).
+**Befehle:** `/map_join` (geführt per Auswahlmenüs und Formular: Land, 18+, Namensanzeige, Kontakt, Einwilligung per Button, dann PLZ/Vorname, Tags und optional **„Auch aktiv in“**), `/map_tags` (Schlagworte), `/map_confirm`, `/map_remove`. Events: `/event_add` (geführt per Formular und Auswahlmenüs; alle dürfen einreichen → Betreiber bekommt eine **PN** zur Freigabe), Admin: `/event_admin offen` · `/event_admin freigeben` · `/event_admin ablehnen` · `/event_admin bearbeiten` (beliebige Felder anpassen) · `/event_admin absagen` (einzelnen Serientermin absagen); `/wartung aktion:Karte` lädt die Geodaten sofort neu. **Freigabe per PN:** Die Betreiber-PN zu jedem Vorschlag hat die Buttons **Freigeben**, **Ablehnen** (mit optionalem Grund) und **Bearbeiten** (Titel, Datum, Uhrzeit, Ende, Ort); sie funktionieren auch nach einem Bot-Neustart. Die einreichende Person bekommt bei Freigabe/Ablehnung automatisch eine PN. **„Auch aktiv in“ (Pendler):** Im letzten Schritt von `/map_join` (nur 18+) lassen sich bis zu **2 weitere Bundesländer/Kantone** wählen (Land wählen → Region; CH in zwei Menüs, da Discord max. 25 Einträge pro Menü erlaubt). Gespeichert wird nur die Region (Tabelle `map_entry_regions`), kein Ort und kein zweiter Pin. Angemeldete Mitglieder sehen es im Pin-Popup und in der Liste („auch aktiv in …“, auch per Suche findbar) sowie im Regions-Popup („+ N auch hier aktiv“). Halter-Zahlen und Färbung zählen nur den Wohnort (keine Doppelzählung); öffentlich wird davon nichts angezeigt. Wechsel auf „unter 18“ und `/map_remove` bzw. Server-Austritt löschen die Regionen mit. **Erneutes `/map_join`** füllt Land, Alter, Optionen, Vorname, Tags und Zusatzregionen aus dem bestehenden Eintrag vor (die PLZ muss erneut eingegeben werden, da sie nie gespeichert wird). **Städte zur Orientierung:** Orte ab 50.000 Einwohnern plus Haupt- und Landeshauptstädte in DE/AT/CH/LI als nicht anklickbare Punkte mit Namen (unter den Pins). Je weiter hineingezoomt, desto mehr Orte; überlappende Namen werden ausgeblendet (nur Punkt). Ein-/Ausschalter „🏙️ Städte“ (wird im Browser gemerkt). Quelle: GeoNames-Länderdumps (CC BY 4.0), erzeugt `static/map_cities.json` per `/wartung aktion:Karte` bzw. `MAP_GEODATA_AUTO`; deutsche Schreibweise der Namen über die PLZ-Daten. Ohne Datei läuft die Karte ohne Städte. **Farben & Barrierefreiheit:** Umschalter „🎨 Farben“ mit *Standard*, *Farbsehschwäche* (Okabe-Ito-Palette für Kategorien, viridis für Mengen) und *Hoher Kontrast* (Okabe-Ito + cividis, weiße Ränder, größere Marker). Die Wahl wird nur im Browser gespeichert (`localStorage`), per Link wählbar mit `/map?colors=standard|cvd|contrast`; meldet der Browser `prefers-contrast: more`, startet die Karte im Kontrast-Modus. Unabhängig vom Modus unterscheiden sich Marker auch über die Form (WCAG 1.4.1): Halter = gefüllter Kreis, grobes PLZ-Gebiet = Ring, Termin = Quadrat mit Symbol je Art; eine Legende zeigt die Regionsstufen. **Kartenseite:** Tag-Filter (UND-Verknüpfung, wirkt auf Pins und Liste), Pin-Clustering mit Leaflet.markercluster (MIT; wird wie Leaflet per `/wartung aktion:Karte` bzw. `MAP_GEODATA_AUTO` nach `static/` geladen, ohne Datei ungeclustert), je Termin **„In Kalender“** (Einzeltermin als .ics) und **„Ich gehe hin“** (Teilnahme am nächsten Vorkommen, nur eingeloggt; am Vortag um 18 Uhr kommt eine **Erinnerungs-PN**; Anzahl und Namen sehen nur eingeloggte Mitglieder, Tabelle `map_event_rsvp`, Löschung 30 Tage nach dem Termin und beim Server-Austritt). Termine zusätzlich als **abonnierbarer ICS-Feed** `/map/events.ics` (RFC 5545: Zeitzone Europe/Berlin, ganztägige und mehrtägige Termine, Wiederholungen via RRULE/EXDATE, Abruf-Empfehlung 12 h). Auf der Kartenseite (Ansicht „Termine“) gibt es den Bereich **„Termine abonnieren“** mit `webcal://`-Button und kopierbarem Link (z. B. für Google Kalender: „Weitere Kalender hinzufügen → Per URL“). Für einen korrekten Link muss `BOARD_PUBLIC_URL` gesetzt sein. Mit Endzeit wird das echte Ende ausgeliefert; ist nur ein Enddatum angegeben, endet der Termin im Feed um 23:59 des letzten Tages. **Statistiken (`/map/stats.json`, `static/map_stats.js`):** ausklappbarer Kasten „📊 Statistiken“ – am Desktop unter der Karte, mobil zwischen Karte und Liste; Daten werden erst beim Aufklappen geladen, der Auf/Zu-Zustand wird nur im Browser gemerkt. *Öffentlich:* Kennzahlen (Halter, Länder, Regionen, kommende Termine), Top-5-Regionen, neue Einträge pro Monat (aktuelle Einträge nach Eintragsmonat, 12 Monate), Ländervergleich DE/AT/CH/LI/International, kommende Termine je Art und nächster Termin. *Mitglieder zusätzlich:* beliebteste Tags (Anteil der sichtbaren Einträge), Halter im Umkreis von 25/50/100 km um den eigenen (verschobenen) Pin, Kontaktbereitschaft gesamt und in der eigenen Region, beliebteste Termine nach Zusagen, eigene Zusagen und Regionen ohne Halter. **Datenschutz:** Ohne Login werden Zahlen unter 3 (`MAP_PUBLIC_MIN`) als „< 3“ angezeigt – in den Statistiken, in den Regions-/PLZ-Popups (`/map/regions.json`) und in der öffentlichen Länderliste. Unter-18-Einträge zählen nur in den Gesamtzahlen, nie in Tag-, Umkreis- oder Kontakt-Statistiken. **Rechte Spalte (unter Liste/Terminen):** Kasten **„🙌 Mitmachen“** (Kurzanleitung `/map_join`, `/map_tags`, `/event_add`, „Ich gehe hin“; optional Button „Discord-Server beitreten“ über `DISCORD_INVITE_URL`) und Kasten **„🤝 Partner“**. Partner kommen aus `legal/partners.json` (Vorlage `legal/partners.example.json`, max. 6 Einträge: `name`, `url` (nur https), `text` (max. 140 Zeichen), `logo`). Logos werden **selbst gehostet** aus `legal/partners/` ausgeliefert (`/partner-logo/<datei>`, nur PNG/JPG/WebP, nur in der Liste eingetragene Dateien) – es werden keine fremden Server geladen. Sobald Partner eingetragen sind, ist der Kasten mit **„Anzeige“** gekennzeichnet (§ 6 DDG) und die Links tragen `rel="sponsored"`. Ohne Datei erscheint auf der Karte ein Platzhalter mit Link zum Kontaktformular im Impressum (`/impressum#kontakt`). Sind Partner eingetragen, zeigen **alle anderen Board-Seiten** zusätzlich eine schmale, als „Anzeige“ gekennzeichnete **Partner-Leiste über dem Footer** (ohne Partner keine Leiste; auf der Karte keine doppelte Leiste). Beide sind gitignored. **Partner-Arten:** Feld `art` in `partners.json`: `verein` (Vereine/Projekte, gegenseitige Verlinkung, **ohne** „Anzeige“) oder `shop` (Standard; Shops/Hersteller gegen Community-Vorteil, **mit** „Anzeige“ je Eintrag und `rel="sponsored"`), optional `code` (Community-Rabattcode, nur bei `shop`). **Seiten `/partner` („Partner werden“: Regeln, nur Partnerschaften ohne Geld) und `/gewinnspiel` (Teilnahmebedingungen für Gewinnspiele auf dem AAM-Discord)** – Inhalt wie bei Impressum/Datenschutz aus `legal/partner.html` bzw. `legal/gewinnspiel.html` (gitignored), Vorlagen `legal/partner.example.html` / `legal/gewinnspiel.example.html`; verlinkt im Footer und im Partner-Kasten. Reverse-Proxy: `partner|gewinnspiel` in die Allowlist (deckt auch `/partner-logo/` ab).
 
 **Konfiguration (.env):** `MAP_ENABLED`, `MAP_GUILD_ID`, `MAP_JITTER_METERS` (Standard 3000), `MAP_MAX_ZOOM` (10), `MAP_REMIND_MONTHS` (12), `MAP_DELETE_MONTHS` (24), `MAP_GEODATA_AUTO` (Geodaten selbst laden) + `MAP_GEODATA_REFRESH_DAYS` (30) sowie für den Mitglieder-Login `BOARD_OAUTH_CLIENT_ID` / `BOARD_OAUTH_CLIENT_SECRET` / `BOARD_OAUTH_REDIRECT_URI` (Discord-OAuth2, nur Scope `identify`; Secrets **nicht** committen). Die Einreichungs-PN nutzt `BOARD_OWNER_ID`.
 
-**Externe Geodaten:** Der Bot besorgt sie **vollautomatisch** (`MAP_GEODATA_AUTO=true`, Intervall `MAP_GEODATA_REFRESH_DAYS`, oder manuell `/map_refresh`) über `utils/map_geodata.py` – alles stabile, offen lizenzierte Direkt-Quellen, **ohne** amtliche ZIPs oder Konvertierung: **Leaflet** (BSD-2), **geoBoundaries** (CC BY 4.0, GeoJSON-Umrisse DE/AT/CH-Bundesländer/Kantone + LI-Landesumriss) und die **GeoNames-PLZ-Dumps** (CC BY 4.0 → `data/plz_dach.csv` mit PLZ, Ort, Bundesland/Kanton, Koordinaten). Ohne den PLZ-Datensatz (z. B. vor dem ersten Download) läuft ein grober PLZ-Leitziffer-Fallback; sobald er geladen ist, werden unbekannte PLZ abgelehnt. **Pflicht-Attribution** (geoBoundaries · GeoNames · Leaflet) steht auf der Kartenseite.
+**Externe Geodaten:** Der Bot besorgt sie **vollautomatisch** (`MAP_GEODATA_AUTO=true`, Intervall `MAP_GEODATA_REFRESH_DAYS`, oder manuell `/wartung aktion:Karte`) über `utils/map_geodata.py` – alles stabile, offen lizenzierte Direkt-Quellen, **ohne** amtliche ZIPs oder Konvertierung: **Leaflet** (BSD-2), **geoBoundaries** (CC BY 4.0, GeoJSON-Umrisse DE/AT/CH-Bundesländer/Kantone + LI-Landesumriss) und die **GeoNames-PLZ-Dumps** (CC BY 4.0 → `data/plz_dach.csv` mit PLZ, Ort, Bundesland/Kanton, Koordinaten). Ohne den PLZ-Datensatz (z. B. vor dem ersten Download) läuft ein grober PLZ-Leitziffer-Fallback; sobald er geladen ist, werden unbekannte PLZ abgelehnt. **Pflicht-Attribution** (geoBoundaries · GeoNames · Leaflet) steht auf der Kartenseite.
 
-**Server:** nginx-Allowlist um `/map`, `/map/login`, `/map/callback`, `/map/regions.json`, `/map/pins.json`, `/map/list.json`, `/map/events.json`, `/map/events.ics` erweitern; im Discord Developer Portal die Redirect-URI eintragen.
+**Server:** nginx-Allowlist um `/map`, `/map/login`, `/map/callback`, `/map/regions.json`, `/map/pins.json`, `/map/list.json`, `/map/events.json`, `/map/stats.json`, `/map/events.ics`, das Präfix `/partner-logo/` sowie das Präfix `/map/events/` (Einzeltermin-Download `/map/events/<id>.ics`, Teilnahme `POST /map/events/<id>/rsvp`) erweitern; im Discord Developer Portal die Redirect-URI eintragen.
 
 > Hinweis: Vor Go-Live Datenschutzerklärung/Impressum rechtlich prüfen lassen (die Texte sind bereits um die Karte ergänzt).
 
@@ -1327,10 +1545,12 @@ Dieser Bot steht auf den Schultern anderer – vielen Dank an:
 - **[antcheck.info](https://antcheck.info)** – Datenquelle für Shops, Produkte, Varianten und Preise (Grabber + Preis-Tracking).
 - **[Frankfurter API](https://www.frankfurter.app)** – kostenlose Währungsumrechnung (EUR-Hinweise, EZB-Kurse).
 - **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api)** – offene, key-lose Wechselkurse als Fallback (150+ Währungen inkl. TWD).
-- **[iNaturalist](https://www.inaturalist.org)** – Taxon-Prüfung für den iNat-Tracker.
+- **[iNaturalist](https://www.inaturalist.org)** – öffentliche API für die iNat-Statistik (Bestimmung, Besitzer, Datum der Beobachtungen).
 - **[AntCat](https://antcat.org)** – World Catalog of Ants (REST-API `antcat.org/v1`) als **maßgebliche** Datenquelle für die Ameisen-Artenliste (Namensprüfung, Tippfehler-Vorschläge, Synonym-Auflösung, `canonical_species`). Danke an Brian Fisher & das AntCat-Team.
 - **[Anthropic Claude](https://www.anthropic.com)** – KI (Claude Haiku) für den Review- und Rabattcode-Parser sowie den optionalen KI-Chat.
-- **[Google Sheets / gspread](https://github.com/burnash/gspread)** – Ablage der Shopbewertungen und iNat-Ranglisten.
+- **[Google Sheets / gspread](https://github.com/burnash/gspread)** – Ablage der Shopbewertungen.
+- **[Wikipedia](https://www.wikipedia.org)** (CC BY-SA 4.0) und **[GBIF](https://www.gbif.org)** – Kurzbeschreibung und Verbreitung der Arten auf den Artseiten.
+- **[Leaflet](https://leafletjs.com)**, **[geoBoundaries](https://www.geoboundaries.org)** und **[GeoNames](https://www.geonames.org)** – Halter-Karte (Karte, Umrisse, PLZ und Städte).
 - **[py-cord](https://pycord.dev)** – Discord-Bibliothek (Slash Commands, Interaktionen).
 - **[Babel](https://babel.pocoo.org) (CLDR)** – lokalisierte Länder-/Sprachnamen.
 - **[matplotlib](https://matplotlib.org)** – lokal gerenderte Preisverlauf- und Ranking-Diagramme.

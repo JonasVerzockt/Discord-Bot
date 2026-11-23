@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS board_incidents (
     started_at  TEXT    DEFAULT (datetime('now')),
     ended_at    TEXT
 );
+-- Alarm-DMs an den Owner: je Vorfall höchstens eine Meldung (+ Eskalation/Entwarnung).
+CREATE TABLE IF NOT EXISTS board_alerts (
+    incident_id    INTEGER PRIMARY KEY,
+    check_key      TEXT    NOT NULL,
+    notified       INTEGER NOT NULL DEFAULT 0,   -- 1 = DM verschickt, 0 = unterdrückt (Drosselung)
+    state_sent     TEXT    DEFAULT '',
+    recovered_sent INTEGER NOT NULL DEFAULT 0,
+    sent_at        TEXT    DEFAULT (datetime('now'))
+);
 CREATE INDEX IF NOT EXISTS idx_board_status ON board_submissions(status);
 CREATE INDEX IF NOT EXISTS idx_board_comments_sub ON board_comments(submission_id);
 CREATE INDEX IF NOT EXISTS idx_board_incidents_key ON board_incidents(check_key, id DESC);

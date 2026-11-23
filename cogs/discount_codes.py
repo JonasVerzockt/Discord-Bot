@@ -66,6 +66,7 @@ from utils.embeds import send_embeds
 from utils.achievements import check_and_grant
 from utils.discount_parser import parse_codes
 from utils.link_resolver import resolve_shop_url
+from utils.shop import mapping_get, clean_shop_name, SHOP_ALIASES
 from cogs.server_settings import allowed_channel, admin_or_manage_messages
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,30 @@ def _shop_label(shopmap: dict, shop: str | None, url: str | None) -> str:
     return s if (s and s != "?") else "?"
 
 
+_PLACEHOLDER = {"?", "unbekannt", "unknown", "shopname", "shop", "n/a", "-", "none", ""}
+
+
+def _name_domain(revmap: dict, shop: str | None) -> str:
+    """Shopname ohne URL → Domain: shops-Tabelle (Name), shop_mapping.csv, Aliase."""
+    s = (shop or "").strip()
+    if s.casefold() in _PLACEHOLDER:
+        return ""
+    hit = revmap.get(s.casefold())
+    if hit:
+        return hit
+    m = mapping_get(s)
+    if m and "." in m and " " not in m:
+        return _domain(m)
+    c = clean_shop_name(s)
+    if c in SHOP_ALIASES.values() or (c != s and "." in c and " " not in c):
+        return _domain(c)
+    return ""
+
+
+def _canon_domain(revmap: dict, shop: str | None, url: str | None) -> str:
+    return _domain(clean_shop_name(_domain(url))) if url else _name_domain(revmap, shop)
+
+
 def _state(row, today: str, cutoff: str) -> str:
     """Gibt 'valid' | 'expired' | 'invalid' anhand Override + Datum + Alter."""
     ov = row["status_override"]
@@ -213,6 +238,54 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                 logger.warning(f"🏷️ Bild-Download fehlgeschlagen ({att.filename}): {e}")
         return images
 
+    async def _fill_shop(self, shop: str, url: str, author: str) -> tuple[str, str]:
+        """Shop/URL ergänzen statt '?': 1) Name → Domain (shops-Tabelle,
+        shop_mapping.csv), 2) Autor hat bisher nur Codes EINES Shops gepostet
+        (typisch für Shop-Betreiber) → dieser Shop."""
+        shop = (shop or "").strip()
+        if shop.casefold() in _PLACEHOLDER:
+            shop = ""
+        url = (url or "").strip()
+        if url:
+            return shop, url
+        revmap = await self._revmap()
+        dom = _name_domain(revmap, shop)
+        if not dom and author:
+            rows = await execute_db(
+                self.bot,
+                "SELECT shop, shop_url FROM discount_codes WHERE author=? AND shop_url<>''",
+                (author,), fetch=True) or []
+            doms = {_domain(r["shop_url"]) for r in rows}
+            if len(doms) == 1 and len(rows) >= 2:
+                dom = doms.pop()
+                shop = shop or rows[0]["shop"]
+                logger.info("🏷️ Shop über Autor ergänzt: %s → %s", author, dom)
+        if dom:
+            return shop or dom, ensure_url_scheme(dom)
+        return shop, ""
+
+    async def _shop_filter(self, shop: str) -> tuple[str, list]:
+        """SQL-Bedingung für den Shop-Filter der Admin-Befehle: trifft den
+        gespeicherten Namen ODER die Domain. So findet "HomeforAnts" auch einen
+        Eintrag, der als "homeforants.de" gespeichert ist."""
+        s = (shop or "").strip()
+        dom = _domain(s) if ("." in s and " " not in s) else ""
+        dom = dom or _name_domain(await self._revmap(), s)
+        if dom:
+            return " AND (lower(shop)=lower(?) OR lower(shop_url) LIKE ?)", [s, f"%{dom.lower()}%"]
+        return " AND lower(shop)=lower(?)", [s]
+
+    async def _revmap(self) -> dict:
+        """{shopname (klein): domain} aus der shops-Tabelle."""
+        rows = await execute_db(
+            self.bot, "SELECT name, url, url_override FROM shops", fetch=True) or []
+        out: dict = {}
+        for r in rows:
+            dom = _domain(r["url_override"] or r["url"])
+            if dom and (r["name"] or "").strip():
+                out.setdefault(r["name"].strip().casefold(), dom)
+        return out
+
     async def _process_messages(self, messages: list[discord.Message]) -> tuple[int, bool]:
         """
         Schickt den (zusammengeführten) Text und die Bild-Anhänge einer oder
@@ -242,7 +315,10 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         if api_called:
             date_str = anchor.created_at.strftime("%Y-%m-%d")
             try:
-                codes = await asyncio.to_thread(parse_codes, content, date_str, images)
+                author_label = " / ".join(x for x in (
+                    getattr(anchor.author, "name", ""),
+                    getattr(anchor.author, "display_name", "")) if x)
+                codes = await asyncio.to_thread(parse_codes, content, date_str, images, author_label)
             except Exception as e:
                 logger.error(f"❌ Haiku-Parse-Fehler (msg {mid}): {e}")
                 codes = []
@@ -255,6 +331,8 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                     logger.info("🏷️ Code verworfen (unplausibel): %r", _code)
                     continue
                 c["code"] = _code
+                c["shop"], c["shop_url"] = await self._fill_shop(
+                    c.get("shop", ""), c.get("shop_url", ""), getattr(anchor.author, "name", ""))
                 # Kurzlinks (share.google, bit.ly, …) und Google-Weiterleitungen
                 # zur echten Shop-Adresse auflösen + Tracking-Parameter entfernen.
                 shop_url = c["shop_url"]
@@ -407,20 +485,53 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         shop_rows = await execute_db(
             self.bot, "SELECT name, url, url_override FROM shops", fetch=True) or []
         shopmap: dict = {}
+        revmap: dict = {}
         for s in shop_rows:
             dom = _domain(s["url_override"] or s["url"])
             if dom and (s["name"] or "").strip():
                 shopmap.setdefault(dom, s["name"].strip())
+                revmap.setdefault(s["name"].strip().casefold(), dom)
 
-        # Zustand bestimmen, gültige zuerst → Dedup behält den gültigen Eintrag
+        # Kanonische Domain je Zeile (auch ohne URL über den Namen), damit
+        # "Special ants"/"Special Ants" oder "Antdealer shop"/"AntDealer" EIN Shop sind.
+        dom_of = {id(r): _canon_domain(revmap, r["shop"], r["shop_url"]) for r in rows}
+
+        def _key(r) -> str:
+            return dom_of[id(r)] or (r["shop"] or "").strip().lower()
+
+        # Zustand bestimmen, gültige zuerst, innerhalb davon die NEUESTE Nachricht
+        # → Dedup behält den gültigen und aktuellsten Eintrag.
         rank = {"valid": 0, "expired": 1, "invalid": 2}
         enriched = sorted(
             ((_state(r, today, cutoff), r) for r in rows),
-            key=lambda t: (rank[t[0]], _shop_key(t[1]["shop"], t[1]["shop_url"])),
+            key=lambda t: (t[1]["message_date"] or ""), reverse=True,
         )
+        enriched.sort(key=lambda t: (rank[t[0]], _key(t[1])))
+        # Alle Zeilen je (Shop, Code), neueste zuerst – zum Auffüllen fehlender
+        # Angaben (Rabatt, Mindestbestellwert) aus älteren Nachrichten.
+        groups: dict = {}
+        for _, r in sorted(((None, r) for r in rows),
+                           key=lambda t: t[1]["message_date"] or "", reverse=True):
+            groups.setdefault((_key(r), r["code"].lower()), []).append(r)
+
+        def _fill(r, field: str) -> str:
+            """Eigener Wert, sonst der neueste Wert desselben Codes. Befristete
+            Sonderaktionen (mit Enddatum) füllen keinen dauerhaften Eintrag auf."""
+            own = (r[field] or "").strip()
+            if own and own != "?":
+                return own
+            for o in groups.get((_key(r), r["code"].lower()), []):
+                v = (o[field] or "").strip()
+                if not v or v == "?":
+                    continue
+                if o["valid_until"] and not r["valid_until"]:
+                    continue
+                return v
+            return own
+
         seen, items = set(), []
         for state, r in enriched:
-            key = (_shop_key(r["shop"], r["shop_url"]), r["code"].lower())
+            key = (_key(r), r["code"].lower())
             if key in seen:
                 continue
             seen.add(key)
@@ -455,25 +566,29 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
                     validity = l10n.get("discount_open", lang)
 
             min_part = (
-                l10n.get("discount_min_order", lang, min_order=r["min_order"])
-                if r["min_order"] else ""
+                l10n.get("discount_min_order", lang, min_order=_fill(r, "min_order"))
+                if _fill(r, "min_order") else ""
             )
             entry = l10n.get(
                 "discount_entry", lang,
-                marker=marker, shop=_shop_label(shopmap, r["shop"], r["shop_url"]),
-                code=r["code"], discount=r["discount"] or "?",
+                marker=marker,
+                shop=(shopmap.get(dom_of[id(r)]) or dom_of[id(r)]
+                      or _shop_label(shopmap, r["shop"], r["shop_url"])),
+                code=r["code"], discount=_fill(r, "discount") or "?",
                 validity=validity, min_part=min_part,
             )
             if r["shop_url"]:
                 entry += f"\n<{ensure_url_scheme(r['shop_url'])}>"
+            elif dom_of[id(r)]:
+                entry += f"\n<{ensure_url_scheme(dom_of[id(r)])}>"
             lines.append(entry)
 
         await send_embeds(ctx, "\n".join(lines))
 
     @discord.slash_command(
         name="codes_set",
-        description="(Admin) Mark a code as valid / invalid / automatic",
-        description_localizations={"de": "(Admin) Code als gültig / ungültig / automatisch markieren"},
+        description="🔒 [Admin] Mark a code as valid / invalid / automatic",
+        description_localizations={"de": "🔒 [Admin] Code als gültig / ungültig / automatisch markieren"},
     )
     @admin_or_manage_messages()
     @allowed_channel()
@@ -499,8 +614,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         params: list = [override, code.strip()]
         query = "UPDATE discount_codes SET status_override=? WHERE lower(code)=lower(?)"
         if shop:
-            query += " AND lower(shop)=lower(?)"
-            params.append(shop.strip())
+            cond, args = await self._shop_filter(shop)
+            query += cond
+            params.extend(args)
 
         rc = await execute_db(self.bot, query, tuple(params), commit=True)
         if not rc:
@@ -516,8 +632,8 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
 
     @discord.slash_command(
         name="codes_date",
-        description="(Admin) Adjust the valid-until (and optional valid-from) date of a code",
-        description_localizations={"de": "(Admin) Gültig-bis- (und optional Gültig-ab-) Datum eines Codes anpassen"},
+        description="🔒 [Admin] Adjust the valid-until (and optional valid-from) date of a code",
+        description_localizations={"de": "🔒 [Admin] Gültig-bis- (und optional Gültig-ab-) Datum eines Codes anpassen"},
     )
     @admin_or_manage_messages()
     @allowed_channel()
@@ -572,8 +688,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         query = f"UPDATE discount_codes SET {', '.join(set_parts)} WHERE lower(code)=lower(?)"
         params.append(code.strip())
         if shop:
-            query += " AND lower(shop)=lower(?)"
-            params.append(shop.strip())
+            cond, args = await self._shop_filter(shop)
+            query += cond
+            params.extend(args)
 
         rc = await execute_db(self.bot, query, tuple(params), commit=True)
         if not rc:
@@ -588,8 +705,8 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
 
     @discord.slash_command(
         name="codes_edit",
-        description="(Admin) Adjust ANY field of a discount code",
-        description_localizations={"de": "(Admin) Beliebige Felder eines Rabattcodes anpassen"},
+        description="🔒 [Admin] Adjust ANY field of a discount code",
+        description_localizations={"de": "🔒 [Admin] Beliebige Felder eines Rabattcodes anpassen"},
     )
     @admin_or_manage_messages()
     @allowed_channel()
@@ -720,8 +837,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         query = f"UPDATE discount_codes SET {', '.join(set_parts)} WHERE lower(code)=lower(?)"
         params.append(code.strip())
         if shop:
-            query += " AND lower(shop)=lower(?)"
-            params.append(shop.strip())
+            cond, args = await self._shop_filter(shop)
+            query += cond
+            params.extend(args)
 
         try:
             rc = await execute_db(self.bot, query, tuple(params), commit=True)
@@ -741,58 +859,9 @@ class DiscountCodesCog(commands.Cog, name="DiscountCodes"):
         logger.info(f"🏷️ codes_edit: '{code}' (shop={shop or '*'}) → {len(changes)} Felder ({rc} Zeilen) von {ctx.author.id}")
 
     @discord.slash_command(
-        name="codes_fix_links",
-        description="(Admin) Resolve short links in already-stored codes to the real shop URL",
-        description_localizations={"de": "(Admin) Kurzlinks in bereits gespeicherten Codes zur echten Shop-URL auflösen"},
-    )
-    @admin_or_manage_messages()
-    @allowed_channel()
-    async def codes_fix_links(self, ctx: discord.ApplicationContext):
-        """Einmal-Migration: geht alle gespeicherten shop_url durch, löst Kurzlinks
-        auf und entfernt Tracking-Parameter. Kann jederzeit erneut laufen
-        (idempotent – bereits saubere Links bleiben unverändert)."""
-        await ctx.defer(ephemeral=True)
-        lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
-
-        rows = await execute_db(
-            self.bot,
-            "SELECT DISTINCT shop_url FROM discount_codes "
-            "WHERE shop_url IS NOT NULL AND shop_url <> ''",
-            fetch=True,
-        )
-        if not rows:
-            await ctx.followup.send(l10n.get("discount_fix_none", lang), ephemeral=True)
-            return
-
-        await ctx.followup.send(l10n.get("discount_fix_start", lang, count=len(rows)), ephemeral=True)
-
-        changed = 0
-        for r in rows:
-            old = r["shop_url"]
-            try:
-                new = await asyncio.to_thread(resolve_shop_url, old)
-            except Exception as e:
-                logger.warning(f"🔗 codes_fix_links: '{old}' nicht auflösbar: {e}")
-                continue
-            if new and new != old:
-                await execute_db(
-                    self.bot,
-                    "UPDATE discount_codes SET shop_url=? WHERE shop_url=?",
-                    (new, old), commit=True,
-                )
-                changed += 1
-                await asyncio.sleep(0.3)  # bei echten Netzwerk-Auflösungen kurz bremsen
-
-        await ctx.followup.send(
-            l10n.get("discount_fix_done", lang, checked=len(rows), changed=changed),
-            ephemeral=True,
-        )
-        logger.info(f"🔗 codes_fix_links: {len(rows)} Links geprüft, {changed} aktualisiert (von {ctx.author.id})")
-
-    @discord.slash_command(
         name="codes_rescan",
-        description="(Admin) Scan the discount channel for new messages",
-        description_localizations={"de": "(Admin) Rabattcode-Kanal nach neuen Nachrichten scannen"},
+        description="🔒 [Admin] Scan the discount channel for new messages",
+        description_localizations={"de": "🔒 [Admin] Rabattcode-Kanal nach neuen Nachrichten scannen"},
     )
     @admin_or_manage_messages()
     @allowed_channel()

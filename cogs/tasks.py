@@ -90,7 +90,10 @@ class TasksCog(commands.Cog, name="Tasks"):
                 logger.warning("⚠️ NotificationsCog nicht geladen – Verfügbarkeitsprüfung übersprungen")
                 return
 
+            from utils.account import is_quiet
             for row in rows:
+                if is_quiet(row["user_id"]):
+                    continue        # persönliche Ruhezeit: nach dem Ende beim nächsten Lauf
                 try:
                     excluded = set()
                     if row["excluded_species"]:
@@ -167,6 +170,17 @@ class TasksCog(commands.Cog, name="Tasks"):
                     ok = False
                     logger.error("❌ Pipeline-Schritt %s: %s", method, e, exc_info=True)
             steps.append((label, ok))
+
+        # Schritt 4: Saison-Statistik (Lagerstand je Art, für die Saison-Verfügbarkeit)
+        ok = True
+        try:
+            from utils import season
+            n = await season.record(self.bot)
+            logger.info(f"📅 Saison-Statistik: {n} Arten lagernd erfasst")
+        except Exception as e:
+            ok = False
+            logger.error(f"❌ Saison-Statistik: {e}", exc_info=True)
+        steps.append(("Saison-Statistik", ok))
 
         self.pipeline_last = {"at": now_berlin("%H:%M:%S"), "steps": steps}
 
