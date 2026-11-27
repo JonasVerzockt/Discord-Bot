@@ -29,6 +29,12 @@ BERLIN = ZoneInfo("Europe/Berlin")
 _DEFAULT_FMT = "%d.%m.%Y %H:%M %Z"
 
 
+def utc_naive() -> datetime:
+    """Jetzt in UTC OHNE Zeitzonen-Angabe – genau der Wert des veralteten datetime.utcnow().
+    Für Vergleiche mit naiven UTC-Zeiten aus SQLite (datetime('now')) und deren Textform."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _fmt_berlin(dt: datetime, fmt: str) -> str:
     """Formatiert eine (tz-bewusste) Berliner Zeit und stellt sicher, dass die
     Zeitzone klar als deutsches Kürzel MEZ/MESZ erscheint.

@@ -49,7 +49,11 @@ _UA = {"User-Agent": "AAM-Bot map-data fetch (+https://board.jonasants.de)"}
 # Direkt-Downloads (url -> Zielpfad).
 # WICHTIG: geoBoundaries liegt als Git-LFS -> echten Inhalt über media.githubusercontent.com/media
 # laden (raw.githubusercontent.com liefert nur den LFS-Zeiger). Alternativ die geoBoundaries-API.
-_GEO = "https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/main/releaseData/gbOpen"
+# Fester Stand (Commit) statt "main", damit sich Umrisse nicht unbemerkt ändern (wie bei Leaflet die
+# Version). Neuer Stand: `git ls-remote https://github.com/wmgeolab/geoBoundaries.git refs/heads/main`,
+# dann hier eintragen und tests/test_geodata_real.py auf dem Server laufen lassen.
+GEOBOUNDARIES_COMMIT = "8ce2700661a28ee944350e2b329bbabb58d2ff83"     # Stand 27.11.2026
+_GEO = f"https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/{GEOBOUNDARIES_COMMIT}/releaseData/gbOpen"
 SOURCES: list[tuple[str, Path]] = [
     ("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",  STATIC_DIR / "leaflet.js"),
     ("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", STATIC_DIR / "leaflet.css"),

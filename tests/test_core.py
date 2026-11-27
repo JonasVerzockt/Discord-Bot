@@ -142,3 +142,12 @@ def test_hmac_and_captcha():
     assert not _captcha_ok({"captcha": str(ans + 1), "captcha_sig": sig})
     assert not _captcha_ok({"captcha": "abc", "captcha_sig": sig})
     assert not _captcha_ok({"captcha": str(ans), "captcha_sig": ""})
+
+
+def test_utc_naive_matches_old_utcnow():
+    from datetime import datetime, timezone, timedelta
+    from utils.timez import utc_naive
+    a = utc_naive()
+    b = datetime.now(timezone.utc).replace(tzinfo=None)
+    assert a.tzinfo is None and abs(b - a) < timedelta(seconds=2)
+    assert utc_naive().isoformat().count("+") == 0                  # Export bleibt „…Z“ ohne „+00:00“

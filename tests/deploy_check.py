@@ -11,6 +11,7 @@ Geprüft wird:
   2. Alle Cogs aus main.py laden ohne Fehler, Slash-Befehle sind registriert.
   3. Die Web-Oberfläche baut ihre Routen; alle Templates sind gültiges Jinja2.
   4. Sprachdateien (locales/*.json, locales/board/*.json) sind gültiges JSON.
+  5. Prognose-Regionen stimmen mit den echten Umrissen (static/*.geojson), falls vorhanden.
 
 Exit-Code 0 = alles in Ordnung, 1 = Fehler (Details auf stdout).
 """
@@ -87,9 +88,29 @@ def _check_web() -> list[str]:
     return []
 
 
+def _check_geodata() -> list[str]:
+    """Regions-Zuordnung gegen die echten Umrisse (tests/geodata_check.py). Ohne Dateien: nichts zu prüfen."""
+    code = (
+        "import sys, tempfile; from pathlib import Path\n"
+        f"sys.path.insert(0, {str(TESTS)!r}); import board_snapshot as BS\n"
+        "BS._setup_env(Path(tempfile.mkdtemp()))\n"
+        "import geodata_check as G\n"
+        f"d = Path({str(ROOT / 'static')!r})\n"
+        "if not G.available(d): print('SKIP'); sys.exit(0)\n"
+        "errs = G.check(d)\n"
+        "print('\\n'.join(errs) or 'OK'); sys.exit(1 if errs else 0)\n"
+    )
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        tail = (r.stdout + r.stderr).strip().splitlines()[-15:]
+        return ["Prognose-Regionen falsch:\n    " + "\n    ".join(tail)]
+    return []
+
+
 def main() -> int:
     checks = [("Kompilieren", _check_compile), ("Sprachdateien", _check_json),
-              ("Cogs laden", _check_cogs), ("Web-Oberfläche", _check_web)]
+              ("Cogs laden", _check_cogs), ("Web-Oberfläche", _check_web),
+              ("Prognose-Regionen", _check_geodata)]
     failed = []
     for name, fn in checks:
         try:

@@ -30,6 +30,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from utils.timez import utc_naive
 
 import discord
 from discord.ext import commands
@@ -326,7 +327,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 "dm_log",
                 "quiet_offer_queue",
             ]
-            export: dict = {"exported_at": datetime.utcnow().isoformat() + "Z", "tables": {}}
+            export: dict = {"exported_at": utc_naive().isoformat() + "Z", "tables": {}}
             for table in tables:
                 try:
                     rows = await execute_db(

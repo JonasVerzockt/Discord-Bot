@@ -104,7 +104,7 @@ def clean_shop_name(s: str) -> str:
     s = re.sub(r'^https?://', '', s, flags=re.I)
     s = re.sub(r'^www\.', '', s, flags=re.I)
     if _PURE_URL.match(s):
-        s = re.split(r'[/?#]', s, 1)[0].lower()
+        s = re.split(r'[/?#]', s, maxsplit=1)[0].lower()
     s = s.rstrip("/").strip()
     return SHOP_ALIASES.get(s.casefold(), s)
 

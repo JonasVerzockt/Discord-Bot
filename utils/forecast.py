@@ -218,7 +218,8 @@ def _polys() -> list:
                 ring = poly[0]
                 xs = [p[0] for p in ring]
                 ys = [p[1] for p in ring]
-                out.append((c, code, ring, (min(xs), min(ys), max(xs), max(ys))))
+                # poly[1:] = Löcher (Enklaven wie Wien in Niederösterreich, Bremen in Niedersachsen)
+                out.append((c, code, ring, (min(xs), min(ys), max(xs), max(ys)), poly[1:]))
     return out
 
 
@@ -235,8 +236,11 @@ def _inside(lon, lat, ring) -> bool:
 
 
 def region_of(lat, lon, polys) -> tuple[str, str] | None:
-    for c, code, ring, (x0, y0, x1, y1) in polys:
-        if x0 <= lon <= x1 and y0 <= lat <= y1 and _inside(lon, lat, ring):
+    """Region des Punkts. Liegt er in einem Loch des Umrisses (Enklave), zählt das Polygon nicht –
+    sonst hinge das Ergebnis von der Reihenfolge in der Datei ab (Wien → Niederösterreich)."""
+    for c, code, ring, (x0, y0, x1, y1), holes in polys:
+        if x0 <= lon <= x1 and y0 <= lat <= y1 and _inside(lon, lat, ring) \
+                and not any(_inside(lon, lat, h) for h in holes):
             return c, code
     return None
 
