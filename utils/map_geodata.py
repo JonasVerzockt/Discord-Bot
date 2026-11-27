@@ -21,7 +21,7 @@ vollautomatisch und ohne externe Tools (kein ogr2ogr, keine amtlichen ZIPs).
 Quellen (alle offen lizenziert, stabile Direkt-URLs):
   • Leaflet (BSD-2)                     -> static/leaflet.js|css  (Kartenbibliothek)
   • Leaflet.markercluster (MIT)         -> static/leaflet.markercluster.js + MarkerCluster*.css
-  • geoBoundaries ADM1 (CC BY 4.0)      -> static/*_bundeslaender/kantone.geojson
+  • geoBoundaries ADM1 (Lizenz je Land, s. BOUNDARY_CREDITS) -> static/*_bundeslaender/kantone.geojson
   • GeoNames PLZ-Dumps (CC BY 4.0)      -> data/plz_dach.csv (PLZ+Ort+Region+Koordinaten)
   • GeoNames Länder-Dumps (CC BY 4.0)   -> static/map_cities.json (Orte ab 50.000 Einw. + Hauptstädte)
 
@@ -68,6 +68,83 @@ SOURCES: list[tuple[str, Path]] = [
     (f"{_GEO}/LIE/ADM1/geoBoundaries-LIE-ADM1_simplified.geojson", STATIC_DIR / "li_gemeinden.geojson"),
     (f"{_GEO}/LIE/ADM0/geoBoundaries-LIE-ADM0_simplified.geojson", STATIC_DIR / "li_land.geojson"),
 ]
+
+# Quellenangaben der Umrisse. geoBoundaries bündelt nur – die Lizenz kommt vom jeweiligen Bereitsteller
+# (laut den geoBoundaries-Metadaten des gepinnten Stands). Daraus bauen Karte und Schwarmflug-Seite ihren
+# Fußtext (boundary_credit_html). Pflichtangaben laut Lizenztext:
+#   DE dl-de/by-2-0 (govdata.de/dl-de/by-2-0): Bereitsteller, Lizenzvermerk mit Link, Verweis auf den
+#      Datensatz, Hinweis auf Änderung (die Umrisse sind vereinfacht)
+#   AT CC BY-SA 2.0: Urheber, Lizenz-Link, Änderungen angeben, Weitergabe unter gleichen Bedingungen
+#   CH swisstopo OGD: Quellenangabe „©swisstopo“ Pflicht
+#   LI OpenStreetMap (ODbL): OpenStreetMap und Mitwirkende nennen, auf /copyright verlinken
+# meta_license = Text in boundaryLicense der Metadaten; weicht er ab (neuer Pin), meldet refresh() das.
+BOUNDARY_CREDITS: list[dict] = [
+    {"cc": "de", "meta": "DEU/ADM1", "meta_license": "Data license Germany - Attribution - Version 2.0",
+     "by": "BKG", "by_url": "https://gdz.bkg.bund.de/index.php/default/digitale-geodaten/verwaltungsgebiete/"
+                            "nuts-gebiete-1-250-000-stand-31-12-nuts250-31-12.html",
+     "license": "dl-de/by-2-0", "license_url": "https://www.govdata.de/dl-de/by-2-0", "changed": True},
+    {"cc": "at", "meta": "AUT/ADM1", "meta_license": "Creative Commons Attribution-ShareAlike 2.0",
+     "by": "BEV", "by_url": "https://www.bev.gv.at/Services/Produkte/Kataster-und-Verzeichnisse/Verwaltungsgrenzen.html",
+     "license": "CC BY-SA 2.0", "license_url": "https://creativecommons.org/licenses/by-sa/2.0/", "changed": True},
+    {"cc": "ch", "meta": "CHE/ADM1", "meta_license": "Federal Office of Topography swisstopo License",
+     "by": "swisstopo", "by_url": "https://www.swisstopo.admin.ch/de/nutzungsbedingungen-kostenlose-geodaten-und-geodienste",
+     "license": "", "license_url": "", "changed": False},
+    {"cc": "li", "meta": "LIE/ADM0", "meta_license": "Open Data Commons Open Database License 1.0",
+     "by": "OSM", "by_url": "https://www.openstreetmap.org/copyright",
+     "license": "ODbL", "license_url": "https://opendatacommons.org/licenses/odbl/", "changed": False},
+    {"cc": "li", "meta": "LIE/ADM1", "meta_license": "Open Data Commons Open Database License 1.0", "dup": True},
+]
+META_DIR = Path(DATA_DIR) / "geo_meta"
+
+
+def _meta_url(meta: str) -> str:
+    iso, adm = meta.split("/")
+    return f"{_GEO}/{iso}/{adm}/geoBoundaries-{iso}-{adm}-metaData.json"
+
+
+def check_licenses(meta_dir: Path = META_DIR) -> list[str]:
+    """Vergleicht die Lizenz in den heruntergeladenen Metadaten mit BOUNDARY_CREDITS.
+    Rückgabe: Abweichungen (leer = Quellenangaben passen). Fehlende Metadaten zählen nicht."""
+    errs = []
+    for c in BOUNDARY_CREDITS:
+        f = Path(meta_dir) / (c["meta"].replace("/", "_") + ".json")
+        try:
+            lic = (json.loads(f.read_text(encoding="utf-8")).get("boundaryLicense") or "").strip()
+        except (OSError, ValueError):
+            continue
+        if lic != c["meta_license"]:
+            errs.append(f"{c['meta']}: Lizenz laut Metadaten „{lic}“, Quellenangabe nennt „{c['meta_license']}“")
+    return errs
+
+
+_CREDIT_WORDS = {
+    "de": {"osm": "OpenStreetMap-Mitwirkende", "changed": "vereinfacht", "via": "aufbereitet von"},
+    "en": {"osm": "OpenStreetMap contributors", "changed": "simplified", "via": "compiled by"},
+    "eo": {"osm": "kontribuantoj de OpenStreetMap", "changed": "simpligita", "via": "kompilita de"},
+}
+
+
+def boundary_credit_html(lang: str = "de") -> str:
+    """Quellenangabe der Umrisse als HTML (Links), z. B.
+    „DE © BKG (dl-de/by-2-0, vereinfacht) · AT © BEV (CC BY-SA 2.0, vereinfacht) · CH © swisstopo ·
+    LI © OpenStreetMap-Mitwirkende (ODbL) · aufbereitet von geoBoundaries“."""
+    from html import escape as esc
+    w = _CREDIT_WORDS.get(lang, _CREDIT_WORDS["de"])
+
+    def a(url, text):
+        return f'<a href="{esc(url)}" target=_blank rel=noopener>{esc(text)}</a>'
+    parts = []
+    for c in BOUNDARY_CREDITS:
+        if c.get("dup"):
+            continue
+        who = w["osm"] if c["by"] == "OSM" else c["by"]
+        extra = [a(c["license_url"], c["license"])] if c["license"] else []
+        if c["changed"]:
+            extra.append(esc(w["changed"]))
+        parts.append(f"{c['cc'].upper()} © {a(c['by_url'], who)}" + (f" ({', '.join(extra)})" if extra else ""))
+    parts.append(f"{esc(w['via'])} {a('https://www.geoboundaries.org', 'geoBoundaries')}")
+    return " · ".join(parts)
+
 
 # GeoNames-PLZ-Dumps: pro Land ein ZIP mit PLZ + Ort + Region + Koordinaten.
 GEONAMES = {"de": "DE", "at": "AT", "ch": "CH", "li": "LI"}
@@ -276,6 +353,13 @@ def refresh(force: bool = False) -> list[str]:
             out.append(_download(url, dest, force))
         except Exception as e:
             out.append(f"✗ {dest.name} ({e})")
+    for c in BOUNDARY_CREDITS:              # Lizenz-Metadaten mitladen (nur für check_licenses)
+        try:
+            _download(_meta_url(c["meta"]), META_DIR / (c["meta"].replace("/", "_") + ".json"), force)
+        except Exception:
+            pass
+    for e in check_licenses():
+        out.append(f"⚠ Quellenangabe prüfen: {e}")
     try:
         out.append(_build_plz(force))
     except Exception as e:

@@ -288,7 +288,7 @@
   "map_cal_copy": "Kopii",
   "map_cal_copied": "Kopiita ✓",
   "map_cal_hint": "La butono malfermas la kalendaran apon de via aparato (ekz. Apple Calendar, Outlook, Thunderbird). Por Google Calendar kopiu la ligilon kaj algluu ĝin ĉe “Aliaj kalendaroj → El URL”. Novaj kaj ŝanĝitaj eventoj venas aŭtomate.",
-  "map_attribution": "Limoj: © geoBoundaries (CC BY 4.0) · poŝtkodoj/lokoj: © GeoNames (CC BY 4.0) · mapo: Leaflet",
+  "map_attribution": "Limoj: {bounds} · poŝtkodoj/lokoj: © GeoNames (CC BY 4.0) · mapo: Leaflet",
   "map_assets_missing": "Mapa biblioteko mankas (static/leaflet.js) – vidu tools/MAP_DATA_README.md.",
   "map_disabled": "La bredista mapo estas nuntempe malŝaltita (MAP_ENABLED).",
   "map_oauth_unconfigured": "Discord-ensaluto ankoraŭ ne agordita (BOARD_OAUTH_*).",

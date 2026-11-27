@@ -32,6 +32,8 @@ from utils.board_i18n import (
     FLAG_TITLE, FLAGS, LANGS, pick_lang, T as _BI18N_T, translate, type_label,
 )
 from config import BASE_DIR, VERSION
+from markupsafe import Markup
+from utils.map_geodata import boundary_credit_html
 
 from web.core.partners import _load_partners
 from web.core.security import _aam_member, _chat_ttl, _chat_uid, _is_admin, _member_csrf
@@ -84,6 +86,8 @@ def _render(req, name, title="Board", flash="", **ctx):
                 # Partner-Leiste über dem Footer – nur wenn Partner eingetragen sind und nicht
                 # auf der Karte (dort steht der Partner-Kasten in der rechten Spalte).
                 partner_strip=(_load_partners() if name != "map" else []))
+    if name in ("map", "schwarmflug"):          # Quellenangabe der Umrisse (Lizenz je Land)
+        i18n["geo_credit"] = Markup(boundary_credit_html(lang))
     i18n["nav_member"] = bool(_aam_member(req))
     i18n["intro_v"] = _intro_asset_v()
     i18n["css_v"] = _css_asset_v()
