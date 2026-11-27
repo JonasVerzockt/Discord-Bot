@@ -288,7 +288,7 @@
   "map_cal_copy": "Kopieren",
   "map_cal_copied": "Kopiert ✓",
   "map_cal_hint": "Der Button öffnet die Kalender-App deines Geräts (z. B. Apple Kalender, Outlook, Thunderbird). Für Google Kalender den Link kopieren und unter „Weitere Kalender hinzufügen → Per URL“ einfügen. Neue und geänderte Termine kommen automatisch.",
-  "map_attribution": "Grenzen: © geoBoundaries (CC BY 4.0) · PLZ/Orte: © GeoNames (CC BY 4.0) · Karte: Leaflet",
+  "map_attribution": "Grenzen: {bounds} · PLZ/Orte: © GeoNames (CC BY 4.0) · Karte: Leaflet",
   "map_assets_missing": "Kartenbibliothek fehlt (static/leaflet.js) – siehe tools/MAP_DATA_README.md.",
   "map_disabled": "Die Halter-Karte ist aktuell deaktiviert (MAP_ENABLED).",
   "map_oauth_unconfigured": "Discord-Login ist noch nicht konfiguriert (BOARD_OAUTH_*).",

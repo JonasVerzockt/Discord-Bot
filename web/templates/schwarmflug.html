@@ -130,7 +130,7 @@
 <tr><td>{{ t('sw_cmp_temp') }}</td>{% for c in cmp.cols %}<td>{{ c.temp }}{% if c.temp_n %} <span class=muted style="font-size:11px">({{ c.temp_n }})</span>{% endif %}</td>{% endfor %}</tr></table></div>
 <p class=muted style="font-size:12px;margin:6px 0 0">{{ t('sw_cmp_note') }}</p></div>{% endif %}
 
-<p class=muted style="font-size:12px">ℹ️ {{ t('sw_note') }} · {{ t('sw_attrib') }} <a href="https://www.geoboundaries.org" target=_blank rel=noopener>geoBoundaries</a> (CC BY 4.0){% if osm %} · {{ t('sw_osm') }} <a href="https://www.openstreetmap.org/copyright" target=_blank rel=noopener>© OpenStreetMap-Mitwirkende</a> (ODbL){% endif %}</p>
+<p class=muted style="font-size:12px">ℹ️ {{ t('sw_note') }} · {{ t('sw_attrib') }} {{ geo_credit }}{% if osm %} · {{ t('sw_osm') }} <a href="https://www.openstreetmap.org/copyright" target=_blank rel=noopener>© OpenStreetMap-Mitwirkende</a> (ODbL){% endif %}</p>
 <script src="/static/leaflet.js?v={{ v }}"></script>
 <script src="/static/chart.umd.js?v={{ v }}"></script>
 <script>

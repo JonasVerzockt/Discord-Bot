@@ -288,7 +288,7 @@
   "map_cal_copy": "Copy",
   "map_cal_copied": "Copied ✓",
   "map_cal_hint": "The button opens your device's calendar app (e.g. Apple Calendar, Outlook, Thunderbird). For Google Calendar, copy the link and paste it under “Other calendars → From URL”. New and changed events arrive automatically.",
-  "map_attribution": "Boundaries: © geoBoundaries (CC BY 4.0) · postcodes/places: © GeoNames (CC BY 4.0) · map: Leaflet",
+  "map_attribution": "Boundaries: {bounds} · postcodes/places: © GeoNames (CC BY 4.0) · map: Leaflet",
   "map_assets_missing": "Map library missing (static/leaflet.js) – see tools/MAP_DATA_README.md.",
   "map_disabled": "The keeper map is currently disabled (MAP_ENABLED).",
   "map_oauth_unconfigured": "Discord login is not configured yet (BOARD_OAUTH_*).",

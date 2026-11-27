@@ -129,7 +129,7 @@
     </div>
   </div>
 </div>
-<p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution')|safe }}</p>
+<p class=muted style="margin-top:14px;font-size:12px">{{ t('map_attribution', bounds=geo_credit)|safe }}</p>
 <script>window.MAP_CFG={lang:"{{ lang }}",v:"{{ v }}",member:{{ 'true' if member else 'false' }},maxZoom:{{ max_zoom }},
  emptyText:"{{ t('map_list_empty') }}", tagNoMatch:"{{ t('map_tag_nomatch') }}", choroLabel:"{{ t('map_choro_label') }}",
  csrf:"{{ member_csrf }}",
