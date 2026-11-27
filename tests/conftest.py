@@ -28,3 +28,9 @@ import utils.currency as _cur  # noqa: E402
 _cur._RATES = {"EUR": 1.0, "CHF": 1.05, "USD": 0.92, "GBP": 1.17, "CAD": 0.68}
 _cur._LAST_FETCH = datetime.now(timezone.utc)
 _cur._fetch_rates_sync = lambda: None
+
+
+def pytest_configure(config):
+    # Veraltete naive UTC-Aufrufe (Python 3.12+) nicht wieder einschleppen: utils.timez.utc_naive nutzen
+    for fn in ("utcnow", "utcfromtimestamp"):
+        config.addinivalue_line("filterwarnings", rf"error:datetime\.datetime\.{fn}\(\) is deprecated:DeprecationWarning")

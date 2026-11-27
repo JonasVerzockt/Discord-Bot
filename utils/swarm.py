@@ -51,6 +51,8 @@ SUBGENERA = {"chthonolasius": "Lasius", "chtonolasius": "Lasius", "dendrolasius"
              "cautolasius": "Lasius", "acanthomyops": "Lasius", "serviformica": "Formica",
              "raptiformica": "Formica", "coptoformica": "Formica", "myrmentoma": "Camponotus",
              "tanaemyrmex": "Camponotus"}
+# „Gattung (Untergattung)“ bzw. „Gattung Untergattung“ (nur bekannte Untergattungen)
+_GEN_SUB = re.compile(r"\b([A-Za-z]+)\s*\(?\s*(" + "|".join(SUBGENERA) + r")\s*\)?(?![A-Za-z])", re.I)
 _SP = {"sp", "sp.", "spec", "spec.", "spp", "spp.", "species"}
 _CF = {"cf", "cf.", "aff", "aff."}
 _GROUP = {"gruppe", "group", "komplex", "complex", "agg", "agg.", "artengruppe", "gr", "gr."}
@@ -83,6 +85,10 @@ def parse_taxa(text: str) -> list[dict]:
     t = re.sub(r"[*_`]", " ", t)
     # Abgekürzte Gattung vor einem Artnamen: „L. fuliginosus“, „F. rufa“, „C. ligniperda“
     t = re.sub(r"\b([LFC])\.\s*(?=[a-z]{4,})", lambda m: {"L": "Lasius ", "F": "Formica ", "C": "Camponotus "}[m.group(1)], t)
+    # „Lasius (Chthonolasius) …“ / „Lasius Chthonolasius …“ ist EIN Taxon: Gattung vor der eigenen
+    # Untergattung weglassen (sonst entstünde zusätzlich „Lasius sp.“ und die Meldung zählte doppelt)
+    t = _GEN_SUB.sub(lambda m: m.group(2) if SUBGENERA[m.group(2).lower()].lower() == m.group(1).lower()
+                     else m.group(0), t)
     toks = re.findall(r"[A-Za-zÄÖÜäöüß]+\.?|\(|\)|,|/|\+|&", t)
     out, i = [], 0
     while i < len(toks):

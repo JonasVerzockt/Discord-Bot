@@ -32,7 +32,8 @@ Zeitplan:
 import asyncio
 import logging
 import random
-from datetime import datetime, timedelta, time as dtime
+from datetime import timedelta, time as dtime
+from utils.timez import utc_naive
 
 import discord
 from discord.ext import commands, tasks
@@ -56,7 +57,6 @@ class TasksCog(commands.Cog, name="Tasks"):
 
     def __init__(self, bot: discord.Bot):
         self.bot       = bot
-        self._start_time = datetime.utcnow()
         self._quote_deck: list = []   # gemischtes Deck für zufällige Status-Reihenfolge
         self.pipeline_last: dict | None = None   # letzter Daten-Pipeline-Lauf (fürs Dashboard)
         # Tasks starten
@@ -212,7 +212,7 @@ class TasksCog(commands.Cog, name="Tasks"):
     @tasks.loop(hours=24)
     async def expire_old_notifications(self):
         try:
-            cutoff = (datetime.utcnow() - timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+            cutoff = (utc_naive() - timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
             rows   = await execute_db(
                 self.bot,
                 """SELECT user_id, species, regions, server_id FROM notifications

@@ -32,6 +32,7 @@ import re
 import secrets
 import time
 from datetime import datetime, timedelta
+from utils.timez import utc_naive
 
 import discord
 
@@ -173,7 +174,7 @@ def install_dm_hook(bot) -> None:
 
 
 async def prune_dm_log(bot) -> None:
-    cut = (datetime.utcnow() - timedelta(days=DM_LOG_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+    cut = (utc_naive() - timedelta(days=DM_LOG_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
     await execute_db(bot, "DELETE FROM dm_log WHERE sent_at < ?", (cut,), commit=True)
     await execute_db(bot,
         "DELETE FROM dm_log WHERE id IN (SELECT d.id FROM dm_log d WHERE "
@@ -230,7 +231,7 @@ _EXPORT: list[tuple[str, str, bool]] = [
 async def export_user(bot, uid) -> dict:
     """Alle zu einer Discord-ID gespeicherten Daten (Art. 15 DSGVO)."""
     uid = str(int(uid))
-    data: dict = {"user_id": uid, "exported_at": datetime.utcnow().isoformat() + "Z"}
+    data: dict = {"user_id": uid, "exported_at": utc_naive().isoformat() + "Z"}
     for key, sql, as_int in _EXPORT:
         try:
             rows = await execute_db(bot, sql, (int(uid) if as_int else uid,), fetch=True) or []

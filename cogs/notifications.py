@@ -30,7 +30,8 @@ Interne Helfer:
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
+from utils.timez import utc_naive
 
 import discord
 from discord.ext import commands
@@ -299,7 +300,7 @@ class NotificationsCog(commands.Cog, name="Notifications"):
         await question.add_reaction("\U0001f44d")
         await question.add_reaction("\U0001f504")
 
-        pending_until = datetime.utcnow() + timedelta(hours=48)
+        pending_until = utc_naive() + timedelta(hours=48)
         await execute_db(
             self.bot,
             """UPDATE notifications SET status='pending_feedback', pending_feedback_until=?

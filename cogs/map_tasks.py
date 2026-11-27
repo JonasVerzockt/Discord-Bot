@@ -26,6 +26,7 @@ cogs/map_tasks.py – Hintergrund-Tasks der Halter-Karte.
 import asyncio
 import logging
 from datetime import datetime, timedelta, time as dtime
+from utils.timez import utc_naive
 
 import discord
 from discord.ext import commands, tasks
@@ -91,7 +92,7 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
         if not rows:
             return
         guild = self.bot.get_guild(MAP_GUILD_ID) if MAP_GUILD_ID else None
-        now = datetime.utcnow()
+        now = utc_naive()
         remind_cut = now - timedelta(days=MAP_REMIND_MONTHS * _MONTH_DAYS)
         delete_cut = now - timedelta(days=MAP_DELETE_MONTHS * _MONTH_DAYS)
         pruned = reminded = expired = 0
@@ -145,7 +146,7 @@ class MapTasksCog(commands.Cog, name="MapTasks"):
     # ── Event-Cleanup (vergangene Einmal-Events) ──────────────────────────────
     @tasks.loop(hours=24)
     async def event_cleanup(self):
-        cutoff = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
+        cutoff = (utc_naive() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
         rc = await execute_db(self.bot,
             "DELETE FROM map_events WHERE status='approved' "
             "AND (rrule IS NULL OR rrule='') AND COALESCE(end_at, start_at) < ?",

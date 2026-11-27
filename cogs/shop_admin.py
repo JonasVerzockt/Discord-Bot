@@ -28,7 +28,7 @@ Slash Commands (Admin/Mod):
   /ch_delivery list     – CH-Lieferliste anzeigen
 """
 import logging
-from datetime import datetime
+from utils.timez import utc_naive
 
 import discord
 from discord.ext import commands
@@ -292,7 +292,7 @@ class ShopAdminCog(commands.Cog, name="ShopAdmin"):
         rc = await execute_db(
             self.bot,
             "INSERT OR IGNORE INTO ch_delivery_shops (shop_id, added_by, added_at) VALUES (?, ?, ?)",
-            (shop_id, str(ctx.author.id), datetime.utcnow().strftime("%Y-%m-%d %H:%M")),
+            (shop_id, str(ctx.author.id), utc_naive().strftime("%Y-%m-%d %H:%M")),
             commit=True,
         )
         key = "ch_delivery_add_success" if rc else "ch_delivery_exists"

@@ -24,7 +24,7 @@ Slash Commands (Admin/Mod):
 """
 import logging
 import platform
-from datetime import datetime
+from datetime import datetime, timezone
 
 import discord
 import psutil
@@ -40,7 +40,7 @@ from utils.embeds import send_embeds, EMBED_COLOR, ADMIN_COLOR
 
 logger = logging.getLogger(__name__)
 
-_start_time = datetime.utcnow()
+_start_time = datetime.now(timezone.utc)
 
 
 class StatsCog(commands.Cog, name="Stats"):
@@ -101,7 +101,7 @@ class StatsCog(commands.Cog, name="Stats"):
         lang = await get_user_lang(self.bot, ctx.author.id, ctx.guild_id)
         try:
             # Uptime
-            uptime = datetime.utcnow() - _start_time
+            uptime = datetime.now(timezone.utc) - _start_time
             h, rem = divmod(int(uptime.total_seconds()), 3600)
             m      = rem // 60
             uptime_str = f"{h}h {m}m"
@@ -125,7 +125,7 @@ class StatsCog(commands.Cog, name="Stats"):
             import os
             try:
                 mtime = os.path.getmtime(SHOPS_DATA_FILE)
-                age   = datetime.utcnow() - datetime.utcfromtimestamp(mtime)
+                age   = datetime.now(timezone.utc) - datetime.fromtimestamp(mtime, timezone.utc)
                 ah, ar = divmod(int(age.total_seconds()), 3600)
                 am    = ar // 60
                 # %Z liefert CET/CEST → für die Anzeige klar als MEZ/MESZ kennzeichnen.

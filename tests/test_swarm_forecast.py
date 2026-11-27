@@ -71,6 +71,16 @@ def test_date_outside_window_falls_back_to_post_date():
     ("Formica.polyctena", ["Formica polyctena"]),
     ("Lasius ist geschwärmt", ["Lasius sp."]),                     # Füllwort ist kein Artname
     ("heute viele Ameisen", []),
+    # Gattung + eigene Untergattung = EIN Taxon (früher zusätzlich „Gattung sp.“ → doppelt gezählt)
+    ("Lasius (Chthonolasius) sp.", ["Lasius (Chthonolasius)"]),
+    ("lasius ( chthonolasius )", ["Lasius (Chthonolasius)"]),
+    ("Lasius Chthonolasius", ["Lasius (Chthonolasius)"]),
+    ("Lasius (Dendrolasius) fuliginosus", ["Lasius fuliginosus"]),
+    ("Formica (Serviformica) fusca", ["Formica fusca"]),
+    ("Camponotus (Myrmentoma) sp.", ["Camponotus (Myrmentoma)"]),
+    ("Gerade Lasius Chthonolasius geflogen", ["Lasius (Chthonolasius)"]),
+    ("Lasius niger, Lasius (Chthonolasius) sp.", ["Lasius niger", "Lasius (Chthonolasius)"]),
+    ("Lasius niger und Lasius sp.", ["Lasius niger", "Lasius sp."]),       # zwei echte Angaben bleiben
 ])
 def test_parse_taxa(text, labels):
     assert [S.taxon_label(t) for t in S.parse_taxa(text)] == labels
@@ -158,6 +168,11 @@ def test_km_and_point_in_region(tmp_path, monkeypatch):
     (tmp_path / "de_bundeslaender.geojson").write_text(json.dumps(feats(
         ({"shapeISO": "DE-BY"}, {"type": "Polygon", "coordinates": [_box(9, 47.3, 13.8, 50.5)]}),
         ({"shapeISO": "DE-BE"}, {"type": "MultiPolygon", "coordinates": [[_box(13.1, 52.3, 13.7, 52.7)]]}))))
+    # Enklave: Wien liegt als Loch in Niederösterreich und steht in der Datei DAHINTER
+    (tmp_path / "at_bundeslaender.geojson").write_text(json.dumps(feats(
+        ({"shapeISO": "AT-3"}, {"type": "Polygon", "coordinates": [_box(14.4, 47.4, 17.1, 49.0),
+                                                                   _box(16.18, 48.12, 16.58, 48.32)]}),
+        ({"shapeISO": "AT-9"}, {"type": "Polygon", "coordinates": [_box(16.18, 48.12, 16.58, 48.32)]}))))
     (tmp_path / "ch_kantone.geojson").write_text(json.dumps(feats(
         ({"shapeISO": "CH-ZH"}, {"type": "Polygon", "coordinates": [_box(8.36, 47.16, 8.98, 47.69)]}))))
     (tmp_path / "li_land.geojson").write_text(json.dumps(feats(
@@ -165,11 +180,13 @@ def test_km_and_point_in_region(tmp_path, monkeypatch):
         ({"shapeISO": "XX"}, {"type": "Polygon", "coordinates": [_box(0, 0, 1, 1)]}))))
     monkeypatch.setattr(F, "STATIC", tmp_path)
     polys = F._polys()
-    assert len(polys) == 4                                                   # „XX“ ohne Land-Kürzel entfällt
+    assert len(polys) == 6                                                   # „XX“ ohne Land-Kürzel entfällt
     assert F.region_of(48.137, 11.575, polys) == ("de", "BY")               # München
     assert F.region_of(52.52, 13.405, polys) == ("de", "BE")                # Berlin (MultiPolygon)
     assert F.region_of(47.377, 8.541, polys) == ("ch", "ZH")                # Zürich
     assert F.region_of(47.14, 9.52, polys) == ("li", "LI")                  # Vaduz
+    assert F.region_of(48.208, 16.373, polys) == ("at", "9")                # Wien (Loch in NÖ)
+    assert F.region_of(48.2, 15.6, polys) == ("at", "3")                    # St. Pölten
     assert F.region_of(40.4, -3.7, polys) is None                           # Madrid
 
 
@@ -427,3 +444,12 @@ def test_alert_loop_respects_quiet_and_indoor(sw):
     n_quiet, embeds = sw.run(c)
     assert n_quiet == 0 and len(embeds) == 1
     assert "Lasius niger" in embeds[0].description and "flavus" not in embeds[0].description   # Haltung zählt nicht
+
+
+def test_subgenus_report_stored_once(sw):
+    async def c(cog, bot, db):
+        m = _Msg("🐜 Art: Lasius (Dendrolasius) fuliginosus\n🗺️ Ort: Augsburg <@&7>", roles=[(7, "Bayern")])
+        n = await cog.process(m, use_ai=False, geo=False)
+        rows = await db(bot, "SELECT label FROM swarm_reports WHERE message_id=?", (str(m.id),), fetch=True)
+        return n, [r["label"] for r in rows]
+    assert sw.run(c) == (1, ["Lasius fuliginosus"])
